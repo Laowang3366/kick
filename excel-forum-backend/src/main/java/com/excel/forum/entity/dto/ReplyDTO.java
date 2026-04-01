@@ -1,0 +1,43 @@
+package com.excel.forum.entity.dto;
+
+import lombok.Data;
+
+@Data
+public class ReplyDTO {
+    private Long id;
+    private String content;
+    private Long postId;
+    private Long parentId;
+    private Integer likeCount;
+    private Integer status;
+    private String createTime;
+    private String createdAt;
+    private AuthorDTO author;
+    private Boolean isBestAnswer;
+    private Boolean isLiked;
+    private QuotedReplyDTO quotedReply;
+    private PostInfoDTO post;
+
+    @Data
+    public static class AuthorDTO {
+        private Long id;
+        private String username;
+        private String avatar;
+        private Integer level;
+        private Integer points;
+        private String role;
+    }
+
+    @Data
+    public static class QuotedReplyDTO {
+        private Long id;
+        private String content;
+        private AuthorDTO author;
+    }
+
+    @Data
+    public static class PostInfoDTO {
+        private Long id;
+        private String title;
+    }
+}

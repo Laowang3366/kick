@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+target/
+
+# Build output
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+.mvn/
+
+# Temp files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Uploads (if you want to exclude uploaded files)
+# uploads/
