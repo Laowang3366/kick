@@ -6,11 +6,11 @@ import com.excel.forum.entity.Post;
 import com.excel.forum.entity.Reply;
 import com.excel.forum.entity.User;
 import com.excel.forum.entity.dto.CategoryWithPostCount;
-import com.excel.forum.service.CategoryFollowService;
 import com.excel.forum.service.CategoryService;
 import com.excel.forum.service.PostService;
 import com.excel.forum.service.ReplyService;
 import com.excel.forum.service.UserService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -65,7 +65,7 @@ public class CategoryController {
         for (User user : allModerators) {
             if (user.getManagedCategories() != null && !user.getManagedCategories().isEmpty()) {
                 try {
-                    List<Integer> managedIds = objectMapper.readValue(user.getManagedCategories(), List.class);
+                    List<Integer> managedIds = objectMapper.readValue(user.getManagedCategories(), new TypeReference<List<Integer>>() {});
                     if (managedIds.contains(id.intValue())) {
                         Map<String, Object> mod = new HashMap<>();
                         mod.put("id", user.getId());

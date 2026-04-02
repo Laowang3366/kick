@@ -82,6 +82,7 @@ public class AdminController {
         String password = (String) body.get("password");
         String role = (String) body.get("role");
         Integer status = body.get("status") != null ? (Integer) body.get("status") : 0;
+        @SuppressWarnings("unchecked")
         List<Integer> managedCategories = (List<Integer>) body.get("managedCategories");
         
         if (username == null || username.isEmpty()) {
@@ -141,6 +142,7 @@ public class AdminController {
         String email = (String) body.get("email");
         String role = (String) body.get("role");
         Integer status = body.get("status") != null ? (Integer) body.get("status") : existingUser.getStatus();
+        @SuppressWarnings("unchecked")
         List<Integer> managedCategories = (List<Integer>) body.get("managedCategories");
         
         if (email != null) {

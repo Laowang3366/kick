@@ -24,7 +24,6 @@ public class UserController {
     private final ReplyService replyService;
     private final FavoriteService favoriteService;
     private final CategoryService categoryService;
-    private final LikeService likeService;
     private final FollowService followService;
     private final PostViewService postViewService;
     private final NotificationService notificationService;
@@ -101,7 +100,9 @@ public class UserController {
         if (body.containsKey("expertise")) {
             Object expertise = body.get("expertise");
             if (expertise instanceof List) {
-                user.setExpertise(String.join(",", (List<String>) expertise));
+                @SuppressWarnings("unchecked")
+                List<String> expertiseList = (List<String>) expertise;
+                user.setExpertise(String.join(",", expertiseList));
             } else if (expertise instanceof String) {
                 user.setExpertise((String) expertise);
             }

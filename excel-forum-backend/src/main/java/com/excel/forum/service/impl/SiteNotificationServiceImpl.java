@@ -71,7 +71,7 @@ public class SiteNotificationServiceImpl extends ServiceImpl<SiteNotificationMap
         userWrapper.eq("status", 0);
         
         if ("role".equals(notification.getTargetType()) && notification.getTargetRoles() != null) {
-            userWrapper.in("role", notification.getTargetRoles().split(","));
+            userWrapper.in("role", (Object[]) notification.getTargetRoles().split(","));
         }
         
         List<User> users = userService.list(userWrapper);

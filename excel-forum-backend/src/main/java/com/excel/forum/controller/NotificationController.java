@@ -82,9 +82,10 @@ public class NotificationController {
 
     @DeleteMapping("/batch")
     public ResponseEntity<?> deleteBatch(@RequestAttribute Long userId, @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
         java.util.List<Integer> ids = (java.util.List<Integer>) body.get("ids");
         if (ids != null && !ids.isEmpty()) {
-            notificationService.deleteBatch(userId, ids.stream().map(Long::valueOf).collect(java.util.stream.Collectors.toList()));
+            notificationService.deleteBatch(userId, ids.stream().map(id -> Long.valueOf(id.longValue())).collect(java.util.stream.Collectors.toList()));
         }
         return ResponseEntity.ok(Map.of("message", "删除成功"));
     }
