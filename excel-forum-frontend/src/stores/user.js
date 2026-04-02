@@ -7,6 +7,7 @@ export const useUserStore = defineStore('user', {
     user: JSON.parse(localStorage.getItem('user') || 'null') || {},
     isAuthenticated: !!localStorage.getItem('token'),
     unreadCount: 0,
+    unreadMessageCount: 0,
     authChecked: false
   }),
   getters: {
@@ -27,6 +28,7 @@ export const useUserStore = defineStore('user', {
         localStorage.setItem('token', response.token)
         localStorage.setItem('user', JSON.stringify(response.user))
         this.fetchUnreadCount()
+        this.fetchUnreadMessageCount()
         return response
       } catch (error) {
         throw error
@@ -56,6 +58,7 @@ export const useUserStore = defineStore('user', {
       this.user = {}
       this.isAuthenticated = false
       this.unreadCount = 0
+      this.unreadMessageCount = 0
       this.authChecked = false
       localStorage.removeItem('token')
       localStorage.removeItem('user')
@@ -83,6 +86,7 @@ export const useUserStore = defineStore('user', {
         await this.fetchUserInfo()
         this.isAuthenticated = true
         this.fetchUnreadCount()
+        this.fetchUnreadMessageCount()
         return true
       } catch (error) {
         this.clearAuth()
@@ -98,9 +102,29 @@ export const useUserStore = defineStore('user', {
         console.error('获取未读通知数失败:', error)
       }
     },
+    async fetchUnreadMessageCount() {
+      if (!this.isAuthenticated) return
+      try {
+        const response = await api.get('/messages/unread-count')
+        this.unreadMessageCount = response.unreadCount || 0
+      } catch (error) {
+        console.error('获取未读私信数失败:', error)
+      }
+    },
     updateUser(updates) {
       this.user = { ...this.user, ...updates }
       localStorage.setItem('user', JSON.stringify(this.user))
+    },
+    async updateProfile(form) {
+      const response = await api.put(`/users/${this.user.id}`, form)
+      // 后端返回的 expertise 是逗号字符串，转为数组
+      const updated = response
+      if (typeof updated.expertise === 'string' && updated.expertise) {
+        updated.expertise = updated.expertise.split(',').map(s => s.trim()).filter(Boolean)
+      } else if (!Array.isArray(updated.expertise)) {
+        updated.expertise = []
+      }
+      this.updateUser(updated)
     }
   }
 })

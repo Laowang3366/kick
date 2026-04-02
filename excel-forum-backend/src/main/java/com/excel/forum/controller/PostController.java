@@ -531,7 +531,7 @@ public class PostController {
         if (isOwner || isAdmin) {
             String reason = body != null ? body.get("reason") : null;
             
-            post.setStatus(1);
+            post.setStatus(99);
             postService.updateById(post);
             
             if (isAdmin && !isOwner && reason != null && !reason.isEmpty()) {

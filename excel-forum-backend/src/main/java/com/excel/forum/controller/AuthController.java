@@ -45,7 +45,11 @@ public class AuthController {
                 user.getUsername(),
                 user.getEmail(),
                 user.getAvatar(),
-                user.getRole()
+                user.getRole(),
+                user.getLevel(),
+                user.getPoints(),
+                user.getBio(),
+                user.getExpertise()
         );
 
         return ResponseEntity.ok(new AuthResponse(token, userDTO));
@@ -89,7 +93,11 @@ public class AuthController {
                 user.getUsername(),
                 user.getEmail(),
                 user.getAvatar(),
-                user.getRole()
+                user.getRole(),
+                user.getLevel(),
+                user.getPoints(),
+                user.getBio(),
+                user.getExpertise()
         );
 
         return ResponseEntity.ok(userDTO);
@@ -99,5 +107,74 @@ public class AuthController {
     public ResponseEntity<?> logout(@RequestAttribute Long userId) {
         userService.setOffline(userId);
         return ResponseEntity.ok("登出成功");
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<?> changePassword(
+            @RequestAttribute Long userId,
+            @RequestBody java.util.Map<String, String> body) {
+        
+        String oldPassword = body.get("oldPassword");
+        String newPassword = body.get("newPassword");
+        
+        if (oldPassword == null || oldPassword.isBlank()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "请输入当前密码"));
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "新密码长度至少6位"));
+        }
+        
+        User user = userService.getById(userId);
+        if (user == null) {
+            return ResponseEntity.status(404).body(java.util.Map.of("message", "用户不存在"));
+        }
+        
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "当前密码错误"));
+        }
+        
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userService.updateById(user);
+        
+        return ResponseEntity.ok(java.util.Map.of("message", "密码修改成功"));
+    }
+
+    @PutMapping("/email")
+    public ResponseEntity<?> changeEmail(
+            @RequestAttribute Long userId,
+            @RequestBody java.util.Map<String, String> body) {
+        
+        String newEmail = body.get("newEmail");
+        String password = body.get("password");
+        
+        if (newEmail == null || newEmail.isBlank()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "请输入新邮箱"));
+        }
+        if (!newEmail.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "邮箱格式不正确"));
+        }
+        if (password == null || password.isBlank()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "请输入密码确认身份"));
+        }
+        
+        User user = userService.getById(userId);
+        if (user == null) {
+            return ResponseEntity.status(404).body(java.util.Map.of("message", "用户不存在"));
+        }
+        
+        if (!passwordEncoder.matches(password, user.getPassword())) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "密码错误"));
+        }
+        
+        User existingUser = userService.findByEmail(newEmail);
+        if (existingUser != null && !existingUser.getId().equals(userId)) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "该邮箱已被其他用户使用"));
+        }
+        
+        user.setEmail(newEmail);
+        userService.updateById(user);
+        eventService.publishEvent(ForumEvent.userUpdated(userId));
+        
+        return ResponseEntity.ok(java.util.Map.of("message", "邮箱修改成功"));
     }
 }

@@ -90,7 +90,7 @@ public class MessageController {
         String notificationContent = sender.getUsername() + " 给您发送了一条私信";
         notificationService.createNotification(
             receiverId,
-            "interaction",
+            "message",
             notificationContent,
             message.getId(),
             userId

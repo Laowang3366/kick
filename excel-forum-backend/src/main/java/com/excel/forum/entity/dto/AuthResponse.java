@@ -17,5 +17,9 @@ public class AuthResponse {
         private String email;
         private String avatar;
         private String role;
+        private Integer level;
+        private Integer points;
+        private String bio;
+        private String expertise;
     }
 }

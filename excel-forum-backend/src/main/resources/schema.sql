@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     `status` TINYINT DEFAULT 0 COMMENT '0=正常, 1=禁用',
     `role` VARCHAR(20) DEFAULT 'user' COMMENT 'user, moderator, admin',
     `excel_level` VARCHAR(50) DEFAULT NULL,
+    `expertise` VARCHAR(255) DEFAULT NULL COMMENT '专长标签,逗号分隔',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -141,9 +142,10 @@ CREATE TABLE IF NOT EXISTS `message` (
 CREATE TABLE IF NOT EXISTS `notification` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `user_id` BIGINT NOT NULL,
-    `type` VARCHAR(20) NOT NULL COMMENT 'system, like, reply, favorite, follow',
+    `type` VARCHAR(20) NOT NULL COMMENT 'system, like, reply, favorite, follow, message, MENTION, post_deleted, post_review, site_notification',
     `content` TEXT NOT NULL,
     `related_id` BIGINT DEFAULT NULL,
+    `sender_id` BIGINT DEFAULT NULL COMMENT '发送者ID',
     `is_read` TINYINT DEFAULT 0,
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
@@ -190,4 +192,36 @@ CREATE TABLE IF NOT EXISTS `follow` (
     INDEX `idx_follow_user` (`follow_user_id`),
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`follow_user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 网站通知表
+CREATE TABLE IF NOT EXISTS `site_notification` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `title` VARCHAR(200) NOT NULL COMMENT '标题',
+    `content` TEXT NOT NULL COMMENT '内容',
+    `type` VARCHAR(20) DEFAULT 'system' COMMENT '类型: system/activity/update/urgent',
+    `status` VARCHAR(20) DEFAULT 'draft' COMMENT '状态: draft/sent',
+    `target_type` VARCHAR(20) DEFAULT 'all' COMMENT '目标类型: all/role',
+    `target_roles` VARCHAR(100) COMMENT '目标角色',
+    `read_count` INT DEFAULT 0 COMMENT '阅读数',
+    `total_count` INT DEFAULT 0 COMMENT '总接收数',
+    `created_by` BIGINT COMMENT '创建者ID',
+    `send_time` DATETIME COMMENT '发送时间',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_status` (`status`),
+    INDEX `idx_type` (`type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `category_follow` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT NOT NULL COMMENT '关注者',
+    `category_id` BIGINT NOT NULL COMMENT '关注的板块',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_category` (`user_id`, `category_id`),
+    INDEX `idx_category_id` (`category_id`),
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`category_id`) REFERENCES `category`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

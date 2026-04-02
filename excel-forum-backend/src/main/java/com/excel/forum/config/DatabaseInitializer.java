@@ -325,6 +325,29 @@ public class DatabaseInitializer {
 
             try {
                 jdbcTemplate.execute(
+                    "CREATE TABLE IF NOT EXISTS category_follow (" +
+                    "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
+                    "user_id BIGINT NOT NULL COMMENT '关注者', " +
+                    "category_id BIGINT NOT NULL COMMENT '关注的板块', " +
+                    "create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间', " +
+                    "UNIQUE KEY uk_user_category (user_id, category_id), " +
+                    "INDEX idx_category_id (category_id), " +
+                    "FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE, " +
+                    "FOREIGN KEY (category_id) REFERENCES category(id) ON DELETE CASCADE" +
+                    ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='板块关注表'"
+                );
+                log.info("创建 category_follow 表成功");
+            } catch (Exception e) {
+                String message = e.getMessage();
+                if (message != null && message.contains("already exists")) {
+                    log.info("category_follow 表已存在");
+                } else {
+                    log.warn("创建 category_follow 表时出现异常: {}", message);
+                }
+            }
+
+            try {
+                jdbcTemplate.execute(
                     "CREATE TABLE IF NOT EXISTS site_notification (" +
                     "id BIGINT AUTO_INCREMENT PRIMARY KEY, " +
                     "title VARCHAR(200) NOT NULL COMMENT '标题', " +

@@ -6,6 +6,7 @@ import com.excel.forum.entity.Post;
 import com.excel.forum.entity.Reply;
 import com.excel.forum.entity.User;
 import com.excel.forum.entity.dto.CategoryWithPostCount;
+import com.excel.forum.service.CategoryFollowService;
 import com.excel.forum.service.CategoryService;
 import com.excel.forum.service.PostService;
 import com.excel.forum.service.ReplyService;

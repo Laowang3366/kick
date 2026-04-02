@@ -70,6 +70,17 @@ const routes = [
         path: 'checkin',
         name: 'Checkin',
         component: () => import('../views/Checkin.vue')
+      },
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: () => import('../views/Settings.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'announcements',
+        name: 'Announcements',
+        component: () => import('../views/Announcement.vue')
       }
     ]
   },

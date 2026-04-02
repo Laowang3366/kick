@@ -70,7 +70,7 @@ public class ReplyController {
             String notificationContent = replier.getUsername() + " 回复了您的帖子《" + post.getTitle() + "》";
             notificationService.createNotification(
                 post.getUserId(),
-                "interaction",
+                "reply",
                 notificationContent,
                 postId
             );

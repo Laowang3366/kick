@@ -20,7 +20,7 @@
       
       <el-empty v-if="posts.length === 0 && !loading" description="暂无待审核帖子" />
       
-      <el-table v-else :data="posts" style="width: 100%" v-loading="loading" stripe>
+      <el-table v-else :data="posts" style="width: 100%" v-loading="loading" stripe border>
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
@@ -234,6 +234,16 @@ onMounted(() => {
   box-shadow: var(--card-shadow);
   backdrop-filter: blur(10px);
   overflow: hidden;
+}
+
+.management-card :deep(.el-table .el-table__cell) {
+  padding: 4px 0;
+}
+
+.management-card :deep(.el-table .cell) {
+  padding-left: 8px;
+  padding-right: 8px;
+  line-height: 1.5;
 }
 
 .card-header {

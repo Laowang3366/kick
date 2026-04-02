@@ -25,4 +25,8 @@ public class ForumEventService {
     public void publishCategoryEvent(ForumEvent event) {
         messagingTemplate.convertAndSend("/topic/categories", event);
     }
+
+    public void publishNotificationEvent(Long userId, Object notification) {
+        messagingTemplate.convertAndSend("/topic/notifications/user/" + userId, notification);
+    }
 }

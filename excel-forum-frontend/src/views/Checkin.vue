@@ -46,6 +46,17 @@
       <div class="calendar-card">
         <h3>签到日历</h3>
         <el-calendar v-model="calendarDate">
+          <template #header="{ date }">
+            <div class="calendar-header">
+              <el-button size="small" @click="selectPrevMonth">
+                <el-icon><ArrowLeft /></el-icon>
+              </el-button>
+              <span class="calendar-title">{{ formatCalendarTitle(date) }}</span>
+              <el-button size="small" @click="selectNextMonth">
+                <el-icon><ArrowRight /></el-icon>
+              </el-button>
+            </div>
+          </template>
           <template #date-cell="{ data }">
             <div class="calendar-cell" :class="{ 'checked': isCheckinDay(data.day) }">
               {{ data.day.split('-')[2] }}
@@ -125,12 +136,14 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useUserStore } from '../stores/user'
 import { ElMessage } from 'element-plus'
-import { Calendar, CircleCheck, Trophy, Medal, Present } from '@element-plus/icons-vue'
+import { Calendar, CircleCheck, Trophy, Medal, Present, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 const hasCheckedIn = ref(false)
 const calendarDate = ref(new Date())
 const userPoints = ref(150)
+
+const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 
 const checkinStats = reactive({
   continuousDays: 7,
@@ -149,6 +162,25 @@ const shopItems = ref([
 
 const isCheckinDay = (day) => {
   return checkinDays.value.includes(day)
+}
+
+const formatCalendarTitle = (date) => {
+  const d = new Date(date)
+  const year = d.getFullYear()
+  const month = d.getMonth() + 1
+  return `${year}年${month}月`
+}
+
+const selectPrevMonth = () => {
+  const d = new Date(calendarDate.value)
+  d.setMonth(d.getMonth() - 1)
+  calendarDate.value = d
+}
+
+const selectNextMonth = () => {
+  const d = new Date(calendarDate.value)
+  d.setMonth(d.getMonth() + 1)
+  calendarDate.value = d
 }
 
 const handleCheckin = () => {
@@ -174,16 +206,16 @@ onMounted(() => {
 
 <style scoped>
 .checkin-page {
-  padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
+  padding: 24px;
 }
 
 .page-header {
   text-align: center;
   margin-bottom: 32px;
   padding: 32px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   border-radius: 24px;
   color: white;
 }
@@ -207,10 +239,11 @@ onMounted(() => {
 }
 
 .checkin-card {
-  background: white;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 24px;
   padding: 32px;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
+  box-shadow: var(--card-shadow);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -222,13 +255,13 @@ onMounted(() => {
 }
 
 .checkin-status.checked-in {
-  color: #67c23a;
+  color: var(--success-color);
 }
 
 .status-icon {
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #f0f2ff 0%, #e8ebff 100%);
+  background: var(--bg-tertiary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -237,12 +270,12 @@ onMounted(() => {
 }
 
 .checkin-status.checked-in .status-icon {
-  background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%);
+  background: linear-gradient(135deg, var(--success-color) 0%, #34d399 100%);
 }
 
 .status-icon .el-icon {
   font-size: 40px;
-  color: #667eea;
+  color: var(--text-secondary);
 }
 
 .checkin-status.checked-in .status-icon .el-icon {
@@ -252,13 +285,13 @@ onMounted(() => {
 .checkin-status h2 {
   font-size: 24px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .checkin-status p {
   font-size: 14px;
-  color: #95a5a6;
+  color: var(--text-tertiary);
 }
 
 .checkin-stats {
@@ -268,8 +301,8 @@ onMounted(() => {
   margin-bottom: 24px;
   width: 100%;
   padding: 20px 0;
-  border-top: 1px solid #f0f2ff;
-  border-bottom: 1px solid #f0f2ff;
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .stat-item {
@@ -280,12 +313,12 @@ onMounted(() => {
   display: block;
   font-size: 28px;
   font-weight: 700;
-  color: #667eea;
+  color: var(--primary-color);
 }
 
 .stat-label {
   font-size: 13px;
-  color: #95a5a6;
+  color: var(--text-tertiary);
 }
 
 .checkin-btn {
@@ -293,30 +326,133 @@ onMounted(() => {
   height: 48px;
   font-size: 16px;
   border-radius: 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   border: none;
 }
 
 .checkin-btn:hover:not(:disabled) {
   transform: scale(1.05);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
 }
 
 .checkin-btn:disabled {
-  background: #e0e0e0;
+  background: var(--bg-tertiary);
+  color: var(--text-disabled);
 }
 
 .calendar-card {
-  background: white;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 24px;
   padding: 24px;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
+  box-shadow: var(--card-shadow);
 }
 
 .calendar-card h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
   margin-bottom: 16px;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 12px;
+}
+
+.calendar-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.calendar-header .el-button {
+  background: var(--bg-secondary);
+  border: none;
+  color: var(--text-secondary);
+}
+
+.calendar-header .el-button:hover {
+  background: var(--bg-tertiary);
+  color: var(--primary-color);
+}
+
+.calendar-card :deep(.el-calendar-table) {
+  border-collapse: separate;
+  border-spacing: 4px;
+}
+
+.calendar-card :deep(.el-calendar-table thead) {
+  display: table-header-group;
+}
+
+.calendar-card :deep(.el-calendar-table th) {
+  padding: 8px 0;
+  font-size: 0;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  background: var(--bg-secondary);
+  border: none;
+  position: relative;
+}
+
+.calendar-card :deep(.el-calendar-table th:nth-child(1))::after {
+  content: '日';
+  font-size: 13px;
+}
+
+.calendar-card :deep(.el-calendar-table th:nth-child(2))::after {
+  content: '一';
+  font-size: 13px;
+}
+
+.calendar-card :deep(.el-calendar-table th:nth-child(3))::after {
+  content: '二';
+  font-size: 13px;
+}
+
+.calendar-card :deep(.el-calendar-table th:nth-child(4))::after {
+  content: '三';
+  font-size: 13px;
+}
+
+.calendar-card :deep(.el-calendar-table th:nth-child(5))::after {
+  content: '四';
+  font-size: 13px;
+}
+
+.calendar-card :deep(.el-calendar-table th:nth-child(6))::after {
+  content: '五';
+  font-size: 13px;
+}
+
+.calendar-card :deep(.el-calendar-table th:nth-child(7))::after {
+  content: '六';
+  font-size: 13px;
+}
+
+.calendar-card :deep(.el-calendar-table td) {
+  border: none;
+  padding: 0;
+}
+
+.calendar-card :deep(.el-calendar-day) {
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.calendar-card :deep(.el-calendar-day:hover) {
+  background: var(--bg-tertiary);
 }
 
 .calendar-cell {
@@ -329,7 +465,7 @@ onMounted(() => {
 }
 
 .calendar-cell.checked {
-  color: #667eea;
+  color: var(--primary-color);
   font-weight: 600;
 }
 
@@ -338,21 +474,22 @@ onMounted(() => {
   bottom: 2px;
   right: 2px;
   font-size: 10px;
-  color: #67c23a;
+  color: var(--success-color);
 }
 
 .rewards-section, .points-shop {
-  background: white;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 24px;
   padding: 24px;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
+  box-shadow: var(--card-shadow);
   margin-bottom: 24px;
 }
 
 .rewards-section h3, .points-shop h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
   margin-bottom: 20px;
 }
 
@@ -366,13 +503,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 16px;
-  background: #f8f9ff;
+  background: var(--bg-secondary);
   border-radius: 16px;
   transition: all 0.3s ease;
 }
 
 .reward-item:hover {
-  background: #f0f2ff;
+  background: var(--bg-tertiary);
   transform: translateY(-2px);
 }
 
@@ -388,11 +525,11 @@ onMounted(() => {
 }
 
 .reward-icon.basic {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
 }
 
 .reward-icon.continuous {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
 }
 
 .reward-icon.monthly {
@@ -411,13 +548,13 @@ onMounted(() => {
 .reward-info h4 {
   font-size: 14px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .reward-info p {
   font-size: 13px;
-  color: #667eea;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -428,7 +565,7 @@ onMounted(() => {
 }
 
 .shop-item {
-  background: #f8f9ff;
+  background: var(--bg-secondary);
   border-radius: 16px;
   overflow: hidden;
   transition: all 0.3s ease;
@@ -436,12 +573,12 @@ onMounted(() => {
 
 .shop-item:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
+  box-shadow: var(--card-shadow);
 }
 
 .item-image {
   height: 100px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -459,13 +596,13 @@ onMounted(() => {
 .item-info h4 {
   font-size: 14px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .item-info p {
   font-size: 12px;
-  color: #95a5a6;
+  color: var(--text-tertiary);
   margin-bottom: 12px;
 }
 
@@ -478,7 +615,7 @@ onMounted(() => {
 .item-points {
   font-size: 14px;
   font-weight: 600;
-  color: #667eea;
+  color: var(--primary-color);
 }
 
 @media (max-width: 1024px) {

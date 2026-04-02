@@ -24,7 +24,10 @@
         <el-badge :value="userStore.unreadCount" :hidden="!userStore.unreadCount" class="notification-badge">
           <el-button :icon="Bell" circle @click="$router.push('/notifications')" />
         </el-badge>
-        <el-dropdown v-if="userStore.isAuthenticated" trigger="click">
+        <el-badge v-if="userStore.isAuthenticated" :value="userStore.unreadMessageCount" :hidden="!userStore.unreadMessageCount" class="notification-badge">
+          <el-button :icon="ChatDotRound" circle @click="$router.push('/messages')" />
+        </el-badge>
+        <el-dropdown v-if="userStore.isAuthenticated" trigger="hover">
           <el-avatar :src="userStore.user.avatar" :size="32" class="user-avatar">
             {{ userStore.user.username?.charAt(0) }}
           </el-avatar>
@@ -33,8 +36,8 @@
               <el-dropdown-item @click="$router.push(`/user/${userStore.user.id}`)">
                 个人中心
               </el-dropdown-item>
-              <el-dropdown-item @click="$router.push('/messages')">
-                私信
+              <el-dropdown-item @click="$router.push('/settings')">
+                账户设置
               </el-dropdown-item>
               <el-dropdown-item v-if="userStore.user.role === 'admin'" @click="router.push('/admin')">
                 后台管理
@@ -89,51 +92,54 @@
       <el-icon><ArrowDown /></el-icon>
     </div>
     
-    <el-container class="main-container">
-      <Transition name="aside-fade">
-        <el-aside v-show="!asideCollapsed" width="220px" class="aside">
-          <div class="aside-header">
-            <span class="aside-title">导航菜单</span>
-            <el-button 
-              class="collapse-btn" 
-              @click="toggleAside"
-              text
+    <div class="page-body">
+      <div class="aside-wrapper">
+        <Transition name="aside-fade">
+          <div v-show="!asideCollapsed" class="aside">
+            <div class="aside-header">
+              <span class="aside-title">导航菜单</span>
+              <el-button 
+                class="collapse-btn" 
+                @click="toggleAside"
+                text
+              >
+                <el-icon><Fold /></el-icon>
+              </el-button>
+            </div>
+            <el-menu
+              :default-active="activeMenu"
+              class="sidebar-menu"
+              @select="handleMenuSelect"
             >
-              <el-icon><Fold /></el-icon>
-            </el-button>
+              <el-menu-item index="home">
+                <el-icon><HomeFilled /></el-icon>
+                <span>首页</span>
+              </el-menu-item>
+              <el-menu-item index="forums" v-if="forums.length > 0">
+                <el-icon><ChatDotRound /></el-icon>
+                <span>版块导航</span>
+              </el-menu-item>
+              <el-menu-item index="practice">
+                <el-icon><EditPen /></el-icon>
+                <span>小试牛刀</span>
+              </el-menu-item>
+              <el-menu-item index="following">
+                <el-icon><Star /></el-icon>
+                <span>我的关注</span>
+              </el-menu-item>
+              <el-menu-item index="checkin">
+                <el-icon><Calendar /></el-icon>
+                <span>积分签到</span>
+              </el-menu-item>
+            </el-menu>
           </div>
-          <el-menu
-            :default-active="activeMenu"
-            class="sidebar-menu"
-            @select="handleMenuSelect"
-          >
-            <el-menu-item index="home">
-              <el-icon><HomeFilled /></el-icon>
-              <span>首页</span>
-            </el-menu-item>
-            <el-menu-item index="forums" v-if="forums.length > 0">
-              <el-icon><ChatDotRound /></el-icon>
-              <span>版块导航</span>
-            </el-menu-item>
-            <el-menu-item index="practice">
-              <el-icon><EditPen /></el-icon>
-              <span>小试牛刀</span>
-            </el-menu-item>
-            <el-menu-item index="following">
-              <el-icon><Star /></el-icon>
-              <span>我的关注</span>
-            </el-menu-item>
-            <el-menu-item index="checkin">
-              <el-icon><Calendar /></el-icon>
-              <span>积分签到</span>
-            </el-menu-item>
-          </el-menu>
-        </el-aside>
-      </Transition>
-      <div v-if="asideCollapsed" class="aside-collapsed-trigger" @click="toggleAside">
-        <el-icon><Expand /></el-icon>
-        <span>展开菜单</span>
+        </Transition>
+        <div v-if="asideCollapsed" class="aside-collapsed-trigger" @click="toggleAside">
+          <el-icon><Expand /></el-icon>
+          <span>展开菜单</span>
+        </div>
       </div>
+      
       <el-main class="main-content" :class="{ 'full-width': asideCollapsed }">
         <router-view v-slot="{ Component, route }">
           <Transition :name="route.name === 'CreatePost' || route.name === 'EditPost' ? 'slide-up' : 'fade'">
@@ -141,7 +147,7 @@
           </Transition>
         </router-view>
       </el-main>
-    </el-container>
+    </div>
     <el-footer class="footer">
       <div>© 2026 Excel论坛 版权所有</div>
     </el-footer>
@@ -276,13 +282,25 @@ const fetchUnreadNotifications = async () => {
   }
 }
 
+const fetchUnreadMessages = async () => {
+  if (!userStore.isAuthenticated) return
+  try {
+    const response = await api.get('/messages/unread-count')
+    userStore.unreadMessageCount = response.unreadCount
+  } catch (error) {
+    console.error('获取未读私信数失败:', error)
+  }
+}
+
 const startNotificationPolling = () => {
   if (!userStore.isAuthenticated) return
   
   fetchUnreadNotifications()
+  fetchUnreadMessages()
   
   setInterval(() => {
     fetchUnreadNotifications()
+    fetchUnreadMessages()
   }, 30000)
 }
 
@@ -350,6 +368,8 @@ onMounted(() => {
 <style scoped>
 .layout-container {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -689,14 +709,18 @@ onMounted(() => {
 }
 
 .notification-badge :deep(.el-button) {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: all 0.3s ease;
 }
 
 .notification-badge :deep(.el-button:hover) {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.6);
   transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .user-avatar {
@@ -757,23 +781,39 @@ onMounted(() => {
   min-height: calc(100vh - 140px);
 }
 
+.page-body {
+  display: flex;
+  flex: 1;
+  position: relative;
+  overflow: visible;
+}
+
+.aside-wrapper {
+  position: sticky;
+  top: 70px;
+  height: fit-content;
+  max-height: calc(100vh - 70px);
+  flex-shrink: 0;
+  z-index: 50;
+  align-self: flex-start;
+}
+
+.aside-wrapper > * {
+  pointer-events: auto;
+}
+
 .aside {
   background-color: var(--bg-primary);
   background: linear-gradient(180deg, #ffffff 0%, #f8f9ff 100%);
   box-shadow: 4px 0 20px rgba(102, 126, 234, 0.12);
   width: 240px;
+  height: calc(100vh - 70px);
   overflow-y: auto;
   padding: 16px 12px;
   border-right: 3px solid transparent;
   border-image: linear-gradient(180deg, #667eea 0%, #764ba2 50%, #667eea 100%) 1;
   border-radius: 0 20px 20px 0;
-  margin: 12px 0;
-  position: sticky;
-  top: 80px;
-  height: calc(100vh - 140px);
-  max-height: calc(100vh - 140px);
   flex-shrink: 0;
-  align-self: flex-start;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -811,6 +851,7 @@ onMounted(() => {
 
 .aside-collapsed-trigger {
   width: 60px;
+  height: calc(100vh - 70px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -821,16 +862,10 @@ onMounted(() => {
   border-right: 3px solid transparent;
   border-image: linear-gradient(180deg, #667eea 0%, #764ba2 50%, #667eea 100%) 1;
   border-radius: 0 20px 20px 0;
-  margin: 12px 0;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 4px 0 20px rgba(102, 126, 234, 0.12);
-  position: sticky;
-  top: 80px;
-  height: calc(100vh - 140px);
-  max-height: calc(100vh - 140px);
   flex-shrink: 0;
-  align-self: flex-start;
 }
 
 .aside-collapsed-trigger:hover {
@@ -945,8 +980,6 @@ onMounted(() => {
 }
 
 .main-content.full-width {
-  margin-left: 0;
-  max-width: 100%;
   padding: 0;
 }
 
@@ -1053,6 +1086,10 @@ onMounted(() => {
     display: flex;
   }
 
+  .aside-wrapper {
+    display: none;
+  }
+
   .aside {
     display: none;
   }
@@ -1094,10 +1131,13 @@ onMounted(() => {
 
   .main-content {
     padding: 0;
+    margin-left: 0;
   }
 
   .main-content.full-width {
     padding: 0;
+    margin-left: 0;
+    max-width: 100%;
   }
 
   .footer {

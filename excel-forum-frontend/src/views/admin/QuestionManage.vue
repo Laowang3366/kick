@@ -26,7 +26,7 @@
         </div>
       </template>
 
-      <el-table :data="questions" style="width: 100%" v-loading="loading" stripe>
+      <el-table :data="questions" style="width: 100%" v-loading="loading" stripe border>
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="题目内容" min-width="250" show-overflow-tooltip>
           <template #default="{ row }">
@@ -414,6 +414,16 @@ onMounted(() => {
   border: 1px solid var(--glass-border);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--card-shadow);
+}
+
+.management-card :deep(.el-table .el-table__cell) {
+  padding: 4px 0;
+}
+
+.management-card :deep(.el-table .cell) {
+  padding-left: 8px;
+  padding-right: 8px;
+  line-height: 1.5;
 }
 
 .card-header {

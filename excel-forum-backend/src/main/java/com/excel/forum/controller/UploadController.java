@@ -40,6 +40,8 @@ public class UploadController {
                contentType.equals("application/vnd.ms-excel") ||
                contentType.equals("application/pdf") ||
                contentType.equals("image/png") ||
-               contentType.equals("image/jpeg");
+               contentType.equals("image/jpeg") ||
+               contentType.equals("image/gif") ||
+               contentType.equals("image/webp");
     }
 }

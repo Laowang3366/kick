@@ -27,6 +27,8 @@ public class UserController {
     private final LikeService likeService;
     private final FollowService followService;
     private final PostViewService postViewService;
+    private final NotificationService notificationService;
+    private final CategoryFollowService categoryFollowService;
 
     @GetMapping("/{id}")
     public ResponseEntity<?> getUser(@PathVariable Long id) {
@@ -34,6 +36,79 @@ public class UserController {
         if (user == null) {
             return ResponseEntity.notFound().build();
         }
+        user.setPassword(null);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", user.getId());
+        response.put("username", user.getUsername());
+        response.put("email", user.getEmail());
+        response.put("avatar", user.getAvatar());
+        response.put("bio", user.getBio());
+        response.put("level", user.getLevel());
+        response.put("points", user.getPoints());
+        response.put("status", user.getStatus());
+        response.put("role", user.getRole());
+        response.put("excelLevel", user.getExcelLevel());
+        response.put("expertise", user.getExpertise());
+        response.put("isOnline", user.getIsOnline());
+        response.put("lastActiveTime", user.getLastActiveTime());
+        response.put("createTime", user.getCreateTime());
+        response.put("updateTime", user.getUpdateTime());
+
+        // 统计帖子数和回复数
+        QueryWrapper<Post> postQuery = new QueryWrapper<>();
+        postQuery.eq("user_id", id).in("status", 0, 1);
+        response.put("postCount", postService.count(postQuery));
+
+        QueryWrapper<Reply> replyQuery = new QueryWrapper<>();
+        replyQuery.eq("user_id", id).eq("status", 0);
+        response.put("replyCount", replyService.count(replyQuery));
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateProfile(
+            @PathVariable Long id,
+            @RequestAttribute Long userId,
+            @RequestBody Map<String, Object> body) {
+
+        if (!userId.equals(id)) {
+            return ResponseEntity.status(403).body(Map.of("message", "只能修改自己的资料"));
+        }
+
+        User user = userService.getById(id);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (body.containsKey("username")) {
+            String newUsername = (String) body.get("username");
+            if (newUsername != null && !newUsername.isBlank()) {
+                User existing = userService.findByUsername(newUsername);
+                if (existing != null && !existing.getId().equals(id)) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "用户名已被占用"));
+                }
+                user.setUsername(newUsername.trim());
+            }
+        }
+        if (body.containsKey("bio")) {
+            user.setBio((String) body.get("bio"));
+        }
+        if (body.containsKey("avatar")) {
+            user.setAvatar((String) body.get("avatar"));
+        }
+        if (body.containsKey("expertise")) {
+            Object expertise = body.get("expertise");
+            if (expertise instanceof List) {
+                user.setExpertise(String.join(",", (List<String>) expertise));
+            } else if (expertise instanceof String) {
+                user.setExpertise((String) expertise);
+            }
+        }
+
+        userService.updateById(user);
+
         user.setPassword(null);
         return ResponseEntity.ok(user);
     }
@@ -91,22 +166,19 @@ public class UserController {
         QueryWrapper<Reply> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("user_id", id);
         queryWrapper.eq("status", 0);
+        queryWrapper.inSql("post_id", "SELECT id FROM post WHERE status IN (0, 1)");
         queryWrapper.orderByDesc("create_time");
-        
+
         Page<Reply> result = replyService.page(pageRequest, queryWrapper);
-        
+
         List<ReplyDTO> dtoList = result.getRecords().stream()
-            .filter(reply -> {
-                Post post = postService.getById(reply.getPostId());
-                return post != null && (post.getStatus() == 0 || post.getStatus() == 1);
-            })
             .map(this::convertReplyToDTO)
             .collect(Collectors.toList());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("replies", dtoList);
         response.put("total", result.getTotal());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -119,13 +191,14 @@ public class UserController {
         Page<Favorite> favPage = new Page<>(page, limit);
         QueryWrapper<Favorite> favQuery = new QueryWrapper<>();
         favQuery.eq("user_id", id);
+        favQuery.inSql("post_id", "SELECT id FROM post WHERE status IN (0, 1)");
         favQuery.orderByDesc("create_time");
-        
+
         Page<Favorite> favResult = favoriteService.page(favPage, favQuery);
-        
+
         List<PostDTO> posts = favResult.getRecords().stream()
             .map(fav -> postService.getById(fav.getPostId()))
-            .filter(post -> post != null && (post.getStatus() == 0 || post.getStatus() == 1))
+            .filter(post -> post != null)
             .map(this::convertPostToDTO)
             .collect(Collectors.toList());
         
@@ -152,10 +225,19 @@ public class UserController {
     }
 
     @GetMapping("/{id}/following")
-    public ResponseEntity<?> getUserFollowing(@PathVariable Long id) {
+    public ResponseEntity<?> getUserFollowing(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer limit) {
+
         List<Long> followingIds = followService.getFollowingIds(id);
-        
-        List<User> followingUsers = followingIds.stream()
+        int total = followingIds.size();
+        int fromIndex = (page - 1) * limit;
+        int toIndex = Math.min(fromIndex + limit, total);
+
+        List<Long> pageIds = followingIds.subList(fromIndex, toIndex);
+
+        List<User> followingUsers = pageIds.stream()
             .map(userId -> {
                 User user = userService.getById(userId);
                 if (user != null) {
@@ -165,18 +247,28 @@ public class UserController {
             })
             .filter(user -> user != null)
             .collect(Collectors.toList());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("users", followingUsers);
-        
+        response.put("total", total);
+
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}/followers")
-    public ResponseEntity<?> getUserFollowers(@PathVariable Long id) {
+    public ResponseEntity<?> getUserFollowers(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer limit) {
+
         List<Long> followerIds = followService.getFollowerIds(id);
-        
-        List<User> followerUsers = followerIds.stream()
+        int total = followerIds.size();
+        int fromIndex = (page - 1) * limit;
+        int toIndex = Math.min(fromIndex + limit, total);
+
+        List<Long> pageIds = followerIds.subList(fromIndex, toIndex);
+
+        List<User> followerUsers = pageIds.stream()
             .map(userId -> {
                 User user = userService.getById(userId);
                 if (user != null) {
@@ -186,10 +278,11 @@ public class UserController {
             })
             .filter(user -> user != null)
             .collect(Collectors.toList());
-        
+
         Map<String, Object> response = new HashMap<>();
         response.put("users", followerUsers);
-        
+        response.put("total", total);
+
         return ResponseEntity.ok(response);
     }
 
@@ -200,6 +293,14 @@ public class UserController {
         }
         
         followService.follow(userId, id);
+
+        // 给被关注者发送通知
+        User follower = userService.getById(userId);
+        if (follower != null) {
+            String notificationContent = follower.getUsername() + " 关注了你";
+            notificationService.createNotification(id, "follow", notificationContent, userId, userId);
+        }
+
         return ResponseEntity.ok(Map.of("message", "关注成功"));
     }
 
@@ -319,5 +420,98 @@ public class UserController {
         }
         
         return dto;
+    }
+
+    // 板块关注端点
+    @GetMapping("/category-follows")
+    public ResponseEntity<?> getFollowedCategories(@RequestAttribute Long userId) {
+        List<Long> categoryIds = categoryFollowService.getFollowedCategoryIds(userId);
+        List<Map<String, Object>> categories = categoryIds.stream()
+            .map(catId -> {
+                Category cat = categoryService.getById(catId);
+                if (cat == null) return null;
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", cat.getId());
+                map.put("name", cat.getName());
+                map.put("description", cat.getDescription());
+                QueryWrapper<Post> postQuery = new QueryWrapper<>();
+                postQuery.eq("category_id", catId);
+                postQuery.eq("status", 0);
+                map.put("postCount", postService.count(postQuery));
+                return map;
+            })
+            .filter(item -> item != null)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(Map.of("categories", categories, "total", categories.size()));
+    }
+
+    @PostMapping("/category-follows/{categoryId}")
+    public ResponseEntity<?> followCategory(@PathVariable Long categoryId, @RequestAttribute Long userId) {
+        Category category = categoryService.getById(categoryId);
+        if (category == null) {
+            return ResponseEntity.notFound().build();
+        }
+        categoryFollowService.follow(userId, categoryId);
+        return ResponseEntity.ok(Map.of("message", "关注成功"));
+    }
+
+    @DeleteMapping("/category-follows/{categoryId}")
+    public ResponseEntity<?> unfollowCategory(@PathVariable Long categoryId, @RequestAttribute Long userId) {
+        categoryFollowService.unfollow(userId, categoryId);
+        return ResponseEntity.ok(Map.of("message", "取消关注成功"));
+    }
+
+    @GetMapping("/category-follows/{categoryId}/status")
+    public ResponseEntity<?> isFollowingCategory(@PathVariable Long categoryId, @RequestAttribute Long userId) {
+        boolean isFollowing = categoryFollowService.isFollowing(userId, categoryId);
+        return ResponseEntity.ok(Map.of("isFollowing", isFollowing));
+    }
+
+    @GetMapping("/privacy")
+    public ResponseEntity<?> getPrivacySettings(@RequestAttribute Long userId) {
+        User user = userService.getById(userId);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("publicProfile", user.getPublicProfile() != null ? user.getPublicProfile() : true);
+        settings.put("showOnlineStatus", user.getShowOnlineStatus() != null ? user.getShowOnlineStatus() : true);
+        settings.put("allowMessages", user.getAllowMessages() != null ? user.getAllowMessages() : true);
+        settings.put("showFollowing", user.getShowFollowing() != null ? user.getShowFollowing() : true);
+        settings.put("showFollowers", user.getShowFollowers() != null ? user.getShowFollowers() : true);
+        
+        return ResponseEntity.ok(settings);
+    }
+
+    @PutMapping("/privacy")
+    public ResponseEntity<?> updatePrivacySettings(
+            @RequestAttribute Long userId,
+            @RequestBody Map<String, Boolean> body) {
+        
+        User user = userService.getById(userId);
+        if (user == null) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        if (body.containsKey("publicProfile")) {
+            user.setPublicProfile(body.get("publicProfile"));
+        }
+        if (body.containsKey("showOnlineStatus")) {
+            user.setShowOnlineStatus(body.get("showOnlineStatus"));
+        }
+        if (body.containsKey("allowMessages")) {
+            user.setAllowMessages(body.get("allowMessages"));
+        }
+        if (body.containsKey("showFollowing")) {
+            user.setShowFollowing(body.get("showFollowing"));
+        }
+        if (body.containsKey("showFollowers")) {
+            user.setShowFollowers(body.get("showFollowers"));
+        }
+        
+        userService.updateById(user);
+        
+        return ResponseEntity.ok(Map.of("message", "隐私设置已更新"));
     }
 }

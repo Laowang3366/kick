@@ -88,4 +88,13 @@ public class SiteNotificationServiceImpl extends ServiceImpl<SiteNotificationMap
             );
         }
     }
+
+    @Override
+    public void incrementReadCount(Long siteNotificationId) {
+        SiteNotification sn = getById(siteNotificationId);
+        if (sn != null) {
+            sn.setReadCount(sn.getReadCount() == null ? 1 : sn.getReadCount() + 1);
+            updateById(sn);
+        }
+    }
 }

@@ -74,7 +74,7 @@ public class LikeController {
                         String notificationContent = liker.getUsername() + " 赞了您的帖子《" + post.getTitle() + "》";
                         notificationService.createNotification(
                             post.getUserId(),
-                            "interaction",
+                            "like",
                             notificationContent,
                             targetId
                         );

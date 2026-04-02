@@ -7,9 +7,17 @@
       <div v-else-if="forum">
         <div class="forum-header">
           <h2>{{ forum.name }}</h2>
-          <el-button v-if="userStore.isAuthenticated" type="primary" @click="$router.push('/post/create')">
-            发布新帖
-          </el-button>
+          <div class="forum-actions">
+            <el-button v-if="userStore.isAuthenticated"
+              :type="isFollowingCategory ? 'default' : 'primary'"
+              :plain="isFollowingCategory"
+              @click="toggleCategoryFollow">
+              {{ isFollowingCategory ? '已关注' : '关注板块' }}
+            </el-button>
+            <el-button v-if="userStore.isAuthenticated" type="primary" @click="$router.push('/post/create')">
+              发布新帖
+            </el-button>
+          </div>
         </div>
         <p class="forum-desc">{{ forum.description }}</p>
         <div class="forum-stats">
@@ -50,6 +58,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
 import { useForumEvents } from '../composables/useForumEvents'
 import PostList from '../components/PostList.vue'
@@ -65,6 +74,7 @@ const postsLoading = ref(false)
 const sortBy = ref('latest')
 const currentPage = ref(1)
 const totalPosts = ref(0)
+const isFollowingCategory = ref(false)
 
 const fetchForum = async () => {
   loading.value = true
@@ -75,6 +85,38 @@ const fetchForum = async () => {
     console.error('获取版块信息失败:', error)
   } finally {
     loading.value = false
+  }
+}
+
+const checkCategoryFollow = async () => {
+  if (!userStore.isAuthenticated) return
+  try {
+    const response = await api.get(`/users/category-follows/${route.params.id}/status`)
+    isFollowingCategory.value = response.isFollowing
+  } catch (error) {
+    // 未登录或接口报错忽略
+  }
+}
+
+const toggleCategoryFollow = async () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  
+  try {
+    if (isFollowingCategory.value) {
+      await api.delete(`/users/category-follows/${route.params.id}`)
+      isFollowingCategory.value = false
+      ElMessage.success('已取消关注')
+    } else {
+      await api.post(`/users/category-follows/${route.params.id}`)
+      isFollowingCategory.value = true
+      ElMessage.success('关注成功')
+    }
+  } catch (error) {
+    console.error('关注操作失败:', error)
+    ElMessage.error(error.response?.data?.message || '操作失败')
   }
 }
 
@@ -111,11 +153,13 @@ useForumEvents((event) => {
 watch(() => route.params.id, () => {
   fetchForum()
   fetchPosts()
+  checkCategoryFollow()
 }, { immediate: true })
 
 onMounted(() => {
   fetchForum()
   fetchPosts()
+  checkCategoryFollow()
 })
 </script>
 
@@ -185,6 +229,12 @@ onMounted(() => {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
   transition: all 0.3s ease;
+}
+
+.forum-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
 .forum-header .el-button:hover {

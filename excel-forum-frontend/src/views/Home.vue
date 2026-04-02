@@ -357,6 +357,7 @@ const sendHeartbeat = async () => {
 }
 
 const fetchChatMessages = async () => {
+  if (!userStore.isAuthenticated) return
   try {
     const response = await api.get('/chat/messages', {
       params: { limit: 50 }
@@ -394,6 +395,11 @@ const insertEmoji = (emoji) => {
 }
 
 const openMentionPicker = async () => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录后再使用@提及功能')
+    return
+  }
+  
   mentionSearch.value = ''
   if (mentionUsers.value.length === 0) {
     try {
@@ -493,6 +499,7 @@ const confirmSendPrivateMessage = async () => {
 }
 
 const initChat = async () => {
+  if (!userStore.isAuthenticated) return
   await fetchChatMessages()
 }
 
@@ -506,8 +513,10 @@ const startOnlineUsersUpdate = () => {
   onlineUsersInterval.value = setInterval(fetchOnlineUsers, 30000)
 }
 
+let chatInterval = null
 const startChatMessagesUpdate = () => {
-  setInterval(() => {
+  if (!userStore.isAuthenticated) return
+  chatInterval = setInterval(() => {
     fetchChatMessages()
   }, 5000)
 }
@@ -537,6 +546,9 @@ onUnmounted(() => {
   }
   if (onlineUsersInterval.value) {
     clearInterval(onlineUsersInterval.value)
+  }
+  if (chatInterval) {
+    clearInterval(chatInterval)
   }
 })
 </script>

@@ -19,11 +19,11 @@
       
       <el-empty v-if="posts.length === 0 && !loading" description="回收站是空的" />
       
-      <el-table v-else :data="posts" style="width: 100%" v-loading="loading" stripe>
+      <el-table v-else :data="posts" style="width: 100%" v-loading="loading" stripe border>
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <span class="post-title">{{ row.title }}</span>
+            <span class="post-title clickable" @click="viewDetail(row)">{{ row.title }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="author.username" label="作者" width="100" />
@@ -64,6 +64,24 @@
         />
       </div>
     </el-card>
+
+    <el-dialog v-model="detailVisible" title="帖子详情" width="640px" class="detail-dialog" destroy-on-close>
+      <div class="detail-content" v-if="detailPost">
+        <div class="detail-header">
+          <h3 class="detail-title">{{ detailPost.title }}</h3>
+          <div class="detail-meta">
+            <span><strong>作者：</strong>{{ detailPost.author?.username || '-' }}</span>
+            <span><strong>版块：</strong>{{ getCategoryName(detailPost.categoryId) }}</span>
+            <span><strong>删除时间：</strong>{{ formatTime(detailPost.updateTime) }}</span>
+          </div>
+        </div>
+        <el-divider />
+        <div class="detail-body" v-html="detailPost.content"></div>
+      </div>
+      <template #footer>
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -80,6 +98,9 @@ const loading = ref(false)
 const currentPage = ref(1)
 const totalPosts = ref(0)
 
+const detailVisible = ref(false)
+const detailPost = ref(null)
+
 const formatTime = (time) => {
   if (!time) return '-'
   const date = new Date(time)
@@ -89,6 +110,11 @@ const formatTime = (time) => {
 const getCategoryName = (categoryId) => {
   const category = forums.value.find(f => f.id === categoryId)
   return category ? category.name : '未知板块'
+}
+
+const viewDetail = (post) => {
+  detailPost.value = post
+  detailVisible.value = true
 }
 
 const fetchForums = async () => {
@@ -259,6 +285,16 @@ onMounted(() => {
   padding: 0;
 }
 
+.management-card :deep(.el-table .el-table__cell) {
+  padding: 4px 0;
+}
+
+.management-card :deep(.el-table .cell) {
+  padding-left: 8px;
+  padding-right: 8px;
+  line-height: 1.5;
+}
+
 .management-card :deep(.el-table) {
   background: transparent;
 }
@@ -320,5 +356,56 @@ onMounted(() => {
   justify-content: center;
   background: transparent;
   border-top: 1px solid var(--border-color);
+}
+
+.detail-dialog :deep(.el-dialog__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+  margin-right: 0;
+}
+
+.detail-dialog :deep(.el-dialog__body) {
+  padding: 0;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.detail-content {
+  padding: 20px 24px;
+}
+
+.detail-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.detail-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.detail-body :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.post-title.clickable {
+  cursor: pointer;
+}
+
+.post-title.clickable:hover {
+  color: var(--el-color-primary);
 }
 </style>

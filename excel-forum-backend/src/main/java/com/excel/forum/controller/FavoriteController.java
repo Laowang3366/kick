@@ -68,7 +68,7 @@ public class FavoriteController {
                     String notificationContent = favoriter.getUsername() + " 收藏了您的帖子《" + post.getTitle() + "》";
                     notificationService.createNotification(
                         post.getUserId(),
-                        "interaction",
+                        "favorite",
                         notificationContent,
                         postId
                     );

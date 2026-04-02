@@ -1,0 +1,250 @@
+.admin-table {
+  width: 100%;
+  background: transparent;
+}
+
+.admin-table :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+.admin-table :deep(.el-table__header-wrapper) {
+  overflow: visible;
+}
+
+.admin-table :deep(.el-table__body-wrapper) {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.admin-table :deep(.el-table) {
+  background: transparent;
+  overflow: visible;
+}
+
+.admin-table :deep(.el-table tr) {
+  background: transparent;
+}
+
+.admin-table :deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
+  background: var(--table-stripe-bg);
+}
+
+.admin-table :deep(.el-table__body tr:hover > td) {
+  background-color: var(--table-hover-bg) !important;
+}
+
+.admin-table :deep(.el-table td),
+.admin-table :deep(.el-table th) {
+  border-bottom: 1px solid var(--border-light);
+  border-right: 1px solid var(--border-light);
+  padding: 8px 0;
+  vertical-align: middle;
+}
+
+.admin-table :deep(.el-table th) {
+  background: var(--table-header-bg);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  user-select: none;
+  position: relative;
+}
+
+.admin-table :deep(.el-table th:last-child) {
+  border-right: none;
+}
+
+.admin-table :deep(.el-table td:last-child) {
+  border-right: none;
+}
+
+.admin-table :deep(.el-table .cell) {
+  padding: 0 12px;
+  line-height: 1.5;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.admin-table :deep(.el-table th .cell) {
+  overflow: visible;
+  white-space: normal;
+}
+
+.admin-table :deep(.el-table__column-resize-proxy) {
+  background-color: var(--primary-color);
+  width: 2px;
+}
+
+.admin-table :deep(.el-table th.resizable) {
+  cursor: col-resize;
+}
+
+.admin-table :deep(.el-table th .caret-wrapper) {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+
+.cell-content {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  cursor: default;
+  transition: color var(--transition-fast);
+}
+
+.cell-content.clickable {
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.cell-content.clickable:hover {
+  color: var(--el-color-primary);
+}
+
+.cell-content-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.cell-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.action-cell {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 4px 0;
+  min-height: 32px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: var(--border-radius-sm);
+  font-weight: 500;
+  font-size: 12px;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-btn .el-icon {
+  font-size: 14px;
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-cell .el-avatar {
+  flex-shrink: 0;
+  border: 2px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.user-cell .el-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md);
+}
+
+.user-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.status-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 22px;
+  padding: 0 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-table :deep(.el-table__empty-block) {
+  background: transparent;
+}
+
+.admin-table :deep(.el-table__empty-text) {
+  color: var(--text-tertiary);
+}
+
+.admin-table :deep(.el-tooltip__trigger) {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tooltip-content {
+  max-width: 400px;
+  word-break: break-word;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.tooltip-content p {
+  margin: 4px 0;
+}
+
+.tooltip-content strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .admin-table :deep(.el-table .cell) {
+    padding: 0 8px;
+    font-size: 12px;
+  }
+  
+  .action-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .action-btn .el-icon {
+    font-size: 12px;
+  }
+}

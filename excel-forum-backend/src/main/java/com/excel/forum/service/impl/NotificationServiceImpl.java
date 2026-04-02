@@ -6,15 +6,23 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.excel.forum.entity.Notification;
 import com.excel.forum.mapper.NotificationMapper;
+import com.excel.forum.service.ForumEventService;
 import com.excel.forum.service.NotificationService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Notification> implements NotificationService {
+
+    @Autowired
+    private ForumEventService forumEventService;
     
     @Override
     public Map<String, Object> getUserNotifications(Long userId, String type, Integer page, Integer limit) {
@@ -22,7 +30,12 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         queryWrapper.eq("user_id", userId);
         
         if (type != null && !type.isEmpty()) {
-            queryWrapper.eq("type", type);
+            String[] types = type.split(",");
+            if (types.length == 1) {
+                queryWrapper.eq("type", types[0]);
+            } else {
+                queryWrapper.in("type", Arrays.asList(types));
+            }
         }
         
         queryWrapper.orderByDesc("create_time");
@@ -70,6 +83,13 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         notification.setSenderId(senderId);
         notification.setIsRead(0);
         save(notification);
+
+        // 通过 WebSocket 推送通知事件给目标用户
+        try {
+            forumEventService.publishNotificationEvent(userId, notification);
+        } catch (Exception e) {
+            log.warn("WebSocket推送通知失败: {}", e.getMessage());
+        }
     }
 
     @Override

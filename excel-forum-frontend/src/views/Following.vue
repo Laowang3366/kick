@@ -2,73 +2,50 @@
   <div class="following-page">
     <div class="page-header">
       <h1>我的关注</h1>
-      <p>查看你关注的用户和内容</p>
+      <p>查看你关注的用户和板块</p>
     </div>
 
     <el-tabs v-model="activeTab" class="following-tabs">
       <el-tab-pane label="关注的用户" name="users">
-        <div class="user-list">
+        <div v-if="usersLoading" class="loading-state">
+          <el-skeleton :rows="3" animated />
+        </div>
+        <div v-else class="user-list">
           <div v-if="followingUsers.length === 0" class="empty-state">
             <el-icon><User /></el-icon>
             <p>暂无关注的用户</p>
             <el-button type="primary" @click="$router.push('/')">去发现用户</el-button>
           </div>
-          <div v-for="user in followingUsers" :key="user.id" class="user-card">
+          <div v-for="user in followingUsers" :key="user.id" class="user-card" @click="$router.push(`/user/${user.id}`)">
             <el-avatar :src="user.avatar" :size="56" class="user-avatar">
               {{ user.username?.charAt(0) }}
             </el-avatar>
             <div class="user-info">
               <h3>{{ user.username }}</h3>
               <p>{{ user.bio || '这个人很懒，什么都没写~' }}</p>
-              <div class="user-stats">
-                <span><el-icon><Document /></el-icon> {{ user.postCount }} 帖子</span>
-                <span><el-icon><User /></el-icon> {{ user.followerCount }} 粉丝</span>
-              </div>
             </div>
-            <el-button 
-              :type="user.isFollowing ? 'default' : 'primary'" 
-              @click="toggleFollow(user)"
+            <el-button
+              :type="user.isFollowing ? 'default' : 'primary'"
+              @click.stop="toggleUserFollow(user)"
             >
               {{ user.isFollowing ? '已关注' : '关注' }}
             </el-button>
           </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="关注的帖子" name="posts">
-        <div class="post-list">
-          <div v-if="followingPosts.length === 0" class="empty-state">
-            <el-icon><Star /></el-icon>
-            <p>暂无收藏的帖子</p>
-            <el-button type="primary" @click="$router.push('/')">去发现帖子</el-button>
-          </div>
-          <div v-for="post in followingPosts" :key="post.id" class="post-card" @click="$router.push(`/post/${post.id}`)">
-            <div class="post-content">
-              <h3>{{ post.title }}</h3>
-              <p>{{ post.summary }}</p>
-            </div>
-            <div class="post-meta">
-              <div class="author-info">
-                <el-avatar :src="post.author.avatar" :size="32">
-                  {{ post.author.username?.charAt(0) }}
-                </el-avatar>
-                <span>{{ post.author.username }}</span>
-              </div>
-              <div class="post-stats">
-                <span><el-icon><View /></el-icon> {{ post.views }}</span>
-                <span><el-icon><ChatDotRound /></el-icon> {{ post.replyCount }}</span>
-              </div>
-            </div>
+          <div v-if="followingUsers.length > 0 && usersTotal > followingUsers.length" class="load-more">
+            <el-button @click="loadMoreUsers" :loading="usersLoadingMore">加载更多</el-button>
           </div>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="关注的版块" name="forums">
-        <div class="forum-list">
+      <el-tab-pane label="关注的板块" name="forums">
+        <div v-if="forumsLoading" class="loading-state">
+          <el-skeleton :rows="3" animated />
+        </div>
+        <div v-else class="forum-list">
           <div v-if="followingForums.length === 0" class="empty-state">
             <el-icon><ChatDotRound /></el-icon>
-            <p>暂无关注的版块</p>
-            <el-button type="primary" @click="$router.push('/')">去发现版块</el-button>
+            <p>暂无关注的板块</p>
+            <el-button type="primary" @click="goToDiscoverForums">去发现版块</el-button>
           </div>
           <div v-for="forum in followingForums" :key="forum.id" class="forum-card" @click="$router.push(`/forum/${forum.id}`)">
             <div class="forum-icon">
@@ -76,18 +53,17 @@
             </div>
             <div class="forum-info">
               <h3>{{ forum.name }}</h3>
-              <p>{{ forum.description }}</p>
+              <p>{{ forum.description || '暂无描述' }}</p>
               <div class="forum-stats">
-                <span>{{ forum.postCount }} 帖子</span>
-                <span>{{ forum.memberCount }} 成员</span>
+                <span>{{ forum.postCount || 0 }} 帖子</span>
               </div>
             </div>
-            <el-button 
-              :type="forum.isFollowing ? 'default' : 'primary'" 
+            <el-button
+              type="default"
               size="small"
               @click.stop="toggleForumFollow(forum)"
             >
-              {{ forum.isFollowing ? '已关注' : '关注' }}
+              取消关注
             </el-button>
           </div>
         </div>
@@ -98,40 +74,117 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { User, ChatDotRound } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/user'
-import { User, Star, Document, View, ChatDotRound } from '@element-plus/icons-vue'
+import api from '../api'
 
+const router = useRouter()
 const userStore = useUserStore()
 const activeTab = ref('users')
 
+// 用户关注
 const followingUsers = ref([])
-const followingPosts = ref([])
-const followingForums = ref([])
+const usersLoading = ref(false)
+const usersLoadingMore = ref(false)
+const usersPage = ref(1)
+const usersTotal = ref(0)
 
-const toggleFollow = (user) => {
-  user.isFollowing = !user.isFollowing
+// 板块关注
+const followingForums = ref([])
+const forumsLoading = ref(false)
+
+const fetchFollowingUsers = async (loadMore = false) => {
+  if (loadMore) {
+    usersLoadingMore.value = true
+  } else {
+    usersLoading.value = true
+  }
+  try {
+    const userId = userStore.user?.id
+    if (!userId) return
+    const response = await api.get(`/users/${userId}/following`, {
+      params: { page: usersPage.value, limit: 10 }
+    })
+    const users = response.users.map(u => ({ ...u, isFollowing: true }))
+    if (loadMore) {
+      followingUsers.value = [...followingUsers.value, ...users]
+    } else {
+      followingUsers.value = users
+    }
+    usersTotal.value = response.total
+  } catch (error) {
+    console.error('获取关注用户失败:', error)
+  } finally {
+    usersLoading.value = false
+    usersLoadingMore.value = false
+  }
 }
 
-const toggleForumFollow = (forum) => {
-  forum.isFollowing = !forum.isFollowing
+const loadMoreUsers = () => {
+  usersPage.value++
+  fetchFollowingUsers(true)
+}
+
+const toggleUserFollow = async (user) => {
+  try {
+    if (user.isFollowing) {
+      await api.delete(`/users/${user.id}/follow`)
+      user.isFollowing = false
+      ElMessage.success('已取消关注')
+      // 从列表中移除
+      followingUsers.value = followingUsers.value.filter(u => u.id !== user.id)
+      usersTotal.value--
+    } else {
+      await api.post(`/users/${user.id}/follow`)
+      user.isFollowing = true
+      ElMessage.success('关注成功')
+    }
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '操作失败')
+  }
+}
+
+const fetchFollowingForums = async () => {
+  forumsLoading.value = true
+  try {
+    const response = await api.get('/users/category-follows')
+    followingForums.value = response.categories || []
+  } catch (error) {
+    console.error('获取关注板块失败:', error)
+  } finally {
+    forumsLoading.value = false
+  }
+}
+
+const toggleForumFollow = async (forum) => {
+  try {
+    await api.delete(`/users/category-follows/${forum.id}`)
+    ElMessage.success('已取消关注')
+    followingForums.value = followingForums.value.filter(f => f.id !== forum.id)
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '操作失败')
+  }
+}
+
+const goToDiscoverForums = async () => {
+  try {
+    const response = await api.get('/categories')
+    if (response && response.length > 0) {
+      router.push(`/forum/${response[0].id}`)
+    } else {
+      ElMessage.warning('暂无可用的板块')
+    }
+  } catch (error) {
+    console.error('获取板块列表失败:', error)
+    ElMessage.error('获取板块列表失败')
+  }
 }
 
 onMounted(() => {
-  followingUsers.value = [
-    { id: 1, username: 'Excel大师', avatar: '', bio: '专注Excel教学10年', postCount: 128, followerCount: 2340, isFollowing: true },
-    { id: 2, username: '数据分析师', avatar: '', bio: '数据驱动决策', postCount: 56, followerCount: 890, isFollowing: true },
-    { id: 3, username: 'VBA专家', avatar: '', bio: '自动化解决方案', postCount: 89, followerCount: 1560, isFollowing: true }
-  ]
-
-  followingPosts.value = [
-    { id: 1, title: 'VLOOKUP函数详解', summary: '详细介绍VLOOKUP函数的使用方法和技巧...', author: { username: 'Excel大师', avatar: '' }, views: 1234, replyCount: 23 },
-    { id: 2, title: '数据透视表入门指南', summary: '从零开始学习数据透视表...', author: { username: '数据分析师', avatar: '' }, views: 892, replyCount: 15 }
-  ]
-
-  followingForums.value = [
-    { id: 1, name: '函数公式', description: '讨论Excel函数和公式的使用技巧', postCount: 2340, memberCount: 5670, isFollowing: true },
-    { id: 2, name: 'VBA编程', description: 'VBA宏编程交流', postCount: 890, memberCount: 2340, isFollowing: true }
-  ]
+  fetchFollowingUsers()
+  fetchFollowingForums()
 })
 </script>
 
@@ -169,6 +222,10 @@ onMounted(() => {
   box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
 }
 
+.loading-state {
+  padding: 20px;
+}
+
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -186,7 +243,7 @@ onMounted(() => {
   font-size: 16px;
 }
 
-.user-list, .post-list, .forum-list {
+.user-list, .forum-list {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -198,6 +255,7 @@ onMounted(() => {
   padding: 20px;
   background: #f8f9ff;
   border-radius: 16px;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
@@ -225,74 +283,7 @@ onMounted(() => {
 .user-info p {
   font-size: 14px;
   color: #7f8c8d;
-  margin-bottom: 8px;
-}
-
-.user-stats {
-  display: flex;
-  gap: 16px;
-  font-size: 13px;
-  color: #667eea;
-}
-
-.user-stats span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.post-card {
-  padding: 20px;
-  background: #f8f9ff;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.post-card:hover {
-  background: #f0f2ff;
-  transform: translateX(4px);
-}
-
-.post-content h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-bottom: 8px;
-}
-
-.post-content p {
-  font-size: 14px;
-  color: #7f8c8d;
-  margin-bottom: 12px;
-  line-height: 1.5;
-}
-
-.post-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.author-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  color: #667eea;
-}
-
-.post-stats {
-  display: flex;
-  gap: 16px;
-  font-size: 13px;
-  color: #95a5a6;
-}
-
-.post-stats span {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  margin-bottom: 4px;
 }
 
 .forum-card {
@@ -351,12 +342,17 @@ onMounted(() => {
   color: #667eea;
 }
 
+.load-more {
+  text-align: center;
+  padding: 16px 0;
+}
+
 @media (max-width: 768px) {
   .following-page {
     padding: 16px;
   }
 
-  .user-card, .post-card, .forum-card {
+  .user-card, .forum-card {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;

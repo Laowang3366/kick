@@ -428,7 +428,7 @@ public class AdminController {
         String reason = body != null ? body.get("reason") : null;
         System.out.println("删除帖子ID: " + id + ", 原因: " + reason + ", 作者ID: " + post.getUserId());
         
-        post.setStatus(1);
+        post.setStatus(99);
         postService.updateById(post);
         
         String notificationContent = "您的帖子「" + post.getTitle() + "」已被管理员删除";
@@ -748,7 +748,7 @@ public class AdminController {
             if ("post".equals(report.getTargetType())) {
                 Post post = postService.getById(report.getTargetId());
                 if (post != null) {
-                    post.setStatus(1);
+                    post.setStatus(99);
                     postService.updateById(post);
                 }
             } else if ("reply".equals(report.getTargetType())) {
