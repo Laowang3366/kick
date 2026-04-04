@@ -221,6 +221,19 @@ const form = reactive({
   targetRoles: []
 })
 
+const normalizeTargetRoles = (targetRoles) => {
+  if (Array.isArray(targetRoles)) {
+    return targetRoles
+  }
+  if (typeof targetRoles === 'string') {
+    return targetRoles
+      .split(',')
+      .map(role => role.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
 const formatTime = (time) => {
   if (!time) return '-'
   const date = new Date(time)
@@ -283,7 +296,7 @@ const editNotification = (notification) => {
     content: notification.content,
     sendType: notification.status === 'sent' ? 'now' : 'draft',
     targetType: notification.targetType || 'all',
-    targetRoles: notification.targetRoles || []
+    targetRoles: normalizeTargetRoles(notification.targetRoles)
   })
   dialogVisible.value = true
 }
@@ -306,6 +319,7 @@ const saveNotification = async () => {
   try {
     const data = {
       ...form,
+      targetRoles: form.targetType === 'role' ? form.targetRoles.join(',') : null,
       status: form.sendType === 'now' ? 'sent' : 'draft'
     }
     

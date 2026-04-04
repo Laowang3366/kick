@@ -193,6 +193,7 @@
 import { ref, reactive, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { useForumEvents } from '../composables/useForumEvents'
 import api from '../api'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, Plus, Promotion, SemiSelect } from '@element-plus/icons-vue'
@@ -273,13 +274,15 @@ const fetchMessages = async (userId) => {
   }
 }
 
-const openChatDialog = (conversation) => {
+const openChatDialog = async (conversation) => {
   activeConversation.value = conversation
   showChatDialog.value = true
   fetchMessages(conversation.user.id)
   if (conversation.unreadCount > 0) {
-    api.put(`/messages/${conversation.user.id}/read`)
+    await api.put(`/messages/${conversation.user.id}/read`)
     conversation.unreadCount = 0
+    // 刷新全局未读私信数量
+    await userStore.fetchUnreadMessageCount()
   }
 }
 
@@ -382,6 +385,26 @@ watch(() => route.query.userId, async (userId) => {
     }
   }
 }, { immediate: true })
+
+// 监听实时私信事件
+useForumEvents(
+  null,
+  async (event) => {
+    if (event.type === 'MESSAGE_RECEIVED') {
+      // 刷新对话列表
+      await fetchConversations()
+      
+      // 如果当前有打开的对话窗口，且发送者是当前聊天对象，重新获取消息列表
+      if (activeConversation.value && event.data && event.data.senderId) {
+        if (activeConversation.value.user.id === event.data.senderId) {
+          await fetchMessages(activeConversation.value.user.id)
+          await nextTick()
+          scrollToBottom()
+        }
+      }
+    }
+  }
+)
 
 onMounted(() => {
   fetchConversations()

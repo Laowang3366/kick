@@ -22,7 +22,7 @@
             </div>
             <div class="author-details">
               <div class="author-name-row">
-                <span class="author-name" @click="$router.push(`/user/${post.author?.id}`)">
+                <span class="author-name" @click="$router.push(`/center/${post.author?.id}`)">
                   {{ post.author?.username }}
                 </span>
                 <LevelTag v-if="post.author?.level" :level="post.author?.level" :points="post.author?.points" :role="post.author?.role" />
@@ -97,14 +97,14 @@
                 </el-tag>
               </div>
             </div>
-            <h1 class="post-title">{{ post.title }}</h1>
+            <h1 class="post-title" :style="postTitleStyle">{{ post.title }}</h1>
           </div>
           
           <div class="content-section">
             <div class="section-header">
               <span class="section-label content-label">内容</span>
             </div>
-            <div class="post-content" v-html="post.content" ref="contentRef"></div>
+            <div class="post-content clickable-content" v-html="sanitize(post.content)" ref="contentRef" @click="scrollToReplyBox"></div>
           </div>
         </div>
         
@@ -163,7 +163,7 @@
       <el-card class="replies-card">
         <template #header>
           <div class="replies-header">
-            <h3>回复 ({{ totalReplies }})</h3>
+            <h3>回复 ({{ totalAllReplies }})</h3>
             <div class="replies-filter">
               <el-radio-group v-model="replyFilter" size="small" @change="handleFilterChange">
                 <el-radio-button value="all">全部</el-radio-button>
@@ -177,11 +177,11 @@
         <div v-if="repliesLoading" class="loading">
           <el-skeleton :rows="3" animated />
         </div>
-        <div v-else-if="filteredReplies.length === 0" class="empty">
+        <div v-else-if="nestedReplies.length === 0" class="empty">
           <el-empty description="暂无回复" />
         </div>
         <div v-else>
-          <div v-for="(reply, index) in filteredReplies" :key="reply.id" class="reply-item">
+          <div v-for="(reply, index) in nestedReplies" :key="reply.id" :id="`reply-${reply.id}`" class="reply-item">
             <div class="reply-avatar">
               <el-avatar :src="reply.author?.avatar" :size="48">
                 {{ reply.author?.username?.charAt(0) }}
@@ -191,47 +191,123 @@
               <div class="reply-header">
                 <div class="reply-user-info">
                   <div class="user-info-wrapper">
-                    <span class="author-name" @click="$router.push(`/user/${reply.author?.id}`)">
+                    <span class="author-name" @click="$router.push(`/center/${reply.author?.id}`)">
                       {{ reply.author?.username }}
                     </span>
                     <LevelTag v-if="reply.author?.level" :level="reply.author?.level" :points="reply.author?.points" :role="reply.author?.role" />
                   </div>
                   <el-tag v-if="reply.author?.id === post?.userId" type="warning" size="small">楼主</el-tag>
                   <span class="floor">#{{ (replyPage - 1) * 10 + index + 1 }}</span>
+                  <span v-if="reply.childrenCount" class="child-count" @click="toggleChildReplies(reply)">{{ reply.childrenCount }}条回复</span>
                 </div>
                 <span class="time">{{ formatTime(reply.createTime) }}</span>
               </div>
-              <div v-if="reply.quotedReply" class="quoted-content">
-                <span class="quoted-label">引用 {{ reply.quotedReply.author?.username }}：</span>
-                <div class="quoted-text" v-html="reply.quotedReply.content"></div>
-              </div>
-              <div class="reply-content" v-html="reply.content"></div>
-              <div class="reply-footer">
-                <div class="reply-tags">
-                  <span 
-                    class="like-tag" 
-                    :class="{ 'is-liked': reply.isLiked }"
-                    @click="toggleReplyLike(reply)"
-                  >
-                    <el-icon><Star /></el-icon>
-                    {{ reply.likeCount || 0 }} 人觉得有用
-                  </span>
-                </div>
+              <div class="reply-content-row">
+                <div class="reply-content" v-html="sanitize(reply.content)"></div>
                 <div class="reply-actions">
-                  <el-button size="small" text @click="quoteReply(reply)">
+                  <el-button text @click="quoteReplyAndScroll(reply)">
                     <el-icon><ChatDotRound /></el-icon>
                     回复
                   </el-button>
                   <el-button
-                    v-if="canSetBestAnswer(reply)"
-                    size="small"
                     text
-                    type="success"
-                    @click="setBestAnswer(reply)"
+                    :type="reply.isLiked ? 'primary' : 'default'"
+                    @click="toggleReplyLike(reply)"
                   >
-                    <el-icon><Select /></el-icon>
-                    最佳答案
+                    <el-icon><Star /></el-icon>
+                    {{ reply.isLiked ? '已点赞' : '点赞' }} {{ reply.likeCount || 0 }}
                   </el-button>
+                  <el-button text @click="reportReply(reply)">
+                    <el-icon><Warning /></el-icon>
+                    举报
+                  </el-button>
+                  <el-button
+                    v-if="canDeleteReply(reply)"
+                    text
+                    type="danger"
+                    @click="deleteReply(reply)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除
+                  </el-button>
+                </div>
+              </div>
+              <!-- 嵌套子回复：展平孙子级到子容器中，显示"用户A 回复 用户B" -->
+              <div v-if="reply.childrenCount" class="nested-replies">
+                <div v-for="child in getDisplayedFlattenedChildren(reply)" :key="child.id" :id="`reply-${child.id}`" class="reply-item nested-reply-item">
+                  <div class="reply-avatar">
+                    <el-avatar :src="child.author?.avatar" :size="36">
+                      {{ child.author?.username?.charAt(0) }}
+                    </el-avatar>
+                  </div>
+                  <div class="reply-body">
+                    <div class="reply-header">
+                      <div class="reply-user-info">
+                        <div class="user-info-wrapper">
+                          <span class="author-name" @click="$router.push(`/center/${child.author?.id}`)">
+                            {{ child.author?.username }}
+                          </span>
+                          <template v-if="child.parentAuthor">
+                            <span class="reply-to-arrow">回复</span>
+                            <span class="reply-to-name" @click="$router.push(`/center/${child.parentAuthor?.id}`)">
+                              {{ child.parentAuthor?.username }}
+                            </span>
+                          </template>
+                        </div>
+                        <el-tag v-if="child.author?.id === post?.userId" type="warning" size="small">楼主</el-tag>
+                      </div>
+                      <span class="time">{{ formatTime(child.createTime) }}</span>
+                    </div>
+                    <div class="reply-content-row">
+                      <div class="reply-content" v-html="sanitize(child.content)"></div>
+                      <div class="reply-actions">
+                        <el-button text @click="quoteReplyAndScroll(child)">
+                          <el-icon><ChatDotRound /></el-icon>
+                          回复
+                        </el-button>
+                        <el-button
+                          text
+                          :type="child.isLiked ? 'primary' : 'default'"
+                          @click="toggleReplyLike(child)"
+                        >
+                          <el-icon><Star /></el-icon>
+                          {{ child.isLiked ? '已点赞' : '点赞' }} {{ child.likeCount || 0 }}
+                        </el-button>
+                        <el-button text @click="reportReply(child)">
+                          <el-icon><Warning /></el-icon>
+                          举报
+                        </el-button>
+                        <el-button
+                          v-if="canDeleteReply(child)"
+                          text
+                          type="danger"
+                          @click="deleteReply(child)"
+                        >
+                          <el-icon><Delete /></el-icon>
+                          删除
+                        </el-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 子回复折叠/展开控制 -->
+                <div class="child-replies-actions">
+                  <template v-if="!expandedReplies[reply.id]">
+                    <span class="expand-btn" @click="toggleChildReplies(reply)">
+                      {{ reply.childrenCount }}条回复
+                      <el-icon class="expand-icon"><ArrowDown /></el-icon>
+                    </span>
+                  </template>
+                  <template v-else>
+                    <span v-if="getFlattenedHiddenCount(reply) > 0" class="expand-btn" @click="expandMore(reply)">
+                      展开剩余 {{ getFlattenedHiddenCount(reply) }} 条回复
+                      <el-icon class="expand-icon"><ArrowDown /></el-icon>
+                    </span>
+                    <span class="collapse-btn" @click="collapseAll(reply)">
+                      收起
+                      <el-icon class="collapse-icon"><ArrowUp /></el-icon>
+                    </span>
+                  </template>
                 </div>
               </div>
             </div>
@@ -263,7 +339,7 @@
                 取消
               </el-button>
             </div>
-            <div class="quoted-reply-content" v-html="quotedReply.content"></div>
+            <div class="quoted-reply-content" v-html="sanitize(quotedReply.content)"></div>
           </div>
           <div class="reply-input-area">
             <el-input
@@ -271,6 +347,8 @@
               type="textarea"
               :autosize="{ minRows: 3, maxRows: 6 }"
               placeholder="写下你的回复..."
+              :maxlength="300"
+              show-word-limit
               @keydown.enter.ctrl="submitReply"
               class="reply-textarea"
             />
@@ -418,11 +496,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useForumEvents } from '../composables/useForumEvents'
 import api from '../api'
+import { sanitize } from '../utils/sanitize'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import hljs from 'highlight.js'
 import {
@@ -445,7 +524,9 @@ import {
   Link,
   Promotion,
   ChatRound,
-  Lock
+  Lock,
+  ArrowDown,
+  ArrowUp
 
 } from '@element-plus/icons-vue'
 import LevelTag from '../components/LevelTag.vue'
@@ -461,6 +542,7 @@ const repliesLoading = ref(false)
 const postDeleted = ref(false)
 const replyPage = ref(1)
 const totalReplies = ref(0)
+const totalAllReplies = ref(0)
 const replyContent = ref('')
 const quotedReply = ref(null)
 const submitting = ref(false)
@@ -517,13 +599,111 @@ const filteredReplies = computed(() => {
   }
   if (replyFilter.value === 'related') {
     if (!userStore.isAuthenticated) return []
-    return replies.value.filter(r => 
-      r.author?.id === userStore.user.id || 
+    return replies.value.filter(r =>
+      r.author?.id === userStore.user.id ||
       r.author?.id === post.value?.userId
     )
   }
   return replies.value
 })
+
+// 后端已返回嵌套结构，直接使用 replies.value 作为顶层回复列表
+const nestedReplies = computed(() => {
+  if (!replies.value.length) return []
+  return replies.value.map(r => {
+    const overridden = likeOverrides[r.id] ? { ...r, ...likeOverrides[r.id] } : r
+    return {
+      ...overridden,
+      children: (overridden.children || []).map(c =>
+        likeOverrides[c.id] ? { ...c, ...likeOverrides[c.id] } : c
+      )
+    }
+  })
+})
+
+// 子回复展开状态管理：记录每个回复ID对应的"已展示的扁平化子回复条数"
+const expandedReplies = reactive({})
+
+const CHILD_REPLY_PAGE_SIZE = 8
+
+// 将子回复树展平为一维列表
+// 直接子回复不带 parentAuthor，孙子级及更深的带 parentAuthor（"用户A 回复 用户B"）
+const flattenChildren = (children, result = []) => {
+  if (!children || !children.length) return result
+  for (const child of children) {
+    // 应用点赞覆盖
+    const c = likeOverrides[child.id] ? { ...child, ...likeOverrides[child.id] } : child
+    // 直接子回复（第一层）不带 parentAuthor
+    result.push(c)
+    if (c.children && c.children.length) {
+      // 孙子级及更深：递归展平，并标记 parentAuthor
+      flattenWithParent(c.children, c.author, result)
+    }
+  }
+  return result
+}
+
+const flattenWithParent = (children, parentAuthor, result) => {
+  if (!children || !children.length) return
+  for (const child of children) {
+    const c = likeOverrides[child.id] ? { ...child, ...likeOverrides[child.id] } : child
+    result.push({ ...c, parentAuthor })
+    if (c.children && c.children.length) {
+      flattenWithParent(c.children, c.author, result)
+    }
+  }
+}
+
+// 获取展平后的子回复列表（用于展示），神评优先，点赞相同按最新时间
+const getFlattenedChildren = (reply) => {
+  const flat = flattenChildren(reply.children || [])
+  return flat.sort((a, b) => {
+    const likeA = a.likeCount || 0
+    const likeB = b.likeCount || 0
+    if (likeA !== likeB) return likeB - likeA
+    const timeA = new Date(a.createTime || a.createdAt || 0).getTime()
+    const timeB = new Date(b.createTime || b.createdAt || 0).getTime()
+    return timeB - timeA
+  })
+}
+
+// 获取当前应展示的展平子回复（分页）
+const getDisplayedFlattenedChildren = (reply) => {
+  const flattened = getFlattenedChildren(reply)
+  if (!flattened.length) return []
+  const expanded = expandedReplies[reply.id]
+  if (!expanded) return []
+  return flattened.slice(0, expanded)
+}
+
+// 获取被隐藏的展平子回复数量
+const getFlattenedHiddenCount = (reply) => {
+  const flattened = getFlattenedChildren(reply)
+  const expanded = expandedReplies[reply.id] || 0
+  return flattened.length - expanded
+}
+
+// 展开更多子回复
+const expandMore = (reply) => {
+  const flattened = getFlattenedChildren(reply)
+  const current = expandedReplies[reply.id] || 0
+  expandedReplies[reply.id] = Math.min(current + CHILD_REPLY_PAGE_SIZE, flattened.length)
+}
+
+// 收起所有子回复
+const collapseAll = (reply) => {
+  delete expandedReplies[reply.id]
+}
+
+// 切换子回复的展开/折叠
+const toggleChildReplies = (reply) => {
+  const flattened = getFlattenedChildren(reply)
+  if (!expandedReplies[reply.id]) {
+    expandedReplies[reply.id] = Math.min(CHILD_REPLY_PAGE_SIZE, flattened.length)
+  } else {
+    delete expandedReplies[reply.id]
+  }
+}
 
 const shareLink = computed(() => {
   return window.location.origin + '/post/' + route.params.id
@@ -544,6 +724,42 @@ const parsedAttachments = computed(() => {
   return []
 })
 
+const postTitleStyle = computed(() => {
+  const defaultStyle = {
+    color: '#2c3e50',
+    fontSize: '28px',
+    fontWeight: 800,
+    fontStyle: 'normal',
+    textDecoration: 'none',
+    textAlign: 'center'
+  }
+
+  if (!post.value?.titleStyle) {
+    return defaultStyle
+  }
+
+  try {
+    const style = typeof post.value.titleStyle === 'string'
+      ? JSON.parse(post.value.titleStyle)
+      : post.value.titleStyle
+
+    const textDecorations = []
+    if (style?.underline) textDecorations.push('underline')
+    if (style?.strike) textDecorations.push('line-through')
+
+    return {
+      color: style?.textColor || defaultStyle.color,
+      fontSize: `${style?.fontSize || 28}px`,
+      fontWeight: style?.bold ? 700 : 500,
+      fontStyle: style?.italic ? 'italic' : 'normal',
+      textDecoration: textDecorations.length ? textDecorations.join(' ') : 'none',
+      textAlign: style?.textAlign || defaultStyle.textAlign
+    }
+  } catch (error) {
+    return defaultStyle
+  }
+})
+
 const parsedTags = computed(() => {
   if (!post.value?.tags) return []
   try {
@@ -561,11 +777,12 @@ const parsedTags = computed(() => {
 })
 
 const goBack = () => {
-  if (window.history.length > 1) {
-    router.back()
-  } else {
-    router.push('/')
+  if (post.value?.category?.id) {
+    router.push(`/forum/${post.value.category.id}`)
+    return
   }
+
+  router.push('/')
 }
 
 const checkFollowStatus = async () => {
@@ -624,6 +841,7 @@ const handleUnfollow = async () => {
 
 const handleFilterChange = () => {
   replyPage.value = 1
+  fetchReplies()
 }
 
 const formatTime = (time) => {
@@ -672,6 +890,22 @@ const fetchPost = async () => {
   }
 }
 
+const scrollToHashReply = () => {
+  const hash = route.hash
+  if (hash && hash.startsWith('#reply-')) {
+    nextTick(() => {
+      setTimeout(() => {
+        const el = document.getElementById(hash.slice(1))
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          el.classList.add('reply-highlight')
+          setTimeout(() => el.classList.remove('reply-highlight'), 2000)
+        }
+      }, 100)
+    })
+  }
+}
+
 const fetchReplies = async () => {
   repliesLoading.value = true
   try {
@@ -683,7 +917,12 @@ const fetchReplies = async () => {
       }
     })
     replies.value = response.replies
+    // 清除点赞覆盖状态（重新加载后数据已是最新的）
+    Object.keys(likeOverrides).forEach(key => delete likeOverrides[key])
     totalReplies.value = response.total
+    totalAllReplies.value = response.totalAll ?? response.total
+    // 如果URL中有hash（如#reply-123），滚动到对应评论
+    scrollToHashReply()
   } catch (error) {
     console.error('获取回复列表失败:', error)
   } finally {
@@ -762,6 +1001,28 @@ const toggleLock = async () => {
   }
 }
 
+const canDeleteReply = (reply) => {
+  if (!userStore.isAuthenticated) return false
+  const uid = userStore.user.id
+  const role = userStore.user.role
+  return reply.author?.id === uid || post.value?.author?.id === uid || role === 'admin' || role === 'moderator'
+}
+
+const deleteReply = async (reply) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该回复吗？', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await api.delete(`/replies/${reply.id}`)
+    ElMessage.success('删除成功')
+    fetchReplies()
+  } catch {
+    // 用户取消
+  }
+}
+
 const deletePost = async () => {
   const { value: reason } = await ElMessageBox.prompt('请输入删除原因（可选）', '删除帖子', {
     confirmButtonText: '确定删除',
@@ -792,18 +1053,28 @@ const deletePost = async () => {
   }
 }
 
+// 点赞状态覆盖表（响应式），解决 flattenWithParent spread 副本导致的响应式失效
+const likeOverrides = reactive({})
+
 const toggleReplyLike = async (reply) => {
   if (!userStore.isAuthenticated) {
     ElMessage.warning('请先登录')
     return
   }
   try {
-    await api.post('/likes', {
+    const response = await api.post('/likes', {
       targetType: 'reply',
       targetId: reply.id
     })
-    reply.isLiked = !reply.isLiked
-    reply.likeCount += reply.isLiked ? 1 : -1
+    const newState = {
+      isLiked: response.isLiked,
+      likeCount: Math.max(0, response.likeCount)
+    }
+    // 更新展平副本
+    reply.isLiked = newState.isLiked
+    reply.likeCount = newState.likeCount
+    // 存入覆盖表，让 nestedReplies 和 getFlattenedChildren 感知到变化
+    likeOverrides[reply.id] = newState
   } catch (error) {
     ElMessage.error('操作失败')
   }
@@ -812,6 +1083,31 @@ const toggleReplyLike = async (reply) => {
 const quoteReply = (reply) => {
   quotedReply.value = reply
   replyContent.value = ''
+}
+
+const scrollToReplyBox = () => {
+  const el = document.querySelector('.reply-box-card')
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const textarea = el.querySelector('textarea')
+    if (textarea) {
+      setTimeout(() => textarea.focus(), 300)
+    }
+  }
+}
+
+const quoteReplyAndScroll = (reply) => {
+  quoteReply(reply)
+  scrollToReplyBox()
+}
+
+const reportReply = (reply) => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('请先登录')
+    return
+  }
+  reportTarget.value = { type: 'reply', id: reply.id }
+  showReportDialog.value = true
 }
 
 const canSetBestAnswer = (reply) => {
@@ -1004,6 +1300,12 @@ watch(() => route.params.id, () => {
   fetchReplies()
 }, { immediate: true })
 
+watch(() => route.hash, (hash) => {
+  if (hash && hash.startsWith('#reply-')) {
+    scrollToHashReply()
+  }
+})
+
 onMounted(() => {
   fetchPost()
   fetchReplies()
@@ -1011,6 +1313,16 @@ onMounted(() => {
 </script>
 
 <style scoped>
+@keyframes reply-highlight {
+  0% { background-color: rgba(102, 126, 234, 0.2); }
+  100% { background-color: transparent; }
+}
+
+:deep(.reply-highlight) {
+  animation: reply-highlight 2s ease-out;
+  border-radius: 12px;
+}
+
 .post-detail {
   width: 100%;
   padding: 24px;
@@ -1267,6 +1579,7 @@ onMounted(() => {
   color: #2c3e50;
   line-height: 1.5;
   padding-left: 4px;
+  text-align: center;
 }
 
 .post-content {
@@ -1281,6 +1594,15 @@ onMounted(() => {
   word-break: break-word;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+
+.clickable-content {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.clickable-content:hover {
+  background: linear-gradient(135deg, #f0f3ff 0%, #ecefff 100%);
 }
 
 .post-content :deep(pre) {
@@ -1569,6 +1891,48 @@ onMounted(() => {
   border-bottom: none;
 }
 
+.nested-replies {
+  margin-top: 16px;
+  margin-left: 12px;
+  padding-left: 16px;
+  border-left: 3px solid rgba(102, 126, 234, 0.15);
+  background: linear-gradient(135deg, rgba(248, 249, 255, 0.4) 0%, rgba(240, 242, 255, 0.3) 100%);
+  border-radius: 0 12px 12px 0;
+}
+
+
+.nested-reply-item {
+  padding: 16px 0;
+  gap: 12px;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.06);
+}
+
+.nested-reply-item:last-child {
+  border-bottom: none;
+}
+
+.nested-reply-item .reply-content {
+  font-size: 14px;
+}
+
+.reply-to-arrow {
+  font-size: 13px;
+  color: #999;
+  margin-left: 2px;
+}
+
+.reply-to-name {
+  font-size: 14px;
+  color: #667eea;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+.reply-to-name:hover {
+  color: #764ba2;
+}
+
 .reply-avatar {
   flex-shrink: 0;
 }
@@ -1621,6 +1985,49 @@ onMounted(() => {
   border-radius: 10px;
 }
 
+.child-count {
+  font-size: 12px;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.08);
+  padding: 3px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.child-count:hover {
+  background: rgba(102, 126, 234, 0.15);
+}
+
+.child-replies-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0 4px;
+}
+
+.expand-btn,
+.collapse-btn {
+  font-size: 13px;
+  color: #667eea;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  transition: color 0.3s ease;
+}
+
+.expand-btn:hover,
+.collapse-btn:hover {
+  color: #764ba2;
+}
+
+.expand-icon,
+.collapse-icon {
+  font-size: 12px;
+}
+
 .time {
   font-size: 13px;
   color: #999;
@@ -1657,10 +2064,14 @@ onMounted(() => {
 
 .reply-content {
   line-height: 1.8;
-  margin-bottom: 14px;
   color: #333;
   text-align: left;
   font-size: 15px;
+  word-wrap: break-word;
+  word-break: break-all;
+  overflow-wrap: break-word;
+  flex: 1;
+  min-width: 0;
 }
 
 .reply-content :deep(img) {
@@ -1669,51 +2080,22 @@ onMounted(() => {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
 }
 
-.reply-footer {
+.reply-content-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 14px;
-  border-top: 1px solid rgba(102, 126, 234, 0.08);
-}
-
-.reply-tags {
-  display: flex;
+  align-items: flex-start;
   gap: 12px;
-}
-
-.like-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  font-size: 13px;
-  color: #888;
-  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
-  border-radius: 18px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-
-.like-tag:hover {
-  background: linear-gradient(135deg, #e8ebff 0%, #e0e3ff 100%);
-  color: #667eea;
-  border-color: rgba(102, 126, 234, 0.2);
-}
-
-.like-tag.is-liked {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
 }
 
 .reply-actions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 
 .reply-actions .el-button {
   border-radius: 10px;
+  font-size: 14px;
 }
 
 .reply-box-card {
@@ -2113,6 +2495,15 @@ onMounted(() => {
     padding: 20px;
   }
 
+  .nested-replies {
+    margin-left: 0;
+    padding-left: 10px;
+  }
+
+  .nested-reply-item {
+    padding: 12px 0;
+  }
+
   .reply-avatar {
     display: none;
   }
@@ -2123,10 +2514,13 @@ onMounted(() => {
     gap: 8px;
   }
 
-  .reply-footer {
+  .reply-content-row {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    gap: 8px;
+  }
+
+  .reply-actions {
+    flex-wrap: wrap;
   }
 
   .emoji-grid {

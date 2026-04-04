@@ -27,7 +27,10 @@
       "Bash(grep -404')",
       "Bash(javap -c target/classes/com/excel/forum/config/SecurityConfig.class)",
       "Bash(javap -p target/classes/com/excel/forum/controller/CategoryFollowController.class)",
-      "Bash(mvn compile:*)"
+      "Bash(mvn compile:*)",
+      "Bash(find D:\\\\new_text_bak\\\\excel-forum-frontend\\\\src\\\\components:*)",
+      "Bash(find D:\\\\new_text_bak\\\\excel-forum-frontend\\\\src\\\\views:*)",
+      "Bash(gh pr:*)"
     ]
   }
 }

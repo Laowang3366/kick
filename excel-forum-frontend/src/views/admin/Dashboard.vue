@@ -220,7 +220,7 @@ const statsConfig = computed(() => [
     value: stats.value.replyCount,
     icon: ChatDotRound,
     type: 'orange',
-    onClick: () => router.push('/admin/replies')
+    onClick: () => router.push('/admin/levels')
   },
   {
     label: '待处理举报',

@@ -2,6 +2,7 @@ package com.excel.forum.config;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "app.db.legacy-initializer.enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DatabaseInitializer {
     private final JdbcTemplate jdbcTemplate;
@@ -375,7 +377,41 @@ public class DatabaseInitializer {
                     log.warn("创建 site_notification 表时出现异常: {}", message);
                 }
             }
-            
+
+            // 添加 User 隐私设置字段
+
+            try {
+                jdbcTemplate.execute("ALTER TABLE notification ADD COLUMN reply_id BIGINT COMMENT '关联回复ID'");
+                log.info("添加 reply_id 字段成功");
+            } catch (Exception e) {
+                String message = e.getMessage();
+                if (message != null && (message.contains("Duplicate column name") || message.contains("already exists"))) {
+                    log.info("reply_id 字段已存在");
+                } else {
+                    log.warn("添加 reply_id 字段时出现异常: {}", message);
+                }
+            }
+            String[] userPrivacyColumns = {
+                "ALTER TABLE user ADD COLUMN public_profile TINYINT(1) DEFAULT 1 COMMENT '是否公开资料'",
+                "ALTER TABLE user ADD COLUMN show_online_status TINYINT(1) DEFAULT 1 COMMENT '是否显示在线状态'",
+                "ALTER TABLE user ADD COLUMN allow_messages TINYINT(1) DEFAULT 1 COMMENT '是否允许私信'",
+                "ALTER TABLE user ADD COLUMN show_following TINYINT(1) DEFAULT 1 COMMENT '是否显示关注列表'",
+                "ALTER TABLE user ADD COLUMN show_followers TINYINT(1) DEFAULT 1 COMMENT '是否显示粉丝列表'"
+            };
+            for (String sql : userPrivacyColumns) {
+                try {
+                    jdbcTemplate.execute(sql);
+                    log.info("添加隐私设置字段成功");
+                } catch (Exception e) {
+                    String message = e.getMessage();
+                    if (message != null && (message.contains("Duplicate column name") || message.contains("already exists"))) {
+                        // 字段已存在
+                    } else {
+                        log.warn("添加隐私设置字段时出现异常: {}", message);
+                    }
+                }
+            }
+
             log.info("数据库结构检查完成");
         } catch (Exception e) {
             log.error("数据库结构更新失败", e);

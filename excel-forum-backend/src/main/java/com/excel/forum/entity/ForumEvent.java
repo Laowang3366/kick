@@ -6,6 +6,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @Data
 @Builder
@@ -70,6 +72,20 @@ public class ForumEvent {
                 .type("REPORT_UPDATED")
                 .targetId(reportId)
                 .targetType("report")
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    public static ForumEvent messageReceived(Long messageId, Long receiverId, Long senderId) {
+        Map<String, Object> messageData = new HashMap<>();
+        messageData.put("receiverId", receiverId);
+        messageData.put("senderId", senderId);
+        
+        return ForumEvent.builder()
+                .type("MESSAGE_RECEIVED")
+                .targetId(messageId)
+                .targetType("message")
+                .data(messageData)
                 .timestamp(LocalDateTime.now())
                 .build();
     }

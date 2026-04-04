@@ -133,6 +133,20 @@
           </div>
         </div>
 
+        <!-- 关联内容：被点赞/回复的评论 -->
+        <div v-if="detailReply" class="detail-related">
+          <div class="related-label">{{ detailNotification?.type === 'like' ? '被点赞的评论' : '被回复的评论' }}</div>
+          <div class="related-reply-card" @click="goToPostWithReply(detailNotification)">
+            <div class="reply-card-content">{{ detailReply.content }}</div>
+            <div class="reply-card-footer">
+              <span class="reply-jump-hint">
+                <el-icon><View /></el-icon>
+                点击查看原评论
+              </span>
+            </div>
+          </div>
+        </div>
+
         <!-- 关联内容：全站公告 -->
         <div v-if="detailAnnouncement" class="detail-related">
           <div class="related-label">公告详情</div>
@@ -341,6 +355,7 @@ const transformNotification = (notification) => {
     isRead: notification.isRead === 1,
     link: getNotificationLink(notification),
     relatedId: notification.relatedId,
+    replyId: notification.replyId,
     senderId: notification.senderId
   }
 }
@@ -367,6 +382,8 @@ const getNotificationTitle = (type) => {
       return '有人@了你'
     case 'follow':
       return '新增粉丝'
+    case 'level_up':
+      return '等级提升'
     case 'site_notification':
       return '全站公告'
     default:
@@ -379,12 +396,15 @@ const getNotificationLink = (notification) => {
     case 'like':
     case 'reply':
     case 'favorite':
-    case 'post_review':
-      return notification.relatedId ? `/post/${notification.relatedId}` : null
+    case 'post_review': {
+      if (!notification.relatedId) return null
+      const hash = notification.replyId ? `#reply-${notification.replyId}` : ''
+      return `/post/${notification.relatedId}${hash}`
+    }
     case 'message':
       return notification.senderId ? `/messages?userId=${notification.senderId}` : null
     case 'follow':
-      return notification.relatedId ? `/user/${notification.relatedId}` : null
+      return notification.relatedId ? `/center/${notification.relatedId}` : null
     case 'site_notification':
       return '/announcements'
     default:
@@ -405,6 +425,7 @@ const announcementDetailData = ref(null)
 
 // 关联数据
 const detailPost = ref(null)
+const detailReply = ref(null)
 const detailAnnouncement = ref(null)
 const detailFollower = ref(null)
 const detailSender = ref(null)
@@ -423,7 +444,7 @@ const detailTagType = computed(() => {
   const map = {
     system: 'info', post_deleted: 'danger', post_review: 'warning',
     like: 'success', reply: 'primary', favorite: 'success', message: 'primary',
-    MENTION: 'primary', follow: 'success', site_notification: 'warning'
+    MENTION: 'primary', follow: 'success', level_up: 'success', site_notification: 'warning'
   }
   return map[detailNotification.value?.type] || 'info'
 })
@@ -432,7 +453,7 @@ const detailIcon = computed(() => {
   const map = {
     system: 'Bell', post_deleted: 'Delete', post_review: 'Document',
     like: 'Star', reply: 'ChatDotRound', favorite: 'Collection',
-    message: 'ChatDotRound', MENTION: 'User', follow: 'User',
+    message: 'ChatDotRound', MENTION: 'User', follow: 'User', level_up: 'Star',
     site_notification: 'Bell'
   }
   return map[detailNotification.value?.type] || 'Bell'
@@ -462,6 +483,7 @@ const formatDetailTime = (time) => {
 
 const resetDetail = () => {
   detailPost.value = null
+  detailReply.value = null
   detailAnnouncement.value = null
   detailFollower.value = null
   detailSender.value = null
@@ -480,9 +502,15 @@ const goToPost = (id) => {
   router.push(`/post/${id}`)
 }
 
+const goToPostWithReply = (notification) => {
+  detailVisible.value = false
+  const hash = notification?.replyId ? `#reply-${notification.replyId}` : ''
+  router.push(`/post/${notification.relatedId}${hash}`)
+}
+
 const goToUser = (id) => {
   detailVisible.value = false
-  router.push(`/user/${id}`)
+  router.push(`/center/${id}`)
 }
 
 const showAnnouncementDetail = (announcement) => {
@@ -527,7 +555,7 @@ const handleNotificationClick = async (notification) => {
   detailVisible.value = true
 
   // 根据类型加载关联数据
-  const { type, relatedId, senderId } = notification
+  const { type, relatedId, replyId, senderId } = notification
 
   if (['like', 'reply', 'favorite', 'post_review', 'system'].includes(type) && relatedId) {
     detailLoading.value = true
@@ -538,6 +566,29 @@ const handleNotificationClick = async (notification) => {
       detailPost.value = null
     } finally {
       detailLoading.value = false
+    }
+    // 如果有关联评论ID，获取评论详情
+    if (replyId) {
+      try {
+        const reply = await api.get(`/posts/${relatedId}/replies`)
+        // 在回复列表中查找目标回复
+        const findReply = (list) => {
+          for (const r of list) {
+            if (r.id === replyId) return r
+            if (r.children) {
+              const found = findReply(r.children)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        const targetReply = findReply(reply.replies || [])
+        if (targetReply) {
+          detailReply.value = targetReply
+        }
+      } catch {
+        detailReply.value = null
+      }
     }
   }
 
@@ -845,6 +896,49 @@ onMounted(() => {
   letter-spacing: 1px;
   margin-bottom: 10px;
   padding-left: 2px;
+}
+
+.related-reply-card {
+  background: #fafbff;
+  border: 1px solid #e4e8f1;
+  border-left: 4px solid #667eea;
+  border-radius: 14px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.related-reply-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.12);
+  transform: translateY(-1px);
+}
+
+.reply-card-content {
+  font-size: 14px;
+  color: #303133;
+  line-height: 1.8;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reply-card-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.reply-jump-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #667eea;
+  font-weight: 500;
 }
 
 .related-post-card {

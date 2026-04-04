@@ -158,10 +158,10 @@
                 :key="user.id" 
                 class="online-user-item"
               >
-                <el-avatar :src="user.avatar" :size="36" @click="$router.push(`/user/${user.id}`)">
+                <el-avatar :src="user.avatar" :size="36" @click="$router.push(`/center/${user.id}`)">
                   {{ user.username?.charAt(0) }}
                 </el-avatar>
-                <div class="online-user-info" @click="$router.push(`/user/${user.id}`)">
+                <div class="online-user-info" @click="$router.push(`/center/${user.id}`)">
                   <div class="online-username-row">
                     <span class="online-username">{{ user.username }}</span>
                     <LevelTag v-if="user.level" :level="user.level" :points="user.points" :role="user.role" />
@@ -250,6 +250,7 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '../stores/user'
 import { useForumEvents } from '../composables/useForumEvents'
 import api from '../api'
+import { sanitize } from '../utils/sanitize'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -423,7 +424,7 @@ const renderMessageContent = (content) => {
   let rendered = content
   const mentionRegex = /@(\S+)/g
   rendered = rendered.replace(mentionRegex, '<span class="mention-highlight">@$1</span>')
-  return rendered
+  return sanitize(rendered)
 }
 
 const extractMentions = (content) => {

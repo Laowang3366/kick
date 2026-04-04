@@ -19,7 +19,9 @@ public class AuthResponse {
         private String role;
         private Integer level;
         private Integer points;
+        private Integer exp;
         private String bio;
         private String expertise;
+        private String gender;
     }
 }

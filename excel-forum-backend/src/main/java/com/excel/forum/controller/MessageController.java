@@ -1,7 +1,9 @@
 package com.excel.forum.controller;
 
+import com.excel.forum.entity.ForumEvent;
 import com.excel.forum.entity.Message;
 import com.excel.forum.entity.User;
+import com.excel.forum.service.ForumEventService;
 import com.excel.forum.service.MessageService;
 import com.excel.forum.service.UserService;
 import com.excel.forum.service.NotificationService;
@@ -22,6 +24,7 @@ public class MessageController {
     private final MessageService messageService;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final ForumEventService forumEventService;
 
     @GetMapping("/conversations")
     public ResponseEntity<?> getConversations(HttpServletRequest request) {
@@ -79,9 +82,26 @@ public class MessageController {
         if (userId == null) {
             return ResponseEntity.status(401).body(Map.of("message", "未登录"));
         }
-        
+
+        if (body.get("receiverId") == null || body.get("content") == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "参数不完整"));
+        }
+
         Long receiverId = Long.valueOf(body.get("receiverId").toString());
         String content = body.get("content").toString();
+
+        User receiver = userService.getById(receiverId);
+        if (receiver == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "接收用户不存在"));
+        }
+
+        if (!userId.equals(receiverId) && Boolean.FALSE.equals(receiver.getAllowMessages())) {
+            return ResponseEntity.status(403).body(Map.of("message", "对方已关闭私信"));
+        }
+
+        if (content.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "消息内容不能为空"));
+        }
         
         Message message = messageService.sendMessage(userId, receiverId, content);
         
@@ -95,6 +115,9 @@ public class MessageController {
             message.getId(),
             userId
         );
+        
+        // 推送私信接收事件，实时更新未读数量
+        forumEventService.publishMessageEvent(message.getId(), receiverId, userId);
         
         // 构建返回的消息对象
         Map<String, Object> messageResponse = new HashMap<>();

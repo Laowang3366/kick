@@ -2,6 +2,7 @@ package com.excel.forum.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.excel.forum.entity.User;
 import com.excel.forum.mapper.UserMapper;
@@ -53,9 +54,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     public List<User> getOnlineUsers(int limit) {
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("is_online", true)
-                   .orderByDesc("last_active_time")
-                   .last("LIMIT " + limit);
-        List<User> users = list(queryWrapper);
+                   .orderByDesc("last_active_time");
+        Page<User> page = new Page<>(1, limit);
+        List<User> users = page(page, queryWrapper).getRecords();
         users.forEach(user -> user.setPassword(null));
         return users;
     }

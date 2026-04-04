@@ -33,11 +33,17 @@
           </el-avatar>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item @click="$router.push(`/user/${userStore.user.id}`)">
-                个人中心
+              <el-dropdown-item @click="$router.push('/center')">
+                我的主页
               </el-dropdown-item>
               <el-dropdown-item @click="$router.push('/settings')">
                 账户设置
+              </el-dropdown-item>
+              <el-dropdown-item @click="$router.push('/drafts')">
+                我的草稿
+              </el-dropdown-item>
+              <el-dropdown-item @click="$router.push('/checkin')">
+                每日签到
               </el-dropdown-item>
               <el-dropdown-item v-if="userStore.user.role === 'admin'" @click="router.push('/admin')">
                 后台管理
@@ -123,13 +129,9 @@
                 <el-icon><EditPen /></el-icon>
                 <span>小试牛刀</span>
               </el-menu-item>
-              <el-menu-item index="following">
-                <el-icon><Star /></el-icon>
-                <span>我的关注</span>
-              </el-menu-item>
               <el-menu-item index="checkin">
                 <el-icon><Calendar /></el-icon>
-                <span>积分签到</span>
+                <span>每日签到</span>
               </el-menu-item>
             </el-menu>
           </div>
@@ -175,13 +177,9 @@
           <el-icon><EditPen /></el-icon>
           <span>小试牛刀</span>
         </el-menu-item>
-        <el-menu-item index="following">
-          <el-icon><Star /></el-icon>
-          <span>我的关注</span>
-        </el-menu-item>
         <el-menu-item index="checkin">
           <el-icon><Calendar /></el-icon>
-          <span>积分签到</span>
+          <span>每日签到</span>
         </el-menu-item>
       </el-menu>
     </el-drawer>
@@ -189,10 +187,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
-import { Bell, Search, HomeFilled, ChatDotRound, Menu, Fold, Expand, ArrowUp, ArrowDown, EditPen, Star, Calendar, User } from '@element-plus/icons-vue'
+import { useForumEvents } from '../composables/useForumEvents'
+import { Bell, Search, HomeFilled, ChatDotRound, Menu, Fold, Expand, ArrowUp, ArrowDown, EditPen, Calendar, User } from '@element-plus/icons-vue'
 import api from '../api'
 
 const router = useRouter()
@@ -200,6 +199,7 @@ const route = useRoute()
 const userStore = useUserStore()
 const searchKeyword = ref('')
 const forums = ref([])
+let notificationInterval = null
 const currentCategoryId = ref(null)
 const mobileMenuVisible = ref(false)
 const asideCollapsed = ref(false)
@@ -294,11 +294,11 @@ const fetchUnreadMessages = async () => {
 
 const startNotificationPolling = () => {
   if (!userStore.isAuthenticated) return
-  
+
   fetchUnreadNotifications()
   fetchUnreadMessages()
-  
-  setInterval(() => {
+
+  notificationInterval = setInterval(() => {
     fetchUnreadNotifications()
     fetchUnreadMessages()
   }, 30000)
@@ -359,9 +359,28 @@ watch(() => route.path, (newPath) => {
   }
 }, { immediate: true })
 
+// 监听实时通知和私信事件
+useForumEvents(
+  null,
+  (event) => {
+    // 收到新通知或私信时，刷新未读数量
+    if (event.type === 'NOTIFICATION_CREATED' || event.type === 'MESSAGE_RECEIVED') {
+      userStore.fetchUnreadCount()
+      userStore.fetchUnreadMessageCount()
+    }
+  }
+)
+
 onMounted(() => {
   fetchForums()
   startNotificationPolling()
+})
+
+onUnmounted(() => {
+  if (notificationInterval) {
+    clearInterval(notificationInterval)
+    notificationInterval = null
+  }
 })
 </script>
 

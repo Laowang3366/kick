@@ -6,6 +6,7 @@ import lombok.Data;
 public class PostDTO {
     private Long id;
     private String title;
+    private String titleStyle;
     private String content;
     private Long categoryId;
     private Long userId;
@@ -23,6 +24,8 @@ public class PostDTO {
     private Boolean isEssence = false;
     private String attachments;
     private String tags;
+    private String reviewStatus;
+    private String reviewReason;
     private String createTime;
     private String updateTime;
     

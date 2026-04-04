@@ -1,6 +1,7 @@
 package com.excel.forum.entity.dto;
 
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class ReplyDTO {
@@ -17,6 +18,8 @@ public class ReplyDTO {
     private Boolean isLiked;
     private QuotedReplyDTO quotedReply;
     private PostInfoDTO post;
+    private List<ReplyDTO> children;
+    private Integer childrenCount;
 
     @Data
     public static class AuthorDTO {

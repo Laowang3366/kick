@@ -29,4 +29,10 @@ public class ForumEventService {
     public void publishNotificationEvent(Long userId, Object notification) {
         messagingTemplate.convertAndSend("/topic/notifications/user/" + userId, notification);
     }
+
+    public void publishMessageEvent(Long messageId, Long receiverId, Long senderId) {
+        ForumEvent event = ForumEvent.messageReceived(messageId, receiverId, senderId);
+        messagingTemplate.convertAndSend("/topic/notifications/user/" + receiverId, event);
+        log.info("Published message event: messageId={}, receiverId={}, senderId={}", messageId, receiverId, senderId);
+    }
 }

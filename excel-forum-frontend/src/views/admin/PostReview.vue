@@ -86,7 +86,7 @@
           <span>时间：{{ formatTime(previewData.createTime) }}</span>
         </div>
         <el-divider />
-        <div class="preview-body" v-html="previewData.content"></div>
+        <div class="preview-body" v-html="sanitize(previewData.content)"></div>
       </div>
       <template #footer>
         <el-button @click="previewVisible = false">关闭</el-button>
@@ -100,6 +100,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../api'
+import { sanitize } from '../../utils/sanitize'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Close, View, Refresh } from '@element-plus/icons-vue'
 

@@ -1,8 +1,8 @@
 <template>
   <div class="checkin-page">
     <div class="page-header">
-      <h1>积分签到</h1>
-      <p>每日签到获取积分，兑换精彩奖励</p>
+      <h1>每日签到</h1>
+      <p>每天可签到一次，随机获得 1-20 点经验</p>
     </div>
 
     <div class="checkin-main">
@@ -13,10 +13,10 @@
             <el-icon v-else><Calendar /></el-icon>
           </div>
           <h2>{{ hasCheckedIn ? '今日已签到' : '今日未签到' }}</h2>
-          <p v-if="hasCheckedIn">明天再来吧~</p>
-          <p v-else>点击下方按钮签到获取积分</p>
+          <p v-if="hasCheckedIn">今天已领取 {{ todayExp }} 点经验，明天再来吧</p>
+          <p v-else>点击下方按钮签到，随机获得经验奖励</p>
         </div>
-        
+
         <div class="checkin-stats">
           <div class="stat-item">
             <span class="stat-value">{{ checkinStats.continuousDays }}</span>
@@ -27,20 +27,26 @@
             <span class="stat-label">累计签到</span>
           </div>
           <div class="stat-item">
-            <span class="stat-value">{{ checkinStats.totalPoints }}</span>
-            <span class="stat-label">获得积分</span>
+            <span class="stat-value">{{ checkinStats.totalExp }}</span>
+            <span class="stat-label">签到经验</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ expProgressText }}</span>
+            <span class="stat-label">当前经验</span>
           </div>
         </div>
 
-        <el-button 
-          type="primary" 
-          size="large" 
+        <el-button
+          type="primary"
+          size="large"
           class="checkin-btn"
-          :disabled="hasCheckedIn"
+          :disabled="hasCheckedIn || loading"
+          :loading="loading"
           @click="handleCheckin"
         >
           {{ hasCheckedIn ? '已签到' : '立即签到' }}
         </el-button>
+        <div class="checkin-tip">经验奖励范围：{{ expRange.min }} - {{ expRange.max }}</div>
       </div>
 
       <div class="calendar-card">
@@ -58,7 +64,7 @@
             </div>
           </template>
           <template #date-cell="{ data }">
-            <div class="calendar-cell" :class="{ 'checked': isCheckinDay(data.day) }">
+            <div class="calendar-cell" :class="{ checked: isCheckinDay(data.day) }">
               {{ data.day.split('-')[2] }}
               <el-icon v-if="isCheckinDay(data.day)" class="check-icon"><CircleCheck /></el-icon>
             </div>
@@ -68,15 +74,15 @@
     </div>
 
     <div class="rewards-section">
-      <h3>积分奖励规则</h3>
+      <h3>签到说明</h3>
       <div class="rewards-grid">
         <div class="reward-item">
           <div class="reward-icon basic">
             <el-icon><Calendar /></el-icon>
           </div>
           <div class="reward-info">
-            <h4>基础签到</h4>
-            <p>+5 积分/天</p>
+            <h4>每日一次</h4>
+            <p>每天只能签到一次</p>
           </div>
         </div>
         <div class="reward-item">
@@ -84,8 +90,8 @@
             <el-icon><Trophy /></el-icon>
           </div>
           <div class="reward-info">
-            <h4>连续7天</h4>
-            <p>额外 +20 积分</p>
+            <h4>随机经验</h4>
+            <p>每次获得 1-20 点经验</p>
           </div>
         </div>
         <div class="reward-item">
@@ -93,8 +99,8 @@
             <el-icon><Medal /></el-icon>
           </div>
           <div class="reward-info">
-            <h4>连续30天</h4>
-            <p>额外 +100 积分</p>
+            <h4>连续签到</h4>
+            <p>连续天数会自动累计</p>
           </div>
         </div>
         <div class="reward-item">
@@ -102,29 +108,8 @@
             <el-icon><Present /></el-icon>
           </div>
           <div class="reward-info">
-            <h4>特殊节日</h4>
-            <p>双倍积分</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="points-shop">
-      <h3>积分商城</h3>
-      <div class="shop-grid">
-        <div v-for="item in shopItems" :key="item.id" class="shop-item">
-          <div class="item-image">
-            <el-icon><Present /></el-icon>
-          </div>
-          <div class="item-info">
-            <h4>{{ item.name }}</h4>
-            <p>{{ item.description }}</p>
-            <div class="item-footer">
-              <span class="item-points">{{ item.points }} 积分</span>
-              <el-button type="primary" size="small" :disabled="userPoints < item.points">
-                兑换
-              </el-button>
-            </div>
+            <h4>等级成长</h4>
+            <p>签到经验会直接计入等级进度</p>
           </div>
         </div>
       </div>
@@ -133,42 +118,50 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useUserStore } from '../stores/user'
 import { ElMessage } from 'element-plus'
-import { Calendar, CircleCheck, Trophy, Medal, Present, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Calendar, CircleCheck, Medal, Present, Trophy } from '@element-plus/icons-vue'
+import api from '../api'
 
 const userStore = useUserStore()
 const hasCheckedIn = ref(false)
 const calendarDate = ref(new Date())
-const userPoints = ref(150)
-
-const weekDays = ['日', '一', '二', '三', '四', '五', '六']
-
-const checkinStats = reactive({
-  continuousDays: 7,
-  totalDays: 45,
-  totalPoints: 320
+const loading = ref(false)
+const todayExp = ref(0)
+const expProgress = ref(null)
+const expRange = reactive({
+  min: 1,
+  max: 20
 })
 
-const checkinDays = ref(['2026-03-28', '2026-03-27', '2026-03-26', '2026-03-25', '2026-03-24', '2026-03-23', '2026-03-22'])
+const checkinStats = reactive({
+  continuousDays: 0,
+  totalDays: 0,
+  totalExp: 0
+})
 
-const shopItems = ref([
-  { id: 1, name: 'VIP会员7天', description: '享受VIP专属特权', points: 100 },
-  { id: 2, name: '专属头像框', description: '个性化你的头像', points: 200 },
-  { id: 3, name: '积分加倍卡', description: '下次签到双倍积分', points: 50 },
-  { id: 4, name: '专属勋章', description: '展示你的成就', points: 300 }
-])
+const checkinDays = ref([])
 
-const isCheckinDay = (day) => {
-  return checkinDays.value.includes(day)
-}
+const currentMonth = computed(() => {
+  const year = calendarDate.value.getFullYear()
+  const month = `${calendarDate.value.getMonth() + 1}`.padStart(2, '0')
+  return `${year}-${month}`
+})
+
+const expProgressText = computed(() => {
+  if (!expProgress.value) return '--'
+  if (expProgress.value.maxLevel) {
+    return `${expProgress.value.exp}/MAX`
+  }
+  return `${expProgress.value.currentInLevel}/${expProgress.value.totalInLevel}`
+})
+
+const isCheckinDay = (day) => checkinDays.value.includes(day)
 
 const formatCalendarTitle = (date) => {
   const d = new Date(date)
-  const year = d.getFullYear()
-  const month = d.getMonth() + 1
-  return `${year}年${month}月`
+  return `${d.getFullYear()}年${d.getMonth() + 1}月`
 }
 
 const selectPrevMonth = () => {
@@ -183,24 +176,56 @@ const selectNextMonth = () => {
   calendarDate.value = d
 }
 
-const handleCheckin = () => {
-  if (hasCheckedIn.value) return
-  
-  hasCheckedIn.value = true
-  checkinStats.continuousDays += 1
-  checkinStats.totalDays += 1
-  checkinStats.totalPoints += 5
-  userPoints.value += 5
-  
-  const today = new Date().toISOString().split('T')[0]
-  checkinDays.value.unshift(today)
-  
-  ElMessage.success('签到成功！获得5积分')
+const fetchCheckinStatus = async () => {
+  loading.value = true
+  try {
+    const response = await api.get('/checkin/status', { params: { month: currentMonth.value } })
+    hasCheckedIn.value = !!response.hasCheckedInToday
+    todayExp.value = Number(response.todayExp || 0)
+    checkinStats.continuousDays = Number(response.continuousDays || 0)
+    checkinStats.totalDays = Number(response.totalDays || 0)
+    checkinStats.totalExp = Number(response.totalExp || 0)
+    checkinDays.value = response.checkinDates || []
+    expRange.min = Number(response.expMin || 1)
+    expRange.max = Number(response.expMax || 20)
+    expProgress.value = response.expProgress || null
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '获取签到状态失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleCheckin = async () => {
+  if (hasCheckedIn.value || loading.value) return
+  loading.value = true
+  try {
+    const response = await api.post('/checkin')
+    hasCheckedIn.value = true
+    todayExp.value = Number(response.gainedExp || 0)
+    checkinStats.continuousDays = Number(response.continuousDays || 0)
+    checkinStats.totalDays = Number(response.totalDays || 0)
+    checkinStats.totalExp = Number(response.totalExp || 0)
+    expProgress.value = response.expProgress || null
+    const today = new Date().toISOString().split('T')[0]
+    if (!checkinDays.value.includes(today)) {
+      checkinDays.value = [...checkinDays.value, today].sort()
+    }
+    await userStore.fetchUserInfo()
+    ElMessage.success(`签到成功，获得 ${todayExp.value} 点经验`)
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '签到失败')
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {
-  const today = new Date().toISOString().split('T')[0]
-  hasCheckedIn.value = checkinDays.value.includes(today)
+  fetchCheckinStatus()
+})
+
+watch(currentMonth, () => {
+  fetchCheckinStatus()
 })
 </script>
 
@@ -297,7 +322,8 @@ onMounted(() => {
 .checkin-stats {
   display: flex;
   justify-content: center;
-  gap: 40px;
+  gap: 18px;
+  flex-wrap: wrap;
   margin-bottom: 24px;
   width: 100%;
   padding: 20px 0;
@@ -307,6 +333,7 @@ onMounted(() => {
 
 .stat-item {
   text-align: center;
+  min-width: 100px;
 }
 
 .stat-value {
@@ -322,7 +349,7 @@ onMounted(() => {
 }
 
 .checkin-btn {
-  width: 200px;
+  width: 220px;
   height: 48px;
   font-size: 16px;
   border-radius: 24px;
@@ -338,6 +365,12 @@ onMounted(() => {
 .checkin-btn:disabled {
   background: var(--bg-tertiary);
   color: var(--text-disabled);
+}
+
+.checkin-tip {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .calendar-card {
@@ -401,231 +434,106 @@ onMounted(() => {
   position: relative;
 }
 
-.calendar-card :deep(.el-calendar-table th:nth-child(1))::after {
-  content: '日';
-  font-size: 13px;
-}
-
-.calendar-card :deep(.el-calendar-table th:nth-child(2))::after {
-  content: '一';
-  font-size: 13px;
-}
-
-.calendar-card :deep(.el-calendar-table th:nth-child(3))::after {
-  content: '二';
-  font-size: 13px;
-}
-
-.calendar-card :deep(.el-calendar-table th:nth-child(4))::after {
-  content: '三';
-  font-size: 13px;
-}
-
-.calendar-card :deep(.el-calendar-table th:nth-child(5))::after {
-  content: '四';
-  font-size: 13px;
-}
-
-.calendar-card :deep(.el-calendar-table th:nth-child(6))::after {
-  content: '五';
-  font-size: 13px;
-}
-
-.calendar-card :deep(.el-calendar-table th:nth-child(7))::after {
-  content: '六';
-  font-size: 13px;
-}
+.calendar-card :deep(.el-calendar-table th:nth-child(1))::after { content: '日'; font-size: 13px; }
+.calendar-card :deep(.el-calendar-table th:nth-child(2))::after { content: '一'; font-size: 13px; }
+.calendar-card :deep(.el-calendar-table th:nth-child(3))::after { content: '二'; font-size: 13px; }
+.calendar-card :deep(.el-calendar-table th:nth-child(4))::after { content: '三'; font-size: 13px; }
+.calendar-card :deep(.el-calendar-table th:nth-child(5))::after { content: '四'; font-size: 13px; }
+.calendar-card :deep(.el-calendar-table th:nth-child(6))::after { content: '五'; font-size: 13px; }
+.calendar-card :deep(.el-calendar-table th:nth-child(7))::after { content: '六'; font-size: 13px; }
 
 .calendar-card :deep(.el-calendar-table td) {
   border: none;
-  padding: 0;
+  background: transparent;
 }
 
 .calendar-card :deep(.el-calendar-day) {
-  height: 40px;
+  height: 64px;
   padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-.calendar-card :deep(.el-calendar-day:hover) {
-  background: var(--bg-tertiary);
 }
 
 .calendar-cell {
-  position: relative;
-  width: 100%;
   height: 100%;
+  border-radius: 14px;
+  background: var(--bg-secondary);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .calendar-cell.checked {
-  color: var(--primary-color);
-  font-weight: 600;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
 }
 
 .check-icon {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  font-size: 10px;
-  color: var(--success-color);
+  font-size: 14px;
 }
 
-.rewards-section, .points-shop {
+.rewards-section {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 24px;
-  padding: 24px;
+  padding: 32px;
   box-shadow: var(--card-shadow);
-  margin-bottom: 24px;
 }
 
-.rewards-section h3, .points-shop h3 {
-  font-size: 18px;
+.rewards-section h3 {
+  font-size: 24px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .rewards-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
 }
 
 .reward-item {
   display: flex;
   align-items: center;
-  padding: 16px;
+  gap: 16px;
+  padding: 20px;
   background: var(--bg-secondary);
-  border-radius: 16px;
-  transition: all 0.3s ease;
-}
-
-.reward-item:hover {
-  background: var(--bg-tertiary);
-  transform: translateY(-2px);
+  border-radius: 18px;
 }
 
 .reward-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 12px;
   flex-shrink: 0;
 }
 
-.reward-icon.basic {
-  background: var(--primary-gradient);
-}
-
-.reward-icon.continuous {
-  background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
-}
-
-.reward-icon.monthly {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-
-.reward-icon.special {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-}
+.reward-icon.basic { background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%); }
+.reward-icon.continuous { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+.reward-icon.monthly { background: linear-gradient(135deg, #34d399 0%, #059669 100%); }
+.reward-icon.special { background: linear-gradient(135deg, #f472b6 0%, #db2777 100%); }
 
 .reward-icon .el-icon {
-  font-size: 24px;
+  font-size: 26px;
   color: white;
 }
 
 .reward-info h4 {
-  font-size: 14px;
-  font-weight: 600;
+  margin: 0 0 6px;
+  font-size: 17px;
   color: var(--text-primary);
-  margin-bottom: 4px;
 }
 
 .reward-info p {
-  font-size: 13px;
+  margin: 0;
+  font-size: 14px;
   color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.shop-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.shop-item {
-  background: var(--bg-secondary);
-  border-radius: 16px;
-  overflow: hidden;
-  transition: all 0.3s ease;
-}
-
-.shop-item:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--card-shadow);
-}
-
-.item-image {
-  height: 100px;
-  background: var(--primary-gradient);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.item-image .el-icon {
-  font-size: 40px;
-  color: white;
-}
-
-.item-info {
-  padding: 16px;
-}
-
-.item-info h4 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 4px;
-}
-
-.item-info p {
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin-bottom: 12px;
-}
-
-.item-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.item-points {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary-color);
-}
-
-@media (max-width: 1024px) {
-  .checkin-main {
-    grid-template-columns: 1fr;
-  }
-
-  .rewards-grid, .shop-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 @media (max-width: 768px) {
@@ -633,12 +541,14 @@ onMounted(() => {
     padding: 16px;
   }
 
-  .rewards-grid, .shop-grid {
+  .checkin-main {
     grid-template-columns: 1fr;
   }
 
-  .checkin-stats {
-    gap: 20px;
+  .checkin-card,
+  .calendar-card,
+  .rewards-section {
+    padding: 20px;
   }
 }
 </style>

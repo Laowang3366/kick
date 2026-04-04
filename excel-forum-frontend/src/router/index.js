@@ -23,6 +23,29 @@ const routes = [
         meta: { requiresAuth: true }
       },
       {
+        path: 'drafts',
+        name: 'DraftList',
+        component: () => import('../views/DraftList.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'center',
+        name: 'PersonalCenter',
+        component: () => import('../views/PersonalCenter.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: 'center/:id',
+        name: 'PublicCenter',
+        component: () => import('../views/PersonalCenter.vue')
+      },
+      {
+        path: 'drafts/:id/edit',
+        name: 'EditDraft',
+        component: () => import('../views/CreatePost.vue'),
+        meta: { requiresAuth: true }
+      },
+      {
         path: 'post/:id',
         name: 'PostDetail',
         component: () => import('../views/PostDetail.vue')
@@ -36,7 +59,7 @@ const routes = [
       {
         path: 'user/:id',
         name: 'UserProfile',
-        component: () => import('../views/UserProfile.vue')
+        redirect: to => `/center/${to.params.id}`
       },
       {
         path: 'search',
@@ -123,8 +146,12 @@ const routes = [
       },
       {
         path: 'replies',
-        name: 'AdminReplies',
-        component: () => import('../views/admin/ReplyManage.vue')
+        redirect: '/admin/levels'
+      },
+      {
+        path: 'levels',
+        name: 'AdminLevels',
+        component: () => import('../views/admin/LevelManage.vue')
       },
       {
         path: 'reports',
@@ -152,6 +179,11 @@ const routes = [
         component: () => import('../views/admin/NotificationManage.vue')
       },
       {
+        path: 'drafts',
+        name: 'AdminDrafts',
+        component: () => import('../views/admin/DraftManage.vue')
+      },
+      {
         path: 'trash',
         name: 'AdminTrash',
         component: () => import('../views/admin/TrashManage.vue')
@@ -173,9 +205,11 @@ router.beforeEach(async (to, from, next) => {
   if (!userStore.authChecked && userStore.token && !to.meta.guest) {
     if (!authCheckPromise) {
       authCheckPromise = userStore.checkAuth()
+        .finally(() => {
+          authCheckPromise = null
+        })
     }
     await authCheckPromise
-    authCheckPromise = null
   }
   
   const isAuthenticated = userStore.isAuthenticated

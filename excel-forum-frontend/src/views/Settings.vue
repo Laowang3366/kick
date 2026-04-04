@@ -9,6 +9,52 @@
 
     <el-card class="settings-card">
       <el-tabs v-model="activeTab" tab-position="left">
+        <el-tab-pane label="个人资料" name="profile">
+          <div class="settings-section">
+            <h3>个人资料</h3>
+            <p class="section-desc">设置用户名、个性签名、头像和性别展示</p>
+            <el-form :model="profileForm" label-width="100px">
+              <el-form-item label="头像">
+                <div class="profile-avatar-row">
+                  <el-avatar :src="profileForm.avatar || userStore.user.avatar" :size="64">
+                    {{ (profileForm.username || userStore.user.username || '').charAt(0) }}
+                  </el-avatar>
+                  <el-upload
+                    ref="avatarUploadRef"
+                    action="/api/upload"
+                    name="file"
+                    :headers="uploadHeaders"
+                    :show-file-list="false"
+                    :on-success="handleAvatarSuccess"
+                    :on-error="handleAvatarError"
+                    :before-upload="beforeAvatarUpload"
+                    :auto-upload="true"
+                  >
+                    <el-button type="primary" plain>更换头像</el-button>
+                  </el-upload>
+                </div>
+              </el-form-item>
+              <el-form-item label="用户名">
+                <el-input v-model="profileForm.username" maxlength="20" show-word-limit />
+              </el-form-item>
+              <el-form-item label="个性签名">
+                <el-input v-model="profileForm.bio" type="textarea" :rows="4" maxlength="120" show-word-limit />
+              </el-form-item>
+              <el-form-item label="性别">
+                <el-radio-group v-model="profileForm.gender">
+                  <el-radio value="">保密</el-radio>
+                  <el-radio value="male">男</el-radio>
+                  <el-radio value="female">女</el-radio>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="profileLoading" @click="handleProfileSave">
+                  保存资料
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-tab-pane>
         <el-tab-pane label="修改邮箱" name="email">
           <div class="settings-section">
             <h3>修改邮箱</h3>
@@ -104,13 +150,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import api from '../api'
 
 const userStore = useUserStore()
+const route = useRoute()
+const router = useRouter()
 const activeTab = ref('email')
 
 const emailFormRef = ref(null)
@@ -118,7 +167,15 @@ const passwordFormRef = ref(null)
 
 const emailLoading = ref(false)
 const passwordLoading = ref(false)
+const profileLoading = ref(false)
+const avatarUploadRef = ref(null)
 
+const profileForm = reactive({
+  username: '',
+  bio: '',
+  avatar: '',
+  gender: ''
+})
 const emailForm = reactive({
   newEmail: '',
   password: ''
@@ -136,6 +193,10 @@ const privacySettings = reactive({
   allowMessages: true,
   showFollowing: true,
   showFollowers: true
+})
+const uploadHeaders = computed(() => {
+  const token = localStorage.getItem('token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
 })
 
 const validateEmail = (rule, value, callback) => {
@@ -243,6 +304,54 @@ const handlePrivacyChange = async () => {
   }
 }
 
+const beforeAvatarUpload = (file) => {
+  const isImage = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)
+  const isLt2M = file.size / 1024 / 1024 < 2
+  if (!isImage) {
+    ElMessage.error('头像只能是 JPG/PNG/GIF/WebP 格式')
+    return false
+  }
+  if (!isLt2M) {
+    ElMessage.error('头像大小不能超过 2MB')
+    return false
+  }
+  return true
+}
+
+const handleAvatarSuccess = (response) => {
+  profileForm.avatar = response.url
+  ElMessage.success('头像上传成功')
+}
+
+const handleAvatarError = () => {
+  ElMessage.error('头像上传失败')
+}
+
+const fetchProfileSettings = () => {
+  profileForm.username = userStore.user.username || ''
+  profileForm.bio = userStore.user.bio || ''
+  profileForm.avatar = userStore.user.avatar || ''
+  profileForm.gender = userStore.user.gender || ''
+}
+
+const handleProfileSave = async () => {
+  profileLoading.value = true
+  try {
+    await userStore.updateProfile({
+      username: profileForm.username,
+      bio: profileForm.bio,
+      avatar: profileForm.avatar,
+      gender: profileForm.gender || null
+    })
+    fetchProfileSettings()
+    ElMessage.success('资料保存成功')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.message || '资料保存失败')
+  } finally {
+    profileLoading.value = false
+  }
+}
+
 const fetchPrivacySettings = async () => {
   try {
     const response = await api.get('/users/privacy')
@@ -253,7 +362,19 @@ const fetchPrivacySettings = async () => {
 }
 
 onMounted(() => {
+  const queryTab = `${route.query.tab || ''}`
+  if (['profile', 'email', 'password', 'privacy'].includes(queryTab)) {
+    activeTab.value = queryTab
+  }
+  fetchProfileSettings()
   fetchPrivacySettings()
+})
+
+watch(activeTab, (value) => {
+  router.replace({
+    path: '/settings',
+    query: value ? { tab: value } : {}
+  })
 })
 </script>
 

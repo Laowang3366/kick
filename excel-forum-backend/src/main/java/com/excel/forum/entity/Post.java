@@ -10,6 +10,7 @@ public class Post {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String title;
+    private String titleStyle;
     private String content;
     private Long userId;
     private Long categoryId;

@@ -33,7 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String role = jwtUtil.getRoleFromToken(token);
 
                 String authority = "ROLE_" + role.toUpperCase();
-                
+
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         username,
                         null,
@@ -41,14 +41,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
 
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                
+
                 request.setAttribute("userId", userId);
-            } else {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write("{\"message\":\"登录已过期，请重新登录\"}");
-                return;
             }
+            // token 无效时不再直接返回 401，让 Spring Security 根据路由配置决定是否需要认证
         }
 
         filterChain.doFilter(request, response);

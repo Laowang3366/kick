@@ -175,7 +175,7 @@ const handleUnfollow = async () => {
 
 const goToProfile = () => {
   visible.value = false
-  router.push(`/user/${props.userId}`)
+  router.push(`/center/${props.userId}`)
 }
 
 const sendMessage = () => {

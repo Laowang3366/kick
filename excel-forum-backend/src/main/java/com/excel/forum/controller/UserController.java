@@ -6,10 +6,15 @@ import com.excel.forum.entity.*;
 import com.excel.forum.entity.dto.PostDTO;
 import com.excel.forum.entity.dto.ReplyDTO;
 import com.excel.forum.service.*;
+import com.excel.forum.util.DtoConverter;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,31 +33,61 @@ public class UserController {
     private final PostViewService postViewService;
     private final NotificationService notificationService;
     private final CategoryFollowService categoryFollowService;
+    private final PostDraftService postDraftService;
+    private final MessageService messageService;
+    private final ExperienceService experienceService;
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> getUser(@PathVariable Long id) {
+    public ResponseEntity<?> getUser(@PathVariable Long id, HttpServletRequest request) {
         User user = userService.getById(id);
         if (user == null) {
             return ResponseEntity.notFound().build();
         }
         user.setPassword(null);
 
+        Long currentUserId = (Long) request.getAttribute("userId");
+        boolean isSelf = currentUserId != null && currentUserId.equals(id);
+        boolean isPublicProfile = isSelf || !Boolean.FALSE.equals(user.getPublicProfile());
+        boolean canShowOnlineStatus = isSelf || !Boolean.FALSE.equals(user.getShowOnlineStatus());
+
         Map<String, Object> response = new HashMap<>();
         response.put("id", user.getId());
         response.put("username", user.getUsername());
-        response.put("email", user.getEmail());
         response.put("avatar", user.getAvatar());
-        response.put("bio", user.getBio());
         response.put("level", user.getLevel());
         response.put("points", user.getPoints());
+        response.put("exp", user.getExp());
         response.put("status", user.getStatus());
         response.put("role", user.getRole());
-        response.put("excelLevel", user.getExcelLevel());
-        response.put("expertise", user.getExpertise());
-        response.put("isOnline", user.getIsOnline());
-        response.put("lastActiveTime", user.getLastActiveTime());
         response.put("createTime", user.getCreateTime());
         response.put("updateTime", user.getUpdateTime());
+        response.put("publicProfile", isPublicProfile);
+        response.put("showOnlineStatus", canShowOnlineStatus);
+        response.put("allowMessages", user.getAllowMessages() == null || user.getAllowMessages());
+        response.put("showFollowing", user.getShowFollowing() == null || user.getShowFollowing());
+        response.put("showFollowers", user.getShowFollowers() == null || user.getShowFollowers());
+
+        if (isSelf) {
+            response.put("email", user.getEmail());
+        }
+        if (isPublicProfile) {
+            response.put("bio", user.getBio());
+            response.put("gender", user.getGender());
+            response.put("excelLevel", user.getExcelLevel());
+            response.put("expertise", user.getExpertise());
+        } else {
+            response.put("bio", null);
+            response.put("gender", null);
+            response.put("excelLevel", null);
+            response.put("expertise", null);
+        }
+        if (canShowOnlineStatus) {
+            response.put("isOnline", user.getIsOnline());
+            response.put("lastActiveTime", user.getLastActiveTime());
+        } else {
+            response.put("isOnline", null);
+            response.put("lastActiveTime", null);
+        }
 
         // 统计帖子数和回复数
         QueryWrapper<Post> postQuery = new QueryWrapper<>();
@@ -63,6 +98,60 @@ public class UserController {
         replyQuery.eq("user_id", id).eq("status", 0);
         response.put("replyCount", replyService.count(replyQuery));
 
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/center-overview")
+    public ResponseEntity<?> getPublicCenterOverview(@PathVariable Long id, HttpServletRequest request) {
+        User user = userService.getById(id);
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
+        }
+
+        Long currentUserId = (Long) request.getAttribute("userId");
+        boolean isSelf = currentUserId != null && currentUserId.equals(id);
+        boolean canShowFollowing = isSelf || !Boolean.FALSE.equals(user.getShowFollowing());
+        boolean canShowFollowers = isSelf || !Boolean.FALSE.equals(user.getShowFollowers());
+
+        long publishedPosts = countUserPosts(id, wrapper -> {
+            wrapper.eq("status", 0);
+            wrapper.and(inner -> inner.eq("review_status", "approved").or().isNull("review_status"));
+        });
+        long favoriteCount = countUserFavorites(id);
+        long postLikeCount = countUserPostLikes(id);
+        long replyLikeCount = countUserReplyLikes(id);
+        long receivedLikeCount = postLikeCount + replyLikeCount;
+        long followerCount = canShowFollowers ? followService.getFollowerIds(id).size() : 0;
+        long recentFollowerCount = canShowFollowers ? countRecentFollowers(id, 7) : 0;
+        long followingCount = canShowFollowing ? followService.getFollowingIds(id).size() : 0;
+        long categoryFollowCount = canShowFollowing ? categoryFollowService.getFollowedCategoryIds(id).size() : 0;
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("user", buildPublicCenterUser(user, currentUserId));
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("publishedPosts", publishedPosts);
+        stats.put("favoriteCount", favoriteCount);
+        stats.put("postLikeCount", postLikeCount);
+        stats.put("replyLikeCount", replyLikeCount);
+        stats.put("receivedLikeCount", receivedLikeCount);
+        stats.put("followerCount", followerCount);
+        stats.put("recentFollowerCount", recentFollowerCount);
+        stats.put("followingCount", followingCount);
+        stats.put("categoryFollowCount", categoryFollowCount);
+        response.put("stats", stats);
+        response.put("privacy", Map.of(
+                "publicProfile", user.getPublicProfile() == null || user.getPublicProfile(),
+                "showOnlineStatus", user.getShowOnlineStatus() == null || user.getShowOnlineStatus(),
+                "allowMessages", user.getAllowMessages() == null || user.getAllowMessages(),
+                "showFollowing", user.getShowFollowing() == null || user.getShowFollowing(),
+                "showFollowers", user.getShowFollowers() == null || user.getShowFollowers()
+        ));
+        Map<String, Object> accountStatus = new HashMap<>();
+        accountStatus.put("status", user.getStatus());
+        accountStatus.put("label", resolveAccountStatusLabel(user.getStatus()));
+        accountStatus.put("description", resolveAccountStatusDescription(user.getStatus()));
+        response.put("accountStatus", accountStatus);
+        response.put("expProgress", experienceService.getProgress(user.getExp()));
         return ResponseEntity.ok(response);
     }
 
@@ -93,6 +182,16 @@ public class UserController {
         }
         if (body.containsKey("bio")) {
             user.setBio((String) body.get("bio"));
+        }
+        if (body.containsKey("gender")) {
+            String gender = body.get("gender") == null ? null : String.valueOf(body.get("gender")).trim();
+            if (gender == null || gender.isBlank()) {
+                user.setGender(null);
+            } else if ("male".equals(gender) || "female".equals(gender)) {
+                user.setGender(gender);
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("message", "性别设置无效"));
+            }
         }
         if (body.containsKey("avatar")) {
             user.setAvatar((String) body.get("avatar"));
@@ -146,14 +245,12 @@ public class UserController {
         
         Page<Post> result = postService.page(pageRequest, queryWrapper);
         
-        List<PostDTO> dtoList = result.getRecords().stream()
-            .map(this::convertPostToDTO)
-            .collect(Collectors.toList());
-        
+        List<PostDTO> dtoList = DtoConverter.convertPosts(result.getRecords(), userService, categoryService, replyService);
+
         Map<String, Object> response = new HashMap<>();
         response.put("posts", dtoList);
         response.put("total", result.getTotal());
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -197,11 +294,11 @@ public class UserController {
 
         Page<Favorite> favResult = favoriteService.page(favPage, favQuery);
 
-        List<PostDTO> posts = favResult.getRecords().stream()
+        List<Post> postList = favResult.getRecords().stream()
             .map(fav -> postService.getById(fav.getPostId()))
             .filter(post -> post != null)
-            .map(this::convertPostToDTO)
             .collect(Collectors.toList());
+        List<PostDTO> posts = DtoConverter.convertPosts(postList, userService, categoryService, replyService);
         
         Map<String, Object> response = new HashMap<>();
         response.put("posts", posts);
@@ -214,7 +311,7 @@ public class UserController {
     public ResponseEntity<?> searchUsers(@RequestParam String q) {
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.like("username", q);
-        queryWrapper.last("LIMIT 10");
+        queryWrapper.last("LIMIT 10");  // 硬编码常量，无注入风险
         
         List<User> users = userService.list(queryWrapper);
         users.forEach(u -> u.setPassword(null));
@@ -229,14 +326,28 @@ public class UserController {
     public ResponseEntity<?> getUserFollowing(
             @PathVariable Long id,
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer limit) {
+            @RequestParam(defaultValue = "10") Integer limit,
+            HttpServletRequest request) {
+
+        User targetUser = userService.getById(id);
+        if (targetUser == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Long currentUserId = (Long) request.getAttribute("userId");
+        boolean canShowFollowing = (currentUserId != null && currentUserId.equals(id))
+                || !Boolean.FALSE.equals(targetUser.getShowFollowing());
+        if (!canShowFollowing) {
+            return ResponseEntity.ok(Map.of("users", Collections.emptyList(), "total", 0));
+        }
 
         List<Long> followingIds = followService.getFollowingIds(id);
         int total = followingIds.size();
         int fromIndex = (page - 1) * limit;
         int toIndex = Math.min(fromIndex + limit, total);
 
-        List<Long> pageIds = followingIds.subList(fromIndex, toIndex);
+        List<Long> pageIds = fromIndex >= total
+            ? Collections.emptyList()
+            : followingIds.subList(fromIndex, toIndex);
 
         List<User> followingUsers = pageIds.stream()
             .map(userId -> {
@@ -260,14 +371,28 @@ public class UserController {
     public ResponseEntity<?> getUserFollowers(
             @PathVariable Long id,
             @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "10") Integer limit) {
+            @RequestParam(defaultValue = "10") Integer limit,
+            HttpServletRequest request) {
+
+        User targetUser = userService.getById(id);
+        if (targetUser == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Long currentUserId = (Long) request.getAttribute("userId");
+        boolean canShowFollowers = (currentUserId != null && currentUserId.equals(id))
+                || !Boolean.FALSE.equals(targetUser.getShowFollowers());
+        if (!canShowFollowers) {
+            return ResponseEntity.ok(Map.of("users", Collections.emptyList(), "total", 0));
+        }
 
         List<Long> followerIds = followService.getFollowerIds(id);
         int total = followerIds.size();
         int fromIndex = (page - 1) * limit;
         int toIndex = Math.min(fromIndex + limit, total);
 
-        List<Long> pageIds = followerIds.subList(fromIndex, toIndex);
+        List<Long> pageIds = fromIndex >= total
+            ? Collections.emptyList()
+            : followerIds.subList(fromIndex, toIndex);
 
         List<User> followerUsers = pageIds.stream()
             .map(userId -> {
@@ -331,17 +456,208 @@ public class UserController {
         
         Page<PostView> result = postViewService.page(pageRequest, queryWrapper);
         
-        List<PostDTO> posts = result.getRecords().stream()
+        List<Post> postList = result.getRecords().stream()
             .map(pv -> postService.getById(pv.getPostId()))
             .filter(post -> post != null && (post.getStatus() == 0 || post.getStatus() == 1))
-            .map(this::convertPostToDTO)
             .collect(Collectors.toList());
+        List<PostDTO> posts = DtoConverter.convertPosts(postList, userService, categoryService, replyService);
         
         Map<String, Object> response = new HashMap<>();
         response.put("posts", posts);
         response.put("total", result.getTotal());
         
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/center/overview")
+    public ResponseEntity<?> getCenterOverview(@RequestAttribute Long userId) {
+        User user = userService.getById(userId);
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
+        }
+
+        long publishedPosts = countUserPosts(userId, wrapper -> {
+            wrapper.eq("status", 0);
+            wrapper.and(inner -> inner.eq("review_status", "approved").or().isNull("review_status"));
+        });
+        long pendingPosts = countUserPosts(userId, wrapper -> wrapper.eq("review_status", "pending"));
+        long rejectedPosts = countUserPosts(userId, wrapper -> wrapper.eq("review_status", "rejected"));
+        long replyCount = countUserReplies(userId);
+        long favoriteCount = countUserFavorites(userId);
+        long historyCount = countUserHistory(userId);
+        long draftCount = postDraftService.countUserDrafts(userId);
+        long editingDraftCount = postDraftService.countEditingDrafts(userId);
+        long expiringDraftCount = countExpiringDrafts(userId, 3);
+        long postLikeCount = countUserPostLikes(userId);
+        long replyLikeCount = countUserReplyLikes(userId);
+        long receivedLikeCount = postLikeCount + replyLikeCount;
+        long followerCount = followService.getFollowerIds(userId).size();
+        long recentFollowerCount = countRecentFollowers(userId, 7);
+        long followingCount = followService.getFollowingIds(userId).size();
+        long categoryFollowCount = categoryFollowService.getFollowedCategoryIds(userId).size();
+        long unreadNotifications = countUnreadNotifications(userId);
+        int unreadMessages = messageService.getUnreadCount(userId);
+        int conversationCount = extractConversationCount(messageService.getConversations(userId));
+
+        PostDraft recentDraft = getLatestDraft(userId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("user", buildCenterUser(user));
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("publishedPosts", publishedPosts);
+        stats.put("pendingPosts", pendingPosts);
+        stats.put("rejectedPosts", rejectedPosts);
+        stats.put("replyCount", replyCount);
+        stats.put("favoriteCount", favoriteCount);
+        stats.put("historyCount", historyCount);
+        stats.put("draftCount", draftCount);
+        stats.put("editingDraftCount", editingDraftCount);
+        stats.put("expiringDraftCount", expiringDraftCount);
+        stats.put("postLikeCount", postLikeCount);
+        stats.put("replyLikeCount", replyLikeCount);
+        stats.put("receivedLikeCount", receivedLikeCount);
+        stats.put("followerCount", followerCount);
+        stats.put("recentFollowerCount", recentFollowerCount);
+        stats.put("followingCount", followingCount);
+        stats.put("categoryFollowCount", categoryFollowCount);
+        stats.put("unreadNotifications", unreadNotifications);
+        stats.put("unreadMessages", unreadMessages);
+        stats.put("conversationCount", conversationCount);
+        response.put("stats", stats);
+        response.put("privacy", Map.of(
+                "publicProfile", user.getPublicProfile() == null || user.getPublicProfile(),
+                "showOnlineStatus", user.getShowOnlineStatus() == null || user.getShowOnlineStatus(),
+                "allowMessages", user.getAllowMessages() == null || user.getAllowMessages(),
+                "showFollowing", user.getShowFollowing() == null || user.getShowFollowing(),
+                "showFollowers", user.getShowFollowers() == null || user.getShowFollowers()
+        ));
+        Map<String, Object> accountStatus = new HashMap<>();
+        accountStatus.put("status", user.getStatus());
+        accountStatus.put("label", resolveAccountStatusLabel(user.getStatus()));
+        accountStatus.put("description", resolveAccountStatusDescription(user.getStatus()));
+        response.put("accountStatus", accountStatus);
+        response.put("recentDraft", recentDraft != null ? serializeDraftSummary(recentDraft) : null);
+        response.put("recentNotifications", getRecentNotifications(userId, 5));
+        response.put("expProgress", experienceService.getProgress(user.getExp()));
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/center/exp-logs")
+    public ResponseEntity<?> getCenterExpLogs(
+            @RequestAttribute Long userId,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size) {
+        return ResponseEntity.ok(experienceService.getUserExpLogs(userId, page, size));
+    }
+
+    @GetMapping("/center/activity")
+    public ResponseEntity<?> getCenterActivity(
+            @RequestAttribute Long userId,
+            @RequestParam(defaultValue = "12") Integer limit) {
+        List<Map<String, Object>> activities = new ArrayList<>();
+
+        QueryWrapper<Notification> notificationQuery = new QueryWrapper<>();
+        notificationQuery.eq("user_id", userId).orderByDesc("create_time").last("LIMIT 6");
+        notificationService.list(notificationQuery).forEach(notification ->
+                activities.add(buildActivityItem(
+                        "notification",
+                        notification.getId(),
+                        notificationTitle(notification.getType()),
+                        notification.getContent(),
+                        notification.getCreateTime(),
+                        "/notifications",
+                        notification.getType()
+                )));
+
+        QueryWrapper<PostDraft> draftQuery = new QueryWrapper<>();
+        draftQuery.eq("user_id", userId).orderByDesc("update_time").last("LIMIT 4");
+        postDraftService.list(draftQuery).forEach(draft ->
+                activities.add(buildActivityItem(
+                        "draft",
+                        draft.getId(),
+                        "保存草稿",
+                        (draft.getTitle() == null || draft.getTitle().isBlank() ? "未命名草稿" : draft.getTitle()) + " · " + resolveDraftStatusLabel(draft.getStatus()),
+                        draft.getUpdateTime() != null ? draft.getUpdateTime() : draft.getCreateTime(),
+                        "/drafts/" + draft.getId() + "/edit",
+                        draft.getStatus()
+                )));
+
+        QueryWrapper<Post> postQuery = new QueryWrapper<>();
+        postQuery.eq("user_id", userId).ne("status", 99).orderByDesc("update_time").last("LIMIT 4");
+        postService.list(postQuery).forEach(post ->
+                activities.add(buildActivityItem(
+                        "post",
+                        post.getId(),
+                        resolvePostActivityTitle(post),
+                        post.getTitle(),
+                        post.getUpdateTime() != null ? post.getUpdateTime() : post.getCreateTime(),
+                        "/post/" + post.getId(),
+                        resolvePostBucket(post)
+                )));
+
+        QueryWrapper<Reply> replyQuery = new QueryWrapper<>();
+        replyQuery.eq("user_id", userId).eq("status", 0).orderByDesc("create_time").last("LIMIT 4");
+        replyService.list(replyQuery).forEach(reply ->
+                activities.add(buildActivityItem(
+                        "reply",
+                        reply.getId(),
+                        "发布回复",
+                        summarizeText(reply.getContent(), 48),
+                        reply.getCreateTime(),
+                        "/post/" + reply.getPostId(),
+                        "reply"
+                )));
+
+        activities.sort((left, right) -> {
+            LocalDateTime rightTime = (LocalDateTime) right.get("_time");
+            LocalDateTime leftTime = (LocalDateTime) left.get("_time");
+            if (leftTime == null && rightTime == null) {
+                return 0;
+            }
+            if (leftTime == null) {
+                return 1;
+            }
+            if (rightTime == null) {
+                return -1;
+            }
+            return rightTime.compareTo(leftTime);
+        });
+
+        List<Map<String, Object>> result = activities.stream()
+                .limit(limit)
+                .peek(item -> item.remove("_time"))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of("activities", result));
+    }
+
+    @GetMapping("/center/posts")
+    public ResponseEntity<?> getCenterPosts(
+            @RequestAttribute Long userId,
+            @RequestParam(defaultValue = "published") String bucket,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer limit) {
+        Page<Post> pageRequest = new Page<>(page, limit);
+        QueryWrapper<Post> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).ne("status", 99).orderByDesc("update_time");
+
+        switch (bucket) {
+            case "pending" -> queryWrapper.eq("review_status", "pending");
+            case "rejected" -> queryWrapper.eq("review_status", "rejected");
+            default -> {
+                queryWrapper.eq("status", 0);
+                queryWrapper.and(wrapper -> wrapper.eq("review_status", "approved").or().isNull("review_status"));
+            }
+        }
+
+        Page<Post> result = postService.page(pageRequest, queryWrapper);
+        List<PostDTO> posts = DtoConverter.convertPosts(result.getRecords(), userService, categoryService, replyService);
+        return ResponseEntity.ok(Map.of(
+                "records", posts,
+                "total", result.getTotal(),
+                "current", result.getCurrent(),
+                "size", result.getSize()
+        ));
     }
 
     private PostDTO convertPostToDTO(Post post) {
@@ -514,5 +830,283 @@ public class UserController {
         userService.updateById(user);
         
         return ResponseEntity.ok(Map.of("message", "隐私设置已更新"));
+    }
+
+    private long countUserPosts(Long userId, java.util.function.Consumer<QueryWrapper<Post>> customizer) {
+        QueryWrapper<Post> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).ne("status", 99);
+        customizer.accept(queryWrapper);
+        return postService.count(queryWrapper);
+    }
+
+    private long countUserReplies(Long userId) {
+        QueryWrapper<Reply> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).eq("status", 0);
+        return replyService.count(queryWrapper);
+    }
+
+    private long countUserFavorites(Long userId) {
+        QueryWrapper<Favorite> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId);
+        return favoriteService.count(queryWrapper);
+    }
+
+    private long countUserHistory(Long userId) {
+        QueryWrapper<PostView> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).isNotNull("post_id");
+        return postViewService.count(queryWrapper);
+    }
+
+    private long countUserPostLikes(Long userId) {
+        QueryWrapper<Post> queryWrapper = new QueryWrapper<>();
+        queryWrapper.select("COALESCE(SUM(like_count), 0) AS total");
+        queryWrapper.eq("user_id", userId).ne("status", 99);
+        return extractTotalValue(postService.getMap(queryWrapper));
+    }
+
+    private long countUserReplyLikes(Long userId) {
+        QueryWrapper<Reply> queryWrapper = new QueryWrapper<>();
+        queryWrapper.select("COALESCE(SUM(like_count), 0) AS total");
+        queryWrapper.eq("user_id", userId).eq("status", 0);
+        return extractTotalValue(replyService.getMap(queryWrapper));
+    }
+
+    private long countRecentFollowers(Long userId, int days) {
+        QueryWrapper<Follow> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("follow_user_id", userId)
+                .ge("create_time", LocalDateTime.now().minusDays(days));
+        return followService.count(queryWrapper);
+    }
+
+    private long countUnreadNotifications(Long userId) {
+        QueryWrapper<Notification> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).eq("is_read", 0);
+        return notificationService.count(queryWrapper);
+    }
+
+    private long countExpiringDrafts(Long userId, int thresholdDays) {
+        LocalDateTime warningCutoff = LocalDateTime.now().minusDays(PostDraftService.DRAFT_EXPIRE_DAYS - thresholdDays);
+        QueryWrapper<PostDraft> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId)
+                .and(wrapper -> wrapper.le("update_time", warningCutoff)
+                        .or(nested -> nested.isNull("update_time").le("create_time", warningCutoff)));
+        return postDraftService.count(queryWrapper);
+    }
+
+    private PostDraft getLatestDraft(Long userId) {
+        QueryWrapper<PostDraft> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).orderByDesc("update_time").last("LIMIT 1");
+        return postDraftService.getOne(queryWrapper, false);
+    }
+
+    private int extractConversationCount(Map<String, Object> conversationsResult) {
+        Object conversations = conversationsResult.get("conversations");
+        if (conversations instanceof List<?> list) {
+            return list.size();
+        }
+        return 0;
+    }
+
+    private long extractTotalValue(Map<String, Object> valueMap) {
+        if (valueMap == null || valueMap.get("total") == null) {
+            return 0L;
+        }
+        Object total = valueMap.get("total");
+        if (total instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(total.toString());
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
+    }
+
+    private Map<String, Object> buildCenterUser(User user) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", user.getId());
+        response.put("username", user.getUsername());
+        response.put("email", user.getEmail());
+        response.put("avatar", user.getAvatar());
+        response.put("bio", user.getBio());
+        response.put("gender", user.getGender());
+        response.put("level", user.getLevel());
+        response.put("points", user.getPoints());
+        response.put("exp", user.getExp());
+        response.put("role", user.getRole());
+        response.put("status", user.getStatus());
+        response.put("excelLevel", user.getExcelLevel());
+        response.put("expertise", user.getExpertise());
+        response.put("isOnline", user.getIsOnline());
+        response.put("lastActiveTime", user.getLastActiveTime());
+        response.put("createTime", user.getCreateTime());
+        return response;
+    }
+
+    private Map<String, Object> buildPublicCenterUser(User user, Long currentUserId) {
+        boolean isSelf = currentUserId != null && currentUserId.equals(user.getId());
+        boolean isPublicProfile = isSelf || !Boolean.FALSE.equals(user.getPublicProfile());
+        boolean canShowOnlineStatus = isSelf || !Boolean.FALSE.equals(user.getShowOnlineStatus());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", user.getId());
+        response.put("username", user.getUsername());
+        response.put("avatar", user.getAvatar());
+        response.put("level", user.getLevel());
+        response.put("points", user.getPoints());
+        response.put("exp", user.getExp());
+        response.put("role", user.getRole());
+        response.put("status", user.getStatus());
+        response.put("createTime", user.getCreateTime());
+        response.put("gender", isPublicProfile ? user.getGender() : null);
+        response.put("allowMessages", user.getAllowMessages() == null || user.getAllowMessages());
+        response.put("showFollowing", user.getShowFollowing() == null || user.getShowFollowing());
+        response.put("showFollowers", user.getShowFollowers() == null || user.getShowFollowers());
+        response.put("publicProfile", isPublicProfile);
+        response.put("showOnlineStatus", canShowOnlineStatus);
+
+        if (isSelf) {
+            response.put("email", user.getEmail());
+        }
+        if (isPublicProfile) {
+            response.put("bio", user.getBio());
+            response.put("excelLevel", user.getExcelLevel());
+            response.put("expertise", user.getExpertise());
+        } else {
+            response.put("bio", null);
+            response.put("excelLevel", null);
+            response.put("expertise", null);
+        }
+        if (canShowOnlineStatus) {
+            response.put("isOnline", user.getIsOnline());
+            response.put("lastActiveTime", user.getLastActiveTime());
+        } else {
+            response.put("isOnline", null);
+            response.put("lastActiveTime", null);
+        }
+        return response;
+    }
+
+    private List<Map<String, Object>> getRecentNotifications(Long userId, int limit) {
+        QueryWrapper<Notification> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).orderByDesc("create_time").last("LIMIT " + limit);
+        return notificationService.list(queryWrapper).stream()
+                .map(notification -> {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("id", notification.getId());
+                    item.put("type", notification.getType());
+                    item.put("title", notificationTitle(notification.getType()));
+                    item.put("content", notification.getContent());
+                    item.put("isRead", notification.getIsRead());
+                    item.put("createTime", notification.getCreateTime());
+                    item.put("link", "/notifications");
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private Map<String, Object> serializeDraftSummary(PostDraft draft) {
+        LocalDateTime baseTime = draft.getUpdateTime() != null ? draft.getUpdateTime() : draft.getCreateTime();
+        LocalDateTime expireTime = baseTime != null ? baseTime.plusDays(PostDraftService.DRAFT_EXPIRE_DAYS) : null;
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", draft.getId());
+        result.put("title", draft.getTitle());
+        result.put("status", draft.getStatus());
+        result.put("statusLabel", resolveDraftStatusLabel(draft.getStatus()));
+        result.put("updateTime", draft.getUpdateTime());
+        result.put("expireTime", expireTime);
+        return result;
+    }
+
+    private String resolveDraftStatusLabel(String status) {
+        if (PostDraftService.STATUS_EDITING.equals(status)) {
+            return "继续编辑中";
+        }
+        return "已暂存";
+    }
+
+    private String resolvePostActivityTitle(Post post) {
+        String bucket = resolvePostBucket(post);
+        return switch (bucket) {
+            case "pending" -> "帖子进入审核";
+            case "rejected" -> "帖子审核未通过";
+            default -> "发布帖子";
+        };
+    }
+
+    private String resolvePostBucket(Post post) {
+        if ("pending".equals(post.getReviewStatus())) {
+            return "pending";
+        }
+        if ("rejected".equals(post.getReviewStatus())) {
+            return "rejected";
+        }
+        return "published";
+    }
+
+    private Map<String, Object> buildActivityItem(String kind, Long id, String title, String description, LocalDateTime time, String link, String status) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("kind", kind);
+        item.put("id", id);
+        item.put("title", title);
+        item.put("description", description);
+        item.put("time", time);
+        item.put("link", link);
+        item.put("status", status);
+        item.put("_time", time);
+        return item;
+    }
+
+    private String notificationTitle(String type) {
+        return switch (type) {
+            case "reply" -> "收到回复";
+            case "like" -> "收到点赞";
+            case "favorite" -> "帖子被收藏";
+            case "follow" -> "新增粉丝";
+            case "message" -> "收到私信";
+            case "MENTION" -> "有人提到了你";
+            case "post_review" -> "审核结果";
+            case "post_deleted" -> "帖子被删除";
+            case "site_notification" -> "全站公告";
+            case "level_up" -> "等级提升";
+            default -> "通知更新";
+        };
+    }
+
+    private String summarizeText(String content, int maxLength) {
+        if (content == null) {
+            return "";
+        }
+        String normalized = content.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, maxLength) + "...";
+    }
+
+    private String resolveAccountStatusLabel(Integer status) {
+        if (status == null || status == 0) {
+            return "正常";
+        }
+        if (status == 1) {
+            return "受限";
+        }
+        if (status == 2) {
+            return "封禁";
+        }
+        return "状态未知";
+    }
+
+    private String resolveAccountStatusDescription(Integer status) {
+        if (status == null || status == 0) {
+            return "当前账号状态正常，可继续发帖、回复与互动。";
+        }
+        if (status == 1) {
+            return "账号当前存在部分限制，如发言或操作范围受限。";
+        }
+        if (status == 2) {
+            return "账号当前已被封禁，如有疑问请联系管理员。";
+        }
+        return "请前往设置或联系管理员确认账号状态。";
     }
 }

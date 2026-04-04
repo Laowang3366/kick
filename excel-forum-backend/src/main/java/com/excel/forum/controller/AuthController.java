@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
+    private static final String EMAIL_REGEX = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
+
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
@@ -48,8 +50,10 @@ public class AuthController {
                 user.getRole(),
                 user.getLevel(),
                 user.getPoints(),
+                user.getExp(),
                 user.getBio(),
-                user.getExpertise()
+                user.getExpertise(),
+                user.getGender()
         );
 
         return ResponseEntity.ok(new AuthResponse(token, userDTO));
@@ -57,20 +61,41 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-        if (userService.findByUsername(request.getUsername()) != null) {
+        String username = request.getUsername() != null ? request.getUsername().trim() : null;
+        String email = request.getEmail() != null ? request.getEmail().trim() : null;
+        String password = request.getPassword();
+
+        if (username == null || username.isEmpty()) {
+            return ResponseEntity.badRequest().body("用户名不能为空");
+        }
+        if (username.length() > 50) {
+            return ResponseEntity.badRequest().body("用户名不能超过50个字符");
+        }
+        if (email == null || email.isEmpty()) {
+            return ResponseEntity.badRequest().body("邮箱不能为空");
+        }
+        if (!email.matches(EMAIL_REGEX)) {
+            return ResponseEntity.badRequest().body("邮箱格式不正确");
+        }
+        if (password == null || password.length() < 6) {
+            return ResponseEntity.badRequest().body("密码长度至少6位");
+        }
+
+        if (userService.findByUsername(username) != null) {
             return ResponseEntity.badRequest().body("用户名已存在");
         }
 
-        if (userService.findByEmail(request.getEmail()) != null) {
+        if (userService.findByEmail(email) != null) {
             return ResponseEntity.badRequest().body("邮箱已被注册");
         }
 
         User user = new User();
-        user.setUsername(request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setUsername(username);
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(password));
         user.setLevel(1);
         user.setPoints(0);
+        user.setExp(0);
         user.setStatus(0);
         user.setRole("user");
 
@@ -96,8 +121,10 @@ public class AuthController {
                 user.getRole(),
                 user.getLevel(),
                 user.getPoints(),
+                user.getExp(),
                 user.getBio(),
-                user.getExpertise()
+                user.getExpertise(),
+                user.getGender()
         );
 
         return ResponseEntity.ok(userDTO);

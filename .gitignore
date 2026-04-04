@@ -17,6 +17,7 @@ build/
 logs/
 *.log
 npm-debug.log*
+run-logs/
 
 # Environment
 .env
@@ -41,6 +42,7 @@ Thumbs.db
 *.temp
 *.swp
 *~
+dump.rdb
 
 # Uploads (if you want to exclude uploaded files)
-# uploads/
+excel-forum-backend/uploads/

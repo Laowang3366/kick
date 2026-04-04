@@ -22,7 +22,7 @@
               {{ post.author?.username?.charAt(0) }}
             </el-avatar>
           </div>
-          <span class="author-name" @click.stop="$router.push(`/user/${post.author?.id}`)">
+          <span class="author-name" @click.stop="$router.push(`/center/${post.author?.id}`)">
             {{ post.author?.username }}
           </span>
           <LevelTag 

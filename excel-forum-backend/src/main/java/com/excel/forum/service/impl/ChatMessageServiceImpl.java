@@ -1,6 +1,7 @@
 package com.excel.forum.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.excel.forum.entity.ChatMessage;
 import com.excel.forum.mapper.ChatMessageMapper;
@@ -15,9 +16,9 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
     @Override
     public List<ChatMessage> getRecentMessages(int limit) {
         QueryWrapper<ChatMessage> queryWrapper = new QueryWrapper<>();
-        queryWrapper.orderByDesc("create_time")
-                   .last("LIMIT " + limit);
-        List<ChatMessage> messages = list(queryWrapper);
+        queryWrapper.orderByDesc("create_time");
+        Page<ChatMessage> page = new Page<>(1, limit);
+        List<ChatMessage> messages = page(page, queryWrapper).getRecords();
         java.util.Collections.reverse(messages);
         return messages;
     }

@@ -16,7 +16,7 @@
             <p>暂无关注的用户</p>
             <el-button type="primary" @click="$router.push('/')">去发现用户</el-button>
           </div>
-          <div v-for="user in followingUsers" :key="user.id" class="user-card" @click="$router.push(`/user/${user.id}`)">
+          <div v-for="user in followingUsers" :key="user.id" class="user-card" @click="$router.push(`/center/${user.id}`)">
             <el-avatar :src="user.avatar" :size="56" class="user-avatar">
               {{ user.username?.charAt(0) }}
             </el-avatar>

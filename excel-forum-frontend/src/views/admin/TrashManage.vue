@@ -76,7 +76,7 @@
           </div>
         </div>
         <el-divider />
-        <div class="detail-body" v-html="detailPost.content"></div>
+        <div class="detail-body" v-html="sanitize(detailPost.content)"></div>
       </div>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
@@ -88,6 +88,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../api'
+import { sanitize } from '../../utils/sanitize'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, RefreshLeft, Refresh } from '@element-plus/icons-vue'
 import { useForumEvents } from '../../composables/useForumEvents'

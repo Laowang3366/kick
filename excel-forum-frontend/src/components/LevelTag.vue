@@ -42,13 +42,15 @@ const isAdmin = computed(() => {
 })
 
 const levelName = computed(() => {
-  if (!props.points) return '新手'
-  if (props.points >= 10000) return '传说'
-  if (props.points >= 5000) return '大师'
-  if (props.points >= 1000) return '专家'
-  if (props.points >= 500) return '熟练'
-  if (props.points >= 100) return '入门'
-  return '新手'
+  const levelMap = {
+    1: '新手',
+    2: '入门',
+    3: '熟练',
+    4: '专家',
+    5: '大师',
+    6: '传说'
+  }
+  return levelMap[props.level] || '新手'
 })
 
 const tagType = computed(() => {

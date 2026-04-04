@@ -1,3 +1,8 @@
+-- Deprecated:
+-- 数据库结构已迁移到 Flyway，主入口为 src/main/resources/db/migration/
+-- 不要再修改本文件或用它作为初始化来源，避免与 Flyway 迁移产生双轨漂移。
+-- 当前保留本文件仅用于提示历史背景与兼容旧文档引用。
+
 -- 用户表
 CREATE TABLE IF NOT EXISTS `user` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,

@@ -35,9 +35,9 @@
           <el-icon><Document /></el-icon>
           <template #title>帖子管理</template>
         </el-menu-item>
-        <el-menu-item index="replies">
-          <el-icon><ChatLineRound /></el-icon>
-          <template #title>回复管理</template>
+        <el-menu-item index="levels">
+          <el-icon><Medal /></el-icon>
+          <template #title>等级管理</template>
         </el-menu-item>
         <el-menu-item index="reports">
           <el-icon><Warning /></el-icon>
@@ -58,6 +58,10 @@
         <el-menu-item index="notifications">
           <el-icon><Bell /></el-icon>
           <template #title>网站通知</template>
+        </el-menu-item>
+        <el-menu-item index="drafts">
+          <el-icon><DocumentCopy /></el-icon>
+          <template #title>草稿治理</template>
         </el-menu-item>
         <el-menu-item index="trash">
           <el-icon><Delete /></el-icon>
@@ -136,12 +140,13 @@ import {
   User,
   ChatDotRound,
   Document,
-  ChatLineRound,
+  Medal,
   Warning,
   DocumentChecked,
   Coin,
   EditPen,
   Bell,
+  DocumentCopy,
   Delete,
   ArrowLeft,
   ArrowRight,
@@ -163,12 +168,13 @@ const activeMenu = computed(() => {
   if (path.includes('/admin/users')) return 'users'
   if (path.includes('/admin/forums')) return 'forums'
   if (path.includes('/admin/posts')) return 'posts'
-  if (path.includes('/admin/replies')) return 'replies'
+  if (path.includes('/admin/levels')) return 'levels'
   if (path.includes('/admin/reports')) return 'reports'
   if (path.includes('/admin/review')) return 'review'
   if (path.includes('/admin/points')) return 'points'
   if (path.includes('/admin/questions')) return 'questions'
   if (path.includes('/admin/notifications')) return 'notifications'
+  if (path.includes('/admin/drafts')) return 'drafts'
   if (path.includes('/admin/trash')) return 'trash'
   return 'dashboard'
 })
@@ -179,12 +185,13 @@ const currentRoute = computed(() => {
     users: '用户管理',
     forums: '版块管理',
     posts: '帖子管理',
-    replies: '回复管理',
+    levels: '等级管理',
     reports: '举报管理',
     review: '帖子审核',
     points: '积分管理',
     questions: '题目管理',
     notifications: '网站通知',
+    drafts: '草稿治理',
     trash: '回收站'
   }
   return titles[activeMenu.value] || ''

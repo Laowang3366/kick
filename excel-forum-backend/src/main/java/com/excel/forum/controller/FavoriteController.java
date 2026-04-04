@@ -32,6 +32,9 @@ public class FavoriteController {
             return ResponseEntity.status(401).body(Map.of("message", "未登录"));
         }
 
+        if (body.get("targetId") == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "参数不完整"));
+        }
         Long postId = Long.valueOf(body.get("targetId").toString());
 
         QueryWrapper<Favorite> queryWrapper = new QueryWrapper<>();
@@ -44,40 +47,33 @@ public class FavoriteController {
         if (existingFavorite != null) {
             favoriteService.removeById(existingFavorite.getId());
             isFavorited = false;
-            
-            Post post = postService.getById(postId);
-            if (post != null && post.getFavoriteCount() != null && post.getFavoriteCount() > 0) {
-                post.setFavoriteCount(post.getFavoriteCount() - 1);
-                postService.updateById(post);
-            }
+
+            postService.incrementField(postId, "favorite_count", -1);
         } else {
             Favorite favorite = new Favorite();
             favorite.setUserId(userId);
             favorite.setPostId(postId);
             favoriteService.save(favorite);
             isFavorited = true;
-            
+
+            postService.incrementField(postId, "favorite_count", 1);
+
+            // 给帖子作者发送通知
             Post post = postService.getById(postId);
-            if (post != null) {
-                post.setFavoriteCount(post.getFavoriteCount() == null ? 1 : post.getFavoriteCount() + 1);
-                postService.updateById(post);
-                
-                // 给帖子作者发送通知
-                if (!userId.equals(post.getUserId())) {
-                    User favoriter = userService.getById(userId);
-                    String notificationContent = favoriter.getUsername() + " 收藏了您的帖子《" + post.getTitle() + "》";
-                    notificationService.createNotification(
-                        post.getUserId(),
-                        "favorite",
-                        notificationContent,
-                        postId
-                    );
-                }
+            if (post != null && !userId.equals(post.getUserId())) {
+                User favoriter = userService.getById(userId);
+                String notificationContent = (favoriter != null ? favoriter.getUsername() : "有人") + " 收藏了您的帖子《" + post.getTitle() + "》";
+                notificationService.createNotification(
+                    post.getUserId(),
+                    "favorite",
+                    notificationContent,
+                    postId
+                );
             }
         }
 
         Post updatedPost = postService.getById(postId);
-        int favoriteCount = updatedPost != null && updatedPost.getFavoriteCount() != null 
+        int favoriteCount = updatedPost != null && updatedPost.getFavoriteCount() != null
             ? updatedPost.getFavoriteCount() : 0;
 
         Map<String, Object> response = new HashMap<>();

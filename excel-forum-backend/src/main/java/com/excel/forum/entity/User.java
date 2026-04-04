@@ -14,8 +14,10 @@ public class User {
     private String password;
     private String avatar;
     private String bio;
+    private String gender;
     private Integer level;
     private Integer points;
+    private Integer exp;
     private Integer status;
     private String role;
     private String excelLevel;

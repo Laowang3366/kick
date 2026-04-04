@@ -45,6 +45,7 @@ public class DataInitializer implements CommandLineRunner {
             admin.setStatus(0);
             admin.setLevel(1);
             admin.setPoints(0);
+            admin.setExp(0);
             admin.setBio("系统管理员");
             
             userMapper.insert(admin);

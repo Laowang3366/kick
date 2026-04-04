@@ -25,6 +25,10 @@ public class ReportController {
             return ResponseEntity.status(401).body(Map.of("message", "未登录"));
         }
 
+        if (body.get("targetType") == null || body.get("targetId") == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "参数不完整"));
+        }
+
         String targetType = body.get("targetType").toString();
         Long targetId = Long.valueOf(body.get("targetId").toString());
         String reason = body.get("reason") != null ? body.get("reason").toString() : "";

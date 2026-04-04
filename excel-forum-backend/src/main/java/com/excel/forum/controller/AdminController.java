@@ -2,17 +2,26 @@ package com.excel.forum.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.excel.forum.config.ExperienceProperties;
 import com.excel.forum.entity.*;
 import com.excel.forum.entity.dto.PostDTO;
 import com.excel.forum.service.*;
+import com.excel.forum.util.DtoConverter;
+import com.excel.forum.util.DtoConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @RestController
@@ -32,6 +41,10 @@ public class AdminController {
     private final PointsRecordService pointsRecordService;
     private final QuestionService questionService;
     private final SiteNotificationService siteNotificationService;
+    private final PostDraftService postDraftService;
+    private final ExperienceService experienceService;
+    private final ExperienceProperties experienceProperties;
+    private final ExperienceRuleService experienceRuleService;
 
     @GetMapping("/users")
     public ResponseEntity<?> getUsers(
@@ -117,6 +130,7 @@ public class AdminController {
         user.setStatus(status);
         user.setLevel(1);
         user.setPoints(0);
+        user.setExp(0);
         
         if ("moderator".equals(role) && managedCategories != null && !managedCategories.isEmpty()) {
             try {
@@ -222,6 +236,8 @@ public class AdminController {
         dto.setIsLocked(post.getIsLocked() != null ? post.getIsLocked() : false);
         dto.setIsTop(post.getIsTop() != null ? post.getIsTop() : false);
         dto.setIsEssence(post.getIsEssence() != null ? post.getIsEssence() : false);
+        dto.setReviewStatus(post.getReviewStatus());
+        dto.setReviewReason(post.getReviewReason());
         dto.setCreateTime(post.getCreateTime() != null ? post.getCreateTime().toString() : null);
         dto.setUpdateTime(post.getUpdateTime() != null ? post.getUpdateTime().toString() : null);
         
@@ -289,7 +305,7 @@ public class AdminController {
         Page<Post> result = postService.page(pageRequest, queryWrapper);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("records", result.getRecords().stream().map(this::convertToDTO).collect(Collectors.toList()));
+        response.put("records", DtoConverter.convertPosts(result.getRecords(), userService, categoryService, replyService));
         response.put("total", result.getTotal());
         response.put("current", result.getCurrent());
         response.put("size", result.getSize());
@@ -648,22 +664,25 @@ public class AdminController {
     }
     
     @DeleteMapping("/replies/{id}")
+    @Transactional
     public ResponseEntity<?> deleteReply(@PathVariable Long id) {
         Reply reply = replyService.getById(id);
         if (reply == null) {
             return ResponseEntity.notFound().build();
         }
-        
-        replyService.removeById(id);
-        
-        if (reply.getPostId() != null) {
-            Post post = postService.getById(reply.getPostId());
-            if (post != null && post.getReplyCount() != null && post.getReplyCount() > 0) {
-                post.setReplyCount(post.getReplyCount() - 1);
-                postService.updateById(post);
-            }
+
+        // 删除回复及其所有后代回复
+        List<Long> allDescendantIds = replyService.findAllDescendantIds(reply.getId());
+        int deletedCount = 1 + allDescendantIds.size();
+        if (!allDescendantIds.isEmpty()) {
+            replyService.removeByIds(allDescendantIds);
         }
-        
+        replyService.removeById(id);
+
+        if (reply.getPostId() != null) {
+            postService.incrementField(reply.getPostId(), "reply_count", -deletedCount);
+        }
+
         return ResponseEntity.ok(Map.of("message", "删除成功"));
     }
     
@@ -738,33 +757,59 @@ public class AdminController {
     }
     
     @PutMapping("/reports/{id}/handle")
+    @Transactional
     public ResponseEntity<?> handleReport(@PathVariable Long id, @RequestBody Map<String, String> body) {
         Report report = reportService.getById(id);
         if (report == null) {
             return ResponseEntity.notFound().build();
         }
-        
+
         String action = body.get("action");
-        
+
         if ("delete".equals(action)) {
             if ("post".equals(report.getTargetType())) {
                 Post post = postService.getById(report.getTargetId());
                 if (post != null) {
+                    // 发送通知给帖子作者
+                    notificationService.createNotification(
+                        post.getUserId(),
+                        "report_delete",
+                        "您的帖子《" + post.getTitle() + "》因违规被管理员删除",
+                        null
+                    );
                     post.setStatus(99);
                     postService.updateById(post);
                 }
             } else if ("reply".equals(report.getTargetType())) {
-                replyService.removeById(report.getTargetId());
+                Reply targetReply = replyService.getById(report.getTargetId());
+                if (targetReply != null) {
+                    // 发送通知给回复作者
+                    notificationService.createNotification(
+                        targetReply.getUserId(),
+                        "report_delete",
+                        "您的回复因违规被管理员删除",
+                        targetReply.getPostId()
+                    );
+                    // 删除回复及其所有后代回复
+                    List<Long> allDescendantIds = replyService.findAllDescendantIds(targetReply.getId());
+                    int deletedCount = 1 + allDescendantIds.size();
+                    if (!allDescendantIds.isEmpty()) {
+                        replyService.removeByIds(allDescendantIds);
+                    }
+                    replyService.removeById(targetReply.getId());
+                    // 更新帖子回复数
+                    postService.incrementField(targetReply.getPostId(), "reply_count", -deletedCount);
+                }
             }
             report.setStatus(1);
         } else if ("ignore".equals(action)) {
             report.setStatus(2);
         }
-        
+
         reportService.updateById(report);
-        
+
         eventService.publishEvent(ForumEvent.reportUpdated(id));
-        
+
         return ResponseEntity.ok(Map.of("message", "处理成功"));
     }
     
@@ -806,7 +851,7 @@ public class AdminController {
         Page<Post> result = postService.page(pageRequest, queryWrapper);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("records", result.getRecords().stream().map(this::convertToDTO).collect(Collectors.toList()));
+        response.put("records", DtoConverter.convertPosts(result.getRecords(), userService, categoryService, replyService));
         response.put("total", result.getTotal());
         
         return ResponseEntity.ok(response);
@@ -819,6 +864,7 @@ public class AdminController {
             return ResponseEntity.notFound().build();
         }
         
+        String previousStatus = post.getReviewStatus();
         String status = body.get("status");
         String reason = body.get("reason");
         
@@ -827,15 +873,19 @@ public class AdminController {
         }
         
         post.setReviewStatus(status);
-        if (reason != null) {
-            post.setReviewReason(reason);
-        }
+        post.setReviewReason("approved".equals(status) ? null : reason);
         
         if ("approved".equals(status)) {
             post.setStatus(0);
+        } else {
+            post.setStatus(-1);
         }
         
         postService.updateById(post);
+
+        if ("approved".equals(status) && !"approved".equals(previousStatus)) {
+            experienceService.awardPostApproved(post.getUserId(), post.getId(), post.getTitle());
+        }
         
         String notificationContent = "approved".equals(status) 
             ? "您的帖子「" + post.getTitle() + "」已通过审核"
@@ -849,6 +899,297 @@ public class AdminController {
         );
         
         return ResponseEntity.ok(Map.of("message", "审核完成"));
+    }
+
+    @GetMapping("/drafts")
+    public ResponseEntity<?> getDrafts(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) Boolean expired,
+            @RequestParam(defaultValue = "latest") String sort) {
+        Page<PostDraft> result = postDraftService.listAdminDrafts(page, size, keyword, status, categoryId, username, expired, sort);
+
+        List<Map<String, Object>> records = result.getRecords().stream()
+                .map(this::buildAdminDraftResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of(
+                "records", records,
+                "total", result.getTotal(),
+                "current", result.getCurrent(),
+                "size", result.getSize(),
+                "pages", result.getPages(),
+                "maxExpireDays", PostDraftService.DRAFT_EXPIRE_DAYS
+        ));
+    }
+
+    @DeleteMapping("/drafts/{id}")
+    public ResponseEntity<?> deleteDraftByAdmin(@PathVariable Long id) {
+        try {
+            postDraftService.deleteDraftByAdmin(id);
+            return ResponseEntity.ok(Map.of("message", "草稿已删除"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/drafts/by-user/{userId}")
+    public ResponseEntity<?> deleteDraftsByUser(@PathVariable Long userId) {
+        User user = userService.getById(userId);
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
+        }
+
+        long count = postDraftService.deleteDraftsByAdminUser(userId);
+        return ResponseEntity.ok(Map.of(
+                "message", count > 0 ? "已清理该用户的 " + count + " 条草稿" : "该用户当前没有草稿",
+                "count", count
+        ));
+    }
+
+    @GetMapping("/levels/overview")
+    public ResponseEntity<?> getLevelOverview() {
+        List<ExperienceProperties.LevelRule> sortedLevels = getSortedLevelRules();
+        List<User> users = userService.list(new QueryWrapper<User>()
+                .select("id", "username", "avatar", "level", "exp", "points", "role", "status", "create_time"));
+        List<UserExpLog> todayLogs = experienceService.list(new QueryWrapper<UserExpLog>()
+                .ge("create_time", LocalDateTime.now().toLocalDate().atStartOfDay()));
+
+        int totalExp = users.stream().mapToInt(user -> safeInt(user.getExp())).sum();
+        int highestLevel = users.stream().map(User::getLevel).filter(Objects::nonNull).max(Integer::compareTo).orElse(1);
+        long highestLevelUsers = users.stream().filter(user -> safeInt(user.getLevel()) == highestLevel).count();
+        int todayExp = todayLogs.stream().mapToInt(log -> safeInt(log.getExpChange())).sum();
+
+        List<Map<String, Object>> levelDistribution = new ArrayList<>();
+        for (ExperienceProperties.LevelRule rule : sortedLevels) {
+            int level = safeInt(rule.getLevel());
+            long userCount = users.stream().filter(user -> safeInt(user.getLevel()) == level).count();
+            Map<String, Object> item = new HashMap<>();
+            item.put("level", level);
+            item.put("name", defaultText(rule.getName(), "未命名等级"));
+            item.put("threshold", safeInt(rule.getThreshold()));
+            item.put("userCount", userCount);
+            levelDistribution.add(item);
+        }
+
+        List<Map<String, Object>> levelRules = sortedLevels.stream().map(rule -> {
+            Map<String, Object> item = new HashMap<>();
+            item.put("level", safeInt(rule.getLevel()));
+            item.put("name", defaultText(rule.getName(), "未命名等级"));
+            item.put("threshold", safeInt(rule.getThreshold()));
+            return item;
+        }).collect(Collectors.toList());
+
+        List<Map<String, Object>> expRules = experienceRuleService.listOrderedRules().stream()
+                .map(this::buildExpRuleResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of(
+                "stats", Map.of(
+                        "userCount", users.size(),
+                        "totalExp", totalExp,
+                        "todayExp", todayExp,
+                        "highestLevel", highestLevel,
+                        "highestLevelName", resolveLevelName(highestLevel),
+                        "highestLevelUsers", highestLevelUsers
+                ),
+                "levelRules", levelRules,
+                "expRules", expRules,
+                "distribution", levelDistribution
+        ));
+    }
+
+    @PutMapping("/levels/exp-rules/{ruleKey}")
+    public ResponseEntity<?> updateExpRule(@PathVariable String ruleKey, @RequestBody ExperienceRule body) {
+        ExperienceRule existing = experienceRuleService.getByRuleKey(ruleKey);
+        if (existing == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "经验规则不存在"));
+        }
+
+        int minExp = body.getMinExp() == null ? safeInt(existing.getMinExp()) : Math.max(body.getMinExp(), 0);
+        int maxExp = body.getMaxExp() == null ? safeInt(existing.getMaxExp()) : Math.max(body.getMaxExp(), 0);
+        if (maxExp < minExp) {
+            return ResponseEntity.badRequest().body(Map.of("message", "最大经验不能小于最小经验"));
+        }
+
+        existing.setMinExp(minExp);
+        existing.setMaxExp(maxExp);
+        if (body.getName() != null && !body.getName().isBlank()) {
+            existing.setName(body.getName().trim());
+        }
+        if (body.getDescription() != null) {
+            existing.setDescription(body.getDescription().trim());
+        }
+        if (body.getEnabled() != null) {
+            existing.setEnabled(body.getEnabled());
+        }
+
+        experienceRuleService.updateById(existing);
+        return ResponseEntity.ok(buildExpRuleResponse(existing));
+    }
+
+    @GetMapping("/levels/users")
+    public ResponseEntity<?> getLevelUsers(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer level) {
+        Page<User> pageRequest = new Page<>(page, size);
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+
+        if (keyword != null && !keyword.isBlank()) {
+            queryWrapper.and(wrapper -> wrapper
+                    .like("username", keyword.trim())
+                    .or()
+                    .like("email", keyword.trim()));
+        }
+        if (level != null) {
+            queryWrapper.eq("level", level);
+        }
+
+        queryWrapper.orderByDesc("exp").orderByDesc("level").orderByDesc("create_time");
+
+        Page<User> result = userService.page(pageRequest, queryWrapper);
+        List<Map<String, Object>> records = result.getRecords().stream()
+                .map(this::buildLevelUserResponse)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of(
+                "records", records,
+                "total", result.getTotal(),
+                "current", result.getCurrent(),
+                "size", result.getSize(),
+                "pages", result.getPages()
+        ));
+    }
+
+    @PutMapping("/levels/users/{id}")
+    public ResponseEntity<?> updateLevelUser(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        User existing = userService.getById(id);
+        if (existing == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
+        }
+
+        Integer targetLevel = parseInteger(body.get("level"));
+        Integer targetExp = parseInteger(body.get("exp"));
+        if (targetLevel == null || targetLevel < 1) {
+            return ResponseEntity.badRequest().body(Map.of("message", "等级不能为空"));
+        }
+        if (targetExp == null || targetExp < 0) {
+            return ResponseEntity.badRequest().body(Map.of("message", "经验值不能小于 0"));
+        }
+
+        List<ExperienceProperties.LevelRule> sortedLevels = getSortedLevelRules();
+        ExperienceProperties.LevelRule currentRule = sortedLevels.stream()
+                .filter(rule -> safeInt(rule.getLevel()) == targetLevel)
+                .findFirst()
+                .orElse(null);
+        if (currentRule == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "目标等级不存在"));
+        }
+
+        int minExp = safeInt(currentRule.getThreshold());
+        int maxExp = Integer.MAX_VALUE;
+        for (ExperienceProperties.LevelRule rule : sortedLevels) {
+            if (safeInt(rule.getLevel()) == targetLevel + 1) {
+                maxExp = Math.max(safeInt(rule.getThreshold()) - 1, minExp);
+                break;
+            }
+        }
+
+        int normalizedExp = Math.max(targetExp, minExp);
+        if (maxExp != Integer.MAX_VALUE) {
+            normalizedExp = Math.min(normalizedExp, maxExp);
+        }
+
+        User updated = new User();
+        updated.setId(id);
+        updated.setLevel(targetLevel);
+        updated.setExp(normalizedExp);
+        userService.updateById(updated);
+
+        User refreshed = userService.getById(id);
+        return ResponseEntity.ok(buildLevelUserResponse(refreshed));
+    }
+
+    @GetMapping("/levels/logs")
+    public ResponseEntity<?> getLevelLogs(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String bizType) {
+        Page<UserExpLog> pageRequest = new Page<>(page, size);
+        QueryWrapper<UserExpLog> queryWrapper = new QueryWrapper<>();
+
+        if (bizType != null && !bizType.isBlank()) {
+            queryWrapper.eq("biz_type", bizType.trim());
+        }
+
+        List<User> matchedUsers = null;
+        if (username != null && !username.isBlank()) {
+            matchedUsers = userService.list(new QueryWrapper<User>()
+                    .select("id", "username", "avatar", "level", "exp")
+                    .like("username", username.trim()));
+            if (matchedUsers.isEmpty()) {
+                return ResponseEntity.ok(Map.of(
+                        "records", List.of(),
+                        "total", 0,
+                        "current", pageRequest.getCurrent(),
+                        "size", pageRequest.getSize(),
+                        "pages", 0
+                ));
+            }
+            queryWrapper.in("user_id", matchedUsers.stream().map(User::getId).toList());
+        }
+
+        queryWrapper.orderByDesc("create_time");
+        Page<UserExpLog> result = experienceService.page(pageRequest, queryWrapper);
+
+        List<Long> userIds = result.getRecords().stream().map(UserExpLog::getUserId).distinct().toList();
+        Map<Long, User> userMap = (matchedUsers != null ? matchedUsers : userService.list(new QueryWrapper<User>()
+                .select("id", "username", "avatar", "level", "exp")
+                .in(!userIds.isEmpty(), "id", userIds)))
+                .stream()
+                .collect(Collectors.toMap(User::getId, user -> user, (left, right) -> left));
+
+        List<Map<String, Object>> records = result.getRecords().stream()
+                .map(log -> buildLevelLogResponse(log, userMap.get(log.getUserId())))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of(
+                "records", records,
+                "total", result.getTotal(),
+                "current", result.getCurrent(),
+                "size", result.getSize(),
+                "pages", result.getPages()
+        ));
+    }
+
+    @PostMapping("/levels/recalculate")
+    public ResponseEntity<?> recalculateLevels() {
+        List<User> users = userService.list(new QueryWrapper<User>().select("id", "level", "exp"));
+        int updated = 0;
+
+        for (User user : users) {
+            Map<String, Object> progress = experienceService.getProgress(user.getExp());
+            int expectedLevel = safeInt(progress.get("level"));
+            if (!Objects.equals(user.getLevel(), expectedLevel)) {
+                User updatedUser = new User();
+                updatedUser.setId(user.getId());
+                updatedUser.setLevel(expectedLevel);
+                userService.updateById(updatedUser);
+                updated += 1;
+            }
+        }
+
+        return ResponseEntity.ok(Map.of(
+                "message", updated > 0 ? "已重新校准 " + updated + " 个用户等级" : "所有用户等级已是最新状态",
+                "updated", updated
+        ));
     }
 
     @GetMapping("/points/rules")
@@ -949,7 +1290,8 @@ public class AdminController {
     }
 
     @PostMapping("/notifications")
-    public ResponseEntity<?> createNotification(@RequestBody SiteNotification notification, @RequestAttribute("userId") Long userId) {
+    public ResponseEntity<?> createNotification(@RequestBody Map<String, Object> body, @RequestAttribute("userId") Long userId) {
+        SiteNotification notification = buildSiteNotification(body, new SiteNotification());
         if (notification.getTitle() == null || notification.getTitle().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "标题不能为空"));
         }
@@ -974,13 +1316,19 @@ public class AdminController {
     }
 
     @PutMapping("/notifications/{id}")
-    public ResponseEntity<?> updateNotification(@PathVariable Long id, @RequestBody SiteNotification notification) {
+    public ResponseEntity<?> updateNotification(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         SiteNotification existing = siteNotificationService.getById(id);
         if (existing == null) {
             return ResponseEntity.notFound().build();
         }
+        String previousStatus = existing.getStatus();
+        SiteNotification notification = buildSiteNotification(body, existing);
         notification.setId(id);
         siteNotificationService.updateById(notification);
+        if (!"sent".equals(previousStatus) && "sent".equals(notification.getStatus())) {
+            siteNotificationService.sendNotification(id);
+            notification = siteNotificationService.getById(id);
+        }
         return ResponseEntity.ok(notification);
     }
 
@@ -998,5 +1346,215 @@ public class AdminController {
     public ResponseEntity<?> deleteNotification(@PathVariable Long id) {
         siteNotificationService.removeById(id);
         return ResponseEntity.ok().build();
+    }
+
+    private SiteNotification buildSiteNotification(Map<String, Object> body, SiteNotification notification) {
+        notification.setTitle(stringValue(body.get("title")));
+        notification.setContent(stringValue(body.get("content")));
+        notification.setType(defaultValue(stringValue(body.get("type")), "system"));
+        notification.setStatus(defaultValue(stringValue(body.get("status")), "draft"));
+        notification.setTargetType(defaultValue(stringValue(body.get("targetType")), "all"));
+        notification.setTargetRoles("role".equals(notification.getTargetType()) ? normalizeTargetRoles(body.get("targetRoles")) : null);
+
+        if ("sent".equals(notification.getStatus())) {
+            if (notification.getSendTime() == null) {
+                notification.setSendTime(java.time.LocalDateTime.now());
+            }
+        } else {
+            notification.setSendTime(null);
+        }
+
+        return notification;
+    }
+
+    private String normalizeTargetRoles(Object rawTargetRoles) {
+        if (rawTargetRoles == null) {
+            return null;
+        }
+        if (rawTargetRoles instanceof String value) {
+            String normalized = value.trim();
+            return normalized.isEmpty() ? null : normalized;
+        }
+        if (rawTargetRoles instanceof Collection<?> values) {
+            String normalized = values.stream()
+                    .map(value -> value == null ? null : value.toString().trim())
+                    .filter(value -> value != null && !value.isEmpty())
+                    .collect(Collectors.joining(","));
+            return normalized.isEmpty() ? null : normalized;
+        }
+        String normalized = rawTargetRoles.toString().trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private String stringValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private String defaultValue(String value, String fallback) {
+        return value != null ? value : fallback;
+    }
+
+    private Map<String, Object> buildAdminDraftResponse(PostDraft draft) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", draft.getId());
+        response.put("userId", draft.getUserId());
+        response.put("title", draft.getTitle());
+        response.put("content", draft.getContent());
+        response.put("categoryId", draft.getCategoryId());
+        response.put("status", draft.getStatus());
+        response.put("rewardPoints", draft.getRewardPoints());
+        response.put("attachments", draft.getAttachments());
+        response.put("tags", draft.getTags());
+        response.put("createTime", draft.getCreateTime());
+        response.put("updateTime", draft.getUpdateTime());
+        response.put("expireTime", resolveDraftExpireTime(draft));
+        response.put("expired", isDraftExpired(draft));
+
+        User author = userService.getById(draft.getUserId());
+        if (author != null) {
+            Map<String, Object> authorMap = new HashMap<>();
+            authorMap.put("id", author.getId());
+            authorMap.put("username", author.getUsername());
+            authorMap.put("avatar", author.getAvatar());
+            authorMap.put("role", author.getRole());
+            response.put("author", authorMap);
+        }
+
+        Category category = draft.getCategoryId() != null ? categoryService.getById(draft.getCategoryId()) : null;
+        if (category != null) {
+            Map<String, Object> categoryMap = new HashMap<>();
+            categoryMap.put("id", category.getId());
+            categoryMap.put("name", category.getName());
+            response.put("category", categoryMap);
+        }
+
+        return response;
+    }
+
+    private java.time.LocalDateTime resolveDraftExpireTime(PostDraft draft) {
+        java.time.LocalDateTime baseTime = draft.getUpdateTime() != null ? draft.getUpdateTime() : draft.getCreateTime();
+        if (baseTime == null) {
+            return null;
+        }
+        return baseTime.plusDays(PostDraftService.DRAFT_EXPIRE_DAYS);
+    }
+
+    private boolean isDraftExpired(PostDraft draft) {
+        java.time.LocalDateTime expireTime = resolveDraftExpireTime(draft);
+        return expireTime != null && !expireTime.isAfter(java.time.LocalDateTime.now());
+    }
+
+    private List<ExperienceProperties.LevelRule> getSortedLevelRules() {
+        return experienceProperties.getLevels().stream()
+                .sorted(Comparator.comparingInt(rule -> safeInt(rule.getThreshold())))
+                .collect(Collectors.toList());
+    }
+
+    private Map<String, Object> buildLevelUserResponse(User user) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", user.getId());
+        response.put("username", user.getUsername());
+        response.put("avatar", user.getAvatar());
+        response.put("role", user.getRole());
+        response.put("status", user.getStatus());
+        response.put("level", safeInt(user.getLevel()));
+        response.put("levelName", resolveLevelName(safeInt(user.getLevel())));
+        response.put("exp", safeInt(user.getExp()));
+        response.put("points", safeInt(user.getPoints()));
+        response.put("createTime", user.getCreateTime());
+        response.put("progress", experienceService.getProgress(user.getExp()));
+        return response;
+    }
+
+    private Map<String, Object> buildLevelLogResponse(UserExpLog log, User user) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", log.getId());
+        response.put("bizType", log.getBizType());
+        response.put("bizLabel", mapExpRuleLabel(log.getBizType()));
+        response.put("bizId", log.getBizId());
+        response.put("expChange", safeInt(log.getExpChange()));
+        response.put("reason", log.getReason());
+        response.put("createTime", log.getCreateTime());
+
+        if (user != null) {
+            Map<String, Object> userMap = new HashMap<>();
+            userMap.put("id", user.getId());
+            userMap.put("username", user.getUsername());
+            userMap.put("avatar", user.getAvatar());
+            userMap.put("level", safeInt(user.getLevel()));
+            userMap.put("exp", safeInt(user.getExp()));
+            response.put("user", userMap);
+        }
+
+        return response;
+    }
+
+    private Map<String, Object> buildExpRuleResponse(ExperienceRule rule) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("id", rule.getId());
+        item.put("key", rule.getRuleKey());
+        item.put("label", defaultText(rule.getName(), mapExpRuleLabel(rule.getRuleKey())));
+        item.put("description", rule.getDescription());
+        item.put("minExp", safeInt(rule.getMinExp()));
+        item.put("maxExp", safeInt(rule.getMaxExp()));
+        item.put("enabled", rule.getEnabled() == null || rule.getEnabled());
+        item.put("rangeText", safeInt(rule.getMinExp()) == safeInt(rule.getMaxExp())
+                ? "+" + safeInt(rule.getMinExp()) + " 经验"
+                : safeInt(rule.getMinExp()) + "-" + safeInt(rule.getMaxExp()) + " 经验");
+        return item;
+    }
+
+    private String resolveLevelName(int level) {
+        return getSortedLevelRules().stream()
+                .filter(rule -> safeInt(rule.getLevel()) == level)
+                .map(ExperienceProperties.LevelRule::getName)
+                .findFirst()
+                .orElse("未命名等级");
+    }
+
+    private String mapExpRuleLabel(String ruleKey) {
+        if (ruleKey == null || ruleKey.isBlank()) {
+            return "未知来源";
+        }
+        return switch (ruleKey) {
+            case ExperienceService.BIZ_POST_DIRECT_PUBLISH -> "直接发帖";
+            case ExperienceService.BIZ_POST_APPROVED -> "帖子过审";
+            case ExperienceService.BIZ_REPLY_CREATE -> "发布回复";
+            case ExperienceService.BIZ_DAILY_CHECKIN -> "每日签到";
+            default -> ruleKey;
+        };
+    }
+
+    private int safeInt(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private int safeInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return 0;
+    }
+
+    private String defaultText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private Integer parseInteger(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 }

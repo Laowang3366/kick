@@ -70,16 +70,22 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
 
     @Override
     public void createNotification(Long userId, String type, String content, Long relatedId) {
-        createNotification(userId, type, content, relatedId, null);
+        createNotification(userId, type, content, relatedId, null, null);
     }
 
     @Override
     public void createNotification(Long userId, String type, String content, Long relatedId, Long senderId) {
+        createNotification(userId, type, content, relatedId, null, senderId);
+    }
+
+    @Override
+    public void createNotification(Long userId, String type, String content, Long relatedId, Long replyId, Long senderId) {
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setType(type);
         notification.setContent(content);
         notification.setRelatedId(relatedId);
+        notification.setReplyId(replyId);
         notification.setSenderId(senderId);
         notification.setIsRead(0);
         save(notification);
