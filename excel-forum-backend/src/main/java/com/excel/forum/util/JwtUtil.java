@@ -4,7 +4,6 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
-import org.springframework.core.env.Environment;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,31 +16,22 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 public class JwtUtil {
-    private static final String DEV_FALLBACK_SECRET = "dev-only-secret-key-please-change-in-production-at-least-256-bits-long";
-
     @Value("${jwt.secret}")
     private String secret;
 
     @Value("${jwt.expiration}")
     private Long expiration;
 
-    private final Environment environment;
     private final StringRedisTemplate redisTemplate;
 
-    public JwtUtil(Environment environment, StringRedisTemplate redisTemplate) {
-        this.environment = environment;
+    public JwtUtil(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 
     @PostConstruct
     public void validateSecret() {
-        boolean isDev = isDevelopmentProfile();
-        if ((secret == null || secret.isBlank()) && isDev) {
-            secret = DEV_FALLBACK_SECRET;
-            return;
-        }
         if (secret == null || secret.isBlank()) {
-            throw new IllegalStateException("生产环境必须配置 JWT_SECRET");
+            throw new IllegalStateException("必须配置 JWT_SECRET");
         }
     }
 
@@ -120,9 +110,5 @@ public class JwtUtil {
 
     private String buildBlacklistKey(String token) {
         return "jwt:blacklist:" + token;
-    }
-
-    private boolean isDevelopmentProfile() {
-        return environment.matchesProfiles("dev");
     }
 }

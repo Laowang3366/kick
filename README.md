@@ -38,6 +38,10 @@ Excel 社区论坛与练习平台，包含：
 
 可选：
 
+- `ADMIN_BOOTSTRAP_ENABLED`
+- `ADMIN_BOOTSTRAP_USERNAME`
+- `ADMIN_BOOTSTRAP_EMAIL`
+- `ADMIN_BOOTSTRAP_PASSWORD`
 - MinIO 相关配置
 - Redis 密码
 

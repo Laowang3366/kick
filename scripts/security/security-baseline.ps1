@@ -4,12 +4,17 @@ param(
 
 $cases = @(
   @{ Name = "unauthorized-admin"; Url = "$BackendUrl/api/admin/stats"; Headers = @{}; Expected = @(401, 403) },
-  @{ Name = "invalid-jwt"; Url = "$BackendUrl/api/messages/unread-count"; Headers = @{ Authorization = "Bearer invalid-token" }; Expected = @(401, 403) }
+  @{ Name = "invalid-jwt"; Url = "$BackendUrl/api/messages/unread-count"; Headers = @{ Authorization = "Bearer invalid-token" }; Expected = @(401, 403) },
+  @{ Name = "unauthorized-tools-convert"; Url = "$BackendUrl/api/tools/convert"; Headers = @{}; Expected = @(401, 403); Method = "Post" }
 )
 
 $results = foreach ($case in $cases) {
   try {
-    $response = Invoke-WebRequest -Uri $case.Url -UseBasicParsing -Headers $case.Headers -TimeoutSec 15
+    if ($case.Method -eq "Post") {
+      $response = Invoke-WebRequest -Uri $case.Url -UseBasicParsing -Headers $case.Headers -Method Post -Body @{} -TimeoutSec 15
+    } else {
+      $response = Invoke-WebRequest -Uri $case.Url -UseBasicParsing -Headers $case.Headers -TimeoutSec 15
+    }
     $actual = $response.StatusCode
   } catch {
     $actual = $_.Exception.Response.StatusCode.value__

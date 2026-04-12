@@ -4,12 +4,13 @@
 
 ## 结论
 
-当前结论：`有条件上线`
+当前结论：`可上线（需继续优化编辑器构建体积）`
 
 前提：
 
-- GitHub 首次导入尚未完成，等待有效 PAT 执行推送
-- 已补齐本地 CI 基线，但仍存在需要上线前明确处置的安全风险
+- GitHub 首次导入已完成
+- 已补齐本地 CI 基线
+- 剩余问题以性能优化为主，不再阻断上线
 
 ## 审查范围
 
@@ -23,10 +24,10 @@
 
 | 严重程度 | 问题描述 | 复现路径 / 证据 | 影响范围 | 修复建议 | 是否阻断上线 |
 |---|---|---|---|---|---|
-| P1 | 系统在无管理员账号时会自动初始化默认管理员 `admin/admin123` | `DataInitializer` 中硬编码默认口令 | 新环境首次部署、误清库环境 | 生产环境禁用默认管理员初始化，或改为部署时强制注入随机初始密码 | 是 |
-| P1 | 文档转换接口 `/api/tools/convert` 当前匿名开放 | `SecurityConfig` 中 `permitAll`，`ToolController` 接受匿名请求并执行转换 | 可被匿名滥用，占用 CPU / 磁盘 / 转换资源 | 至少加登录校验、限流、文件类型和大小审计日志 | 是 |
-| P2 | 开发环境允许 JWT 使用 dev fallback secret | `JwtUtil` 中存在 dev fallback secret | 若错误使用 dev profile 进入生产，会降低认证强度 | 发布流程中强制非 dev profile，并将 `JWT_SECRET` 设为必填 | 否 |
-| P2 | 前端生产构建产物中存在超大 chunk，首屏和缓存更新成本偏高 | `npm run build` 输出中 `ExcelWorkbookEditor` chunk 超过 5MB | 首屏加载、弱网访问、浏览器缓存更新 | 对重型编辑器做懒加载或拆分 chunk | 否 |
+| 已修复 | 管理员默认口令初始化风险 | `DataInitializer` 现已改为显式 `ADMIN_BOOTSTRAP_*` 配置，生产环境无密码时拒绝引导 | 新环境首次部署 | 保持生产默认关闭，仅在受控阶段临时启用 | 否 |
+| 已修复 | 文档转换接口匿名开放 | `SecurityConfig` 现已改为登录后访问 | 转换功能 | 继续补充速率限制与配额审计 | 否 |
+| 已修复 | JWT 代码级 dev fallback secret | `JwtUtil` 现已要求显式配置 `JWT_SECRET` | 鉴权 | 目标环境必须配置正式密钥 | 否 |
+| P2 | `@univerjs` 编辑器核心包仍然较大 | 已额外拆分 `univer-presets` / `univer-sheets-core`，但核心包仍接近 4.8MB | 练习与后台编辑器页的首次加载、弱网访问、缓存更新 | 后续继续评估替换更轻编辑器或按功能拆分编辑能力 | 否 |
 | P2 | 当前前端依赖目录在开发进程占用时，`npm ci` 会被文件锁阻断 | 本地执行 `npm ci` 时 `lightningcss` 文件占用报 EPERM | 本地构建与 CI 对齐前的人工操作 | 先关闭前端 dev server 再执行 `npm ci`；CI 中不会受此影响 | 否 |
 
 ## 已完成的质量补强

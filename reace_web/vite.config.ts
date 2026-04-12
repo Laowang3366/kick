@@ -21,6 +21,15 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
+          if (id.includes('@univerjs/preset-sheets-core/locales')) {
+            return 'univer-locales';
+          }
+          if (id.includes('@univerjs/preset-sheets-core')) {
+            return 'univer-sheets-core';
+          }
+          if (id.includes('@univerjs/presets')) {
+            return 'univer-presets';
+          }
           if (id.includes('react-router') || id.includes('react-dom') || id.includes(`${path.sep}react${path.sep}`)) {
             return 'react-vendor';
           }

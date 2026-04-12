@@ -34,6 +34,7 @@ npm run build
 
 - 前端开发进程占用 `node_modules` 时，Windows 下可能出现文件锁；本次已在关闭前端进程后完成 `npm ci`
 - `npm audit --omit=dev`：未发现生产依赖漏洞
+- 已对 `@univerjs` 相关产物做额外分包，编辑器入口显著拆开，但 `univer-sheets-core` 仍然偏大，属于后续性能优化项
 
 ## 烟测结果
 
@@ -54,6 +55,7 @@ powershell -ExecutionPolicy Bypass -File scripts/security/security-baseline.ps1
 
 - 未登录访问后台统计：返回 `403`
 - 无效 JWT 访问私信未读数：返回 `403`
+- 未登录访问文档转换接口：返回 `403`
 - 当前安全脚本按 `401/403` 视为保护生效
 
 ## 性能基线结果
