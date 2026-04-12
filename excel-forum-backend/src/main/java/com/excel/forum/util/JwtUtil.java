@@ -12,11 +12,15 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Component
 public class JwtUtil {
     private static final int MIN_SECRET_BYTES = 64;
+    private static final ConcurrentHashMap<String, Long> LOCAL_BLACKLIST = new ConcurrentHashMap<>();
 
     @Value("${jwt.secret}")
     private String secret;
@@ -91,11 +95,8 @@ public class JwtUtil {
 
     public boolean validateToken(String token) {
         try {
-            if (isBlacklisted(token)) {
-                return false;
-            }
             parseToken(token);
-            return true;
+            return !isBlacklisted(token);
         } catch (Exception e) {
             return false;
         }
@@ -106,21 +107,41 @@ public class JwtUtil {
         try {
             Claims claims = parseToken(token);
             long ttl = Math.max(claims.getExpiration().getTime() - System.currentTimeMillis(), 0L);
+            LOCAL_BLACKLIST.put(buildBlacklistKey(token), System.currentTimeMillis() + ttl);
             redisTemplate.opsForValue().set(buildBlacklistKey(token), "1", ttl, TimeUnit.MILLISECONDS);
         } catch (Exception ignored) {
         }
     }
 
     private boolean isBlacklisted(String token) {
+        pruneLocalBlacklist();
+        String key = buildBlacklistKey(token);
+        Long localExpiry = LOCAL_BLACKLIST.get(key);
+        if (localExpiry != null && localExpiry > System.currentTimeMillis()) {
+            return true;
+        }
         try {
-            Boolean exists = redisTemplate.hasKey(buildBlacklistKey(token));
+            Boolean exists = redisTemplate.hasKey(key);
             return Boolean.TRUE.equals(exists);
-        } catch (RedisConnectionFailureException ex) {
-            throw ex;
+        } catch (RedisConnectionFailureException ignored) {
+            return false;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 
     private String buildBlacklistKey(String token) {
         return "jwt:blacklist:" + token;
+    }
+
+    private void pruneLocalBlacklist() {
+        long now = System.currentTimeMillis();
+        Iterator<Map.Entry<String, Long>> iterator = LOCAL_BLACKLIST.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Long> entry = iterator.next();
+            if (entry.getValue() <= now) {
+                iterator.remove();
+            }
+        }
     }
 }

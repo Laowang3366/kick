@@ -33,6 +33,10 @@ function normalizeErrorMessage(data: unknown, fallback: string) {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return apiRequestInternal<T>(path, options, 0);
+}
+
+async function apiRequestInternal<T>(path: string, options: RequestOptions, retryCount: number): Promise<T> {
   const { method = "GET", body, headers = {}, auth = true, silent = false } = options;
   const token = auth ? getStoredToken() : null;
   const requestHeaders = new Headers(headers);
@@ -61,6 +65,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     : await response.text().catch(() => "");
 
   if (!response.ok) {
+    if (response.status === 503 && retryCount < 2 && shouldRetryRequest(path, method)) {
+      await delay(300 * (retryCount + 1));
+      return apiRequestInternal<T>(path, options, retryCount + 1);
+    }
     if (response.status === 401) {
       clearStoredSession();
     }
@@ -72,6 +80,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return data as T;
+}
+
+function shouldRetryRequest(path: string, method: string) {
+  const normalizedMethod = method.toUpperCase();
+  if (normalizedMethod === "GET") return true;
+  return path.startsWith("/api/auth/");
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export const api = {
