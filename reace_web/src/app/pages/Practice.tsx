@@ -1,10 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Award, CheckCircle2, Clock, FileSpreadsheet, LoaderCircle, Play, Target, UploadCloud, ClipboardList, History } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { ExcelWorkbookEditor } from "../components/ExcelWorkbookEditor";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { api } from "../lib/api";
 import {
@@ -21,6 +20,10 @@ import { formatNumber } from "../lib/format";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { practiceKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
+
+const ExcelWorkbookEditor = lazy(() =>
+  import("../components/ExcelWorkbookEditor").then((module) => ({ default: module.ExcelWorkbookEditor }))
+);
 
 function defaultSubmissionForm() {
   return {
@@ -664,30 +667,32 @@ export function Practice() {
                     {templateLoading ? (
                       <div className="flex h-48 items-center justify-center text-sm text-slate-400">正在加载模板...</div>
                     ) : sheetOptions.length > 0 ? (
-                      <ExcelWorkbookEditor
-                        workbook={editorWorkbook}
-                        onWorkbookChange={setEditorWorkbook}
-                        selectedSheetName={selectedSheetName}
-                        onSelectedSheetNameChange={(sheetName) => {
-                          setSelectedSheetName(sheetName);
-                          setSubmissionForm((prev) => ({ ...prev, answerSheet: sheetName }));
-                        }}
-                        selection={isSelectingAnswerRange ? selection : undefined}
-                        onSelectionChange={isSelectingAnswerRange ? setSelection : undefined}
-                        editableRange={isSelectingAnswerRange ? selection : undefined}
-                        selectionEnabled={isSelectingAnswerRange}
-                        focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
-                        focusRequestVersion={editorFullscreenVersion}
-                        requestFullscreenVersion={editorFullscreenVersion}
-                        showConfirmSelectionButton={isSelectingAnswerRange}
-                        confirmSelectionLabel="确认区域"
-                        onConfirmSelection={confirmAnswerRange}
-                        onSnapshotCaptureReady={(capture) => {
-                          editorSnapshotGetterRef.current = capture;
-                        }}
-                        className="min-w-[1170px]"
-                        viewportClassName="h-[460px] max-h-[50vh] w-full"
-                      />
+                      <Suspense fallback={<div className="flex h-[460px] items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
+                        <ExcelWorkbookEditor
+                          workbook={editorWorkbook}
+                          onWorkbookChange={setEditorWorkbook}
+                          selectedSheetName={selectedSheetName}
+                          onSelectedSheetNameChange={(sheetName) => {
+                            setSelectedSheetName(sheetName);
+                            setSubmissionForm((prev) => ({ ...prev, answerSheet: sheetName }));
+                          }}
+                          selection={isSelectingAnswerRange ? selection : undefined}
+                          onSelectionChange={isSelectingAnswerRange ? setSelection : undefined}
+                          editableRange={isSelectingAnswerRange ? selection : undefined}
+                          selectionEnabled={isSelectingAnswerRange}
+                          focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
+                          focusRequestVersion={editorFullscreenVersion}
+                          requestFullscreenVersion={editorFullscreenVersion}
+                          showConfirmSelectionButton={isSelectingAnswerRange}
+                          confirmSelectionLabel="确认区域"
+                          onConfirmSelection={confirmAnswerRange}
+                          onSnapshotCaptureReady={(capture) => {
+                            editorSnapshotGetterRef.current = capture;
+                          }}
+                          className="min-w-[1170px]"
+                          viewportClassName="h-[460px] max-h-[50vh] w-full"
+                        />
+                      </Suspense>
                     ) : (
                       <div className="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
                         上传 Excel 模板后即可开始配置

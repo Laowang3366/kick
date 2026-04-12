@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
-import { ExcelWorkbookEditor } from "../components/ExcelWorkbookEditor";
 import { api } from "../lib/api";
 import { ExcelWorkbookSnapshot, normalizeSelection, parseRangeRef } from "../lib/excel";
 import { formatDuration } from "../lib/format";
 import { practiceKeys } from "../lib/query-keys";
+
+const ExcelWorkbookEditor = lazy(() =>
+  import("../components/ExcelWorkbookEditor").then((module) => ({ default: module.ExcelWorkbookEditor }))
+);
 
 export function PracticeDetail() {
   const { id } = useParams();
@@ -187,17 +190,19 @@ export function PracticeDetail() {
                 请在 <span className="text-emerald-600">{question.answerSheet} / {question.answerRange}</span> 内作答，系统仅按该区域进行判题。
               </div>
               {currentWorkbook.sheets.length > 0 ? (
-                <ExcelWorkbookEditor
-                  key={editorKey}
-                  workbook={currentWorkbook}
-                  onWorkbookChange={setWorkbook}
-                  selectedSheetName={currentSheetName}
-                  onSelectedSheetNameChange={setSelectedSheetName}
-                  editableRange={editableRange}
-                  onSnapshotCaptureReady={(capture) => {
-                    editorSnapshotGetterRef.current = capture;
-                  }}
-                />
+                <Suspense fallback={<div className="flex h-[640px] items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">正在加载编辑器...</div>}>
+                  <ExcelWorkbookEditor
+                    key={editorKey}
+                    workbook={currentWorkbook}
+                    onWorkbookChange={setWorkbook}
+                    selectedSheetName={currentSheetName}
+                    onSelectedSheetNameChange={setSelectedSheetName}
+                    editableRange={editableRange}
+                    onSnapshotCaptureReady={(capture) => {
+                      editorSnapshotGetterRef.current = capture;
+                    }}
+                  />
+                </Suspense>
               ) : (
                 <div className="flex h-[640px] items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
                   正在加载题目模板...

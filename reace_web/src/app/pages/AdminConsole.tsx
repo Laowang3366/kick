@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import {
@@ -25,7 +25,6 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import { ExcelWorkbookEditor } from "../components/ExcelWorkbookEditor";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { Switch } from "../components/ui/switch";
@@ -88,6 +87,10 @@ import {
   inputClassName,
   textareaClassName,
 } from "../admin/shared";
+
+const ExcelWorkbookEditor = lazy(() =>
+  import("../components/ExcelWorkbookEditor").then((module) => ({ default: module.ExcelWorkbookEditor }))
+);
 
 type FormDialogProps = {
   open: boolean;
@@ -2715,32 +2718,34 @@ export function AdminQuestions() {
           {templateLoading ? (
             <div className="flex h-48 items-center justify-center text-sm text-slate-400">正在加载模板...</div>
           ) : sheetOptions.length > 0 ? (
-            <ExcelWorkbookEditor
-              workbook={editorWorkbook}
-              onWorkbookChange={isTemplateEditMode ? setEditorWorkbook : undefined}
-              selectedSheetName={selectedSheetName}
-              onSelectedSheetNameChange={(sheetName) => {
-                setSelectedSheetName(sheetName);
-                if (isTemplateEditMode) {
-                  setForm((prev: any) => ({ ...prev, answerSheet: sheetName }));
-                }
-              }}
-              selection={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
-              onSelectionChange={isTemplateEditMode && isSelectingAnswerRange ? ((nextSelection) => {
-                setSelection(nextSelection);
-              }) : undefined}
-              editableRange={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
-              selectionEnabled={isTemplateEditMode && isSelectingAnswerRange}
-              focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
-              focusRequestVersion={editorFullscreenVersion}
-              requestFullscreenVersion={editorFullscreenVersion}
-              showConfirmSelectionButton={isSelectingAnswerRange}
-              confirmSelectionLabel="确认区域"
-              onConfirmSelection={confirmAnswerRange}
-              onSnapshotCaptureReady={(capture) => {
-                editorSnapshotGetterRef.current = capture;
-              }}
-            />
+            <Suspense fallback={<div className="flex h-[460px] items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
+              <ExcelWorkbookEditor
+                workbook={editorWorkbook}
+                onWorkbookChange={isTemplateEditMode ? setEditorWorkbook : undefined}
+                selectedSheetName={selectedSheetName}
+                onSelectedSheetNameChange={(sheetName) => {
+                  setSelectedSheetName(sheetName);
+                  if (isTemplateEditMode) {
+                    setForm((prev: any) => ({ ...prev, answerSheet: sheetName }));
+                  }
+                }}
+                selection={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
+                onSelectionChange={isTemplateEditMode && isSelectingAnswerRange ? ((nextSelection) => {
+                  setSelection(nextSelection);
+                }) : undefined}
+                editableRange={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
+                selectionEnabled={isTemplateEditMode && isSelectingAnswerRange}
+                focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
+                focusRequestVersion={editorFullscreenVersion}
+                requestFullscreenVersion={editorFullscreenVersion}
+                showConfirmSelectionButton={isSelectingAnswerRange}
+                confirmSelectionLabel="确认区域"
+                onConfirmSelection={confirmAnswerRange}
+                onSnapshotCaptureReady={(capture) => {
+                  editorSnapshotGetterRef.current = capture;
+                }}
+              />
+            </Suspense>
           ) : (
             <div className="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
               上传 Excel 模板后即可开始配置
