@@ -9,6 +9,7 @@ run-logs/
 # Backend
 excel-forum-backend/target/
 excel-forum-backend/uploads/
+excel-forum-backend/BOOT-INF/
 
 # Frontend
 reace_web/node_modules/
