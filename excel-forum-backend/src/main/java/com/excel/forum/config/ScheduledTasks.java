@@ -26,6 +26,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 @Slf4j
 @Component
 @EnableScheduling
@@ -116,15 +122,36 @@ public class ScheduledTasks {
             if (page.getRecords().isEmpty()) {
                 break;
             }
+            Set<Long> postIds = page.getRecords().stream()
+                    .map(Post::getId)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Map<Long, Integer> likeCountMap = countGroupedIntegers(
+                    likeService.list(new QueryWrapper<Like>()
+                            .eq("target_type", "post")
+                            .in("target_id", postIds)
+                            .select("target_id")),
+                    Like::getTargetId
+            );
+            Map<Long, Integer> replyCountMap = countGroupedIntegers(
+                    replyService.list(new QueryWrapper<com.excel.forum.entity.Reply>()
+                            .eq("status", 0)
+                            .in("post_id", postIds)
+                            .select("post_id")),
+                    com.excel.forum.entity.Reply::getPostId
+            );
+            Map<Long, Integer> favoriteCountMap = countGroupedIntegers(
+                    favoriteService.list(new QueryWrapper<Favorite>()
+                            .in("post_id", postIds)
+                            .select("post_id")),
+                    Favorite::getPostId
+            );
             for (Post post : page.getRecords()) {
-                long actualLikeCount = likeService.count(new QueryWrapper<Like>().eq("target_type", "post").eq("target_id", post.getId()));
-                long actualReplyCount = replyService.count(new QueryWrapper<com.excel.forum.entity.Reply>().eq("post_id", post.getId()).eq("status", 0));
-                long actualFavoriteCount = favoriteService.count(new QueryWrapper<Favorite>().eq("post_id", post.getId()));
                 Post update = new Post();
                 update.setId(post.getId());
-                update.setLikeCount((int) actualLikeCount);
-                update.setReplyCount((int) actualReplyCount);
-                update.setFavoriteCount((int) actualFavoriteCount);
+                update.setLikeCount(likeCountMap.getOrDefault(post.getId(), 0));
+                update.setReplyCount(replyCountMap.getOrDefault(post.getId(), 0));
+                update.setFavoriteCount(favoriteCountMap.getOrDefault(post.getId(), 0));
                 postService.updateById(update);
             }
             if (currentPage >= page.getPages()) {
@@ -133,5 +160,15 @@ public class ScheduledTasks {
             currentPage += 1L;
         }
         log.info("帖子统计字段校准完成");
+    }
+
+    private <T> Map<Long, Integer> countGroupedIntegers(java.util.List<T> records, Function<T, Long> keyExtractor) {
+        if (records == null || records.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return records.stream()
+                .map(keyExtractor)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toMap(Function.identity(), item -> 1, Integer::sum));
     }
 }

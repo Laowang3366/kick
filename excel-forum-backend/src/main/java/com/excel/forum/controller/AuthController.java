@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.List;
 
@@ -34,6 +35,7 @@ public class AuthController {
                     "return current;",
             Long.class
     );
+    private static final ConcurrentHashMap<String, LocalRateLimitState> LOCAL_RATE_LIMITS = new ConcurrentHashMap<>();
 
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
@@ -334,7 +336,19 @@ public class AuthController {
             }
             return null;
         } catch (Exception ignored) {
-            return ResponseEntity.status(503).body(Map.of("message", "认证服务暂不可用，请稍后重试"));
+            long now = System.currentTimeMillis();
+            LocalRateLimitState state = LOCAL_RATE_LIMITS.compute(key, (currentKey, currentState) -> {
+                if (currentState == null || currentState.expireAtMillis <= now) {
+                    return new LocalRateLimitState(1, now + ttlSeconds * 1000L);
+                }
+                currentState.count += 1;
+                return currentState;
+            });
+            cleanupExpiredLocalRateLimits(now);
+            if (state != null && state.count > maxRequests) {
+                return ResponseEntity.status(429).body(Map.of("message", limitedMessage));
+            }
+            return null;
         }
     }
 
@@ -351,5 +365,19 @@ public class AuthController {
 
     private int nextTokenVersion(Integer tokenVersion) {
         return tokenVersion == null ? 1 : tokenVersion + 1;
+    }
+
+    private void cleanupExpiredLocalRateLimits(long now) {
+        LOCAL_RATE_LIMITS.entrySet().removeIf(entry -> entry.getValue().expireAtMillis <= now);
+    }
+
+    private static final class LocalRateLimitState {
+        private int count;
+        private final long expireAtMillis;
+
+        private LocalRateLimitState(int count, long expireAtMillis) {
+            this.count = count;
+            this.expireAtMillis = expireAtMillis;
+        }
     }
 }

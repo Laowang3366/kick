@@ -31,8 +31,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .peek(value -> {
-                    if (!environment.matchesProfiles("dev") && value.contains("*")) {
-                        throw new IllegalStateException("生产环境 ALLOWED_ORIGINS 不允许使用通配符");
+                    if (value.contains("*")) {
+                        throw new IllegalStateException("ALLOWED_ORIGINS 不允许使用通配符");
                     }
                 })
                 .toArray(String[]::new);

@@ -131,8 +131,8 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toList());
-        if (!environment.matchesProfiles("dev") && origins.stream().anyMatch(value -> value.contains("*"))) {
-            throw new IllegalStateException("生产环境 ALLOWED_ORIGINS 不允许使用通配符");
+        if (origins.stream().anyMatch(value -> value.contains("*"))) {
+            throw new IllegalStateException("ALLOWED_ORIGINS 不允许使用通配符");
         }
         return origins;
     }
