@@ -1,0 +1,24 @@
+# Root
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
+run-logs/
+
+# Backend
+excel-forum-backend/target/
+excel-forum-backend/uploads/
+
+# Frontend
+reace_web/node_modules/
+reace_web/dist/
+reace_web/.git/
+reace_web/frontend-dev.log
+reace_web/frontend-dev.err.log
+reace_web/frontend-run-*.log
+reace_web/frontend-run-*.err.log
+
+# Local temp
+tmp/
+*.tmp

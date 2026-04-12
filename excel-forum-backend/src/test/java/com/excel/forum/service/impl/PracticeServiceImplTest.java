@@ -1,0 +1,252 @@
+package com.excel.forum.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.excel.forum.entity.PracticeAnswer;
+import com.excel.forum.entity.PracticeRecord;
+import com.excel.forum.entity.Question;
+import com.excel.forum.entity.QuestionExcelTemplate;
+import com.excel.forum.entity.User;
+import com.excel.forum.entity.dto.ExcelTemplateEvaluation;
+import com.excel.forum.entity.dto.ExcelWorkbookSnapshot;
+import com.excel.forum.entity.dto.PracticeSubmitAnswerRequest;
+import com.excel.forum.entity.dto.PracticeSubmitRequest;
+import com.excel.forum.mapper.PracticeAnswerMapper;
+import com.excel.forum.mapper.PracticeRecordMapper;
+import com.excel.forum.service.ExcelTemplateGradingService;
+import com.excel.forum.service.ExperienceRuleService;
+import com.excel.forum.service.ExperienceService;
+import com.excel.forum.service.PointsRecordService;
+import com.excel.forum.service.PointsTaskService;
+import com.excel.forum.service.PracticeQuestionSubmissionService;
+import com.excel.forum.service.QuestionCategoryService;
+import com.excel.forum.service.QuestionExcelTemplateService;
+import com.excel.forum.service.QuestionService;
+import com.excel.forum.service.UserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class PracticeServiceImplTest {
+
+    @Mock
+    private QuestionCategoryService questionCategoryService;
+    @Mock
+    private QuestionService questionService;
+    @Mock
+    private PracticeRecordMapper practiceRecordMapper;
+    @Mock
+    private PracticeAnswerMapper practiceAnswerMapper;
+    @Mock
+    private ExperienceService experienceService;
+    @Mock
+    private ExperienceRuleService experienceRuleService;
+    @Mock
+    private PointsRecordService pointsRecordService;
+    @Mock
+    private PointsTaskService pointsTaskService;
+    @Mock
+    private QuestionExcelTemplateService questionExcelTemplateService;
+    @Mock
+    private ExcelTemplateGradingService excelTemplateGradingService;
+    @Mock
+    private UserService userService;
+    @Mock
+    private PracticeQuestionSubmissionService practiceQuestionSubmissionService;
+
+    @Test
+    void getPracticeCategoriesIncludesUncategorizedQuestions() {
+        PracticeServiceImpl service = createService();
+
+        Question question = buildExcelQuestion();
+        question.setQuestionCategoryId(null);
+
+        when(questionService.list(any(QueryWrapper.class))).thenReturn(List.of(question));
+        when(questionCategoryService.listWithQuestionCount(true)).thenReturn(List.of());
+
+        Map<String, Object> result = service.getPracticeCategories();
+
+        assertThat(result.get("categories"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.list(Map.class))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.get("name")).isEqualTo("未分类");
+                    assertThat(item.get("questionCount")).isEqualTo(1L);
+                });
+    }
+
+    @Test
+    void getPracticeQuestionListUsesUncategorizedLabelWhenCategoryMissing() {
+        PracticeServiceImpl service = createService();
+
+        Question question = buildExcelQuestion();
+        question.setQuestionCategoryId(null);
+
+        when(questionService.list(any(QueryWrapper.class))).thenReturn(List.of(question));
+        when(questionExcelTemplateService.mapByQuestionIds(any())).thenReturn(Map.of());
+
+        Map<String, Object> result = service.getPracticeQuestionList(null, null);
+
+        assertThat(result.get("questions"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.list(Map.class))
+                .singleElement()
+                .satisfies(item -> {
+                    assertThat(item.get("questionCategoryName")).isEqualTo("未分类");
+                    assertThat(item.get("categoryName")).isEqualTo("未分类");
+                });
+    }
+
+    @Test
+    void submitPracticeAwardsQuestionRewardOnlyOnFirstPass() {
+        PracticeServiceImpl service = createService();
+
+        Question question = buildExcelQuestion();
+        QuestionExcelTemplate template = buildTemplate();
+        ExcelWorkbookSnapshot workbook = new ExcelWorkbookSnapshot();
+        ExcelTemplateEvaluation evaluation = new ExcelTemplateEvaluation();
+        evaluation.setPassed(true);
+        evaluation.setScore(1);
+        evaluation.setTotalScore(1);
+        evaluation.setFeedback("ok");
+        evaluation.setRuleResults(List.of(Map.of("label", "答案区域", "passed", true)));
+        evaluation.setNormalizedUserAnswer("{\"sheets\":[]}");
+        evaluation.setNormalizedCorrectAnswer("{\"rangeValues\":{}}");
+
+        when(questionService.list(any(QueryWrapper.class))).thenReturn(List.of(question));
+        when(questionExcelTemplateService.getByQuestionId(9L)).thenReturn(template);
+        when(excelTemplateGradingService.materializeSubmission(eq("/uploads/practice.xlsx"), any(ExcelWorkbookSnapshot.class))).thenReturn(workbook);
+        when(excelTemplateGradingService.grade(eq(workbook), any(), any())).thenReturn(evaluation);
+        when(experienceRuleService.resolveFixedExp(any(), eq(2))).thenReturn(2);
+        when(pointsTaskService.awardTask(any(), any(), any(), any())).thenReturn(null);
+        when(practiceRecordMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+        when(pointsRecordService.count(any(QueryWrapper.class))).thenReturn(0L);
+        doAnswer(invocation -> {
+            PracticeRecord record = invocation.getArgument(0);
+            record.setId(88L);
+            return 1;
+        }).when(practiceRecordMapper).insert(any(PracticeRecord.class));
+
+        PracticeSubmitRequest request = new PracticeSubmitRequest();
+        request.setQuestionCategoryId(3L);
+        request.setCategoryId(3L);
+        request.setMode("single_question");
+        request.setDurationSeconds(45);
+        PracticeSubmitAnswerRequest answerRequest = new PracticeSubmitAnswerRequest();
+        answerRequest.setQuestionId(9L);
+        answerRequest.setUserAnswer(Map.of("sheets", List.of()));
+        request.setAnswers(List.of(answerRequest));
+
+        Map<String, Object> result = service.submitPractice(7L, request);
+
+        assertThat(result.get("rewardPoints")).isEqualTo(15);
+        assertThat(result.get("firstPass")).isEqualTo(true);
+        verify(pointsRecordService).addTaskPointsRecord(eq(7L), eq(null), eq("题目首通奖励"), eq("practice_question_pass"), eq(9L), eq(null), eq(15), eq("首次完成题目《销售汇总》"));
+
+        ArgumentCaptor<PracticeAnswer> answerCaptor = ArgumentCaptor.forClass(PracticeAnswer.class);
+        verify(practiceAnswerMapper).insert(answerCaptor.capture());
+        PracticeAnswer savedAnswer = answerCaptor.getValue();
+        assertThat(savedAnswer.getRewardPoints()).isEqualTo(15);
+        assertThat(savedAnswer.getRewardGranted()).isTrue();
+    }
+
+    @Test
+    void submitPracticeSkipsQuestionRewardWhenAlreadyPassed() {
+        PracticeServiceImpl service = createService();
+
+        Question question = buildExcelQuestion();
+        QuestionExcelTemplate template = buildTemplate();
+        ExcelWorkbookSnapshot workbook = new ExcelWorkbookSnapshot();
+        ExcelTemplateEvaluation evaluation = new ExcelTemplateEvaluation();
+        evaluation.setPassed(true);
+        evaluation.setScore(1);
+        evaluation.setTotalScore(1);
+        evaluation.setFeedback("ok");
+        evaluation.setRuleResults(List.of());
+        evaluation.setNormalizedUserAnswer("{\"sheets\":[]}");
+        evaluation.setNormalizedCorrectAnswer("{\"rangeValues\":{}}");
+
+        when(questionService.list(any(QueryWrapper.class))).thenReturn(List.of(question));
+        when(questionExcelTemplateService.getByQuestionId(9L)).thenReturn(template);
+        when(excelTemplateGradingService.materializeSubmission(eq("/uploads/practice.xlsx"), any(ExcelWorkbookSnapshot.class))).thenReturn(workbook);
+        when(excelTemplateGradingService.grade(eq(workbook), any(), any())).thenReturn(evaluation);
+        when(experienceRuleService.resolveFixedExp(any(), eq(2))).thenReturn(2);
+        when(pointsTaskService.awardTask(any(), any(), any(), any())).thenReturn(null);
+        PracticeRecord previousRecord = new PracticeRecord();
+        previousRecord.setId(66L);
+        when(practiceRecordMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(previousRecord));
+        when(practiceAnswerMapper.selectCount(any(QueryWrapper.class))).thenReturn(1L);
+        doAnswer(invocation -> {
+            PracticeRecord record = invocation.getArgument(0);
+            record.setId(89L);
+            return 1;
+        }).when(practiceRecordMapper).insert(any(PracticeRecord.class));
+
+        PracticeSubmitRequest request = new PracticeSubmitRequest();
+        request.setQuestionCategoryId(3L);
+        request.setCategoryId(3L);
+        request.setMode("single_question");
+        request.setDurationSeconds(30);
+        PracticeSubmitAnswerRequest answerRequest = new PracticeSubmitAnswerRequest();
+        answerRequest.setQuestionId(9L);
+        answerRequest.setUserAnswer(Map.of("sheets", List.of()));
+        request.setAnswers(List.of(answerRequest));
+
+        Map<String, Object> result = service.submitPractice(7L, request);
+
+        assertThat(result.get("rewardPoints")).isEqualTo(0);
+        assertThat(result.get("firstPass")).isEqualTo(false);
+        verify(pointsRecordService, never()).addTaskPointsRecord(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    private Question buildExcelQuestion() {
+        Question question = new Question();
+        question.setId(9L);
+        question.setType("excel_template");
+        question.setTitle("销售汇总");
+        question.setDifficulty(2);
+        question.setPoints(15);
+        question.setEnabled(true);
+        return question;
+    }
+
+    private PracticeServiceImpl createService() {
+        return new PracticeServiceImpl(
+                questionCategoryService,
+                questionService,
+                practiceRecordMapper,
+                practiceAnswerMapper,
+                new ObjectMapper(),
+                experienceService,
+                experienceRuleService,
+                pointsRecordService,
+                pointsTaskService,
+                questionExcelTemplateService,
+                excelTemplateGradingService,
+                userService,
+                practiceQuestionSubmissionService
+        );
+    }
+
+    private QuestionExcelTemplate buildTemplate() {
+        QuestionExcelTemplate template = new QuestionExcelTemplate();
+        template.setQuestionId(9L);
+        template.setTemplateFileUrl("/uploads/practice.xlsx");
+        template.setGradingRuleJson("{\"answerSheet\":\"Sheet1\",\"answerRange\":\"B2\",\"checkFormula\":true}");
+        template.setExpectedSnapshotJson("{\"rangeValues\":{}}");
+        return template;
+    }
+}

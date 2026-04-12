@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `post_draft` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT NOT NULL,
+    `title` VARCHAR(200) DEFAULT NULL,
+    `title_style` TEXT DEFAULT NULL,
+    `content` LONGTEXT DEFAULT NULL,
+    `category_id` BIGINT DEFAULT NULL,
+    `tags` TEXT DEFAULT NULL,
+    `attachments` TEXT DEFAULT NULL,
+    `reward_points` INT DEFAULT 0,
+    `status` VARCHAR(20) NOT NULL DEFAULT 'draft' COMMENT 'draft/editing',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    INDEX `idx_post_draft_user_id` (`user_id`),
+    INDEX `idx_post_draft_status` (`status`),
+    INDEX `idx_post_draft_update_time` (`update_time`),
+    CONSTRAINT `fk_post_draft_user` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_post_draft_category` FOREIGN KEY (`category_id`) REFERENCES `category`(`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

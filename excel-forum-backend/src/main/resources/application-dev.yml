@@ -1,0 +1,2 @@
+jwt:
+  secret: ${JWT_SECRET:dev-only-secret-key-please-change-in-production-at-least-256-bits-long}

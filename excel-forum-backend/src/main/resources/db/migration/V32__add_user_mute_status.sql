@@ -1,0 +1,2 @@
+ALTER TABLE user
+    ADD COLUMN is_muted TINYINT(1) NOT NULL DEFAULT 0 AFTER status;

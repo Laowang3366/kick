@@ -1,0 +1,990 @@
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { 
+  Home, 
+  MessageSquare, 
+  BookOpen, 
+  ShoppingBag, 
+  Bell, 
+  Search,
+  User,
+  PenSquare,
+  MoreVertical,
+  Activity,
+  Mail,
+  Settings,
+  LogOut,
+  ChevronDown,
+  Lightbulb,
+  Wrench,
+  Package,
+  Award,
+  Ticket,
+  ArrowRightLeft
+} from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { toast } from "sonner";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
+import { useIsMobile } from "./ui/use-mobile";
+import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
+import { api } from "../lib/api";
+import { formatRelativeTime } from "../lib/format";
+import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
+import { messageKeys, notificationKeys, profileKeys } from "../lib/query-keys";
+import { useSession } from "../lib/session";
+
+const OPEN_PROPS_EVENT = "excel-open-props-dialog";
+
+export function Layout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [propsOpen, setPropsOpen] = useState(false);
+  const [popupNotification, setPopupNotification] = useState<any | null>(null);
+  const [feedbackForm, setFeedbackForm] = useState({
+    type: "performance_optimization",
+    content: "",
+  });
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const mentionToastIdsRef = useRef<Set<number>>(new Set());
+  const mentionBootstrappedRef = useRef(false);
+  const popupDismissedIdsRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!showNotifications) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowNotifications(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [showNotifications]);
+  const [searchType, setSearchType] = useState("all");
+  const [showSearchTypeDropdown, setShowSearchTypeDropdown] = useState(false);
+  const searchTypeDropdownRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchSuggestions, setSearchSuggestions] = useState<{ posts: any[]; users: any[] }>({ posts: [], users: [] });
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+  const { user, isAuthenticated, logout } = useSession();
+  const canAccessAdmin = hasAdminConsoleAccess(user?.role);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchTypeDropdownRef.current && !searchTypeDropdownRef.current.contains(event.target as Node)) {
+        setShowSearchTypeDropdown(false);
+      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const sendHeartbeat = async () => {
+      try {
+        await api.post("/api/users/heartbeat", undefined, { silent: true });
+        await queryClient.invalidateQueries({ queryKey: chatKeys.onlineUsers() });
+      } catch {
+        // ignore background heartbeat failures
+      }
+    };
+
+    void sendHeartbeat();
+    const intervalId = window.setInterval(() => {
+      void sendHeartbeat();
+    }, 60000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void sendHeartbeat();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isAuthenticated, queryClient]);
+
+  useEffect(() => {
+    const keyword = searchQuery.trim();
+    if (!keyword) {
+      setSearchSuggestions({ posts: [], users: [] });
+      setShowSuggestions(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const [postsResult, usersResult] = await Promise.all([
+          (searchType === "all" || searchType === "post")
+            ? api.get<{ posts: any[] }>(`/api/posts/search?q=${encodeURIComponent(keyword)}&page=1&limit=5`, { auth: false, silent: true })
+            : { posts: [] },
+          (searchType === "all" || searchType === "user")
+            ? api.get<{ users: any[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}&page=1&limit=3`, { auth: false, silent: true })
+            : { users: [] },
+        ]);
+        setSearchSuggestions({ posts: postsResult.posts || [], users: usersResult.users || [] });
+        setShowSuggestions(true);
+      } catch {
+        setShowSuggestions(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchType]);
+
+  const notificationsPreviewQuery = useQuery({
+    queryKey: notificationKeys.list({ page: 1, limit: 5, scope: "layout" }),
+    enabled: isAuthenticated,
+    queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=5", { silent: true }),
+  });
+  const mentionNotificationsQuery = useQuery({
+    queryKey: notificationKeys.list({ page: 1, limit: 10, type: "MENTION", scope: "mention-popup" }),
+    enabled: isAuthenticated,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=10&type=MENTION", { silent: true }),
+  });
+  const unreadNotificationsQuery = useQuery({
+    queryKey: [...notificationKeys.all, "unread-count"] as const,
+    enabled: isAuthenticated,
+    queryFn: () => api.get<{ count: number }>("/api/notifications/unread-count", { silent: true }),
+  });
+  const unreadMessagesQuery = useQuery({
+    queryKey: messageKeys.unreadCount(),
+    enabled: isAuthenticated,
+    queryFn: () => api.get<{ unreadCount: number }>("/api/messages/unread-count", { silent: true }),
+  });
+  const popupNotificationsQuery = useQuery({
+    queryKey: notificationKeys.list({ page: 1, limit: 20, type: "site_notification", scope: "popup-notification" }),
+    enabled: isAuthenticated,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=20&type=site_notification", { silent: true }),
+  });
+  const notificationItems = notificationsPreviewQuery.data?.notifications || [];
+  const mentionNotifications = mentionNotificationsQuery.data?.notifications || [];
+  const popupNotifications = popupNotificationsQuery.data?.notifications || [];
+  const unreadNotificationCount = unreadNotificationsQuery.data?.count || 0;
+  const unreadMessageCount = unreadMessagesQuery.data?.unreadCount || 0;
+  const propsQuery = useQuery({
+    queryKey: profileKeys.props(),
+    enabled: isAuthenticated && propsOpen,
+    queryFn: () => api.get<{ records: any[] }>("/api/users/me/props", { silent: true }),
+  });
+  const propsRecords = propsQuery.data?.records || [];
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      mentionToastIdsRef.current.clear();
+      mentionBootstrappedRef.current = false;
+      popupDismissedIdsRef.current.clear();
+      setPopupNotification(null);
+      return;
+    }
+
+    const unreadMentions = mentionNotifications.filter((item) => !item.isRead);
+    if (!mentionBootstrappedRef.current) {
+      unreadMentions.forEach((item) => {
+        if (typeof item.id === "number") {
+          mentionToastIdsRef.current.add(item.id);
+        }
+      });
+      mentionBootstrappedRef.current = true;
+      return;
+    }
+
+    unreadMentions.forEach((item) => {
+      if (typeof item.id !== "number" || mentionToastIdsRef.current.has(item.id)) {
+        return;
+      }
+      mentionToastIdsRef.current.add(item.id);
+      toast.info(item.content || "有人提到了你", {
+        description: "可在当前页面继续操作，或稍后到通知中心查看详情",
+      });
+    });
+  }, [isAuthenticated, mentionNotifications]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+    if (popupNotification) {
+      return;
+    }
+
+    const nextPopup = popupNotifications.find((item) =>
+      item &&
+      item.isRead !== 1 &&
+      item.announcementType === "popup" &&
+      typeof item.id === "number" &&
+      !popupDismissedIdsRef.current.has(item.id)
+    );
+
+    if (nextPopup) {
+      setPopupNotification(nextPopup);
+    }
+  }, [isAuthenticated, popupNotifications, popupNotification]);
+
+  const markAllNotificationsReadMutation = useMutation({
+    mutationFn: () => api.put("/api/notifications/read-all", {}),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
+        queryClient.invalidateQueries({ queryKey: messageKeys.unreadCount() }),
+      ]);
+    },
+  });
+
+  const markNotificationReadMutation = useMutation({
+    mutationFn: (notificationId: number) => api.put(`/api/notifications/${notificationId}/read`, {}),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+  });
+  const feedbackMutation = useMutation({
+    mutationFn: () => api.post("/api/feedback", feedbackForm),
+    onSuccess: () => {
+      toast.success("反馈建议已提交");
+      setFeedbackOpen(false);
+      setFeedbackForm({
+        type: "performance_optimization",
+        content: "",
+      });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "反馈提交失败");
+    },
+  });
+  const usePropMutation = useMutation({
+    mutationFn: (entitlementId: number) => api.post<any>(`/api/users/me/props/${entitlementId}/use`, {}),
+    onSuccess: async (result, entitlementId) => {
+      toast.success(result?.message || "道具已使用");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profileKeys.props() }),
+        queryClient.invalidateQueries({ queryKey: profileKeys.overview() }),
+        queryClient.invalidateQueries({ queryKey: ["post"] }),
+        queryClient.invalidateQueries({ queryKey: ["board"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
+        queryClient.invalidateQueries({ queryKey: ["home", "checkin-status"] }),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "道具使用失败");
+    },
+  });
+  const unequipPropMutation = useMutation({
+    mutationFn: (entitlementId: number) => api.post<any>(`/api/users/me/props/${entitlementId}/unequip`, {}),
+    onSuccess: async (result) => {
+      toast.success(result?.message || "已取消佩戴");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profileKeys.props() }),
+        queryClient.invalidateQueries({ queryKey: profileKeys.overview() }),
+        queryClient.invalidateQueries({ queryKey: ["post"] }),
+        queryClient.invalidateQueries({ queryKey: ["board"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
+      ]);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "取消佩戴失败");
+    },
+  });
+
+  const resolveNotificationLink = (notification: any) => {
+    switch (notification.type) {
+      case "follow":
+        return notification.senderId ? `/user/${notification.senderId}` : "/notifications";
+      case "message":
+        return "/messages";
+      case "site_notification":
+        return notification.relatedId ? `/notification/${notification.relatedId}` : "/notifications";
+      default:
+        return notification.relatedId ? `/post/${notification.relatedId}` : "/notifications";
+    }
+  };
+
+  const handleClosePopupNotification = async () => {
+    if (!popupNotification?.id) {
+      setPopupNotification(null);
+      return;
+    }
+    popupDismissedIdsRef.current.add(popupNotification.id);
+    try {
+      if (popupNotification.isRead !== 1) {
+        await markNotificationReadMutation.mutateAsync(popupNotification.id);
+      }
+    } finally {
+      setPopupNotification(null);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      toast("请输入搜索内容");
+      return;
+    }
+
+    const keyword = searchQuery.trim();
+    try {
+      if (searchType === "user") {
+        const result = await api.get<{ users: any[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true });
+        if (result.users?.[0]?.id) {
+          navigate(`/user/${result.users[0].id}`);
+        } else {
+          toast.info("未找到相关用户");
+        }
+      } else if (searchType === "post") {
+        const result = await api.get<{ posts: any[] }>(`/api/posts/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true });
+        if (result.posts?.[0]?.id) {
+          navigate(`/post/${result.posts[0].id}`);
+        } else {
+          toast.info("未找到相关帖子");
+        }
+      } else {
+        const [posts, users] = await Promise.all([
+          api.get<{ posts: any[] }>(`/api/posts/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true }),
+          api.get<{ users: any[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true }),
+        ]);
+        if (posts.posts?.[0]?.id) {
+          navigate(`/post/${posts.posts[0].id}`);
+        } else if (users.users?.[0]?.id) {
+          navigate(`/user/${users.users[0].id}`);
+        } else {
+          toast.info("未找到相关内容");
+        }
+      }
+    } finally {
+      setSearchQuery("");
+    }
+  };
+
+  const navItems = [
+    { name: "主页 板块", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
+    { name: "公共聊天室", path: "/chat", icon: <MessageSquare size={18} strokeWidth={1.5} /> },
+    { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
+    { name: "积分商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
+    { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
+  ];
+
+  const openFeedbackDialog = () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+    setFeedbackOpen(true);
+  };
+
+  const openPropsDialog = () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+    setPropsOpen(true);
+  };
+
+  useEffect(() => {
+    const handleOpenProps = () => {
+      openPropsDialog();
+    };
+    window.addEventListener(OPEN_PROPS_EVENT, handleOpenProps);
+    return () => window.removeEventListener(OPEN_PROPS_EVENT, handleOpenProps);
+  });
+
+  const resolvePropIcon = (item: any) => {
+    if (item?.key === "checkin_makeup_card") return Ticket;
+    if (item?.type === "badge") return Award;
+    if (item?.type === "privilege") return Wrench;
+    return Package;
+  };
+
+  const resolvePropTypeLabel = (type: string) => {
+    const map: Record<string, string> = {
+      badge: "头衔",
+      prop: "道具",
+      privilege: "权益",
+      coupon: "优惠券",
+      virtual: "虚拟物品",
+    };
+    return map[type] || type || "道具";
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-50/50 text-slate-800 font-sans">
+      {/* Sidebar */}
+      <aside className="w-64 border-r border-gray-200/60 bg-white flex flex-col hidden md:flex shrink-0">
+        <div className="h-16 flex items-center px-6 border-b border-gray-100">
+          <div className="flex items-center gap-2 text-teal-600">
+            <Activity size={24} strokeWidth={2.5} />
+            <span className="font-bold text-lg tracking-tight">Excel社区</span>
+          </div>
+        </div>
+
+        <nav className="flex-1 py-6 px-4 space-y-1">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  isActive 
+                    ? "bg-slate-100 text-slate-900 font-bold" 
+                    : "text-slate-600 hover:bg-gray-50 hover:text-slate-900"
+                }`}
+              >
+                <div className={isActive ? "text-slate-800" : "text-slate-400"}>
+                  {item.icon}
+                </div>
+                <span>{item.name}</span>
+                {isActive && (
+                  <motion.div 
+                    layoutId="active-nav-indicator"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    className="absolute left-0 w-1 h-6 bg-slate-800 rounded-r-full" 
+                  />
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-gray-100 flex flex-col gap-2">
+          <Link 
+            to="/settings"
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-gray-50 hover:text-slate-900 rounded-xl transition-all"
+          >
+            <Settings size={20} className="text-slate-400" />
+            <span>设置</span>
+          </Link>
+          <button 
+            onClick={async () => {
+              await logout();
+              toast.success("已退出登录");
+              navigate('/auth');
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+          >
+            <LogOut size={20} className="text-rose-400" />
+            <span>退出登录</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Header */}
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200/60 flex items-center justify-between px-6 z-50 sticky top-0">
+          
+          <div className="flex-1 max-w-xl flex items-center relative gap-2">
+            <div className="flex-1 relative flex items-center" ref={searchContainerRef}>
+              <div ref={searchTypeDropdownRef} className="absolute left-1 z-10">
+                <button
+                  onClick={() => setShowSearchTypeDropdown(!showSearchTypeDropdown)}
+                  className="flex items-center gap-1 pl-3 pr-2 py-1.5 text-sm text-slate-500 hover:text-slate-700 bg-transparent rounded-l-full border-r border-gray-200"
+                >
+                  {searchType === "user" ? "用户" : searchType === "post" ? "帖子" : "全部"}
+                  <ChevronDown size={14} className={`transition-transform ${showSearchTypeDropdown ? "rotate-180" : ""}`} />
+                </button>
+                
+                <AnimatePresence>
+                  {showSearchTypeDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -5, scale: 0.95 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                      className="absolute top-full left-0 mt-2 w-28 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden py-1 z-50"
+                    >
+                      {[
+                        { id: "all", label: "全部" },
+                        { id: "user", label: "用户" },
+                        { id: "post", label: "帖子" },
+                      ].map((type) => (
+                        <button
+                          key={type.id}
+                          onClick={() => {
+                            setSearchType(type.id);
+                            setShowSearchTypeDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                            searchType === type.id 
+                              ? "bg-teal-50 text-teal-700 font-medium" 
+                              : "text-slate-600 hover:bg-gray-50 hover:text-slate-900"
+                          }`}
+                        >
+                          {type.label}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <input
+                type="text"
+                placeholder="搜索用户、帖子、题目..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => { if (searchQuery.trim() && (searchSuggestions.posts.length || searchSuggestions.users.length)) setShowSuggestions(true); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="w-full pl-[90px] pr-4 py-2 bg-gray-100/80 border-transparent focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-200 rounded-full text-sm transition-all outline-none"
+              />
+
+              <AnimatePresence>
+                {showSuggestions && (searchSuggestions.posts.length > 0 || searchSuggestions.users.length > 0) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-50 max-h-[360px] overflow-y-auto"
+                  >
+                    {searchSuggestions.posts.length > 0 && (
+                      <div>
+                        <div className="px-4 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase bg-slate-50/50">帖子</div>
+                        {searchSuggestions.posts.map((post: any) => (
+                          <div
+                            key={`post-${post.id}`}
+                            onClick={() => { setShowSuggestions(false); setSearchQuery(""); navigate(`/post/${post.id}`); }}
+                            className="px-4 py-3 hover:bg-teal-50 cursor-pointer flex items-start gap-3 transition-colors"
+                          >
+                            <MessageSquare size={16} className="text-slate-400 mt-0.5 shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-slate-800 truncate">{post.title}</div>
+                              <div className="text-xs text-slate-400 mt-0.5 truncate">{post.author?.username} · {post.replyCount || 0} 评论</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {searchSuggestions.users.length > 0 && (
+                      <div>
+                        <div className="px-4 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase bg-slate-50/50 border-t border-gray-100">用户</div>
+                        {searchSuggestions.users.map((u: any) => (
+                          <div
+                            key={`user-${u.id}`}
+                            onClick={() => { setShowSuggestions(false); setSearchQuery(""); navigate(`/user/${u.id}`); }}
+                            className="px-4 py-3 hover:bg-teal-50 cursor-pointer flex items-center gap-3 transition-colors"
+                          >
+                            <img src={normalizeAvatarUrl(u.avatar, u.username)} className="w-8 h-8 rounded-full object-cover border border-gray-100" alt="" />
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-slate-800 truncate">{u.username}</div>
+                              <div className="text-xs text-slate-400">{u.role || "用户"}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            
+            <button 
+              onClick={handleSearch}
+              className="p-2 bg-teal-50 text-teal-600 hover:bg-teal-100 rounded-full transition-colors flex items-center justify-center shrink-0"
+              title="搜索"
+            >
+              <Search size={18} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-4 ml-6">
+            
+            <Link 
+              to="/create-post"
+              className="flex items-center gap-1.5 sm:gap-2 bg-teal-500 hover:bg-teal-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"
+            >
+              <PenSquare size={16} />
+              <span className="hidden sm:inline">发布帖子</span>
+              <span className="sm:hidden">发布</span>
+            </Link>
+
+            <Link 
+              to="/messages"
+              className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+              title="我的私信"
+            >
+              <Mail size={20} />
+              {renderCountBadge(unreadMessageCount, "teal")}
+            </Link>
+
+            <div className="relative" ref={notificationRef}>
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+              >
+                <Bell size={20} />
+                {renderCountBadge(unreadNotificationCount, "rose")}
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 15, scale: 0.95, filter: "blur(4px)" }}
+                    animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95, filter: "blur(2px)" }}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                    className="absolute right-0 mt-2 w-80 bg-white/90 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 overflow-hidden z-50"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-4 border-b border-gray-50 flex items-center justify-between">
+                      <h3 className="font-semibold text-slate-800">通知</h3>
+                      <button
+                        onClick={async () => {
+                          await markAllNotificationsReadMutation.mutateAsync();
+                        }}
+                        className="text-xs text-teal-600 hover:text-teal-700"
+                      >
+                        全部已读
+                      </button>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {notificationItems.map((item) => (
+                        <div 
+                          key={item.id}
+                          onClick={async () => {
+                            if (!item.isRead) {
+                              await markNotificationReadMutation.mutateAsync(item.id);
+                            }
+                            setShowNotifications(false);
+                            navigate(resolveNotificationLink(item));
+                          }}
+                          className="p-4 border-b border-gray-50/50 hover:bg-gray-50 flex gap-3 cursor-pointer"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center shrink-0">
+                            <MessageSquare size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm text-slate-700">{item.content}</p>
+                            <p className="text-xs text-slate-400 mt-1">{formatRelativeTime(item.createTime)}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {notificationItems.length === 0 && (
+                        <div className="p-6 text-sm text-slate-400 text-center">暂无通知</div>
+                      )}
+                    </div>
+                    <div className="p-3 border-t border-gray-50 bg-slate-50 text-center">
+                      <Link 
+                        to="/notifications" 
+                        onClick={() => setShowNotifications(false)}
+                        className="text-[13px] font-bold text-slate-600 hover:text-slate-900 transition-colors"
+                      >
+                        查看全部通知
+                      </Link>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="pl-4 border-l border-gray-200">
+              {isAuthenticated && !isMobile ? (
+                <HoverCard openDelay={120} closeDelay={80}>
+                  <HoverCardTrigger asChild>
+                    <button type="button" className="flex items-center gap-2 cursor-pointer group">
+                      <img
+                        src={normalizeAvatarUrl(user?.avatar, user?.username)}
+                        alt="Profile"
+                        className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
+                      />
+                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
+                    </button>
+                  </HoverCardTrigger>
+                  <HoverCardContent align="end" className="w-auto min-w-0 rounded-xl border border-gray-100 bg-white/95 backdrop-blur-sm p-1.5 shadow-lg">
+                    {canAccessAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(getDefaultAdminPath(user?.role))}
+                        className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
+                      >
+                        管理后台
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/profile")}
+                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
+                    >
+                      个人中心
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openPropsDialog}
+                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
+                    >
+                      我的道具
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openFeedbackDialog}
+                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
+                    >
+                      反馈建议
+                    </button>
+                  </HoverCardContent>
+                </HoverCard>
+              ) : isAuthenticated && isMobile ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="flex items-center gap-2 cursor-pointer group">
+                      <img 
+                        src={normalizeAvatarUrl(user?.avatar, user?.username)} 
+                        alt="Profile" 
+                        className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
+                      />
+                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">
+                    {canAccessAdmin && <DropdownMenuItem onClick={() => navigate(getDefaultAdminPath(user?.role))}>进入管理后台</DropdownMenuItem>}
+                    <DropdownMenuItem onClick={() => navigate("/profile")}>个人中心</DropdownMenuItem>
+                    <DropdownMenuItem onClick={openPropsDialog}>我的道具</DropdownMenuItem>
+                    <DropdownMenuItem onClick={openFeedbackDialog}>反馈建议</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Link to={isAuthenticated ? "/profile" : "/auth"} className="flex items-center gap-2 cursor-pointer group">
+                  <img 
+                    src={normalizeAvatarUrl(user?.avatar, user?.username)} 
+                    alt="Profile" 
+                    className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
+                  />
+                  <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50/30">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 15, filter: "blur(4px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -15, filter: "blur(4px)" }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 300, 
+                damping: 30, 
+                mass: 1 
+              }}
+              className="h-full"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+
+      <Dialog open={propsOpen} onOpenChange={setPropsOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>我的道具</DialogTitle>
+            <DialogDescription>这里统一收纳你通过积分商城兑换获得的道具、头衔与权益，可在此选择使用。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {propsRecords.length > 0 ? (
+              propsRecords.map((item) => {
+                const Icon = resolvePropIcon(item);
+                const isUsing = usePropMutation.isPending && usePropMutation.variables === item.id;
+                const isUnequipping = unequipPropMutation.isPending && unequipPropMutation.variables === item.id;
+                const isPending = isUsing || isUnequipping;
+                const actionLabel = item.canUnequip ? "取消佩戴" : item.actionLabel;
+                return (
+                  <div key={item.id} className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+                      <Icon size={22} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-bold text-slate-800">{item.name}</div>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{resolvePropTypeLabel(item.type)}</span>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                          item.status === "active"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : item.status === "pending"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-slate-100 text-slate-500"
+                        }`}>
+                          {item.statusLabel}
+                        </span>
+                        {item.current ? <span className="rounded-full bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-700">当前使用中</span> : null}
+                      </div>
+                      <div className="mt-2 text-xs text-slate-500">
+                        {item.key === "checkin_makeup_card"
+                          ? "可用于补签最近漏签的一天，并保持连续签到记录。"
+                          : item.type === "badge"
+                            ? "已拥有的头衔可在这里切换佩戴。"
+                            : "该道具已统一收纳到你的个人道具库。"}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (item.canUnequip) {
+                          void unequipPropMutation.mutateAsync(item.id);
+                          return;
+                        }
+                        if (item.canUse) {
+                          void usePropMutation.mutateAsync(item.id);
+                        }
+                      }}
+                      disabled={(!item.canUse && !item.canUnequip) || isPending}
+                      className="inline-flex h-10 min-w-[92px] items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-4 text-sm font-semibold text-teal-700 transition hover:bg-teal-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      {isPending ? "处理中..." : actionLabel}
+                    </button>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
+                暂无已获得的道具，先去积分商城兑换吧。
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(popupNotification)} onOpenChange={(open) => {
+        if (!open) {
+          void handleClosePopupNotification();
+        }
+      }}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{popupNotification?.title || popupNotification?.content || "站内通知"}</DialogTitle>
+            <DialogDescription>管理员已向你发送一条弹窗通知，请确认内容后关闭。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-teal-100 bg-teal-50/50 px-4 py-4">
+              {popupNotification?.detailContent ? (
+                <div
+                  className="prose prose-sm max-w-none text-slate-700"
+                  dangerouslySetInnerHTML={{ __html: popupNotification.detailContent }}
+                />
+              ) : (
+                <div className="whitespace-pre-wrap break-words text-sm leading-7 text-slate-700">
+                  {popupNotification?.content || "暂无通知内容"}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void handleClosePopupNotification()}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-teal-500 px-5 text-sm font-semibold text-white transition hover:bg-teal-600"
+              >
+                关闭通知
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>反馈建议</DialogTitle>
+            <DialogDescription>欢迎反馈产品问题和改进建议，我们会在后台统一处理与跟进。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <label className="block">
+              <div className="mb-2 text-sm font-semibold text-slate-700">反馈类型</div>
+              <select
+                value={feedbackForm.type}
+                onChange={(e) => setFeedbackForm((prev) => ({ ...prev, type: e.target.value }))}
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+              >
+                <option value="performance_optimization">性能优化</option>
+                <option value="feature_optimization">功能优化</option>
+                <option value="new_feature">新增功能</option>
+                <option value="other">其他</option>
+              </select>
+            </label>
+            <label className="block">
+              <div className="mb-2 text-sm font-semibold text-slate-700">反馈内容</div>
+              <textarea
+                value={feedbackForm.content}
+                onChange={(e) => setFeedbackForm((prev) => ({ ...prev, content: e.target.value }))}
+                placeholder="请尽量描述清楚问题场景、预期效果或新增需求。"
+                className="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+              />
+            </label>
+            <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              <div className="flex items-center gap-2">
+                <Lightbulb size={16} className="text-amber-500" />
+                <span>建议描述具体现象、影响范围和你的预期结果。</span>
+              </div>
+              <span>{feedbackForm.content.trim().length}/1000</span>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen(false)}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const content = feedbackForm.content.trim();
+                  if (!content) {
+                    toast.info("请填写反馈内容");
+                    return;
+                  }
+                  if (content.length > 1000) {
+                    toast.info("反馈内容不能超过1000字");
+                    return;
+                  }
+                  void feedbackMutation.mutateAsync();
+                }}
+                disabled={feedbackMutation.isPending}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-teal-500 px-4 text-sm font-semibold text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:bg-teal-300"
+              >
+                {feedbackMutation.isPending ? "提交中..." : "提交反馈"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function renderCountBadge(count: number, tone: "teal" | "rose") {
+  if (count <= 0) return null;
+  const label = count > 99 ? "99+" : String(count);
+  const toneClassName = tone === "teal"
+    ? "bg-teal-500 text-white"
+    : "bg-rose-500 text-white";
+  return (
+    <span className={`absolute -top-1.5 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white px-1 text-[10px] font-black leading-none shadow-sm ${toneClassName}`}>
+      {label}
+    </span>
+  );
+}

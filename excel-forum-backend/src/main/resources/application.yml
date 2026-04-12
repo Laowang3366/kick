@@ -1,0 +1,111 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/excel_forum_recet?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&characterSetResults=utf-8}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:admin}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-init-sql: SET NAMES utf8mb4
+  sql:
+    init:
+      mode: never
+      continue-on-error: true
+      encoding: UTF-8
+  http:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+    validate-on-migrate: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+
+# JWT 配置
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration: 86400000 # 24 hours in milliseconds
+
+# 文件存储配置
+file:
+  storage:
+    type: local # local or minio
+    local:
+      path: ./uploads
+      url-prefix: /uploads
+    minio:
+      endpoint: http://localhost:9000
+      access-key: minioadmin
+      secret-key: minioadmin
+      bucket-name: excel-forum
+
+# 积分配置
+points:
+  post: 5
+  reply: 2
+  best-answer: 20
+  like: 1
+
+# 等级配置
+level:
+  thresholds: [0, 100, 500, 1000, 5000, 10000]
+  names: ["新手", "入门", "熟练", "专家", "大师", "传说"]
+
+experience:
+  rules:
+    post_direct_publish: 10
+    post_approved: 10
+    reply_create: 5
+    daily_checkin: 1
+  levels:
+    - level: 1
+      name: 新手
+      threshold: 0
+    - level: 2
+      name: 入门
+      threshold: 100
+    - level: 3
+      name: 熟练
+      threshold: 500
+    - level: 4
+      name: 专家
+      threshold: 1000
+    - level: 5
+      name: 大师
+      threshold: 5000
+    - level: 6
+      name: 传说
+      threshold: 10000
+
+app:
+  db:
+    legacy-initializer:
+      enabled: false

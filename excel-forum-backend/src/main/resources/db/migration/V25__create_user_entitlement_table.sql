@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS `user_entitlement` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT NOT NULL,
+    `item_id` BIGINT NOT NULL,
+    `entitlement_type` VARCHAR(40) NOT NULL COMMENT '权益类型',
+    `entitlement_key` VARCHAR(100) NOT NULL COMMENT '权益标识',
+    `display_name` VARCHAR(120) NOT NULL COMMENT '展示名称',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending/active/expired/revoked',
+    `effective_from` DATETIME DEFAULT NULL,
+    `effective_until` DATETIME DEFAULT NULL,
+    `payload_json` TEXT DEFAULT NULL COMMENT '扩展配置',
+    `source_redemption_id` BIGINT NOT NULL COMMENT '来源兑换记录',
+    `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_entitlement_redemption` (`source_redemption_id`),
+    KEY `idx_user_entitlement_user_type_status` (`user_id`, `entitlement_type`, `status`),
+    KEY `idx_user_entitlement_effective` (`effective_until`, `status`),
+    CONSTRAINT `fk_user_entitlement_user` FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_user_entitlement_item` FOREIGN KEY (`item_id`) REFERENCES `mall_item`(`id`) ON DELETE RESTRICT,
+    CONSTRAINT `fk_user_entitlement_redemption` FOREIGN KEY (`source_redemption_id`) REFERENCES `mall_redemption`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商城用户权益';

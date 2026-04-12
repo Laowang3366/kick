@@ -1,0 +1,546 @@
+package com.excel.forum.controller;
+
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.excel.forum.config.ExperienceProperties;
+import com.excel.forum.config.GlobalExceptionHandler;
+import com.excel.forum.entity.Post;
+import com.excel.forum.entity.Question;
+import com.excel.forum.entity.QuestionCategory;
+import com.excel.forum.entity.QuestionExcelTemplate;
+import com.excel.forum.entity.Reply;
+import com.excel.forum.mapper.AdminLogMapper;
+import com.excel.forum.mapper.CheckinRecordMapper;
+import com.excel.forum.mapper.PostEditHistoryMapper;
+import com.excel.forum.mapper.PracticeAnswerMapper;
+import com.excel.forum.mapper.PracticeRecordMapper;
+import com.excel.forum.entity.SiteNotification;
+import com.excel.forum.entity.PostDraft;
+import com.excel.forum.entity.User;
+import com.excel.forum.entity.UserExpLog;
+import com.excel.forum.entity.ExperienceRule;
+import com.excel.forum.util.HtmlSanitizer;
+import com.excel.forum.service.CategoryService;
+import com.excel.forum.service.CategoryFollowService;
+import com.excel.forum.service.ChatMessageService;
+import com.excel.forum.service.ExperienceService;
+import com.excel.forum.service.ExperienceLevelRuleService;
+import com.excel.forum.service.ExperienceRuleService;
+import com.excel.forum.service.FeedbackService;
+import com.excel.forum.service.FavoriteService;
+import com.excel.forum.service.FollowService;
+import com.excel.forum.service.ForumEventService;
+import com.excel.forum.service.LikeService;
+import com.excel.forum.service.MallService;
+import com.excel.forum.service.MessageService;
+import com.excel.forum.service.NotificationService;
+import com.excel.forum.service.PostDraftService;
+import com.excel.forum.service.PointsTaskService;
+import com.excel.forum.service.PointsRecordService;
+import com.excel.forum.service.PointsRuleOptionService;
+import com.excel.forum.service.PointsRuleService;
+import com.excel.forum.service.PostService;
+import com.excel.forum.service.PostShareService;
+import com.excel.forum.service.PostViewService;
+import com.excel.forum.service.PracticeQuestionSubmissionService;
+import com.excel.forum.service.QuestionCategoryService;
+import com.excel.forum.service.QuestionExcelTemplateService;
+import com.excel.forum.service.QuestionService;
+import com.excel.forum.service.ReplyService;
+import com.excel.forum.service.ReportService;
+import com.excel.forum.service.SiteNotificationService;
+import com.excel.forum.service.UserEntitlementService;
+import com.excel.forum.service.UserService;
+import com.excel.forum.service.ExcelTemplateGradingService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(MockitoExtension.class)
+class AdminControllerTest {
+
+    @Mock
+    private UserService userService;
+
+    @Mock
+    private PostService postService;
+
+    @Mock
+    private CategoryService categoryService;
+
+    @Mock
+    private ReplyService replyService;
+
+    @Mock
+    private ReportService reportService;
+
+    @Mock
+    private FeedbackService feedbackService;
+
+    @Mock
+    private LikeService likeService;
+
+    @Mock
+    private FavoriteService favoriteService;
+
+    @Mock
+    private PostViewService postViewService;
+
+    @Mock
+    private PostShareService postShareService;
+
+    @Mock
+    private FollowService followService;
+
+    @Mock
+    private CategoryFollowService categoryFollowService;
+
+    @Mock
+    private MessageService messageService;
+
+    @Mock
+    private ChatMessageService chatMessageService;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private ForumEventService forumEventService;
+
+    @Mock
+    private NotificationService notificationService;
+
+    @Mock
+    private PointsRuleService pointsRuleService;
+
+    @Mock
+    private PointsRuleOptionService pointsRuleOptionService;
+
+    @Mock
+    private PointsRecordService pointsRecordService;
+
+    @Mock
+    private PointsTaskService pointsTaskService;
+
+    @Mock
+    private QuestionService questionService;
+
+    @Mock
+    private QuestionCategoryService questionCategoryService;
+
+    @Mock
+    private QuestionExcelTemplateService questionExcelTemplateService;
+
+    @Mock
+    private PracticeQuestionSubmissionService practiceQuestionSubmissionService;
+
+    @Mock
+    private SiteNotificationService siteNotificationService;
+
+    @Mock
+    private PostDraftService postDraftService;
+
+    @Mock
+    private MallService mallService;
+
+    @Mock
+    private ExperienceService experienceService;
+
+    @Mock
+    private ExperienceProperties experienceProperties;
+
+    @Mock
+    private ExperienceRuleService experienceRuleService;
+
+    @Mock
+    private ExperienceLevelRuleService experienceLevelRuleService;
+
+    @Mock
+    private ExcelTemplateGradingService excelTemplateGradingService;
+
+    @Mock
+    private UserEntitlementService userEntitlementService;
+
+    @Mock
+    private PracticeRecordMapper practiceRecordMapper;
+
+    @Mock
+    private PracticeAnswerMapper practiceAnswerMapper;
+
+    @Mock
+    private CheckinRecordMapper checkinRecordMapper;
+
+    @Mock
+    private AdminLogMapper adminLogMapper;
+
+    @Mock
+    private PostEditHistoryMapper postEditHistoryMapper;
+
+    @Mock
+    private HtmlSanitizer htmlSanitizer;
+
+    @Captor
+    private ArgumentCaptor<SiteNotification> notificationCaptor;
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(htmlSanitizer.sanitize(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        AdminController controller = new AdminController(
+                userService,
+                postService,
+                categoryService,
+                replyService,
+                reportService,
+                feedbackService,
+                likeService,
+                favoriteService,
+                postViewService,
+                postShareService,
+                followService,
+                categoryFollowService,
+                messageService,
+                chatMessageService,
+                passwordEncoder,
+                forumEventService,
+                notificationService,
+                pointsRuleService,
+                pointsRuleOptionService,
+                pointsRecordService,
+                pointsTaskService,
+                questionService,
+                questionCategoryService,
+                questionExcelTemplateService,
+                practiceQuestionSubmissionService,
+                siteNotificationService,
+                postDraftService,
+                mallService,
+                experienceService,
+                experienceProperties,
+                experienceRuleService,
+                experienceLevelRuleService,
+                userEntitlementService,
+                excelTemplateGradingService,
+                practiceRecordMapper,
+                practiceAnswerMapper,
+                checkinRecordMapper,
+                adminLogMapper,
+                postEditHistoryMapper,
+                htmlSanitizer
+        );
+        mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+    }
+
+    @Test
+    void createNotificationNormalizesRoleArray() throws Exception {
+        when(siteNotificationService.save(any(SiteNotification.class))).thenAnswer(invocation -> {
+            SiteNotification notification = invocation.getArgument(0);
+            notification.setId(8L);
+            return true;
+        });
+
+        mockMvc.perform(post("/api/admin/notifications")
+                        .requestAttr("userId", 3L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"role-target","type":"system","content":"hello","sendType":"draft","targetType":"role","targetRoles":["user","admin"],"status":"draft"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(8L))
+                .andExpect(jsonPath("$.targetRoles").value("user,admin"))
+                .andExpect(jsonPath("$.targetType").value("role"));
+
+        verify(siteNotificationService).save(notificationCaptor.capture());
+        SiteNotification savedNotification = notificationCaptor.getValue();
+        assertThat(savedNotification.getTargetRoles()).isEqualTo("user,admin");
+        assertThat(savedNotification.getCreatedBy()).isEqualTo(3L);
+        assertThat(savedNotification.getStatus()).isEqualTo("draft");
+    }
+
+    @Test
+    void getDraftsReturnsAdminDraftPayload() throws Exception {
+        PostDraft draft = new PostDraft();
+        draft.setId(12L);
+        draft.setUserId(5L);
+        draft.setTitle("治理草稿");
+        draft.setContent("草稿内容");
+        draft.setCategoryId(2L);
+        draft.setStatus("editing");
+        draft.setUpdateTime(LocalDateTime.of(2026, 4, 4, 10, 0));
+
+        Page<PostDraft> page = new Page<>(1, 10, 1);
+        page.setRecords(List.of(draft));
+        page.setPages(1);
+
+        com.excel.forum.entity.User user = new com.excel.forum.entity.User();
+        user.setId(5L);
+        user.setUsername("tester");
+        user.setRole("user");
+
+        com.excel.forum.entity.Category category = new com.excel.forum.entity.Category();
+        category.setId(2L);
+        category.setName("Excel");
+
+        when(postDraftService.listAdminDrafts(1, 10, "治理", "editing", 2L, "tester", false, "latest")).thenReturn(page);
+        when(userService.getById(5L)).thenReturn(user);
+        when(categoryService.getById(2L)).thenReturn(category);
+
+        mockMvc.perform(get("/api/admin/drafts")
+                        .param("page", "1")
+                        .param("size", "10")
+                        .param("keyword", "治理")
+                        .param("status", "editing")
+                        .param("categoryId", "2")
+                        .param("username", "tester")
+                        .param("expired", "false")
+                        .param("sort", "latest"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records[0].id").value(12L))
+                .andExpect(jsonPath("$.records[0].author.username").value("tester"))
+                .andExpect(jsonPath("$.records[0].category.name").value("Excel"))
+                .andExpect(jsonPath("$.maxExpireDays").value(10));
+    }
+
+    @Test
+    void deleteDraftsByUserReturnsCount() throws Exception {
+        com.excel.forum.entity.User user = new com.excel.forum.entity.User();
+        user.setId(6L);
+        user.setUsername("cleaner");
+        when(userService.getById(6L)).thenReturn(user);
+        when(postDraftService.deleteDraftsByAdminUser(6L)).thenReturn(4L);
+
+        mockMvc.perform(delete("/api/admin/drafts/by-user/6"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(4))
+                .andExpect(jsonPath("$.message").value("已清理该用户的 4 条草稿"));
+    }
+
+    @Test
+    void getLevelUsersReturnsProgressAndLevelName() throws Exception {
+        User user = new User();
+        user.setId(9L);
+        user.setUsername("leveler");
+        user.setRole("user");
+        user.setLevel(2);
+        user.setExp(120);
+        user.setPoints(8);
+
+        Page<User> page = new Page<>(1, 10, 1);
+        page.setRecords(List.of(user));
+        page.setPages(1);
+
+        when(userService.page(any(Page.class), any(QueryWrapper.class))).thenReturn(page);
+        when(experienceService.getProgress(120)).thenReturn(java.util.Map.of(
+                "exp", 120,
+                "level", 2,
+                "levelName", "入门",
+                "currentInLevel", 20,
+                "totalInLevel", 400,
+                "remainingExp", 380,
+                "maxLevel", false
+        ));
+        ExperienceProperties.LevelRule levelRule = new ExperienceProperties.LevelRule();
+        levelRule.setLevel(2);
+        levelRule.setName("入门");
+        levelRule.setThreshold(100);
+        when(experienceProperties.getLevels()).thenReturn(List.of(levelRule));
+
+        mockMvc.perform(get("/api/admin/levels/users")
+                        .param("page", "1")
+                        .param("size", "10")
+                        .param("keyword", "lev")
+                        .param("level", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records[0].username").value("leveler"))
+                .andExpect(jsonPath("$.records[0].level").value(2))
+                .andExpect(jsonPath("$.records[0].levelName").value("入门"))
+                .andExpect(jsonPath("$.records[0].progress.exp").value(120));
+    }
+
+    @Test
+    void getLevelLogsReturnsMappedBizLabel() throws Exception {
+        UserExpLog log = new UserExpLog();
+        log.setId(11L);
+        log.setUserId(5L);
+        log.setBizType(ExperienceService.BIZ_DAILY_CHECKIN);
+        log.setExpChange(6);
+        log.setReason("每日签到");
+
+        Page<UserExpLog> page = new Page<>(1, 10, 1);
+        page.setRecords(List.of(log));
+        page.setPages(1);
+
+        User user = new User();
+        user.setId(5L);
+        user.setUsername("tester");
+        user.setLevel(1);
+        user.setExp(6);
+
+        when(experienceService.page(any(Page.class), any(QueryWrapper.class))).thenReturn(page);
+        when(userService.list(any(QueryWrapper.class))).thenReturn(List.of(user));
+
+        mockMvc.perform(get("/api/admin/levels/logs")
+                        .param("page", "1")
+                        .param("size", "10")
+                        .param("bizType", ExperienceService.BIZ_DAILY_CHECKIN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.records[0].bizLabel").value("每日签到"))
+                .andExpect(jsonPath("$.records[0].user.username").value("tester"))
+                .andExpect(jsonPath("$.records[0].expChange").value(6));
+    }
+
+    @Test
+    void updateExpRulePersistsRange() throws Exception {
+        ExperienceRule rule = new ExperienceRule();
+        rule.setId(1L);
+        rule.setRuleKey(ExperienceService.BIZ_DAILY_CHECKIN);
+        rule.setName("每日签到");
+        rule.setDescription("旧说明");
+        rule.setMinExp(1);
+        rule.setMaxExp(20);
+        rule.setMaxObtainCount(0);
+        rule.setEnabled(true);
+
+        when(experienceRuleService.getByRuleKey(ExperienceService.BIZ_DAILY_CHECKIN)).thenReturn(rule);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/admin/levels/exp-rules/daily_checkin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"minExp":2,"maxExp":16,"description":"新的随机范围","enabled":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.minExp").value(2))
+                .andExpect(jsonPath("$.maxExp").value(16))
+                .andExpect(jsonPath("$.rangeText").value("2-16 经验"))
+                .andExpect(jsonPath("$.maxObtainCount").value(0));
+
+        verify(experienceRuleService).updateById(rule);
+        assertThat(rule.getMinExp()).isEqualTo(2);
+        assertThat(rule.getMaxExp()).isEqualTo(16);
+    }
+
+    @Test
+    void createUserRejectsWeakPassword() throws Exception {
+        mockMvc.perform(post("/api/admin/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"tester","email":"tester@example.com","password":"weak!"}
+                                
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("密码必须至少8位，且只能包含字母和数字"));
+
+        verify(userService, never()).save(any(User.class));
+    }
+
+    @Test
+    void deleteReplyRecalculatesReplyCount() throws Exception {
+        Reply reply = new Reply();
+        reply.setId(8L);
+        reply.setPostId(12L);
+        when(replyService.getById(8L)).thenReturn(reply);
+        when(replyService.findAllDescendantIds(8L)).thenReturn(List.of(9L, 10L));
+
+        mockMvc.perform(delete("/api/admin/replies/8"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("删除成功"));
+
+        verify(replyService).removeByIds(List.of(9L, 10L));
+        verify(replyService).removeById(8L);
+        verify(postService).recalculateReplyCount(12L);
+    }
+
+    @Test
+    void reviewPostRejectsAlreadyHandledPendingRace() throws Exception {
+        Post post = new Post();
+        post.setId(15L);
+        post.setUserId(7L);
+        post.setTitle("审核帖子");
+        post.setReviewStatus("pending");
+        when(postService.getById(15L)).thenReturn(post);
+        when(postService.update(any(UpdateWrapper.class))).thenReturn(false);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/admin/posts/15/review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"approved"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("帖子已被其他管理员处理"));
+
+        verify(experienceService, never()).awardPostApproved(any(), any(), any());
+        verify(pointsTaskService, never()).awardTask(any(), any(), any(), any());
+    }
+
+    @Test
+    void createExcelQuestionUsesExplicitTemplateFields() throws Exception {
+        when(excelTemplateGradingService.normalizeAnswerSnapshotJson(anyString(), anyString(), anyString(), any(), anyString()))
+                .thenReturn("{\"values\":[[\"100\"]],\"formulas\":[]}");
+        when(excelTemplateGradingService.buildSimpleRuleJson("Sheet1", "B2", true))
+                .thenReturn("{\"answerSheet\":\"Sheet1\",\"answerRange\":\"B2\",\"checkFormula\":true,\"score\":1}");
+        when(excelTemplateGradingService.buildExpectedSnapshotJson("Sheet1", "B2", true, "{\"values\":[[\"100\"]],\"formulas\":[]}"))
+                .thenReturn("{\"rangeValues\":{\"Sheet1!B2\":[[\"100\"]]},\"rangeFormulas\":{\"Sheet1!B2\":[[\"\"]]}}");
+        when(excelTemplateGradingService.normalizeRuleJson(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(excelTemplateGradingService.buildRuleSummary(anyString())).thenReturn(java.util.Map.of("mode", "simple_answer"));
+        QuestionCategory category = new QuestionCategory();
+        category.setId(3L);
+        category.setName("函数练习");
+        when(questionCategoryService.getById(3L)).thenReturn(category);
+        doAnswer(invocation -> {
+            Question question = invocation.getArgument(0);
+            question.setId(21L);
+            question.setType("excel_template");
+            return true;
+        }).when(questionService).save(any(Question.class));
+
+        mockMvc.perform(post("/api/admin/questions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"销售统计题","questionCategoryId":3,"difficulty":2,"points":15,"templateFileUrl":"/uploads/demo.xlsx","answerSheet":"Sheet1","answerRange":"B2","answerSnapshotJson":"{\\"sheets\\":[{\\"name\\":\\"Sheet1\\",\\"rowCount\\":3,\\"columnCount\\":3,\\"cells\\":{\\"B2\\":{\\"value\\":\\"100\\"}}}]}","checkFormula":true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(21L))
+                .andExpect(jsonPath("$.type").value("excel_template"))
+                .andExpect(jsonPath("$.answerSheet").value("Sheet1"))
+                .andExpect(jsonPath("$.answerRange").value("B2"))
+                .andExpect(jsonPath("$.checkFormula").value(true));
+
+        ArgumentCaptor<QuestionExcelTemplate> templateCaptor = ArgumentCaptor.forClass(QuestionExcelTemplate.class);
+        verify(questionExcelTemplateService).save(templateCaptor.capture());
+        QuestionExcelTemplate savedTemplate = templateCaptor.getValue();
+        assertThat(savedTemplate.getQuestionId()).isEqualTo(21L);
+        assertThat(savedTemplate.getAnswerSheet()).isEqualTo("Sheet1");
+        assertThat(savedTemplate.getAnswerRange()).isEqualTo("B2");
+        assertThat(savedTemplate.getAnswerSnapshotJson()).contains("\"100\"");
+        assertThat(savedTemplate.getCheckFormula()).isTrue();
+    }
+}
