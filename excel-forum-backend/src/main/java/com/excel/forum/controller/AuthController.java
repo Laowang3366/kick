@@ -9,23 +9,31 @@ import com.excel.forum.service.ForumEventService;
 import com.excel.forum.service.UserService;
 import com.excel.forum.util.JwtUtil;
 import com.excel.forum.util.PasswordPolicy;
+import com.excel.forum.util.UsernamePolicy;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
-    private static final String EMAIL_REGEX = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
+    private static final String EMAIL_REGEX = "^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\\.[A-Za-z]{2,63}$";
+    private static final String DUMMY_BCRYPT_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoOHi5M1QwzKzbwQ6vurIWBLL8GMDIS9xC";
+    private static final DefaultRedisScript<Long> RATE_LIMIT_SCRIPT = new DefaultRedisScript<>(
+            "local current = redis.call('INCR', KEYS[1]); " +
+                    "if current == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]); end; " +
+                    "return current;",
+            Long.class
+    );
 
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
@@ -35,15 +43,20 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        if (isRateLimited("auth:login:" + normalizeRateLimitKey(request.getUsername()), 10, 60)) {
-            return ResponseEntity.status(429).body(Map.of("message", "登录过于频繁，请稍后再试"));
+        ResponseEntity<?> rateLimitResponse = guardRateLimit("auth:login:" + normalizeRateLimitKey(request.getUsername()), 10, 60, "登录过于频繁，请稍后再试");
+        if (rateLimitResponse != null) {
+            return rateLimitResponse;
         }
-        User user = userService.findByUsername(request.getUsername());
-        if (user == null) {
-            user = userService.findByEmail(request.getUsername());
-        }
+        String loginId = request.getUsername() == null ? "" : request.getUsername().trim();
+        String password = request.getPassword() == null ? "" : request.getPassword();
 
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        User userByUsername = userService.findByUsername(loginId);
+        User userByEmail = userService.findByEmail(loginId);
+        User user = userByUsername != null ? userByUsername : userByEmail;
+
+        String passwordHash = user != null && user.getPassword() != null ? user.getPassword() : DUMMY_BCRYPT_HASH;
+        boolean passwordMatched = passwordEncoder.matches(password, passwordHash);
+        if (user == null || !passwordMatched) {
             applyLoginFailureDelay();
             return ResponseEntity.badRequest().body("用户名或密码错误");
         }
@@ -54,7 +67,7 @@ public class AuthController {
 
         userService.setOnline(user.getId());
 
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole(), user.getTokenVersion());
         AuthResponse.UserDTO userDTO = new AuthResponse.UserDTO(
                 user.getId(),
                 user.getUsername(),
@@ -81,18 +94,22 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
-        if (isRateLimited("auth:register:" + normalizeRateLimitKey(request.getUsername()), 5, 300)) {
-            return ResponseEntity.status(429).body("注册过于频繁，请稍后再试");
+        ResponseEntity<?> rateLimitResponse = guardRateLimit("auth:register:" + normalizeRateLimitKey(request.getUsername()), 5, 300, "注册过于频繁，请稍后再试");
+        if (rateLimitResponse != null) {
+            return rateLimitResponse;
         }
-        String username = request.getUsername() != null ? request.getUsername().trim() : null;
-        String email = request.getEmail() != null ? request.getEmail().trim() : null;
+        String username = UsernamePolicy.normalize(request.getUsername());
+        String email = normalizeEmail(request.getEmail());
         String password = request.getPassword();
 
         if (username == null || username.isEmpty()) {
             return ResponseEntity.badRequest().body("用户名不能为空");
         }
-        if (username.length() > 50) {
-            return ResponseEntity.badRequest().body("用户名不能超过50个字符");
+        if (!UsernamePolicy.isValid(username)) {
+            return ResponseEntity.badRequest().body("用户名仅支持 2-30 位中文、字母、数字、下划线和中划线");
+        }
+        if (UsernamePolicy.isReserved(username)) {
+            return ResponseEntity.badRequest().body("该用户名不可使用");
         }
         if (email == null || email.isEmpty()) {
             return ResponseEntity.badRequest().body("邮箱不能为空");
@@ -116,6 +133,7 @@ public class AuthController {
         user.setUsername(username);
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
+        user.setTokenVersion(0);
         user.setLevel(1);
         user.setPoints(0);
         user.setExp(0);
@@ -131,12 +149,13 @@ public class AuthController {
 
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
-        String username = body.get("username") == null ? null : body.get("username").trim();
-        String email = body.get("email") == null ? null : body.get("email").trim();
+        String username = UsernamePolicy.normalize(body.get("username"));
+        String email = normalizeEmail(body.get("email"));
         String newPassword = body.get("newPassword");
 
-        if (isRateLimited("auth:forgot:" + normalizeRateLimitKey(username + ":" + email), 5, 300)) {
-            return ResponseEntity.status(429).body(Map.of("message", "重置密码过于频繁，请稍后再试"));
+        ResponseEntity<?> rateLimitResponse = guardRateLimit("auth:forgot:" + normalizeRateLimitKey(username + ":" + email), 5, 300, "重置密码过于频繁，请稍后再试");
+        if (rateLimitResponse != null) {
+            return rateLimitResponse;
         }
         if (username == null || username.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "请输入用户名"));
@@ -152,12 +171,15 @@ public class AuthController {
         }
 
         User user = userService.findByUsername(username);
+        String passwordHash = user != null && user.getPassword() != null ? user.getPassword() : DUMMY_BCRYPT_HASH;
+        passwordEncoder.matches(newPassword == null ? "" : newPassword, passwordHash);
         if (user == null || user.getEmail() == null || !user.getEmail().equalsIgnoreCase(email)) {
             applyLoginFailureDelay();
             return ResponseEntity.badRequest().body(Map.of("message", "用户名与邮箱不匹配"));
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setTokenVersion(nextTokenVersion(user.getTokenVersion()));
         userService.updateById(user);
         eventService.publishEvent(ForumEvent.userUpdated(user.getId()));
 
@@ -212,6 +234,7 @@ public class AuthController {
     @PutMapping("/password")
     public ResponseEntity<?> changePassword(
             @RequestAttribute Long userId,
+            HttpServletRequest request,
             @RequestBody java.util.Map<String, String> body) {
         
         String oldPassword = body.get("oldPassword");
@@ -234,7 +257,12 @@ public class AuthController {
         }
         
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setTokenVersion(nextTokenVersion(user.getTokenVersion()));
         userService.updateById(user);
+        String token = extractBearerToken(request);
+        if (token != null) {
+            jwtUtil.invalidateToken(token);
+        }
         
         return ResponseEntity.ok(java.util.Map.of("message", "密码修改成功"));
     }
@@ -244,7 +272,7 @@ public class AuthController {
             @RequestAttribute Long userId,
             @RequestBody java.util.Map<String, String> body) {
         
-        String newEmail = body.get("newEmail");
+        String newEmail = normalizeEmail(body.get("newEmail"));
         String password = body.get("password");
         
         if (newEmail == null || newEmail.isBlank()) {
@@ -298,15 +326,15 @@ public class AuthController {
         return null;
     }
 
-    private boolean isRateLimited(String key, int maxRequests, int ttlSeconds) {
+    private ResponseEntity<?> guardRateLimit(String key, int maxRequests, int ttlSeconds, String limitedMessage) {
         try {
-            Long count = redisTemplate.opsForValue().increment(key);
-            if (count != null && count == 1L) {
-                redisTemplate.expire(key, ttlSeconds, TimeUnit.SECONDS);
+            Long count = redisTemplate.execute(RATE_LIMIT_SCRIPT, List.of(key), String.valueOf(ttlSeconds));
+            if (count != null && count > maxRequests) {
+                return ResponseEntity.status(429).body(Map.of("message", limitedMessage));
             }
-            return count != null && count > maxRequests;
+            return null;
         } catch (Exception ignored) {
-            return false;
+            return ResponseEntity.status(503).body(Map.of("message", "认证服务暂不可用，请稍后重试"));
         }
     }
 
@@ -315,5 +343,13 @@ public class AuthController {
             return "anonymous";
         }
         return value.trim().toLowerCase();
+    }
+
+    private String normalizeEmail(String value) {
+        return value == null ? null : value.trim().toLowerCase();
+    }
+
+    private int nextTokenVersion(Integer tokenVersion) {
+        return tokenVersion == null ? 1 : tokenVersion + 1;
     }
 }

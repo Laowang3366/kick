@@ -7,6 +7,7 @@ import com.excel.forum.entity.dto.PostDTO;
 import com.excel.forum.entity.dto.ReplyDTO;
 import com.excel.forum.service.*;
 import com.excel.forum.util.DtoConverter;
+import com.excel.forum.util.UsernamePolicy;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -208,13 +209,19 @@ public class UserController {
         }
 
         if (body.containsKey("username")) {
-            String newUsername = (String) body.get("username");
+            String newUsername = UsernamePolicy.normalize((String) body.get("username"));
             if (newUsername != null && !newUsername.isBlank()) {
+                if (!UsernamePolicy.isValid(newUsername)) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "用户名仅支持 2-30 位中文、字母、数字、下划线和中划线"));
+                }
+                if (UsernamePolicy.isReserved(newUsername)) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "该用户名不可使用"));
+                }
                 User existing = userService.findByUsername(newUsername);
                 if (existing != null && !existing.getId().equals(id)) {
                     return ResponseEntity.badRequest().body(Map.of("message", "用户名已被占用"));
                 }
-                user.setUsername(newUsername.trim());
+                user.setUsername(newUsername);
             }
         }
         if (body.containsKey("bio")) {

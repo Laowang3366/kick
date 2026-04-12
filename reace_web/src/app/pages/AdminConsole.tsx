@@ -4506,7 +4506,8 @@ async function adminRequest<T>(
       showAdminError(actionLabel ? `${actionLabel}失败：${error.message || "操作失败"}` : error.message || "操作失败");
       return null;
     }
-    throw error;
+    showAdminError(actionLabel ? `${actionLabel}失败：系统异常，请稍后重试` : "系统异常，请稍后重试");
+    return null;
   }
 }
 
@@ -4683,10 +4684,19 @@ async function runAdminDelete(options: {
       return false;
     }
     if (error instanceof ApiError) {
+      if (error.status === 401) {
+        toast.error("登录已过期，请重新登录");
+        return false;
+      }
+      if (error.status === 403) {
+        toast.error("当前账号无权限执行该操作");
+        return false;
+      }
       toast.error(`${errorLabel}失败：${error.message || "操作失败"}`);
       return false;
     }
-    throw error;
+    toast.error(`${errorLabel}失败：系统异常，请稍后重试`);
+    return false;
   } finally {
     onFinally?.();
     if (onRefresh) {

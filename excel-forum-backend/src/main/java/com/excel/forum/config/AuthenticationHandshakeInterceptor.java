@@ -1,5 +1,7 @@
 package com.excel.forum.config;
 
+import com.excel.forum.entity.User;
+import com.excel.forum.service.UserService;
 import com.excel.forum.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +19,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthenticationHandshakeInterceptor implements HandshakeInterceptor {
     private final JwtUtil jwtUtil;
+    private final UserService userService;
 
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response, WebSocketHandler wsHandler, Map<String, Object> attributes) {
@@ -24,9 +27,18 @@ public class AuthenticationHandshakeInterceptor implements HandshakeInterceptor 
         if (!StringUtils.hasText(token) || !jwtUtil.validateToken(token)) {
             return false;
         }
-        attributes.put("userId", jwtUtil.getUserIdFromToken(token));
-        attributes.put("username", jwtUtil.getUsernameFromToken(token));
-        attributes.put("role", jwtUtil.getRoleFromToken(token));
+        Long userId = jwtUtil.getUserIdFromToken(token);
+        User user = userService.getById(userId);
+        Integer tokenVersion = jwtUtil.getTokenVersionFromToken(token);
+        if (user == null || user.getStatus() != null && user.getStatus() == 1) {
+            return false;
+        }
+        if ((user.getTokenVersion() == null ? 0 : user.getTokenVersion()) != (tokenVersion == null ? 0 : tokenVersion)) {
+            return false;
+        }
+        attributes.put("userId", userId);
+        attributes.put("username", user.getUsername());
+        attributes.put("role", user.getRole());
         return true;
     }
 

@@ -1,5 +1,7 @@
 package com.excel.forum.security;
 
+import com.excel.forum.entity.User;
+import com.excel.forum.service.UserService;
 import com.excel.forum.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,6 +22,7 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
+    private final UserService userService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -29,8 +32,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(token)) {
             if (jwtUtil.validateToken(token)) {
                 Long userId = jwtUtil.getUserIdFromToken(token);
-                String username = jwtUtil.getUsernameFromToken(token);
-                String role = jwtUtil.getRoleFromToken(token);
+                User user = userService.getById(userId);
+                Integer tokenVersion = jwtUtil.getTokenVersionFromToken(token);
+
+                if (user == null || user.getStatus() != null && user.getStatus() == 1) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+                if ((user.getTokenVersion() == null ? 0 : user.getTokenVersion()) != (tokenVersion == null ? 0 : tokenVersion)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
+                String username = user.getUsername();
+                String role = user.getRole();
 
                 String authority = "ROLE_" + role.toUpperCase();
 

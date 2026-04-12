@@ -16,6 +16,7 @@ import com.excel.forum.service.*;
 import com.excel.forum.util.DtoConverter;
 import com.excel.forum.util.HtmlSanitizer;
 import com.excel.forum.util.PasswordPolicy;
+import com.excel.forum.util.UsernamePolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -133,8 +134,8 @@ public class AdminController {
 
     @PostMapping("/users")
     public ResponseEntity<?> createUser(@RequestBody Map<String, Object> body) {
-        String username = (String) body.get("username");
-        String email = (String) body.get("email");
+        String username = UsernamePolicy.normalize((String) body.get("username"));
+        String email = body.get("email") == null ? null : String.valueOf(body.get("email")).trim().toLowerCase();
         String password = (String) body.get("password");
         String role = (String) body.get("role");
         Integer status = body.get("status") != null ? (Integer) body.get("status") : 0;
@@ -144,9 +145,18 @@ public class AdminController {
         if (username == null || username.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "用户名不能为空"));
         }
+        if (!UsernamePolicy.isValid(username)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "用户名仅支持 2-30 位中文、字母、数字、下划线和中划线"));
+        }
+        if (UsernamePolicy.isReserved(username)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "该用户名不可使用"));
+        }
         
         if (email == null || email.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "邮箱不能为空"));
+        }
+        if (!email.matches("^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\\.[A-Za-z]{2,63}$")) {
+            return ResponseEntity.badRequest().body(Map.of("message", "邮箱格式不正确"));
         }
         
         if (password == null || password.isEmpty()) {
@@ -173,6 +183,7 @@ public class AdminController {
         user.setUsername(username);
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
+        user.setTokenVersion(0);
         user.setRole(role != null ? role : "user");
         user.setStatus(status);
         user.setIsMuted(Boolean.FALSE);
@@ -201,7 +212,7 @@ public class AdminController {
             return ResponseEntity.notFound().build();
         }
         
-        String email = (String) body.get("email");
+        String email = body.get("email") == null ? null : String.valueOf(body.get("email")).trim().toLowerCase();
         String role = (String) body.get("role");
         Integer status = body.get("status") != null ? (Integer) body.get("status") : existingUser.getStatus();
         Boolean isMuted = body.get("isMuted") instanceof Boolean ? (Boolean) body.get("isMuted") : existingUser.getIsMuted();
@@ -209,6 +220,9 @@ public class AdminController {
         List<Integer> managedCategories = (List<Integer>) body.get("managedCategories");
         
         if (email != null) {
+            if (!email.matches("^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\\.[A-Za-z]{2,63}$")) {
+                return ResponseEntity.badRequest().body(Map.of("message", "邮箱格式不正确"));
+            }
             existingUser.setEmail(email);
         }
         if (role != null) {
@@ -253,6 +267,7 @@ public class AdminController {
         }
 
         user.setPassword(passwordEncoder.encode(password));
+        user.setTokenVersion(user.getTokenVersion() == null ? 1 : user.getTokenVersion() + 1);
         userService.updateById(user);
 
         return ResponseEntity.ok(Map.of("message", "密码重置成功"));

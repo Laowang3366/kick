@@ -16,6 +16,8 @@ import java.util.concurrent.TimeUnit;
 
 @Component
 public class JwtUtil {
+    private static final int MIN_SECRET_BYTES = 64;
+
     @Value("${jwt.secret}")
     private String secret;
 
@@ -33,6 +35,9 @@ public class JwtUtil {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("必须配置 JWT_SECRET");
         }
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("JWT_SECRET 长度不足，至少需要 64 字节");
+        }
     }
 
     private SecretKey getSigningKey() {
@@ -40,7 +45,7 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(Long userId, String username, String role) {
+    public String generateToken(Long userId, String username, String role, Integer tokenVersion) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
@@ -48,6 +53,7 @@ public class JwtUtil {
                 .subject(userId.toString())
                 .claim("username", username)
                 .claim("role", role)
+                .claim("tokenVersion", tokenVersion == null ? 0 : tokenVersion)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getSigningKey())
@@ -77,6 +83,12 @@ public class JwtUtil {
         return claims.get("role", String.class);
     }
 
+    public Integer getTokenVersionFromToken(String token) {
+        Claims claims = parseToken(token);
+        Integer tokenVersion = claims.get("tokenVersion", Integer.class);
+        return tokenVersion == null ? 0 : tokenVersion;
+    }
+
     public boolean validateToken(String token) {
         try {
             if (isBlacklisted(token)) {
@@ -103,8 +115,8 @@ public class JwtUtil {
         try {
             Boolean exists = redisTemplate.hasKey(buildBlacklistKey(token));
             return Boolean.TRUE.equals(exists);
-        } catch (RedisConnectionFailureException ignored) {
-            return false;
+        } catch (RedisConnectionFailureException ex) {
+            throw ex;
         }
     }
 

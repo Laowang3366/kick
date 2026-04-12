@@ -65,7 +65,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       clearStoredSession();
     }
     const message = normalizeErrorMessage(data, `请求失败(${response.status})`);
-    if (!silent && !path.startsWith("/api/admin/")) {
+    if (!silent) {
       toast.error(message);
     }
     throw new ApiError(message, response.status, data);

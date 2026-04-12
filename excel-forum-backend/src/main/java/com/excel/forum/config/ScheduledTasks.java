@@ -1,6 +1,7 @@
 package com.excel.forum.config;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.excel.forum.entity.Favorite;
 import com.excel.forum.entity.Like;
 import com.excel.forum.entity.Post;
@@ -102,17 +103,34 @@ public class ScheduledTasks {
 
     @Scheduled(cron = "0 0 4 * * ?")
     public void recalculatePostStats() {
-        java.util.List<Post> posts = postService.list(new QueryWrapper<Post>().eq("status", 0));
-        for (Post post : posts) {
-            long actualLikeCount = likeService.count(new QueryWrapper<Like>().eq("target_type", "post").eq("target_id", post.getId()));
-            long actualReplyCount = replyService.count(new QueryWrapper<com.excel.forum.entity.Reply>().eq("post_id", post.getId()).eq("status", 0));
-            long actualFavoriteCount = favoriteService.count(new QueryWrapper<Favorite>().eq("post_id", post.getId()));
-            Post update = new Post();
-            update.setId(post.getId());
-            update.setLikeCount((int) actualLikeCount);
-            update.setReplyCount((int) actualReplyCount);
-            update.setFavoriteCount((int) actualFavoriteCount);
-            postService.updateById(update);
+        long currentPage = 1L;
+        long pageSize = 200L;
+        while (true) {
+            Page<Post> page = postService.page(
+                    new Page<>(currentPage, pageSize),
+                    new QueryWrapper<Post>()
+                            .eq("status", 0)
+                            .select("id")
+                            .orderByAsc("id")
+            );
+            if (page.getRecords().isEmpty()) {
+                break;
+            }
+            for (Post post : page.getRecords()) {
+                long actualLikeCount = likeService.count(new QueryWrapper<Like>().eq("target_type", "post").eq("target_id", post.getId()));
+                long actualReplyCount = replyService.count(new QueryWrapper<com.excel.forum.entity.Reply>().eq("post_id", post.getId()).eq("status", 0));
+                long actualFavoriteCount = favoriteService.count(new QueryWrapper<Favorite>().eq("post_id", post.getId()));
+                Post update = new Post();
+                update.setId(post.getId());
+                update.setLikeCount((int) actualLikeCount);
+                update.setReplyCount((int) actualReplyCount);
+                update.setFavoriteCount((int) actualFavoriteCount);
+                postService.updateById(update);
+            }
+            if (currentPage >= page.getPages()) {
+                break;
+            }
+            currentPage += 1L;
         }
         log.info("帖子统计字段校准完成");
     }

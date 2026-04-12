@@ -14,7 +14,7 @@ import java.util.Arrays;
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
-    private static final String DEFAULT_ALLOWED_ORIGINS = "http://localhost:*,http://127.0.0.1:*";
+    private static final String DEFAULT_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173";
 
     private final AuthenticationHandshakeInterceptor authenticationHandshakeInterceptor;
     private final Environment environment;
@@ -30,9 +30,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         String[] allowedOrigins = Arrays.stream(environment.getProperty("ALLOWED_ORIGINS", DEFAULT_ALLOWED_ORIGINS).split(","))
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
+                .peek(value -> {
+                    if (!environment.matchesProfiles("dev") && value.contains("*")) {
+                        throw new IllegalStateException("生产环境 ALLOWED_ORIGINS 不允许使用通配符");
+                    }
+                })
                 .toArray(String[]::new);
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(allowedOrigins)
+                .setAllowedOrigins(allowedOrigins)
                 .addInterceptors(authenticationHandshakeInterceptor)
                 .withSockJS();
     }

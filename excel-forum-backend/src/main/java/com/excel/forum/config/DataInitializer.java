@@ -11,6 +11,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import com.excel.forum.util.UsernamePolicy;
 
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -64,12 +65,22 @@ public class DataInitializer implements CommandLineRunner {
             generatedPassword = true;
         }
 
+        if (!UsernamePolicy.isValid(username)) {
+            log.error("管理员初始化用户名不符合安全策略：{}", username);
+            return;
+        }
+        if (email == null || !email.matches("^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\\.[A-Za-z]{2,63}$")) {
+            log.error("管理员初始化邮箱不符合安全策略：{}", email);
+            return;
+        }
+
         log.info("开始初始化管理员账户...");
 
         User admin = new User();
         admin.setUsername(username);
         admin.setEmail(email);
         admin.setPassword(passwordEncoder.encode(rawPassword));
+        admin.setTokenVersion(0);
         admin.setRole("admin");
         admin.setStatus(0);
         admin.setIsMuted(Boolean.FALSE);

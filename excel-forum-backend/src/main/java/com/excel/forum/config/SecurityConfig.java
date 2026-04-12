@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
-    private static final String DEFAULT_ALLOWED_ORIGINS = "http://localhost:*,http://127.0.0.1:*";
+    private static final String DEFAULT_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173";
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final Environment environment;
@@ -114,7 +114,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(resolveAllowedOrigins());
+        configuration.setAllowedOrigins(resolveAllowedOrigins());
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
@@ -127,10 +127,14 @@ public class SecurityConfig {
 
     private List<String> resolveAllowedOrigins() {
         String configuredOrigins = environment.getProperty("ALLOWED_ORIGINS", DEFAULT_ALLOWED_ORIGINS);
-        return Arrays.stream(configuredOrigins.split(","))
+        List<String> origins = Arrays.stream(configuredOrigins.split(","))
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toList());
+        if (!environment.matchesProfiles("dev") && origins.stream().anyMatch(value -> value.contains("*"))) {
+            throw new IllegalStateException("生产环境 ALLOWED_ORIGINS 不允许使用通配符");
+        }
+        return origins;
     }
 
     @Bean
