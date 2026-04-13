@@ -37,6 +37,7 @@ import { formatRelativeTime } from "../lib/format";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { messageKeys, notificationKeys, profileKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
+import { useIsMobile } from "./ui/use-mobile";
 
 const OPEN_PROPS_EVENT = "excel-open-props-dialog";
 
@@ -387,6 +388,16 @@ export function Layout() {
     { name: "积分商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
     { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
   ];
+  const mobileBottomNavItems = [
+    { name: "主页", path: "/", icon: <Home size={18} strokeWidth={1.6} /> },
+    { name: "聊天", path: "/chat", icon: <MessageSquare size={18} strokeWidth={1.6} /> },
+    { name: "练习", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.6} /> },
+    { name: "商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.6} /> },
+    { name: "实用", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.6} /> },
+    { name: "私信", path: "/messages", icon: <Mail size={18} strokeWidth={1.6} /> },
+    { name: "发帖", path: "/create-post", icon: <PenSquare size={18} strokeWidth={1.6} /> },
+    { name: "我的", path: isAuthenticated ? "/profile" : "/auth", icon: <User size={18} strokeWidth={1.6} /> },
+  ];
 
   const openFeedbackDialog = () => {
     if (!isAuthenticated) {
@@ -714,26 +725,27 @@ export function Layout() {
 
           <div className={`flex items-center ${isMobile ? "gap-1.5 ml-2" : "gap-2 md:gap-4 ml-3 md:ml-6"}`}>
             
-            <Link 
-              to="/create-post"
-              className={`flex items-center gap-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-sm font-medium transition-colors shadow-sm ${
-                isMobile ? "h-10 px-3" : "px-3 sm:px-4 py-2 sm:gap-2"
-              }`}
-            >
-              <PenSquare size={16} />
-              <span>{isMobile ? "发布" : "发布帖子"}</span>
-            </Link>
+            {!isMobile ? (
+              <Link 
+                to="/create-post"
+                className="flex items-center gap-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-sm font-medium transition-colors shadow-sm px-3 sm:px-4 py-2 sm:gap-2"
+              >
+                <PenSquare size={16} />
+                <span className="hidden sm:inline">发布帖子</span>
+                <span className="sm:hidden">发布</span>
+              </Link>
+            ) : null}
 
-            <Link 
-              to="/messages"
-              className={`text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative ${
-                isMobile ? "p-2" : "p-2"
-              }`}
-              title="我的私信"
-            >
-              <Mail size={20} />
-              {renderCountBadge(unreadMessageCount, "teal")}
-            </Link>
+            {!isMobile ? (
+              <Link 
+                to="/messages"
+                className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+                title="我的私信"
+              >
+                <Mail size={20} />
+                {renderCountBadge(unreadMessageCount, "teal")}
+              </Link>
+            ) : null}
 
             <div className="relative" ref={notificationRef}>
               <button 
@@ -805,7 +817,7 @@ export function Layout() {
               </AnimatePresence>
             </div>
 
-            <div className={`${isMobile ? "pl-1" : "pl-4 border-l border-gray-200"}`}>
+            <div className={`${isMobile ? "hidden" : "pl-4 border-l border-gray-200"}`}>
               {isAuthenticated && !isMobile ? (
                 <HoverCard openDelay={120} closeDelay={80}>
                   <HoverCardTrigger asChild>
@@ -864,9 +876,17 @@ export function Layout() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">
                     {canAccessAdmin && <DropdownMenuItem onClick={() => navigate(getDefaultAdminPath(user?.role))}>进入管理后台</DropdownMenuItem>}
-                    <DropdownMenuItem onClick={() => navigate("/profile")}>个人中心</DropdownMenuItem>
                     <DropdownMenuItem onClick={openPropsDialog}>我的道具</DropdownMenuItem>
                     <DropdownMenuItem onClick={openFeedbackDialog}>反馈建议</DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        await logout();
+                        toast.success("已退出登录");
+                        navigate("/auth");
+                      }}
+                    >
+                      退出登录
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -906,22 +926,23 @@ export function Layout() {
 
         {isMobile ? (
           <nav className="sticky bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-            <div className="grid grid-cols-5 gap-1">
-              {navItems.map((item) => {
+            <div className="scrollbar-hide flex gap-1 overflow-x-auto pb-1">
+              {mobileBottomNavItems.map((item) => {
                 const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
                 return (
                   <button
                     key={`mobile-nav-${item.path}`}
                     type="button"
                     onClick={() => navigate(item.path)}
-                    className={`flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-semibold transition ${
+                    className={`relative flex min-h-[58px] min-w-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${
                       isActive
                         ? "bg-teal-50 text-teal-700"
                         : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                     }`}
                   >
                     <span className={isActive ? "text-teal-600" : "text-slate-400"}>{item.icon}</span>
-                    <span className="leading-tight">{item.name.replace("主页 板块", "主页")}</span>
+                    <span className="leading-tight">{item.name}</span>
+                    {item.path === "/messages" ? renderCountBadge(unreadMessageCount, "teal") : null}
                   </button>
                 );
               })}

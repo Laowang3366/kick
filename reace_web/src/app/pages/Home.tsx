@@ -33,6 +33,7 @@ import { formatNumber } from "../lib/format";
 import { homeKeys } from "../lib/query-keys";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { useSession } from "../lib/session";
+import { useIsMobile } from "../components/ui/use-mobile";
 
 const iconMap: Record<string, any> = {
   "数据透视表": BarChart2,
@@ -61,6 +62,7 @@ export function Home() {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [heroSlideIndex, setHeroSlideIndex] = useState(0);
+  const isMobile = useIsMobile();
   const { isAuthenticated, refreshUser } = useSession();
   const homeOverviewQuery = useQuery({
     queryKey: homeKeys.overview(),
@@ -244,17 +246,18 @@ export function Home() {
       <div className="flex-1 space-y-6">
         
         {/* Hero Carousel */}
-        <div className="relative overflow-hidden rounded-[32px] shadow-[0_20px_50px_rgba(13,148,136,0.16)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_28%)] pointer-events-none" />
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={heroSlides[heroSlideIndex].key}
-              initial={{ opacity: 0, x: 36 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -36 }}
-              transition={{ duration: 0.42, ease: "easeOut" }}
-              className={`relative min-h-[320px] bg-gradient-to-br ${heroSlides[heroSlideIndex].gradient} p-8 sm:p-10 text-white`}
-            >
+        {!isMobile ? (
+          <div className="relative overflow-hidden rounded-[32px] shadow-[0_20px_50px_rgba(13,148,136,0.16)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.12),transparent_28%)] pointer-events-none" />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={heroSlides[heroSlideIndex].key}
+                initial={{ opacity: 0, x: 36 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -36 }}
+                transition={{ duration: 0.42, ease: "easeOut" }}
+                className={`relative min-h-[320px] bg-gradient-to-br ${heroSlides[heroSlideIndex].gradient} p-8 sm:p-10 text-white`}
+              >
               <div className="absolute -top-14 right-12 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
               <div className="absolute bottom-0 right-0 h-48 w-48 translate-x-12 translate-y-12 rounded-full bg-slate-950/12 blur-3xl" />
               <div className="relative z-10 flex h-full flex-col justify-between gap-8">
@@ -357,9 +360,10 @@ export function Home() {
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        ) : null}
 
         {/* Board Categories Section */}
         <div className="bg-transparent mt-8">
