@@ -16,6 +16,7 @@ import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { normalizeResourceUrl } from "../lib/mappers";
 import { useSession } from "../lib/session";
 
 type TargetType = "word" | "excel" | "pdf";
@@ -190,7 +191,7 @@ export function Tools() {
                   <div className="text-sm font-black text-emerald-700">最近一次转换已完成</div>
                   <div className="mt-2 text-sm text-emerald-900">{lastResult.fileName}</div>
                   <a
-                    href={`http://localhost:8080${lastResult.url}`}
+                    href={normalizeResourceUrl(lastResult.url)}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700"
@@ -243,7 +244,7 @@ export function Tools() {
                           <div className="flex items-center gap-3">
                             <div className="text-xs text-slate-400">{String(item.createTime || "").replace("T", " ")}</div>
                             <a
-                              href={`http://localhost:8080${item.resultUrl}`}
+                              href={normalizeResourceUrl(item.resultUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white transition hover:bg-slate-800"

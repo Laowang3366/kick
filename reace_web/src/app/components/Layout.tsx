@@ -5,6 +5,7 @@ import {
   MessageSquare, 
   BookOpen, 
   ShoppingBag, 
+  Menu,
   Bell, 
   Search,
   User,
@@ -28,6 +29,7 @@ import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
 import { useIsMobile } from "./ui/use-mobile";
 import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
 import { api } from "../lib/api";
@@ -45,6 +47,7 @@ export function Layout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [popupNotification, setPopupNotification] = useState<any | null>(null);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "performance_optimization",
@@ -492,9 +495,108 @@ export function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Header */}
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200/60 flex items-center justify-between px-6 z-50 sticky top-0">
+        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200/60 flex items-center justify-between px-4 md:px-6 z-50 sticky top-0">
           
           <div className="flex-1 max-w-xl flex items-center relative gap-2">
+            {isMobile ? (
+              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                <SheetTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 md:hidden"
+                    aria-label="打开导航菜单"
+                  >
+                    <Menu size={18} />
+                  </button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[86vw] max-w-none border-r border-slate-200 bg-white p-0">
+                  <SheetHeader className="border-b border-slate-100 px-5 py-5 text-left">
+                    <SheetTitle className="flex items-center gap-2 text-teal-600">
+                      <Activity size={20} strokeWidth={2.5} />
+                      <span className="text-base font-black tracking-tight text-slate-900">Excel社区</span>
+                    </SheetTitle>
+                    <SheetDescription>移动端快捷导航</SheetDescription>
+                  </SheetHeader>
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <nav className="flex-1 space-y-1 px-4 py-4">
+                      {navItems.map((item) => {
+                        const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
+                        return (
+                          <button
+                            key={item.path}
+                            type="button"
+                            onClick={() => {
+                              navigate(item.path);
+                              setMobileNavOpen(false);
+                            }}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
+                              isActive
+                                ? "bg-slate-900 text-white"
+                                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                            }`}
+                          >
+                            <span className={isActive ? "text-white" : "text-slate-400"}>{item.icon}</span>
+                            <span>{item.name}</span>
+                          </button>
+                        );
+                      })}
+                    </nav>
+                    <div className="space-y-2 border-t border-slate-100 px-4 py-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate("/settings");
+                          setMobileNavOpen(false);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                      >
+                        <Settings size={18} className="text-slate-400" />
+                        <span>设置</span>
+                      </button>
+                      {isAuthenticated ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileNavOpen(false);
+                              openPropsDialog();
+                            }}
+                            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                          >
+                            <Package size={18} className="text-slate-400" />
+                            <span>我的道具</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileNavOpen(false);
+                              openFeedbackDialog();
+                            }}
+                            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+                          >
+                            <Lightbulb size={18} className="text-slate-400" />
+                            <span>反馈建议</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setMobileNavOpen(false);
+                              await logout();
+                              toast.success("已退出登录");
+                              navigate("/auth");
+                            }}
+                            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-rose-500 transition hover:bg-rose-50"
+                          >
+                            <LogOut size={18} className="text-rose-400" />
+                            <span>退出登录</span>
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            ) : null}
             <div className="flex-1 relative flex items-center" ref={searchContainerRef}>
               <div ref={searchTypeDropdownRef} className="absolute left-1 z-10">
                 <button
@@ -608,7 +710,7 @@ export function Layout() {
             </button>
           </div>
 
-          <div className="flex items-center gap-4 ml-6">
+          <div className="flex items-center gap-2 md:gap-4 ml-3 md:ml-6">
             
             <Link 
               to="/create-post"
@@ -797,6 +899,31 @@ export function Layout() {
             </motion.div>
           </AnimatePresence>
         </main>
+
+        {isMobile ? (
+          <nav className="sticky bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 py-2 backdrop-blur md:hidden">
+            <div className="grid grid-cols-5 gap-1">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
+                return (
+                  <button
+                    key={`mobile-nav-${item.path}`}
+                    type="button"
+                    onClick={() => navigate(item.path)}
+                    className={`flex min-h-[58px] flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[11px] font-semibold transition ${
+                      isActive
+                        ? "bg-teal-50 text-teal-700"
+                        : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                    }`}
+                  >
+                    <span className={isActive ? "text-teal-600" : "text-slate-400"}>{item.icon}</span>
+                    <span className="leading-tight">{item.name.replace("主页 板块", "主页")}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        ) : null}
       </div>
 
       <Dialog open={propsOpen} onOpenChange={setPropsOpen}>

@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { clearStoredSession, getStoredToken } from "./session-store";
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8080";
+const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;
