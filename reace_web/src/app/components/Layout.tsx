@@ -598,7 +598,7 @@ export function Layout() {
               </Sheet>
             ) : null}
             <div className="flex-1 relative flex items-center" ref={searchContainerRef}>
-              <div ref={searchTypeDropdownRef} className="absolute left-1 z-10">
+              <div ref={searchTypeDropdownRef} className={`absolute left-1 z-10 ${isMobile ? "hidden" : ""}`}>
                 <button
                   onClick={() => setShowSearchTypeDropdown(!showSearchTypeDropdown)}
                   className="flex items-center gap-1 pl-3 pr-2 py-1.5 text-sm text-slate-500 hover:text-slate-700 bg-transparent rounded-l-full border-r border-gray-200"
@@ -643,12 +643,14 @@ export function Layout() {
 
               <input
                 type="text"
-                placeholder="搜索用户、帖子、题目..."
+                placeholder={isMobile ? "搜索..." : "搜索用户、帖子、题目..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => { if (searchQuery.trim() && (searchSuggestions.posts.length || searchSuggestions.users.length)) setShowSuggestions(true); }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-[90px] pr-4 py-2 bg-gray-100/80 border-transparent focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-200 rounded-full text-sm transition-all outline-none"
+                className={`w-full bg-gray-100/80 border-transparent focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-200 rounded-full text-sm transition-all outline-none ${
+                  isMobile ? "pl-4 pr-3 py-2.5 text-[13px]" : "pl-[90px] pr-4 py-2"
+                }`}
               />
 
               <AnimatePresence>
@@ -710,20 +712,23 @@ export function Layout() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4 ml-3 md:ml-6">
+          <div className={`flex items-center ${isMobile ? "gap-1.5 ml-2" : "gap-2 md:gap-4 ml-3 md:ml-6"}`}>
             
             <Link 
               to="/create-post"
-              className="flex items-center gap-1.5 sm:gap-2 bg-teal-500 hover:bg-teal-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"
+              className={`flex items-center gap-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-sm font-medium transition-colors shadow-sm ${
+                isMobile ? "h-10 px-3" : "px-3 sm:px-4 py-2 sm:gap-2"
+              }`}
             >
               <PenSquare size={16} />
-              <span className="hidden sm:inline">发布帖子</span>
-              <span className="sm:hidden">发布</span>
+              <span>{isMobile ? "发布" : "发布帖子"}</span>
             </Link>
 
             <Link 
               to="/messages"
-              className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+              className={`text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative ${
+                isMobile ? "p-2" : "p-2"
+              }`}
               title="我的私信"
             >
               <Mail size={20} />
@@ -800,7 +805,7 @@ export function Layout() {
               </AnimatePresence>
             </div>
 
-            <div className="pl-4 border-l border-gray-200">
+            <div className={`${isMobile ? "pl-1" : "pl-4 border-l border-gray-200"}`}>
               {isAuthenticated && !isMobile ? (
                 <HoverCard openDelay={120} closeDelay={80}>
                   <HoverCardTrigger asChild>
@@ -849,13 +854,12 @@ export function Layout() {
               ) : isAuthenticated && isMobile ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex items-center gap-2 cursor-pointer group">
+                    <button type="button" className="flex items-center gap-2 cursor-pointer group rounded-full p-1">
                       <img 
                         src={normalizeAvatarUrl(user?.avatar, user?.username)} 
                         alt="Profile" 
                         className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
                       />
-                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">

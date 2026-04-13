@@ -8,6 +8,8 @@ import { formatRelativeTime } from "../lib/format";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { useSession } from "../lib/session";
 import { useNavigate } from "react-router";
+import { useIsMobile } from "../components/ui/use-mobile";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "../components/ui/sheet";
 
 const EMOJI_GROUPS = [
   { label: "常用", items: ["😀", "😊", "😂", "😍", "👍", "👏", "🎉", "🙏", "💡", "🔥"] },
@@ -34,6 +36,7 @@ export function Chat() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const { isAuthenticated, user } = useSession();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const messagesQuery = useQuery({
     queryKey: chatKeys.messages(),
@@ -187,13 +190,61 @@ export function Chat() {
           <div className="w-12 h-12 rounded-full bg-[#e8f5e9] text-[#0a9e6b] flex items-center justify-center shrink-0">
             <Users size={24} />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h2 className="font-bold text-[18px] text-slate-800 tracking-tight">综合交流大厅</h2>
             <div className="text-[13px] text-[#0a9e6b] font-medium flex items-center gap-1.5 mt-0.5">
               <span className="w-2 h-2 rounded-full bg-[#0a9e6b]" />
               {onlineUsers.length} 人在线
             </div>
           </div>
+          {isMobile ? (
+            <Sheet>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl border border-teal-100 bg-teal-50 px-3 text-sm font-semibold text-teal-700 transition hover:bg-teal-100"
+                >
+                  在线成员
+                </button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="max-h-[78vh] rounded-t-[28px] border-t border-slate-200 bg-white px-0">
+                <SheetHeader className="border-b border-slate-100 px-5 py-4 text-left">
+                  <SheetTitle className="text-slate-900">在线成员</SheetTitle>
+                  <SheetDescription>当前公共聊天室在线用户列表</SheetDescription>
+                </SheetHeader>
+                <div className="max-h-[62vh] overflow-y-auto px-5 py-4">
+                  <div className="space-y-3">
+                    {onlineUsers.map((onlineUser) => (
+                      <button
+                        key={`mobile-online-${onlineUser.id}`}
+                        type="button"
+                        className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3 text-left transition hover:border-teal-200 hover:bg-teal-50"
+                        onClick={() => navigate(`/user/${onlineUser.id}`)}
+                      >
+                        <div className="relative shrink-0">
+                          <img
+                            src={normalizeAvatarUrl(onlineUser.avatar, onlineUser.username)}
+                            alt={onlineUser.username}
+                            className="h-11 w-11 rounded-full object-cover border border-slate-200"
+                          />
+                          <div className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-[#0a9e6b]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-bold text-slate-800">{onlineUser.username}</div>
+                          <div className="mt-0.5 text-xs text-slate-400">Lv.{onlineUser.level || 1}</div>
+                        </div>
+                      </button>
+                    ))}
+                    {onlineUsers.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-400">
+                        暂无在线成员
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+          ) : null}
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 bg-white">
