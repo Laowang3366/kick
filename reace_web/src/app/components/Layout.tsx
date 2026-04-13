@@ -24,14 +24,13 @@ import {
   Ticket,
   ArrowRightLeft
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
-import { useIsMobile } from "./ui/use-mobile";
 import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
 import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
@@ -746,16 +745,14 @@ export function Layout() {
               </Link>
             ) : null}
 
-            {!isMobile ? (
-              <Link 
-                to="/messages"
-                className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
-                title="我的私信"
-              >
-                <Mail size={20} />
-                {renderCountBadge(unreadMessageCount, "teal")}
-              </Link>
-            ) : null}
+            <Link 
+              to="/messages"
+              className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+              title="我的私信"
+            >
+              <Mail size={20} />
+              {renderCountBadge(unreadMessageCount, "teal")}
+            </Link>
 
             <div className="relative" ref={notificationRef}>
               <button 
