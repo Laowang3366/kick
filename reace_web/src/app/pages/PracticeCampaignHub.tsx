@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Award, Brain, Flame, Gift, Lock, Map, Play, Sparkles, Target } from "lucide-react";
+import { ArrowRight, Award, Brain, Flame, Gift, Lock, Map, Play, Sparkles, Target, AlertTriangle, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { api } from "../lib/api";
@@ -161,6 +161,53 @@ export function PracticeCampaignHub() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => navigate("/practice/daily")}
+          className="rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_100%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[12px] font-black tracking-[0.18em] text-amber-500">DAILY</div>
+              <div className="mt-2 text-2xl font-black text-slate-900">每日挑战</div>
+            </div>
+            <Gift size={24} className="text-amber-500" />
+          </div>
+          <div className="mt-3 text-sm leading-6 text-slate-500">每天一关，奖励更高，可作为主线之外的加成挑战。</div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate("/practice/wrongs")}
+          className="rounded-[28px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2_0%,#ffffff_100%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[12px] font-black tracking-[0.18em] text-rose-500">WRONG BOOK</div>
+              <div className="mt-2 text-2xl font-black text-slate-900">错题重练</div>
+            </div>
+            <AlertTriangle size={24} className="text-rose-500" />
+          </div>
+          <div className="mt-3 text-sm leading-6 text-slate-500">闯关失败的题目会自动沉淀到这里，适合定向补练。</div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate("/practice/ranking")}
+          className="rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_100%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-[12px] font-black tracking-[0.18em] text-sky-500">RANKING</div>
+              <div className="mt-2 text-2xl font-black text-slate-900">闯关排行</div>
+            </div>
+            <Trophy size={24} className="text-sky-500" />
+          </div>
+          <div className="mt-3 text-sm leading-6 text-slate-500">按总星数、满星数和累计得分排序，形成长期挑战动力。</div>
+        </button>
       </div>
 
       <div className="mt-6 rounded-[30px] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">

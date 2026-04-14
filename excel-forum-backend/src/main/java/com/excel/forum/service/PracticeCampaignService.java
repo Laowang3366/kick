@@ -14,6 +14,12 @@ public interface PracticeCampaignService {
 
     Map<String, Object> getCampaignLevelDetail(Long levelId, Long userId);
 
+    Map<String, Object> getDailyChallenge(Long userId);
+
+    Map<String, Object> getCampaignWrongQuestions(Long userId);
+
+    Map<String, Object> getCampaignRankings(String scope);
+
     Map<String, Object> startCampaignLevel(Long levelId, Long userId, PracticeCampaignStartRequest request);
 
     Map<String, Object> submitCampaignLevel(Long levelId, Long userId, PracticeCampaignSubmitRequest request);

@@ -85,6 +85,9 @@ export const practiceKeys = {
   campaignChapters: () => ["practice", "campaign", "chapters"] as const,
   campaignChapter: (id: number | string) => ["practice", "campaign", "chapter", id] as const,
   campaignLevel: (id: number | string) => ["practice", "campaign", "level", id] as const,
+  campaignDaily: () => ["practice", "campaign", "daily"] as const,
+  campaignWrongs: () => ["practice", "campaign", "wrongs"] as const,
+  campaignRankings: (scope: string) => ["practice", "campaign", "rankings", scope] as const,
 };
 
 export const settingsKeys = {

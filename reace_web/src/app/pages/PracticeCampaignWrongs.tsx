@@ -1,0 +1,75 @@
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, ArrowLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { motion } from "motion/react";
+import { useNavigate } from "react-router";
+import { api } from "../lib/api";
+import { formatDateTime } from "../lib/format";
+import { practiceKeys } from "../lib/query-keys";
+
+export function PracticeCampaignWrongs() {
+  const navigate = useNavigate();
+  const wrongsQuery = useQuery({
+    queryKey: practiceKeys.campaignWrongs(),
+    queryFn: () => api.get<any>("/api/practice/campaign/wrongs", { silent: true }),
+  });
+
+  const records = wrongsQuery.data?.records || [];
+
+  return (
+    <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 sm:py-6">
+      <button type="button" onClick={() => navigate("/practice")} className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-slate-900">
+        <ArrowLeft size={16} />
+        返回闯关大厅
+      </button>
+
+      <div className="rounded-[34px] border border-slate-200/70 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500">
+            <AlertTriangle size={22} />
+          </div>
+          <div>
+            <div className="text-[13px] font-black uppercase tracking-[0.18em] text-slate-400">WRONG BOOK</div>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">错题重练</h1>
+          </div>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {records.map((item: any, index: number) => (
+            <motion.button
+              key={item.id}
+              type="button"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              onClick={() => item.recommendedLevelId && navigate(`/practice/level/${item.recommendedLevelId}/prepare`)}
+              className="w-full rounded-[26px] border border-slate-200 bg-slate-50 px-5 py-5 text-left transition hover:border-rose-200 hover:bg-white"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-lg font-black text-slate-900">{item.title}</div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] font-bold text-slate-400">
+                    <span className="rounded-full bg-white px-3 py-1">错误次数 {item.wrongCount}</span>
+                    <span className="rounded-full bg-white px-3 py-1">难度 {item.difficulty ?? 1}</span>
+                    <span className="rounded-full bg-white px-3 py-1">{item.lastWrongTime ? formatDateTime(item.lastWrongTime) : "-"}</span>
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-2 text-sm font-black text-rose-600">
+                  <RotateCcw size={15} />
+                  立即重练
+                  <ChevronRight size={15} />
+                </div>
+              </div>
+            </motion.button>
+          ))}
+
+          {records.length === 0 ? (
+            <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center">
+              <div className="text-sm font-bold text-slate-600">当前没有待重练错题</div>
+              <div className="mt-2 text-xs text-slate-400">闯关失败后，错题会自动进入这里。</div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}

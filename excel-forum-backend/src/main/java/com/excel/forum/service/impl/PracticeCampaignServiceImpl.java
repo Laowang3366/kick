@@ -11,6 +11,7 @@ import com.excel.forum.entity.PracticeWorld;
 import com.excel.forum.entity.Question;
 import com.excel.forum.entity.UserChapterProgress;
 import com.excel.forum.entity.UserLevelProgress;
+import com.excel.forum.entity.UserWrongQuestion;
 import com.excel.forum.entity.dto.PracticeCampaignStartRequest;
 import com.excel.forum.entity.dto.PracticeCampaignSubmitRequest;
 import com.excel.forum.entity.dto.PracticeSubmitAnswerRequest;
@@ -24,10 +25,12 @@ import com.excel.forum.mapper.PracticeRecordMapper;
 import com.excel.forum.mapper.PracticeWorldMapper;
 import com.excel.forum.mapper.UserChapterProgressMapper;
 import com.excel.forum.mapper.UserLevelProgressMapper;
+import com.excel.forum.mapper.UserWrongQuestionMapper;
 import com.excel.forum.service.PracticeCampaignService;
 import com.excel.forum.service.PracticeService;
 import com.excel.forum.service.QuestionCategoryService;
 import com.excel.forum.service.QuestionService;
+import com.excel.forum.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Service
@@ -53,9 +57,11 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     private final PracticeAnswerMapper practiceAnswerMapper;
     private final UserLevelProgressMapper userLevelProgressMapper;
     private final UserChapterProgressMapper userChapterProgressMapper;
+    private final UserWrongQuestionMapper userWrongQuestionMapper;
     private final PracticeService practiceService;
     private final QuestionService questionService;
     private final QuestionCategoryService questionCategoryService;
+    private final UserService userService;
 
     @Override
     public Map<String, Object> getCampaignOverview(Long userId) {
@@ -173,6 +179,119 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     }
 
     @Override
+    public Map<String, Object> getDailyChallenge(Long userId) {
+        Map<String, Object> payload = buildDailyChallengePayload();
+        if (payload == null) {
+            Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
+            List<PracticeChapter> chapters = listEnabledChapters();
+            Map<Long, List<PracticeLevel>> levelsByChapterId = listEnabledLevelsByChapterId();
+            List<Map<String, Object>> summaries = buildChapterSummaries(chapters, levelsByChapterId, progressMap);
+            Map<String, Object> currentChapter = summaries.stream()
+                    .filter(item -> Boolean.TRUE.equals(item.get("unlocked")))
+                    .findFirst()
+                    .orElse(null);
+            if (currentChapter != null) {
+                List<Map<String, Object>> levels = buildLevelNodes(
+                        levelsByChapterId.getOrDefault(toLong(currentChapter.get("id")), List.of()),
+                        progressMap,
+                        true
+                );
+                Map<String, Object> available = levels.stream()
+                        .filter(item -> "available".equals(item.get("status")) || "cleared".equals(item.get("status")) || "perfect".equals(item.get("status")))
+                        .findFirst()
+                        .orElse(null);
+                if (available != null) {
+                    payload = new LinkedHashMap<>();
+                    payload.put("configured", false);
+                    payload.put("levelId", available.get("id"));
+                    payload.put("title", available.get("title"));
+                    payload.put("rewardExp", available.get("rewardExp"));
+                    payload.put("rewardPoints", available.get("rewardPoints"));
+                }
+            }
+        }
+        if (payload == null) {
+            payload = Map.of();
+        }
+        return Map.of("challenge", payload);
+    }
+
+    @Override
+    public Map<String, Object> getCampaignWrongQuestions(Long userId) {
+        if (userId == null) {
+            throw new IllegalStateException("未登录");
+        }
+        QueryWrapper<UserWrongQuestion> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).eq("resolved", false).orderByDesc("last_wrong_time");
+        List<UserWrongQuestion> wrongs = userWrongQuestionMapper.selectList(queryWrapper);
+        List<Long> questionIds = wrongs.stream().map(UserWrongQuestion::getQuestionId).filter(Objects::nonNull).toList();
+        Map<Long, Question> questionMap = questionIds.isEmpty()
+                ? Map.of()
+                : questionService.listByIds(questionIds).stream().collect(Collectors.toMap(Question::getId, item -> item, (left, right) -> left));
+
+        List<Map<String, Object>> records = wrongs.stream().map(item -> {
+            Question question = questionMap.get(item.getQuestionId());
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", item.getId());
+            row.put("questionId", item.getQuestionId());
+            row.put("levelId", item.getLevelId());
+            row.put("title", question == null ? "未知题目" : question.getTitle());
+            row.put("wrongCount", item.getWrongCount());
+            row.put("lastWrongTime", item.getLastWrongTime());
+            row.put("recommendedLevelId", item.getLevelId());
+            row.put("difficulty", question == null ? 1 : question.getDifficulty());
+            return row;
+        }).toList();
+
+        return Map.of("records", records);
+    }
+
+    @Override
+    public Map<String, Object> getCampaignRankings(String scope) {
+        QueryWrapper<UserLevelProgress> queryWrapper = new QueryWrapper<>();
+        queryWrapper.ne("status", "locked");
+        List<UserLevelProgress> progressList = userLevelProgressMapper.selectList(queryWrapper);
+        if (progressList.isEmpty()) {
+            return Map.of("scope", scope, "records", List.of());
+        }
+
+        Map<Long, List<UserLevelProgress>> progressByUser = progressList.stream()
+                .collect(Collectors.groupingBy(UserLevelProgress::getUserId, LinkedHashMap::new, Collectors.toCollection(ArrayList::new)));
+        Map<Long, com.excel.forum.entity.User> userMap = userService.listByIds(progressByUser.keySet()).stream()
+                .collect(Collectors.toMap(com.excel.forum.entity.User::getId, item -> item, (left, right) -> left));
+
+        List<Map<String, Object>> records = progressByUser.entrySet().stream()
+                .map(entry -> {
+                    long cleared = entry.getValue().stream().filter(item -> item.getStars() != null && item.getStars() > 0).count();
+                    long perfect = entry.getValue().stream().filter(item -> item.getStars() != null && item.getStars() >= 3).count();
+                    int totalStars = entry.getValue().stream().map(UserLevelProgress::getStars).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+                    int totalScore = entry.getValue().stream().map(UserLevelProgress::getBestScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+                    var user = userMap.get(entry.getKey());
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("userId", entry.getKey());
+                    row.put("username", user == null ? "匿名用户" : user.getUsername());
+                    row.put("avatar", user == null ? null : user.getAvatar());
+                    row.put("clearedLevels", cleared);
+                    row.put("perfectLevels", perfect);
+                    row.put("totalStars", totalStars);
+                    row.put("totalScore", totalScore);
+                    return row;
+                })
+                .sorted(
+                        Comparator.<Map<String, Object>, Integer>comparing(item -> toInt(item.get("totalStars"))).reversed()
+                                .thenComparing(item -> toInt(item.get("perfectLevels")), Comparator.reverseOrder())
+                                .thenComparing(item -> toInt(item.get("totalScore")), Comparator.reverseOrder())
+                )
+                .limit(20)
+                .collect(Collectors.toCollection(ArrayList::new));
+
+        for (int index = 0; index < records.size(); index += 1) {
+            records.get(index).put("rank", index + 1);
+        }
+        return Map.of("scope", scope, "records", records);
+    }
+
+    @Override
     public Map<String, Object> startCampaignLevel(Long levelId, Long userId, PracticeCampaignStartRequest request) {
         if (userId == null) {
             throw new IllegalStateException("未登录");
@@ -266,6 +385,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
 
         syncUserLevelProgress(userId, level, passed, stars, toInt(submitResult.get("score")), usedSeconds, Boolean.TRUE.equals(submitResult.get("firstPass")));
         syncUserChapterProgress(userId);
+        syncUserWrongQuestion(userId, level, passed);
 
         Long nextLevelId = findNextLevelId(level, userId);
         Map<String, Object> response = new LinkedHashMap<>(submitResult);
@@ -541,6 +661,36 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             } else {
                 userChapterProgressMapper.updateById(progress);
             }
+        }
+    }
+
+    private void syncUserWrongQuestion(Long userId, PracticeLevel level, boolean passed) {
+        QueryWrapper<UserWrongQuestion> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).eq("question_id", level.getQuestionId()).last("limit 1");
+        UserWrongQuestion wrong = userWrongQuestionMapper.selectOne(queryWrapper);
+        if (passed) {
+            if (wrong != null) {
+                wrong.setResolved(true);
+                userWrongQuestionMapper.updateById(wrong);
+            }
+            return;
+        }
+
+        if (wrong == null) {
+            wrong = new UserWrongQuestion();
+            wrong.setUserId(userId);
+            wrong.setQuestionId(level.getQuestionId());
+            wrong.setLevelId(level.getId());
+            wrong.setWrongCount(1);
+            wrong.setResolved(false);
+            wrong.setLastWrongTime(java.time.LocalDateTime.now());
+            userWrongQuestionMapper.insert(wrong);
+        } else {
+            wrong.setResolved(false);
+            wrong.setLevelId(level.getId());
+            wrong.setWrongCount((wrong.getWrongCount() == null ? 0 : wrong.getWrongCount()) + 1);
+            wrong.setLastWrongTime(java.time.LocalDateTime.now());
+            userWrongQuestionMapper.updateById(wrong);
         }
     }
 

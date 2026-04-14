@@ -61,6 +61,35 @@ public class PracticeCampaignController {
         }
     }
 
+    @GetMapping("/daily-challenge")
+    public ResponseEntity<?> getDailyChallenge(@RequestAttribute(value = "userId", required = false) Long userId) {
+        try {
+            return ResponseEntity.ok(practiceCampaignService.getDailyChallenge(userId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/wrongs")
+    public ResponseEntity<?> getWrongQuestions(@RequestAttribute(value = "userId", required = false) Long userId) {
+        try {
+            return ResponseEntity.ok(practiceCampaignService.getCampaignWrongQuestions(userId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/rankings")
+    public ResponseEntity<?> getRankings(@org.springframework.web.bind.annotation.RequestParam(defaultValue = "all") String scope) {
+        try {
+            return ResponseEntity.ok(practiceCampaignService.getCampaignRankings(scope));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @PostMapping("/levels/{levelId}/start")
     public ResponseEntity<?> startLevel(
             @PathVariable Long levelId,
