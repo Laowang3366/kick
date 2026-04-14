@@ -9,6 +9,8 @@ import com.excel.forum.entity.PracticeLevel;
 import com.excel.forum.entity.PracticeRecord;
 import com.excel.forum.entity.PracticeWorld;
 import com.excel.forum.entity.Question;
+import com.excel.forum.entity.UserChapterProgress;
+import com.excel.forum.entity.UserLevelProgress;
 import com.excel.forum.entity.dto.PracticeCampaignStartRequest;
 import com.excel.forum.entity.dto.PracticeCampaignSubmitRequest;
 import com.excel.forum.entity.dto.PracticeSubmitAnswerRequest;
@@ -20,6 +22,8 @@ import com.excel.forum.mapper.PracticeChapterMapper;
 import com.excel.forum.mapper.PracticeLevelMapper;
 import com.excel.forum.mapper.PracticeRecordMapper;
 import com.excel.forum.mapper.PracticeWorldMapper;
+import com.excel.forum.mapper.UserChapterProgressMapper;
+import com.excel.forum.mapper.UserLevelProgressMapper;
 import com.excel.forum.service.PracticeCampaignService;
 import com.excel.forum.service.PracticeService;
 import com.excel.forum.service.QuestionCategoryService;
@@ -47,6 +51,8 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     private final PracticeAttemptMapper practiceAttemptMapper;
     private final PracticeRecordMapper practiceRecordMapper;
     private final PracticeAnswerMapper practiceAnswerMapper;
+    private final UserLevelProgressMapper userLevelProgressMapper;
+    private final UserChapterProgressMapper userChapterProgressMapper;
     private final PracticeService practiceService;
     private final QuestionService questionService;
     private final QuestionCategoryService questionCategoryService;
@@ -55,9 +61,8 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     public Map<String, Object> getCampaignOverview(Long userId) {
         List<PracticeChapter> chapters = listEnabledChapters();
         Map<Long, List<PracticeLevel>> levelsByChapterId = listEnabledLevelsByChapterId();
-        Set<Long> passedQuestionIds = findPassedQuestionIds(userId);
-
-        List<Map<String, Object>> chapterSummaries = buildChapterSummaries(chapters, levelsByChapterId, passedQuestionIds);
+        Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
+        List<Map<String, Object>> chapterSummaries = buildChapterSummaries(chapters, levelsByChapterId, progressMap);
         Map<String, Object> currentChapter = chapterSummaries.stream()
                 .filter(item -> Boolean.TRUE.equals(item.get("unlocked")))
                 .findFirst()
@@ -68,7 +73,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             Long chapterId = toLong(currentChapter.get("id"));
             List<Map<String, Object>> levels = buildLevelNodes(
                     levelsByChapterId.getOrDefault(chapterId, List.of()),
-                    passedQuestionIds,
+                    progressMap,
                     Boolean.TRUE.equals(currentChapter.get("unlocked"))
             );
             currentLevel = levels.stream()
@@ -78,10 +83,10 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         }
 
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("totalStars", passedQuestionIds.size());
-        summary.put("clearedLevels", passedQuestionIds.size());
-        summary.put("perfectLevels", 0);
-        summary.put("currentStreak", calculateCurrentStreak(chapters, levelsByChapterId, passedQuestionIds));
+        summary.put("totalStars", progressMap.values().stream().map(UserLevelProgress::getStars).filter(Objects::nonNull).mapToInt(Integer::intValue).sum());
+        summary.put("clearedLevels", progressMap.values().stream().filter(item -> !"locked".equals(item.getStatus())).count());
+        summary.put("perfectLevels", progressMap.values().stream().filter(item -> item.getStars() != null && item.getStars() >= 3).count());
+        summary.put("currentStreak", calculateCurrentStreak(chapters, levelsByChapterId, progressMap));
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("world", buildWorldPayload());
@@ -96,11 +101,11 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     public Map<String, Object> getCampaignChapters(Long userId) {
         List<PracticeChapter> chapters = listEnabledChapters();
         Map<Long, List<PracticeLevel>> levelsByChapterId = listEnabledLevelsByChapterId();
-        Set<Long> passedQuestionIds = findPassedQuestionIds(userId);
+        Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("world", buildWorldPayload());
-        response.put("chapters", buildChapterSummaries(chapters, levelsByChapterId, passedQuestionIds));
+        response.put("chapters", buildChapterSummaries(chapters, levelsByChapterId, progressMap));
         return response;
     }
 
@@ -113,8 +118,8 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
 
         List<PracticeChapter> allChapters = listEnabledChapters();
         Map<Long, List<PracticeLevel>> levelsByChapterId = listEnabledLevelsByChapterId();
-        Set<Long> passedQuestionIds = findPassedQuestionIds(userId);
-        Map<Long, Map<String, Object>> chapterSummaryMap = buildChapterSummaries(allChapters, levelsByChapterId, passedQuestionIds)
+        Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
+        Map<Long, Map<String, Object>> chapterSummaryMap = buildChapterSummaries(allChapters, levelsByChapterId, progressMap)
                 .stream()
                 .collect(Collectors.toMap(item -> toLong(item.get("id")), item -> item, (left, right) -> left, LinkedHashMap::new));
 
@@ -122,7 +127,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         response.put("chapter", chapterSummaryMap.get(chapterId));
         response.put("levels", buildLevelNodes(
                 levelsByChapterId.getOrDefault(chapterId, List.of()),
-                passedQuestionIds,
+                progressMap,
                 Boolean.TRUE.equals(chapterSummaryMap.getOrDefault(chapterId, Map.of()).get("unlocked"))
         ));
         return response;
@@ -137,14 +142,14 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
 
         PracticeChapter chapter = practiceChapterMapper.selectById(level.getChapterId());
         Question question = questionService.getById(level.getQuestionId());
-        Set<Long> passedQuestionIds = findPassedQuestionIds(userId);
+        Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
         List<PracticeChapter> allChapters = listEnabledChapters();
         Map<Long, List<PracticeLevel>> levelsByChapterId = listEnabledLevelsByChapterId();
-        Map<Long, Map<String, Object>> chapterSummaryMap = buildChapterSummaries(allChapters, levelsByChapterId, passedQuestionIds)
+        Map<Long, Map<String, Object>> chapterSummaryMap = buildChapterSummaries(allChapters, levelsByChapterId, progressMap)
                 .stream()
                 .collect(Collectors.toMap(item -> toLong(item.get("id")), item -> item, (left, right) -> left, LinkedHashMap::new));
         boolean chapterUnlocked = Boolean.TRUE.equals(chapterSummaryMap.getOrDefault(level.getChapterId(), Map.of()).get("unlocked"));
-        Map<String, Object> levelNode = buildLevelNodes(levelsByChapterId.getOrDefault(level.getChapterId(), List.of()), passedQuestionIds, chapterUnlocked)
+        Map<String, Object> levelNode = buildLevelNodes(levelsByChapterId.getOrDefault(level.getChapterId(), List.of()), progressMap, chapterUnlocked)
                 .stream()
                 .filter(item -> levelId.equals(toLong(item.get("id"))))
                 .findFirst()
@@ -236,7 +241,18 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
 
         Map<String, Object> submitResult = practiceService.submitPractice(userId, submitRequest);
         boolean passed = toInt(submitResult.get("correctCount")) > 0;
-        int stars = passed ? 1 : 0;
+        int usedSeconds = request.getUsedSeconds() == null ? 0 : request.getUsedSeconds();
+        int targetSeconds = level.getTargetTimeSeconds() == null ? 0 : level.getTargetTimeSeconds();
+        int stars = 0;
+        if (passed) {
+            stars = 1;
+            if (targetSeconds <= 0 || usedSeconds <= targetSeconds) {
+                stars = 2;
+            }
+            if (targetSeconds > 0 && usedSeconds > 0 && usedSeconds <= Math.max(1, Math.round(targetSeconds * 0.6f))) {
+                stars = 3;
+            }
+        }
 
         attempt.setUsedSeconds(request.getUsedSeconds());
         attempt.setResultStatus(passed ? "passed" : "failed");
@@ -248,7 +264,10 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         attempt.setIsFirstPass(Boolean.TRUE.equals(submitResult.get("firstPass")));
         practiceAttemptMapper.updateById(attempt);
 
-        Long nextLevelId = findNextLevelId(level);
+        syncUserLevelProgress(userId, level, passed, stars, toInt(submitResult.get("score")), usedSeconds, Boolean.TRUE.equals(submitResult.get("firstPass")));
+        syncUserChapterProgress(userId);
+
+        Long nextLevelId = findNextLevelId(level, userId);
         Map<String, Object> response = new LinkedHashMap<>(submitResult);
         response.put("passed", passed);
         response.put("stars", stars);
@@ -288,15 +307,27 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     private List<Map<String, Object>> buildChapterSummaries(
             List<PracticeChapter> chapters,
             Map<Long, List<PracticeLevel>> levelsByChapterId,
-            Set<Long> passedQuestionIds) {
+            Map<Long, UserLevelProgress> progressMap) {
         List<Map<String, Object>> result = new ArrayList<>();
         boolean unlockNextChapter = true;
 
         for (PracticeChapter chapter : chapters) {
             List<PracticeLevel> levels = levelsByChapterId.getOrDefault(chapter.getId(), List.of());
             int totalLevels = levels.size();
-            int clearedLevels = (int) levels.stream().filter(item -> passedQuestionIds.contains(item.getQuestionId())).count();
-            int totalStars = clearedLevels;
+            int clearedLevels = (int) levels.stream()
+                    .filter(item -> {
+                        UserLevelProgress progress = progressMap.get(item.getId());
+                        return progress != null && progress.getStars() != null && progress.getStars() > 0;
+                    })
+                    .count();
+            int totalStars = levels.stream()
+                    .map(PracticeLevel::getId)
+                    .map(progressMap::get)
+                    .filter(Objects::nonNull)
+                    .map(UserLevelProgress::getStars)
+                    .filter(Objects::nonNull)
+                    .mapToInt(Integer::intValue)
+                    .sum();
             boolean completed = totalLevels > 0 && clearedLevels >= totalLevels;
             boolean unlocked = unlockNextChapter;
             unlockNextChapter = completed;
@@ -321,14 +352,18 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         return result;
     }
 
-    private List<Map<String, Object>> buildLevelNodes(List<PracticeLevel> levels, Set<Long> passedQuestionIds, boolean chapterUnlocked) {
+    private List<Map<String, Object>> buildLevelNodes(List<PracticeLevel> levels, Map<Long, UserLevelProgress> progressMap, boolean chapterUnlocked) {
         List<Map<String, Object>> result = new ArrayList<>();
         boolean unlockNextLevel = chapterUnlocked;
 
         for (PracticeLevel level : levels) {
-            boolean cleared = passedQuestionIds.contains(level.getQuestionId());
+            UserLevelProgress progress = progressMap.get(level.getId());
+            boolean cleared = progress != null && progress.getStars() != null && progress.getStars() > 0;
             String status;
-            if (cleared) {
+            if (progress != null && progress.getStars() != null && progress.getStars() >= 3) {
+                status = "perfect";
+                unlockNextLevel = true;
+            } else if (cleared) {
                 status = "cleared";
                 unlockNextLevel = true;
             } else if (unlockNextLevel) {
@@ -346,7 +381,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             item.put("levelType", level.getLevelType());
             item.put("difficulty", level.getDifficulty());
             item.put("status", status);
-            item.put("stars", cleared ? 1 : 0);
+            item.put("stars", progress == null || progress.getStars() == null ? 0 : progress.getStars());
             item.put("targetTimeSeconds", level.getTargetTimeSeconds());
             item.put("rewardExp", level.getRewardExp());
             item.put("rewardPoints", level.getRewardPoints());
@@ -381,11 +416,12 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     private int calculateCurrentStreak(
             List<PracticeChapter> chapters,
             Map<Long, List<PracticeLevel>> levelsByChapterId,
-            Set<Long> passedQuestionIds) {
+            Map<Long, UserLevelProgress> progressMap) {
         int streak = 0;
         for (PracticeChapter chapter : chapters) {
             for (PracticeLevel level : levelsByChapterId.getOrDefault(chapter.getId(), List.of())) {
-                if (passedQuestionIds.contains(level.getQuestionId())) {
+                UserLevelProgress progress = progressMap.get(level.getId());
+                if (progress != null && progress.getStars() != null && progress.getStars() > 0) {
                     streak += 1;
                 } else {
                     return streak;
@@ -395,25 +431,15 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         return streak;
     }
 
-    private Set<Long> findPassedQuestionIds(Long userId) {
+    private Map<Long, UserLevelProgress> findUserLevelProgressMap(Long userId) {
         if (userId == null) {
-            return Set.of();
+            return Map.of();
         }
-        QueryWrapper<PracticeRecord> recordQuery = new QueryWrapper<>();
-        recordQuery.eq("user_id", userId).eq("status", "submitted").select("id");
-        List<Long> recordIds = practiceRecordMapper.selectList(recordQuery).stream()
-                .map(PracticeRecord::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (recordIds.isEmpty()) {
-            return Set.of();
-        }
-        QueryWrapper<PracticeAnswer> answerQuery = new QueryWrapper<>();
-        answerQuery.in("record_id", recordIds).eq("is_correct", true).select("question_id");
-        return practiceAnswerMapper.selectList(answerQuery).stream()
-                .map(PracticeAnswer::getQuestionId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        QueryWrapper<UserLevelProgress> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId);
+        return userLevelProgressMapper.selectList(queryWrapper).stream()
+                .filter(item -> item.getLevelId() != null)
+                .collect(Collectors.toMap(UserLevelProgress::getLevelId, item -> item, (left, right) -> left, LinkedHashMap::new));
     }
 
     private String resolveQuestionCategoryName(Long questionCategoryId) {
@@ -424,17 +450,98 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         return category == null ? "未分类挑战" : category.getName();
     }
 
-    private Long findNextLevelId(PracticeLevel currentLevel) {
+    private Long findNextLevelId(PracticeLevel currentLevel, Long userId) {
         List<PracticeLevel> levels = listEnabledLevelsByChapterId().getOrDefault(currentLevel.getChapterId(), List.of());
         for (int i = 0; i < levels.size(); i += 1) {
             if (Objects.equals(levels.get(i).getId(), currentLevel.getId())) {
                 if (i + 1 < levels.size()) {
                     return levels.get(i + 1).getId();
                 }
-                return null;
+                break;
             }
         }
+        List<PracticeChapter> chapters = listEnabledChapters();
+        Map<Long, List<PracticeLevel>> levelsByChapterId = listEnabledLevelsByChapterId();
+        Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
+        List<Map<String, Object>> chapterSummaries = buildChapterSummaries(chapters, levelsByChapterId, progressMap);
+        Long currentChapterId = currentLevel.getChapterId();
+        for (int i = 0; i < chapterSummaries.size(); i += 1) {
+          if (Objects.equals(toLong(chapterSummaries.get(i).get("id")), currentChapterId) && i + 1 < chapterSummaries.size()) {
+              Map<String, Object> nextChapter = chapterSummaries.get(i + 1);
+              if (Boolean.TRUE.equals(nextChapter.get("unlocked"))) {
+                  List<PracticeLevel> nextLevels = levelsByChapterId.getOrDefault(toLong(nextChapter.get("id")), List.of());
+                  return nextLevels.isEmpty() ? null : nextLevels.get(0).getId();
+              }
+          }
+        }
         return null;
+    }
+
+    private void syncUserLevelProgress(Long userId, PracticeLevel level, boolean passed, int stars, int score, int usedSeconds, boolean firstPass) {
+        QueryWrapper<UserLevelProgress> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId).eq("level_id", level.getId()).last("limit 1");
+        UserLevelProgress progress = userLevelProgressMapper.selectOne(queryWrapper);
+        if (progress == null) {
+            progress = new UserLevelProgress();
+            progress.setUserId(userId);
+            progress.setLevelId(level.getId());
+            progress.setStatus("locked");
+            progress.setStars(0);
+            progress.setBestScore(0);
+            progress.setPassCount(0);
+            progress.setFailCount(0);
+        }
+        progress.setLastAttemptTime(java.time.LocalDateTime.now());
+        progress.setBestScore(Math.max(progress.getBestScore() == null ? 0 : progress.getBestScore(), score));
+        if (usedSeconds > 0 && (progress.getBestTimeSeconds() == null || progress.getBestTimeSeconds() <= 0 || usedSeconds < progress.getBestTimeSeconds())) {
+            progress.setBestTimeSeconds(usedSeconds);
+        }
+        if (passed) {
+            progress.setStatus(stars >= 3 ? "perfect" : "cleared");
+            progress.setStars(Math.max(progress.getStars() == null ? 0 : progress.getStars(), stars));
+            progress.setPassCount((progress.getPassCount() == null ? 0 : progress.getPassCount()) + 1);
+            if (firstPass && progress.getFirstPassTime() == null) {
+                progress.setFirstPassTime(java.time.LocalDateTime.now());
+            }
+        } else {
+            progress.setFailCount((progress.getFailCount() == null ? 0 : progress.getFailCount()) + 1);
+            if (!"cleared".equals(progress.getStatus()) && !"perfect".equals(progress.getStatus())) {
+                progress.setStatus("available");
+            }
+        }
+        if (progress.getId() == null) {
+            userLevelProgressMapper.insert(progress);
+        } else {
+            userLevelProgressMapper.updateById(progress);
+        }
+    }
+
+    private void syncUserChapterProgress(Long userId) {
+        List<PracticeChapter> chapters = listEnabledChapters();
+        Map<Long, List<PracticeLevel>> levelsByChapterId = listEnabledLevelsByChapterId();
+        Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
+        List<Map<String, Object>> summaries = buildChapterSummaries(chapters, levelsByChapterId, progressMap);
+
+        for (Map<String, Object> summary : summaries) {
+            Long chapterId = toLong(summary.get("id"));
+            QueryWrapper<UserChapterProgress> queryWrapper = new QueryWrapper<>();
+            queryWrapper.eq("user_id", userId).eq("chapter_id", chapterId).last("limit 1");
+            UserChapterProgress progress = userChapterProgressMapper.selectOne(queryWrapper);
+            if (progress == null) {
+                progress = new UserChapterProgress();
+                progress.setUserId(userId);
+                progress.setChapterId(chapterId);
+            }
+            progress.setUnlocked(Boolean.TRUE.equals(summary.get("unlocked")));
+            progress.setCompleted(Boolean.TRUE.equals(summary.get("completed")));
+            progress.setTotalStars(toInt(summary.get("totalStars")));
+            progress.setClearedLevels(toInt(summary.get("clearedLevels")));
+            if (progress.getId() == null) {
+                userChapterProgressMapper.insert(progress);
+            } else {
+                userChapterProgressMapper.updateById(progress);
+            }
+        }
     }
 
     private int toInt(Object value) {

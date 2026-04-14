@@ -61,6 +61,7 @@ export function PracticeCampaignChapter() {
           const isLocked = level.status === "locked";
           const isBoss = level.levelType === "boss";
           const isAvailable = level.status === "available";
+          const isPerfect = level.status === "perfect";
 
           return (
             <motion.button
@@ -95,6 +96,9 @@ export function PracticeCampaignChapter() {
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-600">{level.difficulty}</span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-600">{level.levelType}</span>
+                {isPerfect ? (
+                  <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-black text-amber-600">满星通关</span>
+                ) : null}
                 {level.status === "cleared" ? (
                   <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-600">已通关</span>
                 ) : null}

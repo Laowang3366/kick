@@ -24,7 +24,7 @@ export function PracticeCampaignResult() {
 
   const record = recordQuery.data;
   const passed = record ? (record.correctCount || 0) > 0 : passedFromState;
-  const stars = record ? ((record.correctCount || 0) > 0 ? 1 : 0) : starsFromState;
+  const stars = record ? Math.max(((record.correctCount || 0) > 0 ? 1 : 0), starsFromState) : starsFromState;
 
   return (
     <div className="mx-auto max-w-[960px] px-4 py-5 sm:px-6 sm:py-6">
@@ -79,7 +79,7 @@ export function PracticeCampaignResult() {
             <div className="mt-3 text-lg font-black text-slate-900">{campaignChapter?.name || record?.questionCategoryName || "当前章节"}</div>
             <div className="mt-2 text-sm leading-7 text-slate-500">
               提交时间：{record?.submitTime ? formatDateTime(record.submitTime) : "-"}。
-              当前版本已打通闯关结算主链路，下一阶段将继续补齐三星评分、首通奖励和下一关自动解锁回写。
+              当前版本已接入闯关记录、基础三星结算和章节解锁。后续会继续补首通奖励、每日挑战和错题本。
             </div>
           </div>
 
