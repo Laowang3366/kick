@@ -2140,11 +2140,39 @@ public class AdminController {
             item.put("questionTitle", question == null ? "-" : question.getTitle());
             item.put("difficulty", defaultText(level.getDifficulty(), "easy"));
             item.put("levelType", defaultText(level.getLevelType(), "normal"));
+            item.put("targetTimeSeconds", safeInt(level.getTargetTimeSeconds()));
             item.put("rewardExp", safeInt(level.getRewardExp()));
             item.put("rewardPoints", safeInt(level.getRewardPoints()));
+            item.put("firstPassBonus", safeInt(level.getFirstPassBonus()));
+            item.put("enabled", level.getEnabled() == null || level.getEnabled());
             return item;
         }).toList();
         return ResponseEntity.ok(Map.of("records", records));
+    }
+
+    @PutMapping("/practice-campaign/levels/{id}")
+    public ResponseEntity<?> updatePracticeCampaignLevel(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        PracticeLevel level = practiceLevelMapper.selectById(id);
+        if (level == null) {
+            return ResponseEntity.notFound().build();
+        }
+        String levelType = body.get("levelType") == null ? level.getLevelType() : String.valueOf(body.get("levelType")).trim();
+        String difficulty = body.get("difficulty") == null ? level.getDifficulty() : String.valueOf(body.get("difficulty")).trim();
+        Integer targetTimeSeconds = body.get("targetTimeSeconds") == null ? level.getTargetTimeSeconds() : parseInteger(body.get("targetTimeSeconds"));
+        Integer rewardExp = body.get("rewardExp") == null ? level.getRewardExp() : parseInteger(body.get("rewardExp"));
+        Integer rewardPoints = body.get("rewardPoints") == null ? level.getRewardPoints() : parseInteger(body.get("rewardPoints"));
+        Integer firstPassBonus = body.get("firstPassBonus") == null ? level.getFirstPassBonus() : parseInteger(body.get("firstPassBonus"));
+        Boolean enabled = body.get("enabled") == null ? level.getEnabled() : parseBoolean(body.get("enabled"), true);
+
+        level.setLevelType(defaultText(levelType, "normal"));
+        level.setDifficulty(defaultText(difficulty, "easy"));
+        level.setTargetTimeSeconds(targetTimeSeconds == null ? 300 : Math.max(30, targetTimeSeconds));
+        level.setRewardExp(rewardExp == null ? 10 : Math.max(0, rewardExp));
+        level.setRewardPoints(rewardPoints == null ? 5 : Math.max(0, rewardPoints));
+        level.setFirstPassBonus(firstPassBonus == null ? 0 : Math.max(0, firstPassBonus));
+        level.setEnabled(enabled);
+        practiceLevelMapper.updateById(level);
+        return ResponseEntity.ok(Map.of("message", "关卡配置已更新"));
     }
 
     @GetMapping("/practice-campaign/daily-challenge")

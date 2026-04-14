@@ -2167,6 +2167,17 @@ export function AdminQuestions() {
     rewardPoints: "",
     enabled: true,
   });
+  const [levelConfigOpen, setLevelConfigOpen] = useState(false);
+  const [levelConfigEditing, setLevelConfigEditing] = useState<any>(null);
+  const [levelConfigForm, setLevelConfigForm] = useState<any>({
+    levelType: "normal",
+    difficulty: "easy",
+    targetTimeSeconds: "300",
+    rewardExp: "10",
+    rewardPoints: "5",
+    firstPassBonus: "0",
+    enabled: true,
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>(defaultQuestionForm());
@@ -2431,6 +2442,47 @@ export function AdminQuestions() {
     ]);
   };
 
+  const openLevelConfig = (item: any) => {
+    setLevelConfigEditing(item);
+    setLevelConfigForm({
+      levelType: item.levelType || "normal",
+      difficulty: item.difficulty || "easy",
+      targetTimeSeconds: String(item.targetTimeSeconds ?? 300),
+      rewardExp: String(item.rewardExp ?? 10),
+      rewardPoints: String(item.rewardPoints ?? 5),
+      firstPassBonus: String(item.firstPassBonus ?? 0),
+      enabled: item.enabled ?? true,
+    });
+    setLevelConfigOpen(true);
+  };
+
+  const submitLevelConfig = async () => {
+    if (!levelConfigEditing?.id) return;
+    const payload = {
+      levelType: levelConfigForm.levelType,
+      difficulty: levelConfigForm.difficulty,
+      targetTimeSeconds: Number(levelConfigForm.targetTimeSeconds || 300),
+      rewardExp: Number(levelConfigForm.rewardExp || 0),
+      rewardPoints: Number(levelConfigForm.rewardPoints || 0),
+      firstPassBonus: Number(levelConfigForm.firstPassBonus || 0),
+      enabled: Boolean(levelConfigForm.enabled),
+    };
+    const result = await adminRequest(
+      api.put(`/api/admin/practice-campaign/levels/${levelConfigEditing.id}`, payload),
+      navigate,
+      role,
+      "更新闯关关卡",
+    );
+    if (!result) return;
+    setLevelConfigOpen(false);
+    showAdminSuccess(`关卡《${levelConfigEditing.title}》已更新`);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminKeys.practiceCampaignLevels() }),
+      queryClient.invalidateQueries({ queryKey: practiceKeys.campaignOverview() }),
+      queryClient.invalidateQueries({ queryKey: practiceKeys.campaignChapters() }),
+    ]);
+  };
+
   const handleTemplateUpload = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
@@ -2583,6 +2635,63 @@ export function AdminQuestions() {
         </FilterBar>
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
           当前每日挑战会展示在闯关大厅的“每日挑战”入口中。未配置时，前台会自动回退到当前可挑战关卡。
+        </div>
+      </AdminSection>
+
+      <AdminSection title="闯关关卡配置" description="统一调整关卡类型、目标时间、奖励经验、奖励积分和首通额外奖励。">
+        <div className="mt-5">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>关卡</TableHead>
+                <TableHead>章节 / 题目</TableHead>
+                <TableHead>类型 / 难度</TableHead>
+                <TableHead>目标 / 奖励</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {campaignLevels.map((item: any) => (
+                <TableRow key={`campaign-level-${item.id}`}>
+                  <TableCell>
+                    <div className="font-bold text-slate-800">{item.title}</div>
+                    <div className="mt-1 text-xs text-slate-400">ID {item.id}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium text-slate-700">{item.chapterName || "-"}</div>
+                    <div className="mt-1 text-xs text-slate-400">{item.questionTitle || "-"}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div>{item.levelType || "normal"}</div>
+                    <div className="mt-1 text-xs text-slate-400">{item.difficulty || "easy"}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div>目标 {item.targetTimeSeconds || 0}s</div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      经验 {item.rewardExp || 0} · 积分 {item.rewardPoints || 0} · 首通 {item.firstPassBonus || 0}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <AdminTableSwitch
+                      checked={Boolean(item.enabled)}
+                      onCheckedChange={(next) => {
+                        openLevelConfig({ ...item, enabled: next });
+                        setLevelConfigForm((prev: any) => ({ ...prev, enabled: next }));
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <button type="button" onClick={() => openLevelConfig(item)} className={secondaryButtonClassName()}>
+                      <Edit3 size={14} />
+                      配置
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {campaignLevels.length === 0 && <AdminEmptyState message="暂无闯关关卡数据。" />}
         </div>
       </AdminSection>
 
@@ -2868,6 +2977,52 @@ export function AdminQuestions() {
           label="启用该题目"
           checked={Boolean(form.enabled)}
           onCheckedChange={(next) => setForm((prev: any) => ({ ...prev, enabled: next }))}
+        />
+      </FormDialog>
+
+      <FormDialog
+        open={levelConfigOpen}
+        onOpenChange={setLevelConfigOpen}
+        title={levelConfigEditing ? `配置关卡：${levelConfigEditing.title}` : "配置闯关关卡"}
+        description="调整关卡类型、目标时间、奖励经验、奖励积分与首通额外奖励。"
+        submitLabel="保存关卡配置"
+        onSubmit={submitLevelConfig}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="关卡类型">
+            <select value={levelConfigForm.levelType} onChange={(e) => setLevelConfigForm((prev: any) => ({ ...prev, levelType: e.target.value }))} className={inputClassName()}>
+              <option value="normal">普通关</option>
+              <option value="elite">精英关</option>
+              <option value="exam">测验关</option>
+              <option value="boss">Boss关</option>
+              <option value="daily">每日挑战</option>
+            </select>
+          </Field>
+          <Field label="难度">
+            <select value={levelConfigForm.difficulty} onChange={(e) => setLevelConfigForm((prev: any) => ({ ...prev, difficulty: e.target.value }))} className={inputClassName()}>
+              <option value="easy">简单</option>
+              <option value="medium">普通</option>
+              <option value="hard">困难</option>
+              <option value="expert">专家</option>
+            </select>
+          </Field>
+          <Field label="目标时间（秒）">
+            <input type="number" value={levelConfigForm.targetTimeSeconds} onChange={(e) => setLevelConfigForm((prev: any) => ({ ...prev, targetTimeSeconds: e.target.value }))} className={inputClassName()} />
+          </Field>
+          <Field label="奖励经验">
+            <input type="number" value={levelConfigForm.rewardExp} onChange={(e) => setLevelConfigForm((prev: any) => ({ ...prev, rewardExp: e.target.value }))} className={inputClassName()} />
+          </Field>
+          <Field label="奖励积分">
+            <input type="number" value={levelConfigForm.rewardPoints} onChange={(e) => setLevelConfigForm((prev: any) => ({ ...prev, rewardPoints: e.target.value }))} className={inputClassName()} />
+          </Field>
+          <Field label="首通额外奖励">
+            <input type="number" value={levelConfigForm.firstPassBonus} onChange={(e) => setLevelConfigForm((prev: any) => ({ ...prev, firstPassBonus: e.target.value }))} className={inputClassName()} />
+          </Field>
+        </div>
+        <AdminFormSwitch
+          label="启用该关卡"
+          checked={Boolean(levelConfigForm.enabled)}
+          onCheckedChange={(next) => setLevelConfigForm((prev: any) => ({ ...prev, enabled: next }))}
         />
       </FormDialog>
     </AdminPageShell>
