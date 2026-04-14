@@ -4,9 +4,12 @@ import com.excel.forum.config.ExperienceProperties;
 import com.excel.forum.config.GlobalExceptionHandler;
 import com.excel.forum.mapper.AdminLogMapper;
 import com.excel.forum.mapper.CheckinRecordMapper;
+import com.excel.forum.mapper.DailyChallengeMapper;
 import com.excel.forum.mapper.PostEditHistoryMapper;
 import com.excel.forum.mapper.PracticeAnswerMapper;
+import com.excel.forum.mapper.PracticeChapterMapper;
 import com.excel.forum.mapper.PracticeRecordMapper;
+import com.excel.forum.mapper.PracticeLevelMapper;
 import com.excel.forum.util.HtmlSanitizer;
 import com.excel.forum.service.ExperienceRuleService;
 import com.excel.forum.service.ExperienceLevelRuleService;
@@ -170,6 +173,15 @@ class RequestParsingErrorTest {
     private PracticeAnswerMapper practiceAnswerMapper;
 
     @Mock
+    private PracticeLevelMapper practiceLevelMapper;
+
+    @Mock
+    private PracticeChapterMapper practiceChapterMapper;
+
+    @Mock
+    private DailyChallengeMapper dailyChallengeMapper;
+
+    @Mock
     private CheckinRecordMapper checkinRecordMapper;
 
     @Mock
@@ -240,6 +252,9 @@ class RequestParsingErrorTest {
                 experienceLevelRuleService,
                 userEntitlementService,
                 excelTemplateGradingService,
+                practiceLevelMapper,
+                practiceChapterMapper,
+                dailyChallengeMapper,
                 practiceRecordMapper,
                 practiceAnswerMapper,
                 checkinRecordMapper,

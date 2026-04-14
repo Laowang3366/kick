@@ -41,7 +41,7 @@ import {
   selectionToRangeRef,
 } from "../lib/excel";
 import { normalizeImageUrl } from "../lib/mappers";
-import { adminKeys } from "../lib/query-keys";
+import { adminKeys, practiceKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
 import {
   canAccessAdminPath,
@@ -2160,6 +2160,13 @@ export function AdminQuestions() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [questionCategoryId, setQuestionCategoryId] = useState("");
+  const [dailyChallengeForm, setDailyChallengeForm] = useState<any>({
+    challengeDate: "",
+    levelId: "",
+    rewardExp: "",
+    rewardPoints: "",
+    enabled: true,
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>(defaultQuestionForm());
@@ -2199,6 +2206,35 @@ export function AdminQuestions() {
   const records = questionsQuery.data?.questions || [];
   const total = questionsQuery.data?.total || 0;
   const questionCategories = questionCategoriesQuery.data || [];
+  const campaignLevelsQuery = useQuery({
+    queryKey: adminKeys.practiceCampaignLevels(),
+    enabled: Boolean(role),
+    queryFn: async () => {
+      const result = await adminRequest<any>(api.get("/api/admin/practice-campaign/levels", { silent: true }), navigate, role);
+      return result || { records: [] };
+    },
+  });
+  const campaignDailyQuery = useQuery({
+    queryKey: adminKeys.practiceCampaignDaily(),
+    enabled: Boolean(role),
+    queryFn: async () => {
+      const result = await adminRequest<any>(api.get("/api/admin/practice-campaign/daily-challenge", { silent: true }), navigate, role);
+      return result || { record: {} };
+    },
+  });
+  const campaignLevels = campaignLevelsQuery.data?.records || [];
+
+  useEffect(() => {
+    const record = campaignDailyQuery.data?.record;
+    if (!record) return;
+    setDailyChallengeForm({
+      challengeDate: record.challengeDate || "",
+      levelId: record.levelId ? String(record.levelId) : "",
+      rewardExp: record.rewardExp ?? "",
+      rewardPoints: record.rewardPoints ?? "",
+      enabled: record.enabled ?? true,
+    });
+  }, [campaignDailyQuery.data]);
 
   const resetEditorState = () => {
     setTemplateWorkbook({ sheets: [] });
@@ -2372,6 +2408,29 @@ export function AdminQuestions() {
     });
   };
 
+  const submitDailyChallenge = async () => {
+    const payload = {
+      challengeDate: dailyChallengeForm.challengeDate || undefined,
+      levelId: Number(dailyChallengeForm.levelId || 0),
+      rewardExp: Number(dailyChallengeForm.rewardExp || 0),
+      rewardPoints: Number(dailyChallengeForm.rewardPoints || 0),
+      enabled: Boolean(dailyChallengeForm.enabled),
+    };
+    const result = await adminRequest(
+      api.put("/api/admin/practice-campaign/daily-challenge", payload),
+      navigate,
+      role,
+      "更新每日挑战",
+    );
+    if (!result) return;
+    showAdminSuccess("每日挑战配置已更新");
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: adminKeys.practiceCampaignDaily() }),
+      queryClient.invalidateQueries({ queryKey: practiceKeys.campaignDaily() }),
+      queryClient.invalidateQueries({ queryKey: practiceKeys.campaignOverview() }),
+    ]);
+  };
+
   const handleTemplateUpload = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
@@ -2475,6 +2534,58 @@ export function AdminQuestions() {
       title="题库管理"
       description="管理 Excel 模板题，配置答题区域、标准答案与判题方式。"
     >
+      <AdminSection title="闯关每日挑战配置">
+        <FilterBar>
+          <FilterField label="挑战日期">
+            <input
+              type="date"
+              value={dailyChallengeForm.challengeDate}
+              onChange={(e) => setDailyChallengeForm((prev: any) => ({ ...prev, challengeDate: e.target.value }))}
+              className={inputClassName()}
+            />
+          </FilterField>
+          <FilterField label="挑战关卡">
+            <select
+              value={dailyChallengeForm.levelId}
+              onChange={(e) => setDailyChallengeForm((prev: any) => ({ ...prev, levelId: e.target.value }))}
+              className={inputClassName()}
+            >
+              <option value="">请选择关卡</option>
+              {campaignLevels.map((item: any) => (
+                <option key={item.id} value={item.id}>
+                  {item.chapterName} / {item.title}
+                </option>
+              ))}
+            </select>
+          </FilterField>
+          <FilterField label="奖励经验">
+            <input
+              type="number"
+              value={dailyChallengeForm.rewardExp}
+              onChange={(e) => setDailyChallengeForm((prev: any) => ({ ...prev, rewardExp: e.target.value }))}
+              className={inputClassName()}
+            />
+          </FilterField>
+          <FilterField label="奖励积分">
+            <input
+              type="number"
+              value={dailyChallengeForm.rewardPoints}
+              onChange={(e) => setDailyChallengeForm((prev: any) => ({ ...prev, rewardPoints: e.target.value }))}
+              className={inputClassName()}
+            />
+          </FilterField>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void submitDailyChallenge()} className={primaryButtonClassName()}>
+              <Sparkles size={14} />
+              保存每日挑战
+            </button>
+          </div>
+        </FilterBar>
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+          当前每日挑战会展示在闯关大厅的“每日挑战”入口中。未配置时，前台会自动回退到当前可挑战关卡。
+        </div>
+      </AdminSection>
+
       <AdminSection title="题目列表" actions={<AddButton onClick={openCreate}>新增题目</AddButton>}>
         <FilterBar>
           <FilterField label="题目分类">

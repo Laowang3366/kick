@@ -248,24 +248,75 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
 
     @Override
     public Map<String, Object> getCampaignRankings(String scope) {
-        QueryWrapper<UserLevelProgress> queryWrapper = new QueryWrapper<>();
-        queryWrapper.ne("status", "locked");
-        List<UserLevelProgress> progressList = userLevelProgressMapper.selectList(queryWrapper);
-        if (progressList.isEmpty()) {
-            return Map.of("scope", scope, "records", List.of());
+        String normalizedScope = scope == null || scope.isBlank() ? "all" : scope.trim().toLowerCase();
+        if ("all".equals(normalizedScope)) {
+            QueryWrapper<UserLevelProgress> queryWrapper = new QueryWrapper<>();
+            queryWrapper.ne("status", "locked");
+            List<UserLevelProgress> progressList = userLevelProgressMapper.selectList(queryWrapper);
+            if (progressList.isEmpty()) {
+                return Map.of("scope", normalizedScope, "records", List.of());
+            }
+
+            Map<Long, List<UserLevelProgress>> progressByUser = progressList.stream()
+                    .collect(Collectors.groupingBy(UserLevelProgress::getUserId, LinkedHashMap::new, Collectors.toCollection(ArrayList::new)));
+            Map<Long, com.excel.forum.entity.User> userMap = userService.listByIds(progressByUser.keySet()).stream()
+                    .collect(Collectors.toMap(com.excel.forum.entity.User::getId, item -> item, (left, right) -> left));
+
+            List<Map<String, Object>> records = progressByUser.entrySet().stream()
+                    .map(entry -> {
+                        long cleared = entry.getValue().stream().filter(item -> item.getStars() != null && item.getStars() > 0).count();
+                        long perfect = entry.getValue().stream().filter(item -> item.getStars() != null && item.getStars() >= 3).count();
+                        int totalStars = entry.getValue().stream().map(UserLevelProgress::getStars).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+                        int totalScore = entry.getValue().stream().map(UserLevelProgress::getBestScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+                        var user = userMap.get(entry.getKey());
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("userId", entry.getKey());
+                        row.put("username", user == null ? "匿名用户" : user.getUsername());
+                        row.put("avatar", user == null ? null : user.getAvatar());
+                        row.put("clearedLevels", cleared);
+                        row.put("perfectLevels", perfect);
+                        row.put("totalStars", totalStars);
+                        row.put("totalScore", totalScore);
+                        return row;
+                    })
+                    .sorted(
+                            Comparator.<Map<String, Object>, Integer>comparing(item -> toInt(item.get("totalStars"))).reversed()
+                                    .thenComparing(item -> toInt(item.get("perfectLevels")), Comparator.reverseOrder())
+                                    .thenComparing(item -> toInt(item.get("totalScore")), Comparator.reverseOrder())
+                    )
+                    .limit(20)
+                    .collect(Collectors.toCollection(ArrayList::new));
+
+            for (int index = 0; index < records.size(); index += 1) {
+                records.get(index).put("rank", index + 1);
+            }
+            return Map.of("scope", normalizedScope, "records", records);
         }
 
-        Map<Long, List<UserLevelProgress>> progressByUser = progressList.stream()
-                .collect(Collectors.groupingBy(UserLevelProgress::getUserId, LinkedHashMap::new, Collectors.toCollection(ArrayList::new)));
-        Map<Long, com.excel.forum.entity.User> userMap = userService.listByIds(progressByUser.keySet()).stream()
-                .collect(Collectors.toMap(com.excel.forum.entity.User::getId, item -> item, (left, right) -> left));
+        QueryWrapper<PracticeAttempt> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("result_status", "passed");
+        if ("daily".equals(normalizedScope)) {
+            queryWrapper.ge("submit_time", LocalDate.now().atStartOfDay());
+        } else if ("weekly".equals(normalizedScope)) {
+            queryWrapper.ge("submit_time", LocalDate.now().minusDays(6).atStartOfDay());
+        }
+        List<PracticeAttempt> attempts = practiceAttemptMapper.selectList(queryWrapper);
+        if (attempts.isEmpty()) {
+            return Map.of("scope", normalizedScope, "records", List.of());
+        }
 
-        List<Map<String, Object>> records = progressByUser.entrySet().stream()
+        Map<Long, com.excel.forum.entity.User> userMap = userService.listByIds(
+                attempts.stream().map(PracticeAttempt::getUserId).filter(Objects::nonNull).collect(Collectors.toSet())
+        ).stream().collect(Collectors.toMap(com.excel.forum.entity.User::getId, item -> item, (left, right) -> left));
+
+        List<Map<String, Object>> records = attempts.stream()
+                .collect(Collectors.groupingBy(PracticeAttempt::getUserId, LinkedHashMap::new, Collectors.toCollection(ArrayList::new)))
+                .entrySet().stream()
                 .map(entry -> {
                     long cleared = entry.getValue().stream().filter(item -> item.getStars() != null && item.getStars() > 0).count();
                     long perfect = entry.getValue().stream().filter(item -> item.getStars() != null && item.getStars() >= 3).count();
-                    int totalStars = entry.getValue().stream().map(UserLevelProgress::getStars).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
-                    int totalScore = entry.getValue().stream().map(UserLevelProgress::getBestScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+                    int totalStars = entry.getValue().stream().map(PracticeAttempt::getStars).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+                    int totalScore = entry.getValue().stream().map(PracticeAttempt::getScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
                     var user = userMap.get(entry.getKey());
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("userId", entry.getKey());
@@ -288,7 +339,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         for (int index = 0; index < records.size(); index += 1) {
             records.get(index).put("rank", index + 1);
         }
-        return Map.of("scope", scope, "records", records);
+        return Map.of("scope", normalizedScope, "records", records);
     }
 
     @Override

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Award, ArrowLeft, Crown, Medal, Trophy } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { normalizeAvatarUrl } from "../lib/mappers";
@@ -8,9 +9,10 @@ import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignRanking() {
   const navigate = useNavigate();
+  const [scope, setScope] = useState("all");
   const rankingQuery = useQuery({
-    queryKey: practiceKeys.campaignRankings("all"),
-    queryFn: () => api.get<any>("/api/practice/campaign/rankings?scope=all", { silent: true }),
+    queryKey: practiceKeys.campaignRankings(scope),
+    queryFn: () => api.get<any>(`/api/practice/campaign/rankings?scope=${scope}`, { silent: true }),
   });
 
   const records = rankingQuery.data?.records || [];
@@ -31,6 +33,25 @@ export function PracticeCampaignRanking() {
             <div className="text-[13px] font-black uppercase tracking-[0.18em] text-slate-400">RANKING</div>
             <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-900">闯关排行榜</h1>
           </div>
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {[
+            { value: "daily", label: "日榜" },
+            { value: "weekly", label: "周榜" },
+            { value: "all", label: "总榜" },
+          ].map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setScope(item.value)}
+              className={`rounded-full px-4 py-2 text-sm font-black transition ${
+                scope === item.value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
 
         <div className="mt-6 space-y-4">

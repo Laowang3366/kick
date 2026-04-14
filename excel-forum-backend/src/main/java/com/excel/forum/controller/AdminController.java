@@ -8,7 +8,10 @@ import com.excel.forum.entity.*;
 import com.excel.forum.entity.dto.AdminQuestionRequest;
 import com.excel.forum.mapper.AdminLogMapper;
 import com.excel.forum.mapper.CheckinRecordMapper;
+import com.excel.forum.mapper.DailyChallengeMapper;
 import com.excel.forum.mapper.PostEditHistoryMapper;
+import com.excel.forum.mapper.PracticeChapterMapper;
+import com.excel.forum.mapper.PracticeLevelMapper;
 import com.excel.forum.mapper.PracticeAnswerMapper;
 import com.excel.forum.mapper.PracticeRecordMapper;
 import com.excel.forum.entity.dto.PostDTO;
@@ -83,6 +86,9 @@ public class AdminController {
     private final ExperienceLevelRuleService experienceLevelRuleService;
     private final UserEntitlementService userEntitlementService;
     private final ExcelTemplateGradingService excelTemplateGradingService;
+    private final PracticeLevelMapper practiceLevelMapper;
+    private final PracticeChapterMapper practiceChapterMapper;
+    private final DailyChallengeMapper dailyChallengeMapper;
     private final PracticeRecordMapper practiceRecordMapper;
     private final PracticeAnswerMapper practiceAnswerMapper;
     private final CheckinRecordMapper checkinRecordMapper;
@@ -2118,6 +2124,84 @@ public class AdminController {
         return ResponseEntity.ok(Map.of("message", "题目已删除"));
     }
 
+    @GetMapping("/practice-campaign/levels")
+    public ResponseEntity<?> getPracticeCampaignLevels() {
+        QueryWrapper<PracticeLevel> levelQuery = new QueryWrapper<>();
+        levelQuery.eq("enabled", true).orderByAsc("chapter_id").orderByAsc("sort_order").orderByAsc("id");
+        List<Map<String, Object>> records = practiceLevelMapper.selectList(levelQuery).stream().map(level -> {
+            PracticeChapter chapter = practiceChapterMapper.selectById(level.getChapterId());
+            Question question = questionService.getById(level.getQuestionId());
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", level.getId());
+            item.put("title", defaultText(level.getTitle(), question == null ? "未命名关卡" : question.getTitle()));
+            item.put("chapterId", level.getChapterId());
+            item.put("chapterName", chapter == null ? "-" : chapter.getName());
+            item.put("questionId", level.getQuestionId());
+            item.put("questionTitle", question == null ? "-" : question.getTitle());
+            item.put("difficulty", defaultText(level.getDifficulty(), "easy"));
+            item.put("levelType", defaultText(level.getLevelType(), "normal"));
+            item.put("rewardExp", safeInt(level.getRewardExp()));
+            item.put("rewardPoints", safeInt(level.getRewardPoints()));
+            return item;
+        }).toList();
+        return ResponseEntity.ok(Map.of("records", records));
+    }
+
+    @GetMapping("/practice-campaign/daily-challenge")
+    public ResponseEntity<?> getPracticeCampaignDailyChallengeConfig() {
+        QueryWrapper<DailyChallenge> queryWrapper = new QueryWrapper<>();
+        queryWrapper.orderByDesc("challenge_date").orderByDesc("id").last("limit 1");
+        DailyChallenge challenge = dailyChallengeMapper.selectOne(queryWrapper);
+        if (challenge == null) {
+            return ResponseEntity.ok(Map.of("record", Map.of()));
+        }
+        PracticeLevel level = practiceLevelMapper.selectById(challenge.getLevelId());
+        PracticeChapter chapter = level == null ? null : practiceChapterMapper.selectById(level.getChapterId());
+        return ResponseEntity.ok(Map.of("record", Map.of(
+                "id", challenge.getId(),
+                "challengeDate", challenge.getChallengeDate(),
+                "levelId", challenge.getLevelId(),
+                "levelTitle", level == null ? "-" : defaultText(level.getTitle(), "未命名关卡"),
+                "chapterName", chapter == null ? "-" : chapter.getName(),
+                "rewardExp", safeInt(challenge.getRewardExp()),
+                "rewardPoints", safeInt(challenge.getRewardPoints()),
+                "enabled", challenge.getEnabled() == null || challenge.getEnabled()
+        )));
+    }
+
+    @PutMapping("/practice-campaign/daily-challenge")
+    public ResponseEntity<?> savePracticeCampaignDailyChallenge(@RequestBody Map<String, Object> body) {
+        Long levelId = parseLong(body.get("levelId"));
+        LocalDate challengeDate = parseLocalDate(body.get("challengeDate"));
+        if (levelId == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "请选择每日挑战关卡"));
+        }
+        if (challengeDate == null) {
+            challengeDate = LocalDate.now();
+        }
+        PracticeLevel level = practiceLevelMapper.selectById(levelId);
+        if (level == null || !Boolean.TRUE.equals(level.getEnabled())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "所选关卡不存在或未启用"));
+        }
+        QueryWrapper<DailyChallenge> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("challenge_date", challengeDate).last("limit 1");
+        DailyChallenge challenge = dailyChallengeMapper.selectOne(queryWrapper);
+        if (challenge == null) {
+            challenge = new DailyChallenge();
+            challenge.setChallengeDate(challengeDate);
+        }
+        challenge.setLevelId(levelId);
+        challenge.setRewardExp(parseInteger(body.get("rewardExp"), safeInt(level.getRewardExp())));
+        challenge.setRewardPoints(parseInteger(body.get("rewardPoints"), safeInt(level.getRewardPoints())));
+        challenge.setEnabled(parseBoolean(body.get("enabled"), true));
+        if (challenge.getId() == null) {
+            dailyChallengeMapper.insert(challenge);
+        } else {
+            dailyChallengeMapper.updateById(challenge);
+        }
+        return ResponseEntity.ok(Map.of("message", "每日挑战已更新"));
+    }
+
     @GetMapping("/notifications")
     public ResponseEntity<?> getNotifications(
             @RequestParam(defaultValue = "1") Integer page,
@@ -2744,6 +2828,49 @@ public class AdminController {
             }
         }
         return null;
+    }
+
+    private Integer parseInteger(Object value, int defaultValue) {
+        Integer parsed = parseInteger(value);
+        return parsed == null ? defaultValue : parsed;
+    }
+
+    private Long parseLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Long.parseLong(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private LocalDate parseLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return LocalDate.parse(text.trim());
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private boolean parseBoolean(Object value, boolean defaultValue) {
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            return Boolean.parseBoolean(text.trim());
+        }
+        return defaultValue;
     }
 
     private Set<Long> collectReplyIdsForUserDeletion(Long userId, Set<Long> userPostIds) {

@@ -11,9 +11,12 @@ import com.excel.forum.entity.QuestionExcelTemplate;
 import com.excel.forum.entity.Reply;
 import com.excel.forum.mapper.AdminLogMapper;
 import com.excel.forum.mapper.CheckinRecordMapper;
+import com.excel.forum.mapper.DailyChallengeMapper;
 import com.excel.forum.mapper.PostEditHistoryMapper;
 import com.excel.forum.mapper.PracticeAnswerMapper;
+import com.excel.forum.mapper.PracticeChapterMapper;
 import com.excel.forum.mapper.PracticeRecordMapper;
+import com.excel.forum.mapper.PracticeLevelMapper;
 import com.excel.forum.entity.SiteNotification;
 import com.excel.forum.entity.PostDraft;
 import com.excel.forum.entity.User;
@@ -194,6 +197,15 @@ class AdminControllerTest {
     private PracticeAnswerMapper practiceAnswerMapper;
 
     @Mock
+    private PracticeLevelMapper practiceLevelMapper;
+
+    @Mock
+    private PracticeChapterMapper practiceChapterMapper;
+
+    @Mock
+    private DailyChallengeMapper dailyChallengeMapper;
+
+    @Mock
     private CheckinRecordMapper checkinRecordMapper;
 
     @Mock
@@ -248,6 +260,9 @@ class AdminControllerTest {
                 experienceLevelRuleService,
                 userEntitlementService,
                 excelTemplateGradingService,
+                practiceLevelMapper,
+                practiceChapterMapper,
+                dailyChallengeMapper,
                 practiceRecordMapper,
                 practiceAnswerMapper,
                 checkinRecordMapper,
