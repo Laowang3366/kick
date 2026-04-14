@@ -34,6 +34,7 @@ import { homeKeys } from "../lib/query-keys";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { useSession } from "../lib/session";
 import { useIsMobile } from "../components/ui/use-mobile";
+import { ONLINE_LITE_MODE } from "../lib/site-mode";
 
 const iconMap: Record<string, any> = {
   "数据透视表": BarChart2,
@@ -67,6 +68,15 @@ export function Home() {
   const homeOverviewQuery = useQuery({
     queryKey: homeKeys.overview(),
     queryFn: async () => {
+      if (ONLINE_LITE_MODE) {
+        const overview = await api.get<any>("/api/public/home-overview", { auth: false, silent: true });
+        return {
+          boardGroups: [],
+          stats: overview.stats || { userCount: 0, postCount: 0, onlineCount: 0 },
+          practiceStats: overview.practiceStats || { questionCount: 0, passRate: 0, activeUserCount: 0 },
+          topUsers: [],
+        };
+      }
       const [categories, overview] = await Promise.all([
         api.get<any[]>("/api/categories", { auth: false, silent: true }),
         api.get<any>("/api/public/home-overview", { auth: false, silent: true }),
@@ -104,7 +114,7 @@ export function Home() {
   });
   const checkinStatusQuery = useQuery({
     queryKey: homeKeys.checkinStatus(),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !ONLINE_LITE_MODE,
     queryFn: () => api.get<any>("/api/checkin/status", { silent: true }),
   });
   const boardGroups = homeOverviewQuery.data?.boardGroups || [];
@@ -239,6 +249,126 @@ export function Home() {
         { label: "累计帖子", value: formatNumber(stats.postCount), suffix: "" },
         { label: "当前在线", value: formatNumber(stats.onlineCount), suffix: "" },
       ];
+
+  if (ONLINE_LITE_MODE) {
+    const liteModules = [
+      {
+        key: "practice",
+        title: "小试牛刀",
+        description: "进入题目练习、随机测试与历史记录，保留完整练习闭环。",
+        gradient: "from-teal-500 via-emerald-500 to-cyan-500",
+        icon: Brain,
+        primaryLabel: "进入练习",
+        primaryAction: () => navigate("/practice"),
+        secondaryLabel: "练习记录",
+        secondaryAction: () => navigate("/practice/history"),
+        stats: [
+          { label: "题目数量", value: formatNumber(practiceStats.questionCount) },
+          { label: "通过率", value: `${formatNumber(practiceStats.passRate)}%` },
+          { label: "正在做题", value: `${formatNumber(practiceStats.activeUserCount)}人` },
+        ],
+      },
+      {
+        key: "mall",
+        title: "积分商城",
+        description: "保留积分兑换、道具管理、任务中心与积分明细的完整链路。",
+        gradient: "from-amber-500 via-orange-500 to-rose-500",
+        icon: Gift,
+        primaryLabel: "进入商城",
+        primaryAction: () => navigate("/mall"),
+        secondaryLabel: "任务中心",
+        secondaryAction: () => navigate("/task-center"),
+        stats: [
+          { label: "积分商城", value: "在线" },
+          { label: "任务中心", value: "保留" },
+          { label: "积分明细", value: "可查" },
+        ],
+      },
+      {
+        key: "tools",
+        title: "实用功能",
+        description: "保留 Word、Excel、PDF 转换能力，支持结果记录和下载。",
+        gradient: "from-slate-900 via-cyan-900 to-teal-700",
+        icon: ArrowRightLeft,
+        primaryLabel: "进入实用功能",
+        primaryAction: () => navigate("/tools"),
+        secondaryLabel: "查看记录",
+        secondaryAction: () => navigate("/tools"),
+        stats: [
+          { label: "支持格式", value: "3类" },
+          { label: "转换记录", value: "保留" },
+          { label: "结果下载", value: "支持" },
+        ],
+      },
+    ];
+
+    return (
+      <div className="mx-auto min-h-screen max-w-[1320px] px-4 py-4 sm:px-6 sm:py-6">
+        <div className="rounded-[32px] border border-slate-200/70 bg-white px-6 py-8 shadow-sm">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-[12px] font-black tracking-[0.18em] text-slate-500">
+              当前线上精简模式
+            </div>
+            <h1 className="mt-5 text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">
+              当前仅保留小试牛刀、积分商城、实用功能
+            </h1>
+            <p className="mt-4 text-[15px] leading-7 text-slate-500 sm:text-[17px]">
+              论坛、帖子、聊天与通知模块暂不在线上开放。当前页面只保留练习、积分兑换和文件处理三条主链路。
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+          {liteModules.map((module) => {
+            const Icon = module.icon;
+            return (
+              <motion.div
+                key={module.key}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`overflow-hidden rounded-[32px] bg-gradient-to-br ${module.gradient} p-6 text-white shadow-[0_20px_50px_rgba(15,23,42,0.14)]`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-[12px] font-black tracking-[0.18em] text-white/70">MODULE</div>
+                    <h2 className="mt-3 text-[28px] font-black tracking-tight">{module.title}</h2>
+                  </div>
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/12">
+                    <Icon size={26} />
+                  </div>
+                </div>
+                <p className="mt-4 text-[15px] leading-7 text-white/85">{module.description}</p>
+                <div className="mt-6 grid grid-cols-3 gap-3">
+                  {module.stats.map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3 backdrop-blur-sm">
+                      <div className="text-[11px] font-bold text-white/70">{item.label}</div>
+                      <div className="mt-2 text-lg font-black text-white">{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={module.primaryAction}
+                    className="rounded-full bg-white px-6 py-3 text-[14px] font-black text-slate-900 transition-all hover:-translate-y-0.5"
+                  >
+                    {module.primaryLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={module.secondaryAction}
+                    className="rounded-full border border-white/20 bg-white/10 px-6 py-3 text-[14px] font-bold text-white"
+                  >
+                    {module.secondaryLabel}
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-screen max-w-[1400px] gap-4 bg-[#f8f9fa] px-3 pt-3 pb-6 sm:gap-6 sm:p-6">

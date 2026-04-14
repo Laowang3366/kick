@@ -23,3 +23,5 @@ reace_web/frontend-run-*.err.log
 # Local temp
 tmp/
 *.tmp
+
+reace_web/dist-deploy.tar

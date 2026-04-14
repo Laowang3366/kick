@@ -1,5 +1,6 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter, Navigate } from "react-router";
 import { Layout } from "./components/Layout";
+import { ONLINE_LITE_MODE } from "./lib/site-mode";
 
 function lazyPage(importer: () => Promise<any>, exportName: string) {
   return async () => {
@@ -8,9 +9,22 @@ function lazyPage(importer: () => Promise<any>, exportName: string) {
   };
 }
 
+function LiteRedirect() {
+  return <Navigate to="/" replace />;
+}
+
+function pageRoute(path: string, importer: () => Promise<any>, exportName: string, allowedInLite = false) {
+  if (ONLINE_LITE_MODE && !allowedInLite) {
+    return { path, Component: LiteRedirect };
+  }
+  return { path, lazy: lazyPage(importer, exportName) };
+}
+
 export const router = createBrowserRouter([
   { path: "/auth", lazy: lazyPage(() => import("./pages/Auth"), "Auth") },
-  { path: "/create-post", lazy: lazyPage(() => import("./pages/CreatePost"), "CreatePost") },
+  ONLINE_LITE_MODE
+    ? { path: "/create-post", Component: LiteRedirect }
+    : { path: "/create-post", lazy: lazyPage(() => import("./pages/CreatePost"), "CreatePost") },
   {
     path: "/admin",
     lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminLayout"),
@@ -36,24 +50,24 @@ export const router = createBrowserRouter([
     Component: Layout,
     children: [
       { index: true, lazy: lazyPage(() => import("./pages/Home"), "Home") },
-      { path: "chat", lazy: lazyPage(() => import("./pages/Chat"), "Chat") },
-      { path: "practice", lazy: lazyPage(() => import("./pages/Practice"), "Practice") },
-      { path: "practice/random", lazy: lazyPage(() => import("./pages/PracticeDetail"), "PracticeDetail") },
-      { path: "practice/question/:id", lazy: lazyPage(() => import("./pages/PracticeDetail"), "PracticeDetail") },
-      { path: "practice/history", lazy: lazyPage(() => import("./pages/PracticeHistory"), "PracticeHistory") },
-      { path: "practice/history/:id", lazy: lazyPage(() => import("./pages/PracticeRecordDetail"), "PracticeRecordDetail") },
-      { path: "mall", lazy: lazyPage(() => import("./pages/Mall"), "Mall") },
-      { path: "messages", lazy: lazyPage(() => import("./pages/Messages"), "Messages") },
-      { path: "tools", lazy: lazyPage(() => import("./pages/Tools"), "Tools") },
-      { path: "notifications", lazy: lazyPage(() => import("./pages/Notifications"), "Notifications") },
-      { path: "profile", lazy: lazyPage(() => import("./pages/Profile"), "Profile") },
-      { path: "user/:id", lazy: lazyPage(() => import("./pages/UserProfile"), "UserProfile") },
-      { path: "board/:id", lazy: lazyPage(() => import("./pages/BoardDetail"), "BoardDetail") },
-      { path: "post/:id", lazy: lazyPage(() => import("./pages/PostDetail"), "PostDetail") },
-      { path: "notification/:id", lazy: lazyPage(() => import("./pages/NotificationDetail"), "NotificationDetail") },
-      { path: "settings", lazy: lazyPage(() => import("./pages/Settings"), "Settings") },
-      { path: "points-history", lazy: lazyPage(() => import("./pages/PointHistory"), "PointHistory") },
-      { path: "task-center", lazy: lazyPage(() => import("./pages/TaskCenter"), "TaskCenter") },
+      { path: "chat", Component: LiteRedirect },
+      pageRoute("practice", () => import("./pages/Practice"), "Practice", true),
+      pageRoute("practice/random", () => import("./pages/PracticeDetail"), "PracticeDetail", true),
+      pageRoute("practice/question/:id", () => import("./pages/PracticeDetail"), "PracticeDetail", true),
+      pageRoute("practice/history", () => import("./pages/PracticeHistory"), "PracticeHistory", true),
+      pageRoute("practice/history/:id", () => import("./pages/PracticeRecordDetail"), "PracticeRecordDetail", true),
+      pageRoute("mall", () => import("./pages/Mall"), "Mall", true),
+      { path: "messages", Component: LiteRedirect },
+      pageRoute("tools", () => import("./pages/Tools"), "Tools", true),
+      { path: "notifications", Component: LiteRedirect },
+      { path: "profile", Component: LiteRedirect },
+      { path: "user/:id", Component: LiteRedirect },
+      { path: "board/:id", Component: LiteRedirect },
+      { path: "post/:id", Component: LiteRedirect },
+      { path: "notification/:id", Component: LiteRedirect },
+      { path: "settings", Component: LiteRedirect },
+      pageRoute("points-history", () => import("./pages/PointHistory"), "PointHistory", true),
+      pageRoute("task-center", () => import("./pages/TaskCenter"), "TaskCenter", true),
     ],
   },
 ]);

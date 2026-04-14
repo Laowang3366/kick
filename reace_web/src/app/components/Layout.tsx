@@ -38,6 +38,7 @@ import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { messageKeys, notificationKeys, profileKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
 import { useIsMobile } from "./ui/use-mobile";
+import { ONLINE_LITE_MODE, isLiteAllowedPath } from "../lib/site-mode";
 
 const OPEN_PROPS_EVENT = "excel-open-props-dialog";
 
@@ -87,6 +88,15 @@ export function Layout() {
   const isMobile = useIsMobile();
   const { user, isAuthenticated, logout } = useSession();
   const canAccessAdmin = hasAdminConsoleAccess(user?.role);
+  const forumEnabled = !ONLINE_LITE_MODE;
+
+  useEffect(() => {
+    if (!ONLINE_LITE_MODE) return;
+    if (location.pathname.startsWith("/admin")) return;
+    if (!isLiteAllowedPath(location.pathname)) {
+      navigate("/", { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -159,29 +169,29 @@ export function Layout() {
 
   const notificationsPreviewQuery = useQuery({
     queryKey: notificationKeys.list({ page: 1, limit: 5, scope: "layout" }),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && forumEnabled,
     queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=5", { silent: true }),
   });
   const mentionNotificationsQuery = useQuery({
     queryKey: notificationKeys.list({ page: 1, limit: 10, type: "MENTION", scope: "mention-popup" }),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && forumEnabled,
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
     queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=10&type=MENTION", { silent: true }),
   });
   const unreadNotificationsQuery = useQuery({
     queryKey: [...notificationKeys.all, "unread-count"] as const,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && forumEnabled,
     queryFn: () => api.get<{ count: number }>("/api/notifications/unread-count", { silent: true }),
   });
   const unreadMessagesQuery = useQuery({
     queryKey: messageKeys.unreadCount(),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && forumEnabled,
     queryFn: () => api.get<{ unreadCount: number }>("/api/messages/unread-count", { silent: true }),
   });
   const popupNotificationsQuery = useQuery({
     queryKey: notificationKeys.list({ page: 1, limit: 20, type: "site_notification", scope: "popup-notification" }),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && forumEnabled,
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
     queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=20&type=site_notification", { silent: true }),
@@ -383,23 +393,27 @@ export function Layout() {
   };
 
   const navItems = [
-    { name: "主页 板块", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
-    { name: "公共聊天室", path: "/chat", icon: <MessageSquare size={18} strokeWidth={1.5} /> },
+    { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
     { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
     { name: "积分商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
     { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
   ];
   const mobileTopNavItems = navItems.filter((item) => ["/practice", "/mall", "/tools"].includes(item.path));
-  const mobileDrawerNavItems = [
-    { name: "设置", path: "/settings", icon: <Settings size={18} strokeWidth={1.5} /> },
-  ];
-  const mobileBottomNavItems = [
-    { key: "home", name: "主页", path: "/", icon: <Home size={18} strokeWidth={1.6} /> },
-    { key: "chat", name: "聊天", path: "/chat", icon: <MessageSquare size={18} strokeWidth={1.6} /> },
-    { key: "post", name: "发帖", path: "/create-post", icon: <PenSquare size={18} strokeWidth={1.6} /> },
-    { key: "search", name: "搜索", path: "", icon: <Search size={18} strokeWidth={1.6} /> },
-    { key: "profile", name: "我的", path: isAuthenticated ? "/profile" : "/auth", icon: <User size={18} strokeWidth={1.6} /> },
-  ];
+  const mobileDrawerNavItems: Array<{ name: string; path: string; icon: React.ReactNode }> = [];
+  const mobileBottomNavItems = forumEnabled
+    ? [
+        { key: "home", name: "主页", path: "/", icon: <Home size={18} strokeWidth={1.6} /> },
+        { key: "chat", name: "聊天", path: "/chat", icon: <MessageSquare size={18} strokeWidth={1.6} /> },
+        { key: "post", name: "发帖", path: "/create-post", icon: <PenSquare size={18} strokeWidth={1.6} /> },
+        { key: "search", name: "搜索", path: "", icon: <Search size={18} strokeWidth={1.6} /> },
+        { key: "profile", name: "我的", path: isAuthenticated ? "/profile" : "/auth", icon: <User size={18} strokeWidth={1.6} /> },
+      ]
+    : [
+        { key: "home", name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.6} /> },
+        { key: "practice", name: "练习", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.6} /> },
+        { key: "mall", name: "商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.6} /> },
+        { key: "tools", name: "实用", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.6} /> },
+      ];
   const openFeedbackDialog = () => {
     if (!isAuthenticated) {
       navigate("/auth");
@@ -554,17 +568,6 @@ export function Layout() {
                       })}
                     </nav>
                     <div className="space-y-2 border-t border-slate-100 px-4 py-4">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigate("/settings");
-                          setMobileNavOpen(false);
-                        }}
-                        className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                      >
-                        <Settings size={18} className="text-slate-400" />
-                        <span>设置</span>
-                      </button>
                       {isAuthenticated ? (
                         <>
                           <button
@@ -577,17 +580,6 @@ export function Layout() {
                           >
                             <Package size={18} className="text-slate-400" />
                             <span>我的道具</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMobileNavOpen(false);
-                              openFeedbackDialog();
-                            }}
-                            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                          >
-                            <Lightbulb size={18} className="text-slate-400" />
-                            <span>反馈建议</span>
                           </button>
                           <button
                             type="button"
@@ -632,7 +624,7 @@ export function Layout() {
                   })}
                 </div>
               </div>
-            ) : (
+            ) : forumEnabled ? (
             <div className="relative flex-1 max-w-lg items-center xl:max-w-xl" ref={searchContainerRef}>
               <div ref={searchTypeDropdownRef} className={`absolute left-1 z-10 ${isMobile ? "hidden" : ""}`}>
                 <button
@@ -736,9 +728,11 @@ export function Layout() {
                 )}
               </AnimatePresence>
             </div>
+            ) : (
+              <div className="text-sm font-bold text-slate-400">当前线上仅保留小试牛刀、积分商城、实用功能</div>
             )}
 
-            {!isMobile ? (
+            {!isMobile && forumEnabled ? (
               <button 
                 onClick={handleSearch}
                 className="flex shrink-0 items-center justify-center rounded-full bg-teal-50 p-2 text-teal-600 transition-colors hover:bg-teal-100"
@@ -751,7 +745,7 @@ export function Layout() {
 
           <div className={`flex items-center ${isMobile ? "gap-1.5 ml-2" : "gap-2 md:gap-4 ml-3 md:ml-6"}`}>
             
-            {!isMobile ? (
+            {!isMobile && forumEnabled ? (
               <Link 
                 to="/create-post"
                 className="flex items-center gap-1.5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl text-sm font-medium transition-colors shadow-sm px-3 sm:px-4 py-2 sm:gap-2"
@@ -762,26 +756,28 @@ export function Layout() {
               </Link>
             ) : null}
 
-            <Link 
-              to="/messages"
-              className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
-              title="我的私信"
-            >
-              <Mail size={20} />
-              {renderCountBadge(unreadMessageCount, "teal")}
-            </Link>
+            {forumEnabled ? (
+              <>
+                <Link 
+                  to="/messages"
+                  className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+                  title="我的私信"
+                >
+                  <Mail size={20} />
+                  {renderCountBadge(unreadMessageCount, "teal")}
+                </Link>
 
-            <div className="relative" ref={notificationRef}>
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
-              >
-                <Bell size={20} />
-                {renderCountBadge(unreadNotificationCount, "rose")}
-              </button>
+                <div className="relative" ref={notificationRef}>
+                  <button 
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+                  >
+                    <Bell size={20} />
+                    {renderCountBadge(unreadNotificationCount, "rose")}
+                  </button>
 
-              <AnimatePresence>
-                {showNotifications && (
+                  <AnimatePresence>
+                    {showNotifications && (
                   <motion.div
                     initial={{ opacity: 0, y: 15, scale: 0.95, filter: "blur(4px)" }}
                     animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
@@ -837,9 +833,11 @@ export function Layout() {
                       </Link>
                     </div>
                   </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </>
+            ) : null}
 
             <div className={`${isMobile ? "hidden" : "pl-4 border-l border-gray-200"}`}>
               {isAuthenticated && !isMobile ? (
@@ -866,13 +864,6 @@ export function Layout() {
                     )}
                     <button
                       type="button"
-                      onClick={() => navigate("/profile")}
-                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
-                    >
-                      个人中心
-                    </button>
-                    <button
-                      type="button"
                       onClick={openPropsDialog}
                       className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
                     >
@@ -880,10 +871,14 @@ export function Layout() {
                     </button>
                     <button
                       type="button"
-                      onClick={openFeedbackDialog}
-                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
+                      onClick={async () => {
+                        await logout();
+                        toast.success("已退出登录");
+                        navigate("/auth");
+                      }}
+                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-rose-500 transition hover:bg-rose-50"
                     >
-                      反馈建议
+                      退出登录
                     </button>
                   </HoverCardContent>
                 </HoverCard>
@@ -901,7 +896,6 @@ export function Layout() {
                   <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">
                     {canAccessAdmin && <DropdownMenuItem onClick={() => navigate(getDefaultAdminPath(user?.role))}>进入管理后台</DropdownMenuItem>}
                     <DropdownMenuItem onClick={openPropsDialog}>我的道具</DropdownMenuItem>
-                    <DropdownMenuItem onClick={openFeedbackDialog}>反馈建议</DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={async () => {
                         await logout();
@@ -914,7 +908,7 @@ export function Layout() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Link to={isAuthenticated ? "/profile" : "/auth"} className="flex items-center gap-2 cursor-pointer group">
+                <Link to="/auth" className="flex items-center gap-2 cursor-pointer group">
                   <img 
                     src={normalizeAvatarUrl(user?.avatar, user?.username)} 
                     alt="Profile" 
@@ -1119,7 +1113,7 @@ export function Layout() {
               ) : null}
             </AnimatePresence>
             <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-            <div className="grid grid-cols-5 gap-1">
+            <div className={`grid gap-1 ${forumEnabled ? "grid-cols-5" : "grid-cols-4"}`}>
               {mobileBottomNavItems.map((item) => {
                 const isSearch = item.key === "search";
                 const isActive = isSearch
