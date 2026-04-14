@@ -99,9 +99,13 @@ export function PracticeDetail() {
         queryClient.invalidateQueries({ queryKey: practiceKeys.leaderboard() }),
         queryClient.invalidateQueries({ queryKey: practiceKeys.questionList() }),
       ]);
-      toast.success(result.firstPass
-        ? `提交成功，获得 ${result.rewardPoints || 0} 积分`
-        : `提交成功，得分 ${result.score || 0}`);
+      if (campaignLevel?.id) {
+        toast.success(buildCampaignSubmitMessage(result));
+      } else {
+        toast.success(result.firstPass
+          ? `提交成功，获得 ${result.rewardPoints || 0} 积分`
+          : `提交成功，得分 ${result.score || 0}`);
+      }
       if (campaignLevel?.id) {
         navigate(`/practice/result/${result.recordId}`, {
           state: {
@@ -110,6 +114,10 @@ export function PracticeDetail() {
             nextLevelId: result.nextLevelId,
             passed: result.passed,
             stars: result.stars,
+            firstPassBonusAwarded: result.firstPassBonusAwarded,
+            totalRewardPoints: result.totalRewardPoints,
+            totalExpGained: result.totalExpGained,
+            dailyChallenge: result.dailyChallenge,
           },
         });
         return;
@@ -243,4 +251,16 @@ export function PracticeDetail() {
       </div>
     </div>
   );
+}
+
+function buildCampaignSubmitMessage(result: any) {
+  if (!result?.passed) {
+    return `提交完成，得分 ${result?.score || 0}`;
+  }
+  const totalPoints = Number(result?.totalRewardPoints || result?.rewardPoints || 0);
+  const totalExp = Number(result?.totalExpGained || result?.expGained || 0);
+  const labels: string[] = [];
+  if (totalPoints > 0) labels.push(`积分 +${totalPoints}`);
+  if (totalExp > 0) labels.push(`经验 +${totalExp}`);
+  return labels.length ? `通关成功，${labels.join("，")}` : "通关成功";
 }

@@ -15,6 +15,10 @@ export function PracticeCampaignResult() {
   const nextLevelId = (location.state as any)?.nextLevelId;
   const passedFromState = Boolean((location.state as any)?.passed);
   const starsFromState = Number((location.state as any)?.stars || 0);
+  const firstPassBonusAwarded = Number((location.state as any)?.firstPassBonusAwarded || 0);
+  const totalRewardPoints = Number((location.state as any)?.totalRewardPoints || 0);
+  const totalExpGained = Number((location.state as any)?.totalExpGained || 0);
+  const dailyChallenge = (location.state as any)?.dailyChallenge || {};
 
   const recordQuery = useQuery({
     queryKey: practiceKeys.recordDetail(id || "unknown"),
@@ -70,16 +74,35 @@ export function PracticeCampaignResult() {
             </div>
             <div className="rounded-2xl bg-white px-4 py-4 shadow-sm">
               <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400"><Award size={14} /> 奖励积分</div>
-              <div className="mt-3 text-2xl font-black text-slate-900">{record?.rewardPoints || 0}</div>
+              <div className="mt-3 text-2xl font-black text-slate-900">{totalRewardPoints || record?.rewardPoints || 0}</div>
             </div>
           </div>
+
+          {(firstPassBonusAwarded > 0 || Number(dailyChallenge?.rewardPoints || 0) > 0 || totalExpGained > 0) ? (
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-left">
+                <div className="text-[11px] font-bold text-amber-700">首通额外奖励</div>
+                <div className="mt-2 text-xl font-black text-slate-900">{firstPassBonusAwarded > 0 ? `+${firstPassBonusAwarded} 积分` : "无"}</div>
+              </div>
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4 text-left">
+                <div className="text-[11px] font-bold text-sky-700">每日挑战奖励</div>
+                <div className="mt-2 text-xl font-black text-slate-900">
+                  {dailyChallenge?.rewardGranted ? `+${dailyChallenge.rewardPoints || 0} 积分 / +${dailyChallenge.rewardExp || 0} 经验` : "无"}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-left">
+                <div className="text-[11px] font-bold text-emerald-700">总经验</div>
+                <div className="mt-2 text-xl font-black text-slate-900">{totalExpGained > 0 ? `+${totalExpGained}` : "0"}</div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-8 rounded-[28px] border border-slate-200 bg-white px-5 py-5 text-left shadow-sm">
             <div className="text-[12px] font-black tracking-[0.18em] text-slate-400">SUMMARY</div>
             <div className="mt-3 text-lg font-black text-slate-900">{campaignChapter?.name || record?.questionCategoryName || "当前章节"}</div>
             <div className="mt-2 text-sm leading-7 text-slate-500">
               提交时间：{record?.submitTime ? formatDateTime(record.submitTime) : "-"}。
-              当前版本已接入闯关记录、基础三星结算和章节解锁。后续会继续补首通奖励、每日挑战和错题本。
+              当前版本已接入闯关记录、基础三星结算、章节解锁、首通额外奖励和每日挑战奖励。
             </div>
           </div>
 

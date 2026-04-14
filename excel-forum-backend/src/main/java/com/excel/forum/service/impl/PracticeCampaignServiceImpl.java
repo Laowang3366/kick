@@ -407,6 +407,9 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         if (level == null || !Boolean.TRUE.equals(level.getEnabled())) {
             throw new IllegalArgumentException("关卡不存在");
         }
+        QueryWrapper<UserLevelProgress> existingProgressQuery = new QueryWrapper<>();
+        existingProgressQuery.eq("user_id", userId).eq("level_id", levelId).last("limit 1");
+        UserLevelProgress existingProgress = userLevelProgressMapper.selectOne(existingProgressQuery);
         PracticeAttempt attempt = practiceAttemptMapper.selectById(request.getAttemptId());
         if (attempt == null || !Objects.equals(attempt.getUserId(), userId) || !Objects.equals(attempt.getLevelId(), levelId)) {
             throw new IllegalArgumentException("挑战记录不存在");
@@ -456,9 +459,14 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         syncUserLevelProgress(userId, level, passed, stars, toInt(submitResult.get("score")), usedSeconds, Boolean.TRUE.equals(submitResult.get("firstPass")));
         syncUserChapterProgress(userId);
         syncUserWrongQuestion(userId, level, passed);
+        int firstPassBonusAwarded = awardLevelFirstPassBonus(userId, level, passed, existingProgress);
         Map<String, Object> dailyChallengeReward = passed
                 ? awardDailyChallengeIfNeeded(userId, level)
                 : Map.of("applied", false, "completed", false, "rewardGranted", false);
+        int dailyChallengePoints = toInt(dailyChallengeReward.get("rewardPoints"));
+        int dailyChallengeExp = toInt(dailyChallengeReward.get("rewardExp"));
+        int totalRewardPoints = toInt(submitResult.get("rewardPoints")) + firstPassBonusAwarded + dailyChallengePoints;
+        int totalExpGained = toInt(submitResult.get("expGained")) + dailyChallengeExp;
 
         Long nextLevelId = findNextLevelId(level, userId);
         Map<String, Object> response = new LinkedHashMap<>(submitResult);
@@ -467,6 +475,9 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         response.put("attemptId", attempt.getId());
         response.put("levelId", level.getId());
         response.put("nextLevelId", nextLevelId);
+        response.put("firstPassBonusAwarded", firstPassBonusAwarded);
+        response.put("totalRewardPoints", totalRewardPoints);
+        response.put("totalExpGained", totalExpGained);
         response.put("dailyChallenge", dailyChallengeReward);
         return response;
     }
@@ -770,6 +781,28 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             wrong.setLastWrongTime(java.time.LocalDateTime.now());
             userWrongQuestionMapper.updateById(wrong);
         }
+    }
+
+    private int awardLevelFirstPassBonus(Long userId, PracticeLevel level, boolean passed, UserLevelProgress existingProgress) {
+        if (!passed) {
+            return 0;
+        }
+        boolean firstClear = existingProgress == null || existingProgress.getFirstPassTime() == null;
+        int bonus = safeInt(level.getFirstPassBonus());
+        if (!firstClear || bonus <= 0) {
+            return 0;
+        }
+        pointsRecordService.addTaskPointsRecord(
+                userId,
+                null,
+                "关卡首通奖励",
+                "campaign_first_pass",
+                level.getId(),
+                null,
+                bonus,
+                "首次通关关卡《" + defaultText(level.getTitle(), "未命名关卡") + "》"
+        );
+        return bonus;
     }
 
     private Map<String, Object> awardDailyChallengeIfNeeded(Long userId, PracticeLevel level) {
