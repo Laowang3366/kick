@@ -18,6 +18,8 @@ public interface PracticeCampaignService {
 
     Map<String, Object> getCampaignWrongQuestions(Long userId);
 
+    Map<String, Object> resolveWrongQuestion(Long userId, Long wrongQuestionId);
+
     Map<String, Object> getCampaignRankings(String scope);
 
     Map<String, Object> startCampaignLevel(Long levelId, Long userId, PracticeCampaignStartRequest request);

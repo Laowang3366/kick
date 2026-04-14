@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Award, Clock3, Gift, Play, Sparkles } from "lucide-react";
+import { ArrowLeft, Award, CheckCircle2, Clock3, Gift, Play, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { practiceKeys } from "../lib/query-keys";
+import { useSession } from "../lib/session";
 
 export function PracticeCampaignDaily() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useSession();
   const dailyQuery = useQuery({
     queryKey: practiceKeys.campaignDaily(),
     queryFn: () => api.get<any>("/api/practice/campaign/daily-challenge", { silent: true }),
@@ -41,14 +43,34 @@ export function PracticeCampaignDaily() {
                 <div className="mt-2 text-2xl font-black text-slate-900">{challenge.rewardPoints ?? 0}</div>
               </div>
             </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {challenge.completed ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-600">
+                  <CheckCircle2 size={14} />
+                  今日已完成
+                </span>
+              ) : null}
+              {challenge.rewardGranted ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2 text-sm font-bold text-sky-600">
+                  <Gift size={14} />
+                  奖励已发放
+                </span>
+              ) : null}
+            </div>
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => navigate(`/practice/level/${challenge.levelId}/prepare`)}
+                onClick={() => {
+                  if (!isAuthenticated) {
+                    navigate("/auth");
+                    return;
+                  }
+                  navigate(`/practice/level/${challenge.levelId}/prepare`);
+                }}
                 className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-black text-white"
               >
                 <Play size={16} />
-                开始每日挑战
+                {challenge.completed ? "再次挑战" : "开始每日挑战"}
               </button>
               {challenge.configured === false ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-500">

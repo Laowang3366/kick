@@ -1,16 +1,25 @@
-import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, RotateCcw } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { api } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import { practiceKeys } from "../lib/query-keys";
+import { toast } from "sonner";
 
 export function PracticeCampaignWrongs() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const wrongsQuery = useQuery({
     queryKey: practiceKeys.campaignWrongs(),
     queryFn: () => api.get<any>("/api/practice/campaign/wrongs", { silent: true }),
+  });
+  const resolveMutation = useMutation({
+    mutationFn: (id: number) => api.put(`/api/practice/campaign/wrongs/${id}/resolve`, {}),
+    onSuccess: async () => {
+      toast.success("已标记为已掌握");
+      await queryClient.invalidateQueries({ queryKey: practiceKeys.campaignWrongs() });
+    },
   });
 
   const records = wrongsQuery.data?.records || [];
@@ -35,14 +44,12 @@ export function PracticeCampaignWrongs() {
 
         <div className="mt-6 space-y-4">
           {records.map((item: any, index: number) => (
-            <motion.button
+            <motion.div
               key={item.id}
-              type="button"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              onClick={() => item.recommendedLevelId && navigate(`/practice/level/${item.recommendedLevelId}/prepare`)}
-              className="w-full rounded-[26px] border border-slate-200 bg-slate-50 px-5 py-5 text-left transition hover:border-rose-200 hover:bg-white"
+              className="rounded-[26px] border border-slate-200 bg-slate-50 px-5 py-5 text-left transition hover:border-rose-200 hover:bg-white"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -53,13 +60,27 @@ export function PracticeCampaignWrongs() {
                     <span className="rounded-full bg-white px-3 py-1">{item.lastWrongTime ? formatDateTime(item.lastWrongTime) : "-"}</span>
                   </div>
                 </div>
-                <div className="inline-flex items-center gap-2 text-sm font-black text-rose-600">
-                  <RotateCcw size={15} />
-                  立即重练
-                  <ChevronRight size={15} />
+                <div className="flex shrink-0 flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => item.recommendedLevelId && navigate(`/practice/level/${item.recommendedLevelId}/prepare`)}
+                    className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-4 py-2 text-sm font-black text-rose-600"
+                  >
+                    <RotateCcw size={15} />
+                    立即重练
+                    <ChevronRight size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void resolveMutation.mutateAsync(item.id)}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600"
+                  >
+                    <CheckCircle2 size={15} />
+                    标记已掌握
+                  </button>
                 </div>
               </div>
-            </motion.button>
+            </motion.div>
           ))}
 
           {records.length === 0 ? (

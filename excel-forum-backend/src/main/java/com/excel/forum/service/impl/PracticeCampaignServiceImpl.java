@@ -12,6 +12,7 @@ import com.excel.forum.entity.Question;
 import com.excel.forum.entity.UserChapterProgress;
 import com.excel.forum.entity.UserLevelProgress;
 import com.excel.forum.entity.UserWrongQuestion;
+import com.excel.forum.entity.PointsRecord;
 import com.excel.forum.entity.dto.PracticeCampaignStartRequest;
 import com.excel.forum.entity.dto.PracticeCampaignSubmitRequest;
 import com.excel.forum.entity.dto.PracticeSubmitAnswerRequest;
@@ -31,6 +32,8 @@ import com.excel.forum.service.PracticeService;
 import com.excel.forum.service.QuestionCategoryService;
 import com.excel.forum.service.QuestionService;
 import com.excel.forum.service.UserService;
+import com.excel.forum.service.PointsRecordService;
+import com.excel.forum.service.ExperienceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -62,6 +65,8 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     private final QuestionService questionService;
     private final QuestionCategoryService questionCategoryService;
     private final UserService userService;
+    private final PointsRecordService pointsRecordService;
+    private final ExperienceService experienceService;
 
     @Override
     public Map<String, Object> getCampaignOverview(Long userId) {
@@ -98,7 +103,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         response.put("world", buildWorldPayload());
         response.put("currentChapter", currentChapter);
         response.put("currentLevel", currentLevel);
-        response.put("dailyChallenge", buildDailyChallengePayload());
+        response.put("dailyChallenge", buildDailyChallengePayload(userId));
         response.put("summary", summary);
         return response;
     }
@@ -180,7 +185,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
 
     @Override
     public Map<String, Object> getDailyChallenge(Long userId) {
-        Map<String, Object> payload = buildDailyChallengePayload();
+        Map<String, Object> payload = buildDailyChallengePayload(userId);
         if (payload == null) {
             Map<Long, UserLevelProgress> progressMap = findUserLevelProgressMap(userId);
             List<PracticeChapter> chapters = listEnabledChapters();
@@ -244,6 +249,20 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         }).toList();
 
         return Map.of("records", records);
+    }
+
+    @Override
+    public Map<String, Object> resolveWrongQuestion(Long userId, Long wrongQuestionId) {
+        if (userId == null) {
+            throw new IllegalStateException("未登录");
+        }
+        UserWrongQuestion wrongQuestion = userWrongQuestionMapper.selectById(wrongQuestionId);
+        if (wrongQuestion == null || !Objects.equals(wrongQuestion.getUserId(), userId)) {
+            throw new IllegalArgumentException("错题记录不存在");
+        }
+        wrongQuestion.setResolved(true);
+        userWrongQuestionMapper.updateById(wrongQuestion);
+        return Map.of("message", "错题已标记为已掌握");
     }
 
     @Override
@@ -437,6 +456,9 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         syncUserLevelProgress(userId, level, passed, stars, toInt(submitResult.get("score")), usedSeconds, Boolean.TRUE.equals(submitResult.get("firstPass")));
         syncUserChapterProgress(userId);
         syncUserWrongQuestion(userId, level, passed);
+        Map<String, Object> dailyChallengeReward = passed
+                ? awardDailyChallengeIfNeeded(userId, level)
+                : Map.of("applied", false, "completed", false, "rewardGranted", false);
 
         Long nextLevelId = findNextLevelId(level, userId);
         Map<String, Object> response = new LinkedHashMap<>(submitResult);
@@ -445,6 +467,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         response.put("attemptId", attempt.getId());
         response.put("levelId", level.getId());
         response.put("nextLevelId", nextLevelId);
+        response.put("dailyChallenge", dailyChallengeReward);
         return response;
     }
 
@@ -564,7 +587,7 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         return result;
     }
 
-    private Map<String, Object> buildDailyChallengePayload() {
+    private Map<String, Object> buildDailyChallengePayload(Long userId) {
         QueryWrapper<DailyChallenge> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("challenge_date", LocalDate.now()).eq("enabled", true).last("limit 1");
         DailyChallenge challenge = dailyChallengeMapper.selectOne(queryWrapper);
@@ -581,6 +604,10 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         payload.put("title", level.getTitle());
         payload.put("rewardExp", challenge.getRewardExp());
         payload.put("rewardPoints", challenge.getRewardPoints());
+        payload.put("configured", true);
+        payload.put("challengeDate", challenge.getChallengeDate());
+        payload.put("completed", hasCompletedDailyChallenge(userId, level.getId()));
+        payload.put("rewardGranted", hasDailyChallengeReward(userId, level.getId()));
         return payload;
     }
 
@@ -745,6 +772,80 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         }
     }
 
+    private Map<String, Object> awardDailyChallengeIfNeeded(Long userId, PracticeLevel level) {
+        QueryWrapper<DailyChallenge> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("challenge_date", LocalDate.now())
+                .eq("enabled", true)
+                .eq("level_id", level.getId())
+                .last("limit 1");
+        DailyChallenge challenge = dailyChallengeMapper.selectOne(queryWrapper);
+        if (challenge == null) {
+            return Map.of("applied", false);
+        }
+        if (hasDailyChallengeReward(userId, level.getId())) {
+            return Map.of(
+                    "applied", false,
+                    "completed", true,
+                    "rewardGranted", true,
+                    "rewardExp", safeInt(challenge.getRewardExp()),
+                    "rewardPoints", safeInt(challenge.getRewardPoints())
+            );
+        }
+
+        pointsRecordService.addTaskPointsRecord(
+                userId,
+                null,
+                "每日挑战奖励",
+                "daily_campaign",
+                level.getId(),
+                LocalDate.now(),
+                safeInt(challenge.getRewardPoints()),
+                "完成每日挑战《" + defaultText(level.getTitle(), "每日挑战") + "》"
+        );
+        experienceService.addExp(
+                userId,
+                "daily_campaign",
+                level.getId(),
+                safeInt(challenge.getRewardExp()),
+                "完成每日挑战《" + defaultText(level.getTitle(), "每日挑战") + "》"
+        );
+        return Map.of(
+                "applied", true,
+                "completed", true,
+                "rewardGranted", true,
+                "rewardExp", safeInt(challenge.getRewardExp()),
+                "rewardPoints", safeInt(challenge.getRewardPoints())
+        );
+    }
+
+    private boolean hasCompletedDailyChallenge(Long userId, Long levelId) {
+        if (levelId == null) {
+            return false;
+        }
+        QueryWrapper<PracticeAttempt> queryWrapper = new QueryWrapper<>();
+        if (userId != null) {
+            queryWrapper.eq("user_id", userId);
+        }
+        queryWrapper.eq("level_id", levelId)
+                .eq("result_status", "passed")
+                .ge("submit_time", LocalDate.now().atStartOfDay());
+        return practiceAttemptMapper.selectCount(queryWrapper) > 0;
+    }
+
+    private boolean hasDailyChallengeReward(Long userId, Long levelId) {
+        if (levelId == null) {
+            return false;
+        }
+        QueryWrapper<PointsRecord> queryWrapper = new QueryWrapper<>();
+        if (userId != null) {
+            queryWrapper.eq("user_id", userId);
+        }
+        queryWrapper.eq("task_key", "daily_campaign")
+                .eq("biz_id", levelId)
+                .eq("task_date", LocalDate.now());
+        return pointsRecordService.count(queryWrapper) > 0;
+    }
+
     private int toInt(Object value) {
         if (value == null) {
             return 0;
@@ -753,6 +854,14 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             return number.intValue();
         }
         return Integer.parseInt(String.valueOf(value));
+    }
+
+    private int safeInt(Integer value) {
+        return value == null ? 0 : value;
+    }
+
+    private String defaultText(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private Long toLong(Object value) {

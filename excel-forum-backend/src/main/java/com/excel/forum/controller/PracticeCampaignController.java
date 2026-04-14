@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -74,6 +75,19 @@ public class PracticeCampaignController {
     public ResponseEntity<?> getWrongQuestions(@RequestAttribute(value = "userId", required = false) Long userId) {
         try {
             return ResponseEntity.ok(practiceCampaignService.getCampaignWrongQuestions(userId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/wrongs/{wrongQuestionId}/resolve")
+    public ResponseEntity<?> resolveWrongQuestion(
+            @RequestAttribute Long userId,
+            @PathVariable Long wrongQuestionId) {
+        try {
+            return ResponseEntity.ok(practiceCampaignService.resolveWrongQuestion(userId, wrongQuestionId));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (IllegalStateException e) {
