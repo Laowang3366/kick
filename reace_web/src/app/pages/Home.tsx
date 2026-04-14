@@ -241,9 +241,9 @@ export function Home() {
       ];
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto flex gap-6 bg-[#f8f9fa] min-h-screen">
+    <div className="mx-auto flex min-h-screen max-w-[1400px] gap-4 bg-[#f8f9fa] px-3 pt-3 pb-6 sm:gap-6 sm:p-6">
       {/* Main Content Area */}
-      <div className="flex-1 space-y-6">
+      <div className="flex-1 space-y-4 sm:space-y-6">
         
         {/* Hero Carousel */}
         {!isMobile ? (
@@ -366,9 +366,9 @@ export function Home() {
         ) : null}
 
         {/* Board Categories Section */}
-        <div className="bg-transparent mt-8">
+        <div className="bg-transparent mt-0 sm:mt-8">
           {/* Section Title */}
-          <div className="flex items-center gap-3 mb-8 pl-1">
+          <div className="mb-5 flex items-center gap-3 pl-1 sm:mb-8">
             <div className="w-[5px] h-6 bg-teal-500 rounded-full"></div>
             <h2 className="text-[22px] font-extrabold text-slate-800 tracking-tight">板块分类</h2>
           </div>

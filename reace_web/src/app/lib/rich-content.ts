@@ -3,10 +3,11 @@ import { normalizeResourceUrl } from "./mappers";
 export function renderRichContent(content: string) {
   const normalized = content.replace(/\r\n/g, "\n").trim();
   if (!normalized) return "";
-  if (looksLikeHtml(normalized)) {
-    return renderHtmlContent(normalized);
+  const candidate = looksLikeEscapedHtml(normalized) ? decodeHtmlEntities(normalized) : normalized;
+  if (looksLikeHtml(candidate)) {
+    return renderHtmlContent(candidate);
   }
-  return renderMarkdownContent(normalized);
+  return renderMarkdownContent(candidate);
 }
 
 function renderMarkdownContent(markdown: string) {
@@ -169,8 +170,10 @@ function renderHtmlContent(html: string) {
 }
 
 export function stripRichContent(markdown: string) {
-  return markdown
+  const normalized = decodeHtmlEntities(markdown || "");
+  return normalized
     .replace(/```[\s\S]*?```/g, " ")
+    .replace(/<img[\s\S]*?>/gi, " [图片] ")
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, "$1 ")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1")
     .replace(/[*_~`>#|]/g, " ")
@@ -235,6 +238,23 @@ function escapeHtml(value: string) {
 
 function looksLikeHtml(value: string) {
   return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function looksLikeEscapedHtml(value: string) {
+  return /&lt;\/?[a-z][\s\S]*&gt;/i.test(value);
+}
+
+function decodeHtmlEntities(value: string) {
+  if (typeof DOMParser !== "undefined") {
+    const parsed = new DOMParser().parseFromString(value, "text/html");
+    return parsed.documentElement.textContent || value;
+  }
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 function appendClassName(element: HTMLElement, className: string) {

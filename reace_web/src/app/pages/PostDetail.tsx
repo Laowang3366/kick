@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -28,7 +27,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useLocation } from "react-router";
 import { toast } from "sonner";
 import { openGlobalConfirm, openGlobalPrompt } from "../components/GlobalConfirmPromptDialog";
 import { ApiError, api } from "../lib/api";
@@ -42,6 +41,7 @@ export function PostDetail() {
   const REPLIES_PAGE_SIZE = 20;
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated } = useSession();
   const queryClient = useQueryClient();
   const [comment, setComment] = useState("");
@@ -50,14 +50,7 @@ export function PostDetail() {
   const [openReplyMenuId, setOpenReplyMenuId] = useState<number | null>(null);
   const [expandedReplies, setExpandedReplies] = useState<Set<number>>(new Set());
   const [commentFocused, setCommentFocused] = useState(false);
-  const [showBottomBar, setShowBottomBar] = useState(false);
-  const [bottomComment, setBottomComment] = useState("");
-  const [bottomFocused, setBottomFocused] = useState(false);
   const [commentAttachments, setCommentAttachments] = useState<Array<{ url: string; name?: string }>>([]);
-  const [bottomAttachments, setBottomAttachments] = useState<Array<{ url: string; name?: string }>>([]);
-  const [commentRect, setCommentRect] = useState({ left: 0, width: 0 });
-  const topCommentRef = useRef<HTMLDivElement>(null);
-  const commentCardRef = useRef<HTMLDivElement>(null);
 
   const postId = Number(id);
   const postQuery = useQuery({
@@ -78,24 +71,6 @@ export function PostDetail() {
     () => new Map((levelRulesQuery.data?.rules || []).map((item) => [Number(item.level), item.name])),
     [levelRulesQuery.data?.rules],
   );
-
-  useEffect(() => {
-    const el = topCommentRef.current;
-    const card = commentCardRef.current;
-    if (!el || !card) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setShowBottomBar(!entry.isIntersecting),
-      { threshold: 0, rootMargin: "-80px" }
-    );
-    observer.observe(el);
-    const updateRect = () => {
-      const rect = card.getBoundingClientRect();
-      setCommentRect({ left: rect.left, width: rect.width });
-    };
-    updateRect();
-    window.addEventListener('resize', updateRect);
-    return () => { observer.disconnect(); window.removeEventListener('resize', updateRect); };
-  }, [postQuery.data]);
 
   useEffect(() => {
     if (!postQuery.data) return;
@@ -200,6 +175,10 @@ export function PostDetail() {
     () => Boolean(isAuthenticated && (user?.role === "admin" || user?.role === "moderator")),
     [isAuthenticated, user?.role]
   );
+  const canDeletePost = useMemo(
+    () => Boolean(canEditPost || canManagePost),
+    [canEditPost, canManagePost]
+  );
 
   const canDeleteReply = (reply: any) => {
     if (!user) return false;
@@ -208,6 +187,13 @@ export function PostDetail() {
   };
 
   const handleBackToList = () => {
+    const backTo = typeof location.state === "object" && location.state && "backTo" in location.state
+      ? (location.state as any).backTo
+      : null;
+    if (typeof backTo === "string" && backTo) {
+      navigate(backTo, { replace: true });
+      return;
+    }
     if (post?.category?.id) {
       navigate(`/board/${post.category.id}`, { replace: true });
       return;
@@ -372,23 +358,6 @@ export function PostDetail() {
     toast.success("评论发布成功");
   };
 
-  const handleBottomSubmit = async () => {
-    if (post?.isLocked) { toast.error("该帖子已锁定，暂不可回复"); return; }
-    if (!bottomComment.trim()) return;
-    if (!isAuthenticated) { navigate("/auth"); return; }
-    await api.post("/api/replies", { postId, content: bottomComment.trim(), attachments: bottomAttachments });
-    setBottomComment("");
-    setBottomAttachments([]);
-    setBottomFocused(false);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) }),
-      queryClient.invalidateQueries({ queryKey: postKeys.replies(postId) }),
-      queryClient.invalidateQueries({ queryKey: boardKeys.posts({ categoryId: post?.category?.id, sort: "hot", keyword: "" }) }),
-      queryClient.invalidateQueries({ queryKey: profileKeys.tab("posts") }),
-    ]);
-    toast.success("评论发布成功");
-  };
-
   const handleDeleteReply = async (replyId: number) => {
     if (!await openGlobalConfirm({ message: "确认删除这条回复？" })) return;
     await api.delete(`/api/replies/${replyId}`);
@@ -423,7 +392,7 @@ export function PostDetail() {
     toast.info("已收到您的举报，管理员将尽快处理");
   };
 
-  const uploadReplyAttachment = async (file: File, mode: "top" | "bottom") => {
+  const uploadReplyAttachment = async (file: File) => {
     const lowerName = file.name.toLowerCase();
     if (!(lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls"))) {
       toast.error("评论附件仅支持 Excel 文件");
@@ -437,11 +406,7 @@ export function PostDetail() {
     formData.append("file", file);
     const uploadResult = await api.post<{ url: string }>("/api/upload?scene=reply_attachment", formData);
     const nextItem = { url: uploadResult.url, name: file.name };
-    if (mode === "top") {
-      setCommentAttachments((prev) => [...prev, nextItem]);
-    } else {
-      setBottomAttachments((prev) => [...prev, nextItem]);
-    }
+    setCommentAttachments((prev) => [...prev, nextItem]);
     toast.success("附件上传成功");
   };
 
@@ -633,7 +598,7 @@ export function PostDetail() {
                   </button>
                   <input id="reply-attachment-input" type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) { void uploadReplyAttachment(file, "top"); e.target.value = ''; }
+                    if (file) { void uploadReplyAttachment(file); e.target.value = ''; }
                   }} />
                 </div>
                 <button
@@ -668,7 +633,7 @@ export function PostDetail() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans pb-24 pt-6 md:pt-10">
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
+      <div className="max-w-[1200px] mx-auto px-3 sm:px-6">
         <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
           <div className="hidden lg:flex shrink-0 w-12 sticky top-8 flex-col gap-4">
             <motion.button
@@ -685,15 +650,15 @@ export function PostDetail() {
           <motion.div className="flex-1 w-full min-w-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <motion.button
               onClick={handleBackToList}
-              className="lg:hidden flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors w-fit mb-6 font-bold text-[14px] group"
+              className="lg:hidden flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors w-fit mb-4 px-1 font-bold text-[13px] group"
             >
               <ArrowLeft size={16} strokeWidth={2.5} className="group-hover:-translate-x-1 transition-transform" />
               返回列表
             </motion.button>
 
-            <motion.article className="bg-white rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden mb-8">
-              <div className="px-8 py-10 border-b border-slate-100">
-                <div className="flex items-center gap-2 mb-6">
+            <motion.article className="bg-white rounded-[28px] sm:rounded-3xl shadow-sm border border-slate-200/60 overflow-hidden mb-6 sm:mb-8">
+              <div className="px-4 sm:px-8 pt-5 sm:pt-6 pb-6 sm:pb-8 border-b border-slate-100">
+                <div className="flex flex-wrap items-center gap-2 mb-4">
                   {post.isTop && <PostStateBadge tone="amber" icon={<Flame size={12} />} label="置顶" />}
                   {post.isEssence && <PostStateBadge tone="emerald" icon={<CheckCircle2 size={12} />} label="精华" />}
                   {post.isLocked && <PostStateBadge tone="slate" icon={<Lock size={12} />} label="已锁定" />}
@@ -702,59 +667,61 @@ export function PostDetail() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-4 mb-6">
-                  <img
-                    src={normalizeAvatarUrl(post.author?.avatar, post.author?.username)}
-                    alt={post.author?.username || "作者"}
-                    className="w-12 h-12 rounded-full object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity shadow-sm"
-                    onClick={() => navigate(`/user/${post.author?.id}`)}
-                  />
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className="font-bold text-[15px] text-slate-800 cursor-pointer hover:text-slate-600 transition-colors"
-                        onClick={() => navigate(`/user/${post.author?.id}`)}
-                      >
-                        {post.author?.username || "匿名用户"}
-                      </span>
-                      {post.author?.mallBadge?.name && (
-                        <span className="px-1.5 py-0.5 bg-gradient-to-r from-sky-100 to-cyan-50 text-sky-700 text-[10px] font-bold rounded border border-sky-200/60">
-                          {post.author.mallBadge.name}
-                        </span>
-                      )}
-                      <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 text-[10px] font-bold rounded border border-amber-200/50">
-                        {formatDynamicLevelBadge(post.author?.level, levelNameMap)}
-                      </span>
-                      {post.author?.role && post.author.role !== "user" && (
-                        <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded border border-slate-200/60">
-                          {formatRoleLabel(post.author.role)}
-                        </span>
-                      )}
-                      {canFollowAuthor && (
-                        <button
-                          onClick={handleFollowAuthor}
-                          className={`px-3 py-1 text-[12px] font-bold rounded-lg transition-all active:scale-95 ${
-                            authorFollowing
-                              ? "bg-slate-100 hover:bg-slate-200 text-slate-500"
-                              : "bg-teal-500 hover:bg-teal-600 text-white"
-                          }`}
+                <div className="mb-5 space-y-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <img
+                      src={normalizeAvatarUrl(post.author?.avatar, post.author?.username)}
+                      alt={post.author?.username || "作者"}
+                      className="w-12 h-12 sm:w-12 sm:h-12 rounded-full object-cover border border-slate-200 cursor-pointer hover:opacity-80 transition-opacity shadow-sm shrink-0"
+                      onClick={() => navigate(`/user/${post.author?.id}`)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+                        <span
+                          className="font-bold text-[18px] sm:text-[15px] text-slate-800 cursor-pointer hover:text-slate-600 transition-colors truncate"
+                          onClick={() => navigate(`/user/${post.author?.id}`)}
                         >
-                          {authorFollowing ? "已关注" : "关注"}
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4 text-[13px] font-bold text-slate-400">
-                      <span>{formatDateTime(post.createTime)} 发布</span>
-                      <span className="flex items-center gap-1.5"><Eye size={14} strokeWidth={2.5} /> {post.viewCount || 0} 次阅读</span>
+                          {post.author?.username || "匿名用户"}
+                        </span>
+                        {post.author?.mallBadge?.name && (
+                          <span className="px-1.5 py-0.5 bg-gradient-to-r from-sky-100 to-cyan-50 text-sky-700 text-[10px] font-bold rounded border border-sky-200/60">
+                            {post.author.mallBadge.name}
+                          </span>
+                        )}
+                        <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-100 to-amber-50 text-amber-700 text-[10px] font-bold rounded border border-amber-200/50">
+                          {formatDynamicLevelBadge(post.author?.level, levelNameMap)}
+                        </span>
+                        {post.author?.role && post.author.role !== "user" && (
+                          <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded border border-slate-200/60">
+                            {formatRoleLabel(post.author.role)}
+                          </span>
+                        )}
+                        {canFollowAuthor && (
+                          <button
+                            onClick={handleFollowAuthor}
+                            className={`ml-0 sm:ml-1 px-2.5 py-1 text-[11px] sm:text-[12px] font-bold rounded-lg transition-all active:scale-95 ${
+                              authorFollowing
+                                ? "bg-slate-100 hover:bg-slate-200 text-slate-500"
+                                : "bg-teal-500 hover:bg-teal-600 text-white"
+                            }`}
+                          >
+                            {authorFollowing ? "已关注" : "关注"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] sm:text-[13px] font-bold text-slate-400">
+                        <span>{formatDateTime(post.createTime)} 发布</span>
+                        <span className="flex items-center gap-1.5"><Eye size={14} strokeWidth={2.5} /> {post.viewCount || 0} 次阅读</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="ml-auto flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {canManagePost && (
                       <div className="relative">
                         <button
                           onClick={() => setShowManageMenu(!showManageMenu)}
-                          className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200/60 transition-all"
+                          className="flex items-center gap-1.5 px-3 py-2 text-[12px] sm:text-[13px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200/60 transition-all"
                         >
                           <MoreHorizontal size={14} />
                           <span className="hidden sm:inline">管理操作</span>
@@ -809,31 +776,41 @@ export function PostDetail() {
                     {canEditPost && (
                       <button
                         onClick={() => navigate(`/create-post?post=${postId}`)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[13px] font-bold rounded-xl border border-slate-200/60 transition-all active:scale-95"
+                        className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[12px] sm:text-[13px] font-bold rounded-xl border border-slate-200/60 transition-all active:scale-95"
                       >
                         <Edit3 size={14} strokeWidth={2.5} />
                         <span className="hidden sm:inline">编辑帖子</span>
                         <span className="sm:hidden">编辑</span>
                       </button>
                     )}
+                    {canDeletePost && !canManagePost && (
+                      <button
+                        onClick={handleDeletePost}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[12px] sm:text-[13px] font-bold rounded-xl border border-rose-200/70 transition-all active:scale-95"
+                      >
+                        <Trash2 size={14} strokeWidth={2.5} />
+                        <span className="hidden sm:inline">删除帖子</span>
+                        <span className="sm:hidden">删除</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <h1 className="text-3xl sm:text-[32px] font-extrabold text-slate-800 leading-[1.3] tracking-tight">
+                <h1 className="text-[24px] sm:text-[32px] font-extrabold text-slate-800 leading-[1.25] tracking-tight">
                   {post.title}
                 </h1>
               </div>
 
-              <div className="px-8 py-10">
+              <div className="px-4 sm:px-8 py-6 sm:py-10">
                 <div className="prose max-w-none text-slate-700 leading-[1.8]">
                   <div
-                    className="text-[16px] font-medium leading-[1.9]"
+                    className="text-[15px] sm:text-[16px] font-medium leading-[1.85] break-words"
                     dangerouslySetInnerHTML={{ __html: contentHtml }}
                   />
                 </div>
 
                 {(imageAttachments.length > 0 || fileAttachments.length > 0) && (
-                  <div className="mt-10 rounded-3xl border border-slate-200/80 bg-slate-50/70 p-6">
+                  <div className="mt-8 sm:mt-10 rounded-[24px] sm:rounded-3xl border border-slate-200/80 bg-slate-50/70 p-4 sm:p-6">
                     <h3 className="text-sm font-extrabold tracking-wide text-slate-700">附件</h3>
                     {imageAttachments.length > 0 && (
                       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -848,7 +825,7 @@ export function PostDetail() {
                             <img
                               src={normalizeImageUrl(item.url)}
                               alt={item.name || "图片附件"}
-                              className="h-56 w-full object-contain bg-slate-50 transition-transform duration-300 group-hover:scale-[1.02]"
+                              className="max-h-[360px] sm:h-56 w-full object-contain bg-slate-50 transition-transform duration-300 group-hover:scale-[1.02]"
                             />
                             <div className="border-t border-slate-100 px-4 py-3 text-sm font-medium text-slate-500">
                               {item.name || "图片附件"}
@@ -876,25 +853,25 @@ export function PostDetail() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between mt-14 pt-6 border-t border-slate-100">
-                  <button onClick={handleToggleLike} title="点赞" className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-bold transition-all ${post.isLiked ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                <div className="grid grid-cols-4 gap-1 sm:flex sm:items-center sm:justify-between mt-10 sm:mt-14 pt-5 sm:pt-6 border-t border-slate-100">
+                  <button onClick={handleToggleLike} title="点赞" className={`flex items-center justify-center gap-1.5 px-2 sm:px-5 py-2 rounded-lg text-[13px] sm:text-sm font-bold transition-all ${post.isLiked ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <ThumbsUp size={18} strokeWidth={post.isLiked ? 2.5 : 1.5} className={post.isLiked ? "fill-current" : ""} /> {post.likeCount || 0}
                   </button>
-                  <button onClick={() => { if (!isAuthenticated) { navigate("/auth"); return; } if (post.isFavorited) { openGlobalConfirm({ message: "确认取消收藏？" }).then((ok) => { if (ok) handleToggleFavorite(); }); return; } handleToggleFavorite(); }} title="收藏" className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-bold transition-all ${post.isFavorited ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                  <button onClick={() => { if (!isAuthenticated) { navigate("/auth"); return; } if (post.isFavorited) { openGlobalConfirm({ message: "确认取消收藏？" }).then((ok) => { if (ok) handleToggleFavorite(); }); return; } handleToggleFavorite(); }} title="收藏" className={`flex items-center justify-center gap-1.5 px-2 sm:px-5 py-2 rounded-lg text-[13px] sm:text-sm font-bold transition-all ${post.isFavorited ? 'text-teal-600' : 'text-slate-500 hover:text-slate-800'}`}>
                     <Bookmark size={18} strokeWidth={post.isFavorited ? 2.5 : 1.5} className={post.isFavorited ? "fill-current" : ""} /> {post.favoriteCount || 0}
                   </button>
-                  <button onClick={handleShare} title="分享" className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-800 transition-all">
+                  <button onClick={handleShare} title="分享" className="flex items-center justify-center gap-1.5 px-2 sm:px-5 py-2 rounded-lg text-[13px] sm:text-sm font-bold text-slate-500 hover:text-slate-800 transition-all">
                     <Share2 size={18} strokeWidth={1.5} />
                   </button>
-                  <button onClick={handleReport} title="举报" className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-red-500 transition-all">
+                  <button onClick={handleReport} title="举报" className="flex items-center justify-center gap-1.5 px-2 sm:px-5 py-2 rounded-lg text-[13px] sm:text-sm font-bold text-slate-500 hover:text-red-500 transition-all">
                     <Flag size={18} strokeWidth={1.5} />
                   </button>
                 </div>
               </div>
             </motion.article>
 
-            <motion.div ref={commentCardRef} className="bg-white rounded-3xl p-8 shadow-sm border border-slate-200/60" id="comments">
-              <div className="flex items-center justify-between mb-8">
+            <motion.div className="bg-white rounded-[28px] sm:rounded-3xl p-4 sm:p-8 shadow-sm border border-slate-200/60" id="comments">
+              <div className="flex items-center justify-between mb-6 sm:mb-8">
                 <h3 className="font-extrabold text-[20px] text-slate-800 flex items-center gap-2">
                   评论区
                   <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[13px] rounded-md font-bold">
@@ -903,7 +880,7 @@ export function PostDetail() {
                 </h3>
               </div>
 
-              <div ref={topCommentRef} className="mb-10">
+              <div className="mb-10">
                 {post.isLocked ? (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm font-bold text-slate-500 flex items-center gap-2">
                     <Lock size={16} />
@@ -950,7 +927,7 @@ export function PostDetail() {
                               </button>
                       <input id="comment-attachment-input" type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) { void uploadReplyAttachment(file, "top"); e.target.value = ''; }
+                                if (file) { void uploadReplyAttachment(file); e.target.value = ''; }
                               }} />
                             </div>
                             <button
@@ -998,8 +975,67 @@ export function PostDetail() {
             </motion.div>
           </motion.div>
 
-          <aside className="w-full lg:w-[320px] shrink-0 space-y-6 lg:sticky lg:top-8">
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200/60">
+          <aside className="w-full lg:w-[320px] shrink-0 space-y-4 lg:space-y-6 lg:sticky lg:top-8">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 }}
+              className="lg:hidden rounded-[24px] border border-slate-200/70 bg-white px-4 py-4 shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+                  <TerminalSquare size={20} strokeWidth={2} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-bold uppercase tracking-[0.18em] text-slate-400">当前板块</div>
+                  <div className="mt-1 truncate text-[17px] font-extrabold text-slate-800">
+                    {post.category?.name || "所属板块"}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-bold text-slate-400">
+                    <span>{post.favoriteCount || 0} 收藏</span>
+                    <span>{post.replyCount || 0} 回复</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate(`/board/${post.category?.id}`)}
+                className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-50 px-4 py-2.5 text-[13px] font-bold text-slate-800 transition-all active:scale-[0.99]"
+              >
+                进入板块
+                <ChevronRight size={15} strokeWidth={2.5} />
+              </button>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22 }}
+              className="lg:hidden rounded-[24px] border border-slate-200/70 bg-white px-4 py-4 shadow-sm"
+            >
+              <div className="mb-3 flex items-center gap-2 text-slate-800">
+                <TrendingUp size={16} />
+                <h3 className="text-[15px] font-extrabold">相关推荐</h3>
+              </div>
+              <div className="space-y-3">
+                {relatedPosts.slice(0, 3).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => navigate(`/post/${item.id}`)}
+                    className="block w-full rounded-2xl border border-slate-200/80 bg-slate-50/70 px-3 py-3 text-left transition-colors active:bg-slate-100"
+                  >
+                    <div className="line-clamp-2 text-[14px] font-bold leading-6 text-slate-700">{item.title}</div>
+                    <div className="mt-2 flex items-center gap-3 text-[11px] font-medium text-slate-400">
+                      <span className="flex items-center gap-1"><ThumbsUp size={11} /> {item.likeCount || 0}</span>
+                      <span className="flex items-center gap-1"><MessageSquare size={11} /> {item.replyCount || 0}</span>
+                    </div>
+                  </button>
+                ))}
+                {relatedPosts.length === 0 && <div className="text-sm text-slate-400">暂无相关推荐</div>}
+              </div>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="hidden lg:block bg-white rounded-3xl p-6 shadow-sm border border-slate-200/60">
               <div className="flex items-center gap-4 mb-5 cursor-pointer group" onClick={() => navigate(`/board/${post.category?.id}`)}>
                 <div className="w-14 h-14 rounded-2xl bg-slate-800 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-sm">
                   <TerminalSquare size={24} strokeWidth={2} />
@@ -1049,54 +1085,6 @@ export function PostDetail() {
         </div>
       </div>
 
-      {/* 底部悬浮评论栏 - 动态获取顶部评论位置保证对齐 */}
-      {showBottomBar && !post.isLocked && createPortal(
-        <div className="fixed bottom-0 z-[9999]" style={{ left: commentRect.left, width: commentRect.width }}>
-          <div className="bg-white rounded-t-3xl shadow-sm border border-slate-200/60 border-b-0 px-8 py-6">
-            <div className="flex gap-3">
-              <img src={normalizeAvatarUrl(user?.avatar, user?.username)} alt="Me" className={`${bottomFocused ? 'w-10 h-10' : 'w-8 h-8'} rounded-full object-cover border-2 border-white shadow-sm shrink-0 transition-all`} />
-              <div className="flex-1 relative">
-                <textarea
-                  value={bottomComment}
-                  onChange={(e) => setBottomComment(e.target.value)}
-                  onFocus={() => setBottomFocused(true)}
-                  onBlur={() => { if (!bottomComment.trim()) setBottomFocused(false); }}
-                  placeholder="写下你的见解..."
-                  className={`w-full bg-slate-50/80 border border-slate-200/80 rounded-xl text-[14px] font-medium outline-none focus:border-slate-800 focus:bg-white focus:ring-4 focus:ring-slate-800/5 transition-all resize-none placeholder:text-slate-400 placeholder:font-normal scrollbar-hide ${bottomFocused ? 'p-4 pb-12 h-28' : 'p-2.5 h-10'}`}
-                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                />
-                {bottomFocused && (
-                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between" onMouseDown={(e) => e.preventDefault()}>
-                    <div className="flex items-center gap-2">
-                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setBottomComment(prev => prev + '\u{1F60A}')} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="表情"><Smile size={18} /></button>
-                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setBottomComment(prev => prev + '@')} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="艾特"><AtSign size={18} /></button>
-                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => document.getElementById('bottom-img-input')?.click()} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="图片"><ImageIcon size={18} /></button>
-                      <input id="bottom-img-input" type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setBottomComment(prev => prev + `[图片: ${f.name}]`); e.target.value = ''; } }} />
-                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => document.getElementById('bottom-attachment-input')?.click()} className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors" title="附件"><Paperclip size={18} /></button>
-                      <input id="bottom-attachment-input" type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { void uploadReplyAttachment(f, 'bottom'); e.target.value = ''; } }} />
-                    </div>
-                    <button onClick={handleBottomSubmit} disabled={!bottomComment.trim()} className="bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 disabled:text-slate-400 text-white px-5 py-2 rounded-lg font-bold text-[13px] transition-all active:scale-95">
-                      发布评论
-                    </button>
-                  </div>
-                )}
-                {bottomAttachments.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {bottomAttachments.map((item) => (
-                      <span key={item.url} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                        <Paperclip size={12} />
-                        <span className="max-w-[180px] truncate">{item.name || item.url}</span>
-                        <button type="button" onClick={() => setBottomAttachments((prev) => prev.filter((entry) => entry.url !== item.url))} className="text-slate-400 hover:text-red-500">✕</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 }

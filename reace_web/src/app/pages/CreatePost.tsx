@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { openGlobalConfirm, openGlobalPrompt } from "../components/GlobalConfirmPromptDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { useIsMobile } from "../components/ui/use-mobile";
 import { api } from "../lib/api";
 import { adminKeys, boardKeys, draftKeys, postKeys, profileKeys } from "../lib/query-keys";
 import { highlightCodeSyntax, renderRichContent } from "../lib/rich-content";
@@ -32,6 +34,7 @@ export function CreatePost() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<{ url: string; name?: string }[]>([]);
   const [boardMenuOpen, setBoardMenuOpen] = useState(false);
+  const [mobileBoardPickerOpen, setMobileBoardPickerOpen] = useState(false);
   const [draftId, setDraftId] = useState<number | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -51,6 +54,7 @@ export function CreatePost() {
   const allowNavigationRef = useRef(false);
   const autosaveTickingRef = useRef(false);
   const { isAuthenticated, user } = useSession();
+  const isMobile = useIsMobile();
   const previewHtml = useMemo(() => content || renderRichContent(""), [content]);
   const currentSnapshot = useMemo(
     () =>
@@ -60,7 +64,7 @@ export function CreatePost() {
         bounty,
         selectedBoardId,
         selectedTags: [...selectedTags].sort(),
-        attachments: attachments.map((item) => item.url).sort(),
+        attachments: buildPersistedAttachments(content, attachments).map((item) => item.url).sort(),
       }),
     [attachments, bounty, content, selectedBoardId, selectedTags, title]
   );
@@ -83,7 +87,10 @@ export function CreatePost() {
   const editingPostQuery = useQuery({
     queryKey: postKeys.detail(editingPostId || "none"),
     enabled: Boolean(isEditMode && editingPostId),
-    queryFn: () => api.get<{ post: any }>(`/api/posts/${editingPostId}`, { silent: true }),
+    queryFn: async () => {
+      const result = await api.get<{ post: any }>(`/api/posts/${editingPostId}`, { silent: true });
+      return result.post;
+    },
     retry: false,
   });
   const draftDetailQuery = useQuery({
@@ -100,22 +107,24 @@ export function CreatePost() {
         navigate(postQueryId ? `/post/${postQueryId}` : "/");
         return;
       }
-      if (!editingPostQuery.data?.post) return;
-      const post = editingPostQuery.data.post;
+      if (!editingPostQuery.data) return;
+      const post = editingPostQuery.data;
+      const normalizedContent = normalizeEditorContent(post.content || "");
+      const persistedAttachments = buildPersistedAttachments(normalizedContent, parseAttachments(post.attachments));
       setDraftId(null);
       setTitle(post.title || "");
-      setContent(normalizeEditorContent(post.content || ""));
+      setContent(normalizedContent);
       setBounty(post.rewardPoints || 0);
       setSelectedBoardId(post.category?.id || post.categoryId || null);
       setSelectedTags(parseTags(post.tags));
-      setAttachments(parseAttachments(post.attachments));
+      setAttachments(persistedAttachments);
       lastSavedSnapshotRef.current = JSON.stringify({
         title: (post.title || "").trim(),
-        content: normalizeEditorContent(post.content || ""),
+        content: normalizedContent,
         bounty: post.rewardPoints || 0,
         selectedBoardId: post.category?.id || post.categoryId || null,
         selectedTags: parseTags(post.tags).sort(),
-        attachments: parseAttachments(post.attachments).map((item) => item.url).sort(),
+        attachments: persistedAttachments.map((item) => item.url).sort(),
       });
       hydratedRef.current = true;
       return;
@@ -139,23 +148,25 @@ export function CreatePost() {
     }
     if (!draftDetailQuery.data?.draft) return;
     const draft = draftDetailQuery.data.draft;
+    const normalizedContent = normalizeEditorContent(draft.content || "");
+    const persistedAttachments = buildPersistedAttachments(normalizedContent, parseAttachments(draft.attachments));
     setDraftId(draft.id);
     setTitle(draft.title || "");
-    setContent(normalizeEditorContent(draft.content || ""));
+    setContent(normalizedContent);
     setBounty(draft.rewardPoints || 0);
     setSelectedBoardId(draft.categoryId || null);
     setSelectedTags(parseTags(draft.tags));
-    setAttachments(parseAttachments(draft.attachments));
+    setAttachments(persistedAttachments);
     lastSavedSnapshotRef.current = JSON.stringify({
       title: (draft.title || "").trim(),
-      content: normalizeEditorContent(draft.content || ""),
+      content: normalizedContent,
       bounty: draft.rewardPoints || 0,
       selectedBoardId: draft.categoryId || null,
       selectedTags: parseTags(draft.tags).sort(),
-      attachments: parseAttachments(draft.attachments).map((item) => item.url).sort(),
+      attachments: persistedAttachments.map((item) => item.url).sort(),
     });
     hydratedRef.current = true;
-  }, [draftDetailQuery.data?.draft, draftDetailQuery.isError, draftQueryId, editingPostId, editingPostQuery.data?.post, editingPostQuery.isError, isEditMode, navigate, postQueryId]);
+  }, [draftDetailQuery.data?.draft, draftDetailQuery.isError, draftQueryId, editingPostId, editingPostQuery.data, editingPostQuery.isError, isEditMode, navigate, postQueryId]);
 
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
@@ -340,13 +351,14 @@ export function CreatePost() {
 
     setSubmitting(true);
     try {
+      const persistedAttachments = buildPersistedAttachments(content, attachments);
       const payload = {
         title,
         content,
         categoryId: selectedBoardId,
         rewardPoints: bounty,
         tags: selectedTags,
-        attachments,
+        attachments: persistedAttachments,
       };
       const result = isEditMode && editingPostId
         ? await api.put<{ message: string }>(`/api/posts/${editingPostId}`, payload)
@@ -364,10 +376,12 @@ export function CreatePost() {
         await queryClient.invalidateQueries({ queryKey: draftKeys.all });
       }
       if (isEditMode && editingPostId) {
+        const freshPostDetail = await api.get<{ post: any }>(`/api/posts/${editingPostId}`, { silent: true });
+        queryClient.setQueryData(postKeys.detail(editingPostId), freshPostDetail.post);
         await queryClient.invalidateQueries({ queryKey: postKeys.detail(editingPostId) });
       }
       toast.success(result.message || (isEditMode ? "帖子修改成功！" : "帖子发布成功！"));
-      navigate(`/post/${isEditMode && editingPostId ? editingPostId : result.id}`);
+      navigate(`/post/${isEditMode && editingPostId ? editingPostId : result.id}`, { replace: true });
     } finally {
       setSubmitting(false);
     }
@@ -407,7 +421,7 @@ export function CreatePost() {
       categoryId: selectedBoardId,
       rewardPoints: bounty,
       tags: selectedTags,
-      attachments,
+      attachments: buildPersistedAttachments(content, attachments),
     };
 
     setSavingDraft(true);
@@ -424,7 +438,7 @@ export function CreatePost() {
         bounty,
         selectedBoardId,
         selectedTags: [...selectedTags].sort(),
-        attachments: attachments.map((item) => item.url).sort(),
+        attachments: buildPersistedAttachments(content, attachments).map((item) => item.url).sort(),
       });
       if (notify) {
         toast.success("草稿已保存");
@@ -450,9 +464,9 @@ export function CreatePost() {
 
   const insertAttachmentIntoContent = (attachment: { url: string; name?: string }) => {
     const displayName = escapeHtml(attachment.name || "附件");
-    const resourceUrl = normalizeResourceUrl(attachment.url);
+    const resourceUrl = resolveEditorResourceUrl(attachment.url);
     if (isImageAttachment(attachment.url)) {
-      insertHtmlAtCursor(`<img src="${resourceUrl}" alt="${displayName}" style="max-width:100%;border-radius:16px;border:1px solid #e2e8f0;margin:12px 0;" />`);
+      insertHtmlAtCursor(`<img src="${resourceUrl}" alt="${displayName}" style="max-width:100%;max-height:320px;border-radius:16px;border:1px solid #e2e8f0;margin:12px 0;display:block;object-fit:contain;" />`);
     } else {
       insertHtmlAtCursor(`<a href="${resourceUrl}" target="_blank" rel="noreferrer" style="color:#0f766e;text-decoration:underline;">${displayName}</a>`);
     }
@@ -522,10 +536,36 @@ export function CreatePost() {
   };
 
   const insertHtmlAtCursor = (html: string) => {
-    restoreEditorSelection();
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    try {
+      restoreEditorSelection();
+    } catch {
+      focusEditor();
+    }
+
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    const range = selection.getRangeAt(0);
+    let range: Range;
+    if (!selection || selection.rangeCount === 0) {
+      range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    } else {
+      range = selection.getRangeAt(0);
+      if (!editor.contains(range.commonAncestorContainer)) {
+        range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+
     range.deleteContents();
 
     const container = document.createElement("div");
@@ -543,9 +583,11 @@ export function CreatePost() {
       const nextRange = document.createRange();
       nextRange.setStartAfter(lastNode);
       nextRange.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(nextRange);
-      editorSelectionRef.current = nextRange.cloneRange();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(nextRange);
+        editorSelectionRef.current = nextRange.cloneRange();
+      }
     } else {
       saveEditorSelection();
     }
@@ -556,32 +598,21 @@ export function CreatePost() {
 
   const insertInlineImageIntoContent = (attachment: { url: string; name?: string }) => {
     const displayName = escapeHtml(attachment.name || "图片");
-    const resourceUrl = normalizeResourceUrl(attachment.url);
-    insertHtmlAtCursor(`<img src="${resourceUrl}" alt="${displayName}" style="max-width:100%;border-radius:16px;border:1px solid #e2e8f0;margin:12px 0;display:block;" />`);
+    const resourceUrl = resolveEditorResourceUrl(attachment.url);
+    insertHtmlAtCursor(`<img src="${resourceUrl}" alt="${displayName}" style="max-width:100%;max-height:320px;border-radius:16px;border:1px solid #e2e8f0;margin:12px 0;display:block;object-fit:contain;" />`);
   };
 
   const uploadInlineImageFile = async (file: File) => {
-    const uploadId = `inline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const previewUrl = URL.createObjectURL(file);
-
     try {
-      insertInlineImagePreview({
-        uploadId,
-        previewUrl,
-        name: file.name,
-      });
       const uploaded = await uploadFiles([file]);
       if (uploaded.length === 0) {
-        removeInlineImagePreview(uploadId);
         return false;
       }
-      replaceInlineImagePreview(uploadId, uploaded[0]);
+      insertInlineImageIntoContent(uploaded[0]);
       return true;
-    } catch {
-      removeInlineImagePreview(uploadId);
+    } catch (error) {
+      console.error("Inline image upload failed before request completion", error);
       return false;
-    } finally {
-      URL.revokeObjectURL(previewUrl);
     }
   };
 
@@ -769,8 +800,8 @@ export function CreatePost() {
     <div className="min-h-screen bg-[#fafafa] font-sans text-slate-800 pb-10 flex flex-col">
       {/* Top Navigation - Minimalist */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-40 shrink-0">
-        <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-[1200px] mx-auto px-3 sm:px-6 py-3 sm:h-16 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
             <button 
               onClick={() => {
                 if (!hasUnsavedChanges) {
@@ -788,33 +819,36 @@ export function CreatePost() {
             >
               <ChevronLeft size={20} strokeWidth={1.5} />
             </button>
-            <div className="h-4 w-px bg-gray-300"></div>
-            <h1 className="text-[16px] font-bold text-slate-800 tracking-wide">{isEditMode ? "编辑帖子" : "创作新主贴"}</h1>
-            <span className="text-[12px] font-medium text-slate-400 px-2 py-0.5 bg-gray-100 rounded">
-              {isEditMode
-                ? (hasUnsavedChanges ? "有未保存修改" : "修改已保存")
-                : savingDraft
-                  ? "草稿保存中..."
-                  : hasUnsavedChanges
-                    ? `${autosaveCountdown}s 后自动保存`
-                    : "草稿已保存"}
-            </span>
+            <div className="hidden h-4 w-px bg-gray-300 sm:block"></div>
+            <div className="min-w-0">
+              <h1 className="truncate text-[15px] sm:text-[16px] font-bold text-slate-800 tracking-wide">{isEditMode ? "编辑帖子" : "创作新主贴"}</h1>
+              <span className="mt-1 inline-flex max-w-full rounded bg-gray-100 px-2 py-0.5 text-[11px] sm:text-[12px] font-medium text-slate-400">
+                {isEditMode
+                  ? (hasUnsavedChanges ? "有未保存修改" : "修改已保存")
+                  : savingDraft
+                    ? "草稿保存中..."
+                    : hasUnsavedChanges
+                      ? `${autosaveCountdown}s 后自动保存`
+                      : "草稿已保存"}
+              </span>
+            </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-end gap-2 sm:gap-4">
             <button
               type="button"
               onClick={() => persistDraftNow(true)}
               disabled={isEditMode || savingDraft || !hasUnsavedChanges}
-              className="flex items-center gap-2 px-4 py-2 text-[14px] font-medium text-slate-600 hover:text-slate-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 sm:px-4 text-[12px] sm:text-[14px] font-medium text-slate-600 hover:text-slate-900 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
             >
               <Save size={16} strokeWidth={1.5} />
-              保存草稿
+              <span className="hidden sm:inline">保存草稿</span>
+              <span className="sm:hidden">草稿</span>
             </button>
             <button 
               onClick={handleSubmit}
               disabled={submitting}
-              className="flex items-center gap-2 px-6 py-2 text-[14px] font-bold text-white bg-[#3b82f6] hover:bg-blue-600 rounded-lg shadow-sm transition-all"
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-[#3b82f6] px-4 sm:px-6 text-[12px] sm:text-[14px] font-bold text-white shadow-sm transition-all hover:bg-blue-600"
             >
               <Send size={16} strokeWidth={1.5} /> {submitting ? (isEditMode ? "保存中..." : "发布中...") : (isEditMode ? "保存修改" : "发布帖子")}
             </button>
@@ -830,40 +864,76 @@ export function CreatePost() {
         onChange={(e) => handleInlineImageSelect(e.target.files)}
       />
 
+      <Dialog open={mobileBoardPickerOpen} onOpenChange={setMobileBoardPickerOpen}>
+        <DialogContent className="max-w-[calc(100vw-1.5rem)] rounded-2xl p-0 sm:hidden">
+          <DialogHeader className="border-b border-slate-100 px-4 py-4 text-left">
+            <DialogTitle className="text-base font-black text-slate-900">选择板块</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto px-2 py-2">
+            {categories.map((category) => (
+              <button
+                key={`mobile-board-${category.id}`}
+                type="button"
+                onClick={() => {
+                  setSelectedBoardId(category.id);
+                  setSelectedBoard(category.name);
+                  setMobileBoardPickerOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-semibold transition ${
+                  selectedBoardId === category.id
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <span>{category.name}</span>
+                {selectedBoardId === category.id ? <span className="text-xs font-black">已选中</span> : null}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Main Content Area */}
-      <div className="max-w-[1200px] w-full mx-auto px-6 mt-6 flex-1 flex flex-col pb-8">
+      <div className="max-w-[1200px] w-full mx-auto px-3 sm:px-6 mt-4 sm:mt-6 flex-1 flex flex-col pb-8">
         {/* Grid layout that stretches both columns to match height */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 flex-1 lg:max-h-[calc(100vh-120px)] min-h-[600px]">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 flex-1 lg:grid-cols-[1fr_320px] lg:max-h-[calc(100vh-120px)] lg:min-h-[600px]">
           
           {/* Left Column (Editor) */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden h-full">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-visible h-full">
             
             {/* Title Area */}
-            <div className="p-6 border-b border-gray-100 shrink-0">
+            <div className="p-4 sm:p-6 border-b border-gray-100 shrink-0">
               <input 
                 type="text" 
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="在此输入标题..."
-                className="w-full bg-transparent text-[24px] font-bold outline-none placeholder:text-gray-300 text-slate-800"
+                className="w-full bg-transparent text-[20px] sm:text-[24px] font-bold outline-none placeholder:text-gray-300 text-slate-800"
                 maxLength={100}
               />
             </div>
 
             {/* Toolbar - Minimalist Monotone */}
-            <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-wrap gap-2 shrink-0">
+            <div className="relative z-20 px-3 sm:px-4 py-3 sm:py-2 border-b border-gray-100 bg-gray-50/50 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between shrink-0">
               
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {/* Select Board */}
-                <div ref={boardMenuRef} className="relative mr-2">
+                <div ref={boardMenuRef} className="relative shrink-0">
                   <button
-                    onClick={() => setBoardMenuOpen((prev) => !prev)}
-                    className="flex items-center gap-2 px-3 py-1.5 text-[13px] font-medium text-slate-600 bg-white border border-gray-200 hover:border-gray-300 rounded-md transition-colors"
+                    type="button"
+                    onClick={() => {
+                      if (isMobile) {
+                        setMobileBoardPickerOpen(true);
+                        return;
+                      }
+                      setBoardMenuOpen((prev) => !prev);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-[13px] font-medium text-slate-600 bg-white border border-gray-200 hover:border-gray-300 rounded-md transition-colors whitespace-nowrap"
                   >
                     {selectedBoard} <ChevronDown size={14} strokeWidth={1.5} />
                   </button>
-                  {boardMenuOpen && (
-                    <div className="absolute top-full left-0 mt-2 z-20 w-56 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                  {!isMobile && boardMenuOpen && (
+                    <div className="absolute top-full left-0 mt-2 z-50 w-[min(18rem,calc(100vw-2rem))] max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
                       {categories.map((category) => (
                         <button
                           key={category.id}
@@ -880,34 +950,47 @@ export function CreatePost() {
                     </div>
                   )}
                 </div>
-                <div className="w-px h-4 bg-gray-300 mx-1"></div>
+                <div className="w-px h-4 bg-gray-300 mx-1 shrink-0"></div>
 
                 {/* Formatting */}
                 {formatTools.map(renderTool)}
                 
-                <div className="w-px h-4 bg-gray-300 mx-1"></div>
+                <div className="w-px h-4 bg-gray-300 mx-1 shrink-0"></div>
                 
                 {/* Alignment */}
                 {alignTools.map(renderTool)}
 
-                <div className="w-px h-4 bg-gray-300 mx-1"></div>
+                <div className="w-px h-4 bg-gray-300 mx-1 shrink-0"></div>
 
                 {/* Insert */}
                 {insertTools.map(renderTool)}
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 overflow-x-auto sm:overflow-visible pb-1 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {actionTools.map(renderTool)}
               </div>
             </div>
 
             {/* Writing Area */}
-            <div className="p-6 flex-1 min-h-0">
-              <div className="mb-3 flex items-center justify-between">
+            <div className="p-4 sm:p-6 flex-1 min-h-0">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-xs font-bold uppercase tracking-wide text-slate-400">正文内容</div>
-                <div className="text-xs text-slate-400">工具栏效果会直接显示在正文里</div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <div className="text-xs text-slate-400">工具栏效果会直接显示在正文里</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      saveEditorSelection();
+                      inlineImageInputRef.current?.click();
+                    }}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    <ImageIcon size={13} strokeWidth={1.8} />
+                    上传图片到正文
+                  </button>
+                </div>
               </div>
-              <div className="relative h-full min-h-[260px] rounded-2xl border border-gray-200 bg-slate-50/40 p-4">
+              <div className="relative rounded-2xl border border-gray-200 bg-slate-50/40 p-4">
                 {!editorFocused && !hasMeaningfulEditorContent(content) && (
                   <div className="pointer-events-none absolute left-4 top-4 text-[15px] text-gray-300">开始撰写正文... 支持 Markdown 语法</div>
                 )}
@@ -928,17 +1011,27 @@ export function CreatePost() {
                   }}
                   onKeyUp={saveEditorSelection}
                   onMouseUp={saveEditorSelection}
-                  className="markdown-preview h-full min-h-[220px] overflow-y-auto outline-none text-[15px] leading-7 text-slate-700"
+                  className="markdown-preview h-[360px] overflow-y-auto pr-1 outline-none text-[15px] leading-7 text-slate-700 sm:h-[420px] lg:h-[calc(100vh-25rem)] lg:min-h-[420px]"
                 />
+              </div>
+              <div className="mt-3 flex justify-end sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => inlineImageInputRef.current?.click()}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm"
+                >
+                  <ImageIcon size={14} strokeWidth={1.8} />
+                  插入图片
+                </button>
               </div>
             </div>
           </div>
 
           {/* Right Column (Sidebar Settings) */}
-          <div className="flex flex-col gap-6 h-full">
+          <div className="flex flex-col gap-4 sm:gap-6 h-full">
             
             {/* Attachment */}
-            <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm shrink-0">
+            <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm shrink-0">
               <h3 className="font-bold text-slate-800 text-[14px] flex items-center gap-2 mb-4">
                 <UploadCloud size={16} strokeWidth={1.5} className="text-slate-500" /> 附件上传
               </h3>
@@ -954,7 +1047,7 @@ export function CreatePost() {
                   setIsDragOver(false);
                   handleUploadFiles(e.dataTransfer.files);
                 }}
-                className={`border border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-colors cursor-pointer group ${
+                className={`border border-dashed rounded-lg p-5 sm:p-6 flex flex-col items-center justify-center text-center transition-colors cursor-pointer group ${
                   isDragOver ? "border-teal-400 bg-teal-50" : "border-gray-300 hover:bg-gray-50 hover:border-gray-400"
                 }`}
               >
@@ -977,9 +1070,9 @@ export function CreatePost() {
                 {attachments.length > 0 && (
                   <div className="mt-3 w-full text-left space-y-2">
                     {attachments.map((item) => (
-                      <div key={item.url} className="flex items-center justify-between gap-2 text-xs text-slate-500">
+                      <div key={item.url} className="flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                         <span className="truncate">{item.name || item.url}</span>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1009,7 +1102,7 @@ export function CreatePost() {
             </div>
 
             {/* Post Settings */}
-            <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm shrink-0">
+            <div className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200 shadow-sm shrink-0">
               <h3 className="font-bold text-slate-800 text-[14px] flex items-center gap-2 mb-4">
                 <Settings size={16} strokeWidth={1.5} className="text-slate-500" /> 帖子设置
               </h3>
@@ -1017,7 +1110,7 @@ export function CreatePost() {
               <div className="space-y-5">
                 <div>
                   <label className="block text-[13px] font-bold text-slate-700 mb-2">悬赏积分 (可选)</label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                     <input 
                       type="number" 
                       value={bounty}
@@ -1034,7 +1127,7 @@ export function CreatePost() {
                       className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-[14px] outline-none focus:border-slate-400 transition-colors"
                       min="0"
                     />
-                    <span className="text-[13px] text-slate-500">
+                    <span className="text-[12px] sm:text-[13px] text-slate-500">
                       {uploadingInlineImage
                         ? "图片上传中..."
                         : uploadingPaste
@@ -1073,11 +1166,11 @@ export function CreatePost() {
             </div>
 
             {/* Posting Tips - Auto-expands to fill remaining height */}
-            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 flex-1 flex flex-col min-h-0">
+            <div className="bg-gray-50 rounded-xl p-4 sm:p-5 border border-gray-200 flex flex-col min-h-0 lg:flex-1">
               <h4 className="font-bold text-slate-800 text-[13px] flex items-center gap-2 mb-3 shrink-0">
                 <Info size={14} strokeWidth={1.5} className="text-slate-500" /> 发帖规范
               </h4>
-              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="overflow-y-auto pr-1 sm:pr-2 custom-scrollbar lg:flex-1">
                 <ul className="text-[12px] text-slate-600 space-y-2 list-disc pl-4 marker:text-gray-400">
                   <li>提问前请先使用顶部搜索功能，确认是否已有小伙伴解答过类似问题。</li>
                   <li>标题请简明扼要概括核心问题，避免使用“求救”、“小白求问”等无意义词汇。</li>
@@ -1105,7 +1198,10 @@ function normalizeEditorContent(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return "";
   if (/<[a-z][\s\S]*>/i.test(trimmed)) {
-    return renderRichContent(trimmed);
+    return trimmed;
+  }
+  if (/&lt;\/?[a-z][\s\S]*&gt;/i.test(trimmed)) {
+    return decodeEditorHtml(trimmed);
   }
   return renderRichContent(trimmed);
 }
@@ -1118,6 +1214,73 @@ function hasMeaningfulEditorContent(value: string) {
   if (!value) return false;
   if (stripHtml(value)) return true;
   return /<(img|video|audio|iframe|table|svg)\b/i.test(value);
+}
+
+function decodeEditorHtml(value: string) {
+  if (typeof DOMParser !== "undefined") {
+    const parsed = new DOMParser().parseFromString(value, "text/html");
+    return parsed.documentElement.textContent || value;
+  }
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function buildPersistedAttachments(content: string, attachments: Array<{ url: string; name?: string }>) {
+  const merged = new Map<string, { url: string; name?: string }>();
+  for (const item of attachments) {
+    const normalizedUrl = normalizeResourceUrl(item?.url);
+    if (!normalizedUrl) continue;
+    merged.set(normalizedUrl, { url: normalizedUrl, name: item?.name });
+  }
+  for (const item of extractEmbeddedAttachmentsFromContent(content)) {
+    if (!merged.has(item.url)) {
+      merged.set(item.url, item);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+function extractEmbeddedAttachmentsFromContent(content: string) {
+  if (!content) return [] as Array<{ url: string; name?: string }>;
+  const html = /&lt;\/?[a-z][\s\S]*&gt;/i.test(content) ? decodeEditorHtml(content) : content;
+  if (typeof DOMParser === "undefined") {
+    return [] as Array<{ url: string; name?: string }>;
+  }
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const items: Array<{ url: string; name?: string }> = [];
+  doc.querySelectorAll("img[src], a[href]").forEach((element) => {
+    const rawUrl = element.getAttribute("src") || element.getAttribute("href");
+    const normalizedUrl = normalizeResourceUrl(rawUrl);
+    if (!normalizedUrl || !/\/uploads\//i.test(normalizedUrl)) return;
+    const name = element.getAttribute("alt") || element.textContent?.trim() || undefined;
+    items.push({ url: normalizedUrl, name: name || undefined });
+  });
+  return items;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function resolveEditorResourceUrl(value: string) {
+  const normalized = normalizeResourceUrl(value);
+  if (!normalized) return "";
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    return normalized;
+  }
+  if (typeof window !== "undefined" && normalized.startsWith("/")) {
+    return `${window.location.origin}${normalized}`;
+  }
+  return normalized;
 }
 
 function getCaretCharacterOffsetWithin(element: HTMLElement) {

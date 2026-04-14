@@ -70,18 +70,41 @@ public class UploadController {
         byte[] magic = readMagic(file);
         if (magic.length == 0) return false;
 
-        boolean isExcel = (originalFilename.endsWith(".xlsx") && contentType.contains("spreadsheetml") && isZipFile(magic)) ||
-                (originalFilename.endsWith(".xls") && contentType.contains("ms-excel") && isOleFile(magic));
+        boolean isExcel = (originalFilename.endsWith(".xlsx") && isZipFile(magic) &&
+                isContentTypeCompatible(contentType,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "application/octet-stream")) ||
+                (originalFilename.endsWith(".xls") && isOleFile(magic) &&
+                        isContentTypeCompatible(contentType,
+                                "application/vnd.ms-excel",
+                                "application/octet-stream"));
         if ("reply_attachment".equalsIgnoreCase(scene)) {
             return isExcel;
         }
 
         return isExcel ||
-               (originalFilename.endsWith(".pdf") && contentType.equals("application/pdf") && isPdfFile(magic)) ||
-               (originalFilename.endsWith(".png") && contentType.equals("image/png") && isPngFile(magic)) ||
-               ((originalFilename.endsWith(".jpg") || originalFilename.endsWith(".jpeg")) && contentType.equals("image/jpeg") && isJpegFile(magic)) ||
-               (originalFilename.endsWith(".gif") && contentType.equals("image/gif") && isGifFile(magic)) ||
-               (originalFilename.endsWith(".webp") && contentType.equals("image/webp") && isWebpFile(magic));
+               (originalFilename.endsWith(".pdf") && isPdfFile(magic) &&
+                       isContentTypeCompatible(contentType, "application/pdf", "application/octet-stream")) ||
+               (originalFilename.endsWith(".png") && isPngFile(magic) &&
+                       isContentTypeCompatible(contentType, "image/png", "application/octet-stream")) ||
+               ((originalFilename.endsWith(".jpg") || originalFilename.endsWith(".jpeg")) && isJpegFile(magic) &&
+                       isContentTypeCompatible(contentType, "image/jpeg", "image/jpg", "image/pjpeg", "application/octet-stream")) ||
+               (originalFilename.endsWith(".gif") && isGifFile(magic) &&
+                       isContentTypeCompatible(contentType, "image/gif", "application/octet-stream")) ||
+               (originalFilename.endsWith(".webp") && isWebpFile(magic) &&
+                       isContentTypeCompatible(contentType, "image/webp", "application/octet-stream"));
+    }
+
+    private boolean isContentTypeCompatible(String contentType, String... acceptedTypes) {
+        if (contentType == null || contentType.isBlank()) {
+            return true;
+        }
+        for (String acceptedType : acceptedTypes) {
+            if (contentType.equals(acceptedType) || contentType.startsWith(acceptedType + ";")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private byte[] readMagic(MultipartFile file) {

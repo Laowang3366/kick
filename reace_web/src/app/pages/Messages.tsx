@@ -18,12 +18,14 @@ import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
 import { messageKeys } from "../lib/query-keys";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
+import { useIsMobile } from "../components/ui/use-mobile";
 
 export function Messages() {
   const MESSAGE_PAGE_SIZE = 20;
   const QUICK_EMOJIS = ["😀", "😊", "😂", "😍", "👍", "👏", "🎉", "🙏", "💡", "🔥"];
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [activeId, setActiveId] = useState<number | null>(null);
   const [input, setInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -38,10 +40,10 @@ export function Messages() {
   const contacts = conversationsQuery.data?.conversations || [];
 
   useEffect(() => {
-    if (contacts.length > 0 && !activeId) {
+    if (!isMobile && contacts.length > 0 && !activeId) {
       setActiveId(contacts[0].id);
     }
-  }, [activeId, contacts]);
+  }, [activeId, contacts, isMobile]);
 
   const threadQuery = useInfiniteQuery({
     queryKey: messageKeys.thread(activeId || "none"),
@@ -151,9 +153,8 @@ export function Messages() {
     }
   };
 
-  return (
-    <div className="flex h-full max-w-7xl mx-auto bg-white overflow-hidden shadow-sm">
-      <div className="w-80 border-r border-gray-100 flex flex-col bg-gray-50/30 shrink-0">
+  const conversationList = (
+    <div className={`${isMobile ? "w-full" : "w-80 border-r border-gray-100"} flex flex-col bg-gray-50/30 shrink-0`}>
         <div className="h-16 px-5 border-b border-gray-100 flex items-center justify-between bg-white/50 backdrop-blur-sm sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <button
@@ -233,12 +234,23 @@ export function Messages() {
           )}
         </div>
       </div>
+  );
 
-      <div className="flex-1 flex flex-col bg-white">
+  const threadPanel = (
+      <div className="flex-1 flex flex-col bg-white min-w-0">
         {activeContact ? (
           <>
             <div className="h-16 px-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-10">
               <div className="flex items-center gap-3">
+                {isMobile ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(null)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    <ArrowLeft size={18} />
+                  </button>
+                ) : null}
                 <img src={normalizeAvatarUrl(activeContact.user?.avatar, activeContact.user?.username)} alt={activeContact.user?.username} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">{activeContact.user?.username}</h3>
@@ -386,6 +398,16 @@ export function Messages() {
           <div className="flex h-full items-center justify-center text-slate-400">选择一个会话开始聊天</div>
         )}
       </div>
+  );
+
+  return (
+    <div className="flex h-full max-w-7xl mx-auto bg-white overflow-hidden shadow-sm">
+      {isMobile ? (activeId ? threadPanel : conversationList) : (
+        <>
+          {conversationList}
+          {threadPanel}
+        </>
+      )}
     </div>
   );
 }

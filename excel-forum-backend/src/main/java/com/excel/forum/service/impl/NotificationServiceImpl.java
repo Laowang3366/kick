@@ -212,7 +212,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         long all = count(new QueryWrapper<Notification>().eq("user_id", userId));
         long system = count(new QueryWrapper<Notification>().eq("user_id", userId).in("type", "site_notification", "feedback_result"));
         long posts = count(new QueryWrapper<Notification>().eq("user_id", userId).in("type",
-                "reply", "like", "favorite", "MENTION", "post_deleted", "reply_deleted", "report_delete", "post_review"));
+                "reply", "like", "favorite", "MENTION", "post_deleted", "reply_deleted", "report_delete", "post_review", "review_request"));
         long follows = count(new QueryWrapper<Notification>().eq("user_id", userId).in("type", "follow", "level_up"));
 
         Map<String, Object> result = new HashMap<>();

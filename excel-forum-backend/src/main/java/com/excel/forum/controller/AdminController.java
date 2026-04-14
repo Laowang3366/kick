@@ -1351,14 +1351,21 @@ public class AdminController {
         }
         log.info("管理员审核帖子: postId={}, reviewStatus={}, reason={}", id, status, reason);
 
-        // 清理所有与该帖子相关的审核请求通知
-        notificationService.list(new QueryWrapper<Notification>()
-            .eq("type", "review_request").eq("related_id", id).eq("is_read", 0))
-            .forEach(n -> notificationService.markAsRead(n.getUserId(), n.getId()));
-
         String notificationContent = "approved".equals(status)
             ? "您的帖子「" + post.getTitle() + "」已通过审核"
             : "您的帖子「" + post.getTitle() + "」未通过审核" + (reason != null ? "，原因：" + reason : "");
+
+        String reviewerNotificationContent = "approved".equals(status)
+                ? "帖子「" + post.getTitle() + "」已审核通过"
+                : "帖子「" + post.getTitle() + "」已驳回" + (reason != null ? "，原因：" + reason : "");
+
+        UpdateWrapper<Notification> reviewerNotificationUpdate = new UpdateWrapper<>();
+        reviewerNotificationUpdate.eq("type", "review_request")
+                .eq("related_id", id)
+                .set("type", "post_review")
+                .set("content", reviewerNotificationContent)
+                .set("is_read", 1);
+        notificationService.update(reviewerNotificationUpdate);
 
         notificationService.createNotification(
             post.getUserId(),

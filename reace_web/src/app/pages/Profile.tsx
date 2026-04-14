@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
-import { openGlobalPrompt } from "../components/GlobalConfirmPromptDialog";
+import { openGlobalConfirm, openGlobalPrompt } from "../components/GlobalConfirmPromptDialog";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { api } from "../lib/api";
 import { formatDateTime, formatRelativeTime } from "../lib/format";
@@ -39,12 +39,15 @@ import { profileKeys } from "../lib/query-keys";
 import { stripRichContent } from "../lib/rich-content";
 import { normalizeAvatarUrl, normalizeImageUrl, parseTags } from "../lib/mappers";
 import { useSession } from "../lib/session";
+import { useIsMobile } from "../components/ui/use-mobile";
 
 export function Profile() {
   const PAGE_SIZE = 8;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState("posts");
+  const [mobilePanelTab, setMobilePanelTab] = useState<string | null>(null);
   const [postsPage, setPostsPage] = useState(1);
   const [draftsPage, setDraftsPage] = useState(1);
   const [favoritesPage, setFavoritesPage] = useState(1);
@@ -159,6 +162,27 @@ export function Profile() {
 
   const handleDeleteDraft = async (id: number) => {
     await deleteDraftMutation.mutateAsync(id);
+  };
+
+  const deletePostMutation = useMutation({
+    mutationFn: (postId: number) => api.delete(`/api/posts/${postId}`),
+    onSuccess: async () => {
+      toast.success("帖子已删除");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profileKeys.tab("posts") }),
+        queryClient.invalidateQueries({ queryKey: profileKeys.overview() }),
+      ]);
+    },
+  });
+
+  const handleDeletePost = async (postId: number) => {
+    const confirmed = await openGlobalConfirm({
+      message: "确认删除这篇帖子？删除后不可恢复。",
+      destructive: true,
+      confirmLabel: "确认删除",
+    });
+    if (!confirmed) return;
+    await deletePostMutation.mutateAsync(postId);
   };
 
   useEffect(() => {
@@ -375,6 +399,30 @@ export function Profile() {
                       <div className="mt-1 text-[10px] font-semibold text-slate-400">回复</div>
                     </div>
                   </div>
+                </div>
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      navigate(`/create-post?post=${post.id}`);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    <Edit3 size={14} />
+                    编辑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleDeletePost(post.id);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-100"
+                  >
+                    <Trash2 size={14} />
+                    删除
+                  </button>
                 </div>
               </div>
             ))}
@@ -702,6 +750,17 @@ export function Profile() {
     );
   }, [activeTab, activities, draftsList, expLogs, favoritePosts, followerUsers, followingUsers, historyPosts, isSavingProfile, myPosts, navigate, newSkill, practiceRecords, profileForm, queryClient, refreshUser, skills]);
 
+  const mobileEntries = [
+    { id: "posts", icon: <FileText size={18} />, label: "我的发帖", count: stats.publishedPosts || 0, tone: "teal" },
+    { id: "drafts", icon: <Edit3 size={18} />, label: "草稿箱", count: stats.draftCount || 0, tone: "slate" },
+    { id: "favorites", icon: <Star size={18} />, label: "收藏夹", count: stats.favoriteCount || 0, tone: "amber" },
+    { id: "following", icon: <Users size={18} />, label: "关注列表", count: stats.followingCount || 0, tone: "sky" },
+    { id: "followers", icon: <Heart size={18} />, label: "粉丝列表", count: stats.followerCount || 0, tone: "rose" },
+    { id: "history", icon: <Clock size={18} />, label: "浏览历史", count: stats.historyCount || 0, tone: "emerald" },
+    { id: "practice", icon: <BookOpen size={18} />, label: "刷题记录", count: practiceTotal || 0, tone: "indigo" },
+    { id: "analytics", icon: <TrendingUp size={18} />, label: "能力图谱", count: expLogsTotal || activities.length || 0, tone: "violet" },
+  ];
+
   return (
     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 pb-20 space-y-6">
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden relative">
@@ -782,6 +841,36 @@ export function Profile() {
         </div>
       </div>
 
+      {isMobile ? (
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+            <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-400">内容与记录</div>
+            <div className="grid grid-cols-2 gap-3">
+              {mobileEntries.map((entry) => (
+                <button
+                  key={`mobile-profile-${entry.id}`}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(entry.id);
+                    setMobilePanelTab(entry.id);
+                  }}
+                  className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left transition hover:border-slate-300 hover:bg-white"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm">
+                      {entry.icon}
+                    </div>
+                    <div className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-slate-500 shadow-sm">
+                      {entry.count}
+                    </div>
+                  </div>
+                  <div className="mt-3 text-sm font-bold text-slate-800">{entry.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="flex flex-col md:flex-row gap-6">
         <div className="w-full md:w-64 shrink-0 space-y-4">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sticky top-24">
@@ -827,6 +916,17 @@ export function Profile() {
           <AnimatePresence mode="wait">{content}</AnimatePresence>
         </div>
       </div>
+      )}
+
+      <Dialog open={Boolean(isMobile && mobilePanelTab)} onOpenChange={(next) => { if (!next) setMobilePanelTab(null); }}>
+        <DialogContent className="w-[min(960px,calc(100vw-1rem))] max-h-[88vh] overflow-y-auto rounded-3xl p-0 sm:max-w-none">
+          <DialogHeader className="border-b border-slate-100 px-5 py-4 text-left">
+            <DialogTitle>{mobileEntries.find((item) => item.id === mobilePanelTab)?.label || "查看详情"}</DialogTitle>
+            <DialogDescription>在独立界面中查看和管理该模块内容。</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0">{mobilePanelTab ? content : null}</div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isEditProfileOpen} onOpenChange={setIsEditProfileOpen}>
         <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">

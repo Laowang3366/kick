@@ -10,8 +10,10 @@ public class HtmlSanitizer {
 
     public HtmlSanitizer() {
         this.safelist = Safelist.relaxed()
+                .preserveRelativeLinks(true)
                 .addTags("table", "thead", "tbody", "tfoot", "tr", "th", "td", "span", "div", "pre", "code", "hr")
                 .addAttributes(":all", "class")
+                .addAttributes("img", "src", "alt")
                 .addAttributes("code", "data-code-block")
                 .addProtocols("a", "href", "http", "https", "mailto")
                 .addProtocols("img", "src", "http", "https");

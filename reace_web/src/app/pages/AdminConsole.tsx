@@ -588,7 +588,7 @@ export function AdminReview() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => navigate(`/post/${item.id}`)} className={secondaryButtonClassName()}>
+                      <button type="button" onClick={() => navigate(`/post/${item.id}`, { state: { backTo: "/admin/review" } })} className={secondaryButtonClassName()}>
                         <Eye size={14} />
                         查看
                       </button>
@@ -1475,7 +1475,7 @@ export function AdminPosts() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => navigate(`/post/${item.id}`)} className={secondaryButtonClassName()}><Eye size={14} />查看</button>
+                        <button type="button" onClick={() => navigate(`/post/${item.id}`, { state: { backTo: "/admin/posts" } })} className={secondaryButtonClassName()}><Eye size={14} />查看</button>
                         <button type="button" onClick={() => toggle(item.id, "lock")} className={item.isLocked ? primaryButtonClassName() : secondaryButtonClassName()}>{item.isLocked ? <Unlock size={14} /> : <Lock size={14} />}{item.isLocked ? "解锁" : "锁定"}</button>
                         <button type="button" onClick={() => toggle(item.id, "top")} className={item.isTop ? primaryButtonClassName() : secondaryButtonClassName()}><Sparkles size={14} />{item.isTop ? "取消置顶" : "置顶"}</button>
                         <button type="button" onClick={() => toggle(item.id, "essence")} className={item.isEssence ? primaryButtonClassName() : secondaryButtonClassName()}><CheckCircle2 size={14} />{item.isEssence ? "取消精华" : "精华"}</button>

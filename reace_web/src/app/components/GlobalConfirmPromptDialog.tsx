@@ -130,8 +130,8 @@ export function GlobalConfirmPromptDialog() {
 
   return (
     <AlertDialog open={Boolean(payload)} onOpenChange={handleOpenChange}>
-      <AlertDialogContent className="sm:max-w-[420px] rounded-2xl border-0 p-0 overflow-hidden shadow-2xl">
-        <AlertDialogHeader className="p-6 pb-0">
+      <AlertDialogContent className="w-[min(calc(100vw-1rem),420px)] rounded-3xl border-0 p-0 overflow-hidden shadow-2xl sm:max-w-[420px]">
+        <AlertDialogHeader className="p-4 pb-0 sm:p-6 sm:pb-0">
           <AlertDialogTitle className="text-lg font-bold text-slate-900">
             {payload.title || (payload.kind === "confirm" ? "确认操作" : "请输入")}
           </AlertDialogTitle>
@@ -148,7 +148,7 @@ export function GlobalConfirmPromptDialog() {
         </AlertDialogHeader>
 
         {isPrompt && promptPayload && (
-          <div className="px-6 pt-3">
+          <div className="px-4 pt-3 sm:px-6">
             <label className="block">
               <div className="mb-1.5 text-sm font-bold text-slate-700">
                 {promptPayload.label || "请输入内容"}
@@ -171,17 +171,17 @@ export function GlobalConfirmPromptDialog() {
           </div>
         )}
 
-        <AlertDialogFooter className="p-6 pt-4 flex gap-2">
+        <AlertDialogFooter className="p-4 pt-4 flex gap-2 sm:p-6 sm:pt-4">
           <button
             onClick={() => dismiss(payload.kind === "confirm" ? false : null)}
-            className="flex-1 sm:flex-none h-10 px-5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-sm font-bold transition-colors"
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 sm:h-10 sm:w-auto sm:flex-1"
           >
             {(payload.kind === "confirm" ? payload.cancelLabel : (payload as GlobalPromptPayload).cancelLabel) || "取消"}
           </button>
           <button
             onClick={handleConfirm}
             disabled={isPrompt && (payload as GlobalPromptPayload).required ? !promptValue.trim() : false}
-            className={`flex-1 sm:flex-none h-10 px-5 rounded-xl text-sm font-bold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`h-11 w-full rounded-2xl px-5 text-sm font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:h-10 sm:w-auto sm:flex-1 ${
               isDestructive
                 ? "bg-rose-600 hover:bg-rose-700"
                 : "bg-slate-900 hover:bg-slate-800"

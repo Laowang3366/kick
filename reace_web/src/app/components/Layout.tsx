@@ -24,7 +24,7 @@ import {
   Ticket,
   ArrowRightLeft
 } from "lucide-react";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -389,17 +389,17 @@ export function Layout() {
     { name: "积分商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
     { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
   ];
+  const mobileTopNavItems = navItems.filter((item) => ["/practice", "/mall", "/tools"].includes(item.path));
+  const mobileDrawerNavItems = [
+    { name: "设置", path: "/settings", icon: <Settings size={18} strokeWidth={1.5} /> },
+  ];
   const mobileBottomNavItems = [
     { key: "home", name: "主页", path: "/", icon: <Home size={18} strokeWidth={1.6} /> },
-    { key: "search", name: "搜索", path: "", icon: <Search size={18} strokeWidth={1.6} /> },
+    { key: "chat", name: "聊天", path: "/chat", icon: <MessageSquare size={18} strokeWidth={1.6} /> },
     { key: "post", name: "发帖", path: "/create-post", icon: <PenSquare size={18} strokeWidth={1.6} /> },
+    { key: "search", name: "搜索", path: "", icon: <Search size={18} strokeWidth={1.6} /> },
     { key: "profile", name: "我的", path: isAuthenticated ? "/profile" : "/auth", icon: <User size={18} strokeWidth={1.6} /> },
   ];
-  const currentMobileLabel = useMemo(() => {
-    const current = navItems.find((item) => location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path)));
-    return current?.name.replace("主页 板块", "主页") || "Excel社区";
-  }, [location.pathname]);
-
   const openFeedbackDialog = () => {
     if (!isAuthenticated) {
       navigate("/auth");
@@ -445,7 +445,7 @@ export function Layout() {
   return (
     <div className="flex h-screen bg-gray-50/50 text-slate-800 font-sans">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-gray-200/60 bg-white flex flex-col hidden md:flex shrink-0">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-gray-200/60 bg-white md:flex">
         <div className="h-16 flex items-center px-6 border-b border-gray-100">
           <div className="flex items-center gap-2 text-teal-600">
             <Activity size={24} strokeWidth={2.5} />
@@ -461,8 +461,8 @@ export function Layout() {
                 key={item.path}
                 to={item.path}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  isActive 
-                    ? "bg-slate-100 text-slate-900 font-bold" 
+                  isActive
+                    ? "bg-slate-100 text-slate-900 font-bold"
                     : "text-slate-600 hover:bg-gray-50 hover:text-slate-900"
                 }`}
               >
@@ -471,10 +471,10 @@ export function Layout() {
                 </div>
                 <span>{item.name}</span>
                 {isActive && (
-                  <motion.div 
+                  <motion.div
                     layoutId="active-nav-indicator"
                     transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    className="absolute left-0 w-1 h-6 bg-slate-800 rounded-r-full" 
+                    className="absolute left-0 w-1 h-6 bg-slate-800 rounded-r-full"
                   />
                 )}
               </Link>
@@ -507,9 +507,9 @@ export function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Header */}
-        <header className="h-16 bg-white/80 backdrop-blur-md border-b border-gray-200/60 flex items-center justify-between px-4 md:px-6 z-50 sticky top-0">
+        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b border-gray-200/60 bg-white/80 px-4 backdrop-blur-md md:px-6">
           
-          <div className="flex-1 max-w-xl flex items-center relative gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
             {isMobile ? (
               <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                 <SheetTrigger asChild>
@@ -531,7 +531,7 @@ export function Layout() {
                   </SheetHeader>
                   <div className="flex min-h-0 flex-1 flex-col">
                     <nav className="flex-1 space-y-1 px-4 py-4">
-                      {navItems.map((item) => {
+                      {mobileDrawerNavItems.map((item) => {
                         const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
                         return (
                           <button
@@ -610,13 +610,30 @@ export function Layout() {
               </Sheet>
             ) : null}
             {isMobile ? (
-              <div className="flex min-w-0 flex-1 items-center">
-                <div className="truncate rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700">
-                  {currentMobileLabel}
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {mobileTopNavItems.map((item) => {
+                    const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                    return (
+                      <button
+                        key={`mobile-header-${item.path}`}
+                        type="button"
+                        onClick={() => navigate(item.path)}
+                        className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-black transition ${
+                          isActive
+                            ? "bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.16)]"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        <span className={isActive ? "text-white" : "text-slate-400"}>{item.icon}</span>
+                        <span>{item.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
-            <div className="flex-1 relative flex items-center" ref={searchContainerRef}>
+            <div className="relative flex-1 max-w-lg items-center xl:max-w-xl" ref={searchContainerRef}>
               <div ref={searchTypeDropdownRef} className={`absolute left-1 z-10 ${isMobile ? "hidden" : ""}`}>
                 <button
                   onClick={() => setShowSearchTypeDropdown(!showSearchTypeDropdown)}
@@ -720,11 +737,11 @@ export function Layout() {
               </AnimatePresence>
             </div>
             )}
-            
+
             {!isMobile ? (
               <button 
                 onClick={handleSearch}
-                className="p-2 bg-teal-50 text-teal-600 hover:bg-teal-100 rounded-full transition-colors flex items-center justify-center shrink-0"
+                className="flex shrink-0 items-center justify-center rounded-full bg-teal-50 p-2 text-teal-600 transition-colors hover:bg-teal-100"
                 title="搜索"
               >
                 <Search size={18} />
@@ -924,7 +941,7 @@ export function Layout() {
                 damping: 30, 
                 mass: 1 
               }}
-              className={isMobile ? "h-full pb-[88px]" : "h-full"}
+              className={isMobile ? "h-full pb-[96px]" : "h-full"}
             >
               <Outlet />
             </motion.div>
@@ -935,55 +952,174 @@ export function Layout() {
           <>
             <AnimatePresence>
               {mobileSearchOpen ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 24 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 24 }}
-                  transition={{ duration: 0.18 }}
-                  className="fixed inset-x-0 bottom-[76px] z-40 px-3 md:hidden"
-                >
-                  <div className="rounded-[28px] border border-slate-200 bg-white/98 p-3 shadow-[0_18px_40px_rgba(15,23,42,0.16)] backdrop-blur">
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <div className="text-sm font-black text-slate-800">站内搜索</div>
-                      <button
-                        type="button"
-                        onClick={() => setMobileSearchOpen(false)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
-                      >
-                        <X size={16} />
-                      </button>
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[2px] md:hidden"
+                    onClick={() => {
+                      setMobileSearchOpen(false);
+                      setShowSuggestions(false);
+                    }}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 28 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 28 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-x-0 bottom-[84px] z-50 px-3 md:hidden"
+                  >
+                    <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.22)]">
+                      <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fffe_0%,#eefbf8_100%)] px-4 py-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div>
+                            <div className="text-base font-black text-slate-900">站内搜索</div>
+                            <div className="mt-1 text-xs font-medium text-slate-500">搜索用户、帖子与题目内容</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileSearchOpen(false);
+                              setShowSuggestions(false);
+                            }}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200"
+                          >
+                            <X size={17} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { key: "all", label: "全部" },
+                            { key: "user", label: "用户" },
+                            { key: "post", label: "帖子" },
+                          ].map((option) => (
+                            <button
+                              key={option.key}
+                              type="button"
+                              onClick={() => setSearchType(option.key)}
+                              className={`rounded-2xl px-3 py-2 text-xs font-bold transition ${
+                                searchType === option.key
+                                  ? "bg-slate-900 text-white shadow-sm"
+                                  : "bg-white text-slate-500 ring-1 ring-slate-200"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-center gap-2">
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder="输入关键字后直接搜索"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onFocus={() => {
+                              if (searchQuery.trim() && (searchSuggestions.posts.length || searchSuggestions.users.length)) {
+                                setShowSuggestions(true);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                void handleSearch();
+                                setMobileSearchOpen(false);
+                                setShowSuggestions(false);
+                              }
+                            }}
+                            className="h-12 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleSearch();
+                              setMobileSearchOpen(false);
+                              setShowSuggestions(false);
+                            }}
+                            className="inline-flex h-12 items-center justify-center rounded-2xl bg-teal-500 px-5 text-sm font-bold text-white shadow-[0_12px_24px_rgba(20,184,166,0.24)]"
+                          >
+                            搜索
+                          </button>
+                        </div>
+                        <div className="mt-4 max-h-[42vh] overflow-y-auto">
+                          {showSuggestions && (searchSuggestions.posts.length > 0 || searchSuggestions.users.length > 0) ? (
+                            <div className="space-y-4">
+                              {searchSuggestions.posts.length > 0 ? (
+                                <div className="space-y-2">
+                                  <div className="px-1 text-[11px] font-black tracking-[0.18em] text-slate-400">帖子</div>
+                                  {searchSuggestions.posts.map((post) => (
+                                    <button
+                                      key={`mobile-search-post-${post.id}`}
+                                      type="button"
+                                      onClick={() => {
+                                        setMobileSearchOpen(false);
+                                        setShowSuggestions(false);
+                                        setSearchQuery("");
+                                        navigate(`/post/${post.id}`);
+                                      }}
+                                      className="flex w-full items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-3 text-left transition hover:border-teal-200 hover:bg-teal-50/60"
+                                    >
+                                      <div className="mt-0.5 rounded-full bg-white p-2 text-slate-500 shadow-sm ring-1 ring-slate-100">
+                                        <Search size={14} />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-bold text-slate-800">{post.title || "未命名帖子"}</div>
+                                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{post.content || "点击查看帖子详情"}</div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {searchSuggestions.users.length > 0 ? (
+                                <div className="space-y-2">
+                                  <div className="px-1 text-[11px] font-black tracking-[0.18em] text-slate-400">用户</div>
+                                  {searchSuggestions.users.map((account) => (
+                                    <button
+                                      key={`mobile-search-user-${account.id}`}
+                                      type="button"
+                                      onClick={() => {
+                                        setMobileSearchOpen(false);
+                                        setShowSuggestions(false);
+                                        setSearchQuery("");
+                                        navigate(`/user/${account.id}`);
+                                      }}
+                                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-3 text-left transition hover:border-teal-200 hover:bg-teal-50/60"
+                                    >
+                                      <img
+                                        src={normalizeAvatarUrl(account.avatar, account.username)}
+                                        alt={account.username || "用户"}
+                                        className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-bold text-slate-800">{account.username || "未命名用户"}</div>
+                                        <div className="mt-1 truncate text-xs text-slate-500">{account.bio || "点击查看个人主页"}</div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-100">
+                                <Search size={18} />
+                              </div>
+                              <div className="text-sm font-bold text-slate-700">输入关键词开始搜索</div>
+                              <div className="mt-1 text-xs leading-5 text-slate-500">支持按用户、帖子和题目进行站内检索</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="搜索用户、帖子、题目..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            void handleSearch();
-                            setMobileSearchOpen(false);
-                          }
-                        }}
-                        className="h-11 flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleSearch();
-                          setMobileSearchOpen(false);
-                        }}
-                        className="inline-flex h-11 items-center justify-center rounded-2xl bg-teal-500 px-4 text-sm font-bold text-white"
-                      >
-                        搜索
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
+                  </motion.div>
+                </>
               ) : null}
             </AnimatePresence>
             <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-5 gap-1">
               {mobileBottomNavItems.map((item) => {
                 const isSearch = item.key === "search";
                 const isActive = isSearch

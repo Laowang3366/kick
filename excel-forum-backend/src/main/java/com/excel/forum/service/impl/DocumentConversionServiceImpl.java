@@ -3,13 +3,28 @@ package com.excel.forum.service.impl;
 import com.excel.forum.config.FileStorageConfig;
 import com.excel.forum.service.DocumentConversionService;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
+import org.apache.poi.xwpf.usermodel.XWPFTableCell;
+import org.apache.poi.xwpf.usermodel.XWPFTableRow;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
@@ -23,6 +38,7 @@ import java.util.UUID;
 public class DocumentConversionServiceImpl implements DocumentConversionService {
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final DateTimeFormatter FILE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final DataFormatter EXCEL_DATA_FORMATTER = new DataFormatter(Locale.SIMPLIFIED_CHINESE);
 
     private final FileStorageConfig fileStorageConfig;
 
@@ -78,6 +94,11 @@ public class DocumentConversionServiceImpl implements DocumentConversionService 
     }
 
     private void runConversion(Path sourcePath, Path outputPath, ConversionTarget target) throws IOException {
+        if (!isWindows()) {
+            runLibreOfficeConversion(sourcePath, outputPath, target);
+            return;
+        }
+
         Path scriptPath = Files.createTempFile(sourcePath.getParent(), "doc-convert-", ".ps1");
         Files.writeString(scriptPath, buildPowerShellScript(), StandardCharsets.UTF_8);
 
@@ -105,6 +126,164 @@ public class DocumentConversionServiceImpl implements DocumentConversionService 
         } finally {
             Files.deleteIfExists(scriptPath);
         }
+    }
+
+    private void runLibreOfficeConversion(Path sourcePath, Path outputPath, ConversionTarget target) throws IOException {
+        String officeExecutable = findOfficeExecutable();
+        if (!StringUtils.hasText(officeExecutable)) {
+            throw new IllegalStateException("服务器未安装 LibreOffice，暂时无法执行文件转换");
+        }
+
+        String sourceExtension = SourceType.extensionOf(sourcePath.getFileName().toString());
+        if (target == ConversionTarget.WORD && (".xls".equals(sourceExtension) || ".xlsx".equals(sourceExtension))) {
+            convertExcelWorkbookToWord(sourcePath, outputPath);
+            return;
+        }
+
+        String filter = switch (target) {
+            case PDF -> "pdf";
+            case WORD -> "docx";
+            case EXCEL -> "xlsx";
+        };
+
+        Process process = new ProcessBuilder(
+                officeExecutable,
+                "--headless",
+                "--convert-to", filter,
+                "--outdir", outputPath.getParent().toString(),
+                sourcePath.toString()
+        ).redirectErrorStream(true).start();
+
+        String output;
+        try {
+            output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new IllegalStateException(normalizeLibreOfficeError(output));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("文件转换被中断");
+        }
+
+        Path generatedPath = outputPath.getParent().resolve(replaceExtension(sourcePath.getFileName().toString(), target.extension));
+        if (!Files.exists(generatedPath)) {
+            throw new IllegalStateException("当前服务器暂不支持该文件格式组合");
+        }
+        if (!generatedPath.equals(outputPath)) {
+            Files.move(generatedPath, outputPath, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private String findOfficeExecutable() {
+        for (String candidate : new String[] { "soffice", "libreoffice" }) {
+            try {
+                Process process = new ProcessBuilder(candidate, "--version")
+                        .redirectErrorStream(true)
+                        .start();
+                int exitCode = process.waitFor();
+                if (exitCode == 0) {
+                    return candidate;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    private String normalizeLibreOfficeError(String output) {
+        String message = output == null ? "" : output.trim();
+        if (message.contains("Error: source file could not be loaded")) {
+            return "源文件无法读取，可能已损坏或格式不受支持";
+        }
+        if (message.contains("no export filter")) {
+            return "当前服务器暂不支持该文件格式组合";
+        }
+        return StringUtils.hasText(message) ? message : "文件转换失败";
+    }
+
+    private String replaceExtension(String filename, String extension) {
+        int dotIndex = filename.lastIndexOf('.');
+        String baseName = dotIndex > 0 ? filename.substring(0, dotIndex) : filename;
+        return baseName + extension;
+    }
+
+    private void convertExcelWorkbookToWord(Path sourcePath, Path outputPath) throws IOException {
+        try (InputStream inputStream = Files.newInputStream(sourcePath);
+             Workbook workbook = WorkbookFactory.create(inputStream);
+             XWPFDocument document = new XWPFDocument()) {
+            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+                Sheet sheet = workbook.getSheetAt(sheetIndex);
+                int lastRowNum = sheet.getLastRowNum();
+                int maxColumnCount = resolveMaxColumnCount(sheet);
+                if (lastRowNum < 0 || maxColumnCount <= 0) {
+                    continue;
+                }
+
+                if (sheetIndex > 0) {
+                    document.createParagraph().setPageBreak(true);
+                }
+
+                XWPFParagraph titleParagraph = document.createParagraph();
+                XWPFRun titleRun = titleParagraph.createRun();
+                titleRun.setText(sheet.getSheetName());
+                titleRun.setBold(true);
+                titleRun.setFontSize(14);
+
+                XWPFTable table = document.createTable(lastRowNum + 1, maxColumnCount);
+                table.setWidth("100%");
+
+                for (int rowIndex = 0; rowIndex <= lastRowNum; rowIndex++) {
+                    Row row = sheet.getRow(rowIndex);
+                    XWPFTableRow tableRow = table.getRow(rowIndex);
+                    for (int columnIndex = 0; columnIndex < maxColumnCount; columnIndex++) {
+                        XWPFTableCell cell = tableRow.getCell(columnIndex);
+                        if (cell == null) {
+                            cell = tableRow.addNewTableCell();
+                        }
+                        cell.removeParagraph(0);
+                        XWPFParagraph paragraph = cell.addParagraph();
+                        paragraph.setSpacingAfter(0);
+                        paragraph.setSpacingBefore(0);
+                        XWPFRun run = paragraph.createRun();
+                        String text = "";
+                        if (row != null) {
+                            Cell workbookCell = row.getCell(columnIndex);
+                            if (workbookCell != null) {
+                                text = EXCEL_DATA_FORMATTER.formatCellValue(workbookCell);
+                            }
+                        }
+                        run.setText(StringUtils.hasText(text) ? text : "");
+                        run.setFontFamily("Noto Sans CJK SC");
+                        run.setFontSize(10);
+                    }
+                }
+            }
+
+            if (document.getBodyElements().isEmpty()) {
+                throw new IllegalStateException("Excel 文件没有可转换的内容");
+            }
+
+            try (OutputStream outputStream = Files.newOutputStream(outputPath)) {
+                document.write(outputStream);
+            }
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Excel 转 Word 失败");
+        }
+    }
+
+    private int resolveMaxColumnCount(Sheet sheet) {
+        int maxColumnCount = 0;
+        for (Row row : sheet) {
+            maxColumnCount = Math.max(maxColumnCount, row.getLastCellNum());
+        }
+        return Math.max(maxColumnCount, 0);
     }
 
     private String normalizeScriptError(String output) {

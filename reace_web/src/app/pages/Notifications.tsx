@@ -27,7 +27,10 @@ import { api } from "../lib/api";
 import { formatRelativeTime, formatDateTime } from "../lib/format";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { notificationKeys } from "../lib/query-keys";
-import { openGlobalConfirm } from "../components/GlobalConfirmPromptDialog";
+import { openGlobalConfirm, openGlobalPrompt } from "../components/GlobalConfirmPromptDialog";
+import { useSession } from "../lib/session";
+import { useIsMobile } from "../components/ui/use-mobile";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
 
 const PAGE_SIZE = 7;
 
@@ -57,17 +60,22 @@ function hasLink(notification: any): boolean {
   if (notification.type === "message") return true;
   if (notification.type === "site_notification" && notification.relatedId) return true;
   if (notification.type === "MENTION" && notification.content?.includes("聊天中提到了你")) return true;
-  if (["reply", "like", "favorite", "MENTION", "post_review"].includes(notification.type) && notification.relatedId) return true;
+  if (["reply", "like", "favorite", "MENTION", "post_review", "review_request"].includes(notification.type) && notification.relatedId) return true;
   return false;
 }
 
 function tabTypeFilter(tab: string): string | undefined {
   switch (tab) {
     case "system": return "site_notification,feedback_result";
-    case "posts": return "reply,like,favorite,MENTION,post_deleted,reply_deleted,report_delete,post_review";
+    case "posts": return "reply,like,favorite,MENTION,post_deleted,reply_deleted,report_delete,post_review,review_request";
     case "follows": return "follow,level_up";
     default: return undefined;
   }
+}
+
+function extractNotificationPostTitle(content: string) {
+  const matched = String(content || "").match(/帖子[「\"](.+?)[」\"]/);
+  return matched?.[1] || "该帖子";
 }
 
 function useNotificationCounts() {
@@ -80,10 +88,13 @@ function useNotificationCounts() {
 export function Notifications() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useSession();
+  const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState("all");
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 
   const typeFilter = useMemo(() => tabTypeFilter(activeTab), [activeTab]);
 
@@ -137,6 +148,35 @@ export function Notifications() {
   const markReadMutation = useMutation({
     mutationFn: (notificationId: number) => api.put(`/api/notifications/${notificationId}/read`),
     onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: ({ id, status, reason }: { id: number; status: "approved" | "rejected"; reason?: string }) =>
+      api.put(`/api/admin/posts/${id}/review`, { status, reason }),
+    onSuccess: async (_result, variables) => {
+      toast.success(variables.status === "approved" ? "帖子已通过审核" : "帖子已驳回");
+      setExpandedId(null);
+      setSelectedIds(new Set());
+      queryClient.setQueriesData({ queryKey: notificationKeys.all }, (old: any) => {
+        if (!old?.notifications) return old;
+        return {
+          ...old,
+          notifications: old.notifications.map((item: any) =>
+            item.type === "review_request" && item.relatedId === variables.id
+              ? {
+                  ...item,
+                  type: "post_review",
+                  isRead: 1,
+                  content: variables.status === "approved"
+                    ? `帖子「${extractNotificationPostTitle(item.content)}」已审核通过`
+                    : `帖子「${extractNotificationPostTitle(item.content)}」已驳回${variables.reason ? `，原因：${variables.reason}` : ""}`,
+                }
+              : item
+          ),
+        };
+      });
       await queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
@@ -235,6 +275,23 @@ export function Notifications() {
     await deleteMutation.mutateAsync(id);
   };
 
+  const canReviewFromNotification = user?.role === "admin" || user?.role === "moderator";
+
+  const handleReviewFromNotification = async (notification: any, nextStatus: "approved" | "rejected") => {
+    if (!notification.relatedId || !canReviewFromNotification) return;
+    const reason = nextStatus === "rejected"
+      ? await openGlobalPrompt({
+          title: "驳回帖子",
+          label: "驳回原因",
+          placeholder: "请输入驳回原因",
+          confirmLabel: "确认驳回",
+          required: true,
+        })
+      : "";
+    if (nextStatus === "rejected" && !reason) return;
+    await reviewMutation.mutateAsync({ id: notification.relatedId, status: nextStatus, reason: reason || undefined });
+  };
+
   // 分页按钮
   const pageNumbers = useMemo(() => {
     const pages: number[] = [];
@@ -243,6 +300,11 @@ export function Notifications() {
     for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   }, [page, totalPages]);
+
+  const openMobileTab = (tabId: string) => {
+    setActiveTab(tabId);
+    setMobilePanelOpen(true);
+  };
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 pb-20">
@@ -271,7 +333,161 @@ export function Notifications() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      {isMobile && (
+        <>
+          <div className="grid grid-cols-1 gap-3 mb-4">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => openMobileTab(tab.id)}
+                className="w-full rounded-[24px] border border-slate-200/70 bg-white px-4 py-4 text-left shadow-sm transition-all"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
+                      {tab.icon}
+                    </div>
+                    <div>
+                      <div className="text-[15px] font-extrabold text-slate-800">{tab.label}</div>
+                      <div className="mt-1 text-[12px] font-medium text-slate-400">点击查看该分类通知</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="min-w-8 rounded-full bg-slate-100 px-2.5 py-1 text-center text-[11px] font-bold text-slate-500">
+                      {tab.count}
+                    </span>
+                    <ChevronRight size={16} className="text-slate-300" />
+                  </div>
+                </div>
+              </button>
+            ))}
+
+            <button
+              onClick={() => navigate("/settings")}
+              className="flex items-center justify-center gap-2 rounded-[22px] border border-dashed border-slate-200 bg-white px-4 py-3 text-[13px] font-bold text-slate-500 shadow-sm"
+            >
+              <Settings size={15} strokeWidth={1.7} />
+              通知设置
+            </button>
+          </div>
+
+          <Dialog open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
+            <DialogContent className="max-w-[calc(100vw-1rem)] rounded-[28px] border-0 p-0 sm:max-w-lg">
+              <DialogHeader className="border-b border-slate-100 px-4 py-4 text-left">
+                <DialogTitle className="text-base font-black text-slate-900">
+                  {tabs.find((tab) => tab.id === activeTab)?.label || "通知列表"}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-slate-500">
+                  当前分类通知在此单独展示。
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[78vh] overflow-y-auto p-3">
+                <div className="w-full bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
+                  {notifications.length > 0 && (
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                      <button
+                        onClick={toggleSelectAll}
+                        className="flex items-center gap-2 text-[13px] font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                      >
+                        {allOnPageSelected ? <CheckSquare size={16} className="text-teal-600" /> : <Square size={16} />}
+                        {allOnPageSelected ? "取消全选" : "全选本页"}
+                      </button>
+                      <span className="text-[12px] text-slate-400 font-medium">
+                        {page}/{totalPages} 页
+                      </span>
+                    </div>
+                  )}
+                  <div className="divide-y divide-slate-100">
+                    {notifications.length > 0 ? notifications.map((notification) => {
+                      const config = getTypeConfig(notification.type);
+                      const Icon = config.icon;
+                      const linked = hasLink(notification);
+                      const isReviewRequest = notification.type === "review_request";
+                      return (
+                        <div key={notification.id} className={`${!notification.isRead ? "bg-blue-50/30" : ""}`}>
+                          <div onClick={() => handleClick(notification)} className="flex items-start gap-3 p-4 cursor-pointer">
+                            <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border ${config.bg} relative`}>
+                              <Icon size={18} className={config.color} />
+                              {!notification.isRead && <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-rose-500 rounded-full border-2 border-white" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border ${config.bg} ${config.color}`}>{config.label}</span>
+                                <span className="text-[12px] font-medium text-slate-400">{formatRelativeTime(notification.createTime)}</span>
+                              </div>
+                              <p className={`text-[14px] leading-relaxed ${notification.isRead ? "text-slate-600" : "text-slate-800 font-bold"}`}>
+                                {notification.content}
+                              </p>
+                              {isReviewRequest && canReviewFromNotification && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={async (event) => {
+                                      event.stopPropagation();
+                                      await handleReviewFromNotification(notification, "approved");
+                                    }}
+                                    disabled={reviewMutation.isPending}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white"
+                                  >
+                                    <CheckCircle2 size={14} />
+                                    通过
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async (event) => {
+                                      event.stopPropagation();
+                                      await handleReviewFromNotification(notification, "rejected");
+                                    }}
+                                    disabled={reviewMutation.isPending}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600"
+                                  >
+                                    <AlertTriangle size={14} />
+                                    驳回
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1">
+                              {linked && <ExternalLink size={14} className="text-slate-300" />}
+                              <button
+                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                onClick={(e) => handleDelete(e, notification.id)}
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                      <div className="flex flex-col items-center justify-center py-16">
+                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+                          <Bell size={28} strokeWidth={1.5} className="text-slate-300" />
+                        </div>
+                        <p className="text-[15px] font-bold text-slate-500">暂时没有新通知</p>
+                      </div>
+                    )}
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-1.5 py-4 border-t border-slate-100 bg-slate-50/50">
+                      <button onClick={() => gotoPage(Math.max(1, page - 1))} disabled={page <= 1} className="p-2 rounded-lg text-slate-400 disabled:opacity-30">
+                        <ChevronLeft size={18} />
+                      </button>
+                      <span className="text-[12px] font-medium text-slate-400">{page} / {totalPages}</span>
+                      <button onClick={() => gotoPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="p-2 rounded-lg text-slate-400 disabled:opacity-30">
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+
+      <div className="hidden lg:flex flex-col lg:flex-row gap-6 items-start">
         {/* 左侧分类 */}
         <div className="w-full lg:w-56 shrink-0 bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden sticky top-24">
           <div className="p-2 space-y-0.5">
@@ -339,6 +555,7 @@ export function Notifications() {
                   const config = getTypeConfig(notification.type);
                   const Icon = config.icon;
                   const linked = hasLink(notification);
+                  const isReviewRequest = notification.type === "review_request";
                   const expanded = expandedId === notification.id;
                   const selected = selectedIds.has(notification.id);
 
@@ -404,6 +621,34 @@ export function Notifications() {
                             <div className="flex items-center gap-2 mt-2">
                               <img src={normalizeAvatarUrl(notification.sender.avatar, notification.sender.username)} className="w-5 h-5 rounded-full object-cover border border-slate-100" alt="" />
                               <span className="text-[12px] text-slate-500 font-medium">{notification.sender.username}</span>
+                            </div>
+                          )}
+                          {isReviewRequest && canReviewFromNotification && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={async (event) => {
+                                  event.stopPropagation();
+                                  await handleReviewFromNotification(notification, "approved");
+                                }}
+                                disabled={reviewMutation.isPending}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                              >
+                                <CheckCircle2 size={14} />
+                                直接通过
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async (event) => {
+                                  event.stopPropagation();
+                                  await handleReviewFromNotification(notification, "rejected");
+                                }}
+                                disabled={reviewMutation.isPending}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60"
+                              >
+                                <AlertTriangle size={14} />
+                                直接驳回
+                              </button>
                             </div>
                           )}
                         </div>
