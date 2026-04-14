@@ -81,6 +81,10 @@ export const practiceKeys = {
   submissions: (params: Record<string, unknown>) => ["practice", "submissions", params] as const,
   history: () => ["practice", "history"] as const,
   recordDetail: (id: number | string) => ["practice", "record-detail", id] as const,
+  campaignOverview: () => ["practice", "campaign", "overview"] as const,
+  campaignChapters: () => ["practice", "campaign", "chapters"] as const,
+  campaignChapter: (id: number | string) => ["practice", "campaign", "chapter", id] as const,
+  campaignLevel: (id: number | string) => ["practice", "campaign", "level", id] as const,
 };
 
 export const settingsKeys = {

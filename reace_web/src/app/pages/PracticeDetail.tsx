@@ -18,6 +18,9 @@ export function PracticeDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isRandomMode = location.pathname.endsWith("/practice/random");
+  const campaignLevel = (location.state as any)?.campaignLevel;
+  const campaignChapter = (location.state as any)?.campaignChapter;
+  const backTo = (location.state as any)?.backTo || "/practice";
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedSheetName, setSelectedSheetName] = useState("");
   const [workbook, setWorkbook] = useState<ExcelWorkbookSnapshot>({ sheets: [] });
@@ -107,15 +110,22 @@ export function PracticeDetail() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate("/practice")} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-900">
+            <button onClick={() => navigate(backTo)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-900">
               <ArrowLeft size={18} />
             </button>
             <div>
-              <div className="mb-1 flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-cyan-600">
+              <div className="mb-1 flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-cyan-600">
                 <FileSpreadsheet size={14} />
-                Excel 模板题
+                {campaignChapter?.name ? `${campaignChapter.name}` : "Excel 模板题"}
               </div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-900">{question.title}</h1>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900">{campaignLevel?.title || question.title}</h1>
+              {campaignLevel ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black tracking-[0.14em] text-slate-400">
+                  <span className="rounded-full bg-slate-100 px-3 py-1">{campaignLevel.levelType}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1">{campaignLevel.difficulty}</span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1">目标 {campaignLevel.targetTimeSeconds}s</span>
+                </div>
+              ) : null}
             </div>
           </div>
           <button
@@ -151,7 +161,7 @@ export function PracticeDetail() {
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
                   <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">奖励积分</div>
-                  <div className="mt-2 text-base font-bold text-slate-900">{question.score || 0}</div>
+                  <div className="mt-2 text-base font-bold text-slate-900">{campaignLevel?.rewardPoints || question.score || 0}</div>
                 </div>
               </div>
               <div className="rounded-2xl bg-slate-50 p-4">

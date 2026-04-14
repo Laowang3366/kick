@@ -78,6 +78,7 @@ public class SecurityConfig {
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/practice/categories")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/practice/question-list")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/practice/leaderboard")).permitAll()
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/practice/campaign/**")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/api/practice/**")).authenticated()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/api/chat/**")).authenticated()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/api/messages/**")).authenticated()
