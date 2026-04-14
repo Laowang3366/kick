@@ -20,6 +20,7 @@ export function PracticeDetail() {
   const isRandomMode = location.pathname.endsWith("/practice/random");
   const campaignLevel = (location.state as any)?.campaignLevel;
   const campaignChapter = (location.state as any)?.campaignChapter;
+  const campaignAttemptId = (location.state as any)?.campaignAttemptId;
   const backTo = (location.state as any)?.backTo || "/practice";
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedSheetName, setSelectedSheetName] = useState("");
@@ -75,18 +76,24 @@ export function PracticeDetail() {
       if (latestWorkbook !== workbook) {
         setWorkbook(latestWorkbook);
       }
-      const result = await api.post<any>("/api/practice/submit", {
-        questionCategoryId: question.questionCategoryId || question.categoryId || null,
-        categoryId: question.questionCategoryId || question.categoryId || null,
-        mode: isRandomMode ? "random_single" : "single_question",
-        durationSeconds: elapsedSeconds,
-        answers: [
-          {
-            questionId: question.id,
+      const result = campaignLevel?.id
+        ? await api.post<any>(`/api/practice/campaign/levels/${campaignLevel.id}/submit`, {
+            attemptId: campaignAttemptId,
+            usedSeconds: elapsedSeconds,
             userAnswer: latestWorkbook,
-          },
-        ],
-      });
+          })
+        : await api.post<any>("/api/practice/submit", {
+            questionCategoryId: question.questionCategoryId || question.categoryId || null,
+            categoryId: question.questionCategoryId || question.categoryId || null,
+            mode: isRandomMode ? "random_single" : "single_question",
+            durationSeconds: elapsedSeconds,
+            answers: [
+              {
+                questionId: question.id,
+                userAnswer: latestWorkbook,
+              },
+            ],
+          });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: practiceKeys.history() }),
         queryClient.invalidateQueries({ queryKey: practiceKeys.leaderboard() }),
@@ -95,6 +102,18 @@ export function PracticeDetail() {
       toast.success(result.firstPass
         ? `提交成功，获得 ${result.rewardPoints || 0} 积分`
         : `提交成功，得分 ${result.score || 0}`);
+      if (campaignLevel?.id) {
+        navigate(`/practice/result/${result.recordId}`, {
+          state: {
+            campaignLevel,
+            campaignChapter,
+            nextLevelId: result.nextLevelId,
+            passed: result.passed,
+            stars: result.stars,
+          },
+        });
+        return;
+      }
       navigate(`/practice/history/${result.recordId}`);
     } finally {
       setSubmitting(false);

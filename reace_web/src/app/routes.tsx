@@ -55,6 +55,7 @@ export const router = createBrowserRouter([
       pageRoute("practice/classic", () => import("./pages/Practice"), "Practice", true),
       pageRoute("practice/chapter/:id", () => import("./pages/PracticeCampaignChapter"), "PracticeCampaignChapter", true),
       pageRoute("practice/level/:id/prepare", () => import("./pages/PracticeCampaignLevelPrepare"), "PracticeCampaignLevelPrepare", true),
+      pageRoute("practice/result/:id", () => import("./pages/PracticeCampaignResult"), "PracticeCampaignResult", true),
       pageRoute("practice/random", () => import("./pages/PracticeDetail"), "PracticeDetail", true),
       pageRoute("practice/question/:id", () => import("./pages/PracticeDetail"), "PracticeDetail", true),
       pageRoute("practice/history", () => import("./pages/PracticeHistory"), "PracticeHistory", true),

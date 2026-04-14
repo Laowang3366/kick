@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Award, Clock3, FileSpreadsheet, Play, Sparkles, Target } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { api } from "../lib/api";
 import { practiceKeys } from "../lib/query-keys";
+import { toast } from "sonner";
 
 export function PracticeCampaignLevelPrepare() {
   const { id } = useParams();
@@ -16,6 +17,9 @@ export function PracticeCampaignLevelPrepare() {
   const chapter = levelQuery.data?.chapter;
   const level = levelQuery.data?.level;
   const question = levelQuery.data?.question;
+  const startMutation = useMutation({
+    mutationFn: () => api.post<any>(`/api/practice/campaign/levels/${id}/start`, { attemptType: "campaign" }),
+  });
 
   return (
     <div className="mx-auto max-w-[980px] px-4 py-5 sm:px-6 sm:py-6">
@@ -77,21 +81,27 @@ export function PracticeCampaignLevelPrepare() {
         <div className="mt-7 flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               if (!question?.id) return;
-              navigate(`/practice/question/${question.id}`, {
-                state: {
-                  backTo: chapter?.id ? `/practice/chapter/${chapter.id}` : "/practice",
-                  campaignLevel: level,
-                  campaignChapter: chapter,
-                },
-              });
+              try {
+                const result = await startMutation.mutateAsync();
+                navigate(`/practice/question/${question.id}`, {
+                  state: {
+                    backTo: chapter?.id ? `/practice/chapter/${chapter.id}` : "/practice",
+                    campaignLevel: level,
+                    campaignChapter: chapter,
+                    campaignAttemptId: result.attemptId,
+                  },
+                });
+              } catch (error: any) {
+                toast.error(error?.message || "开始挑战失败");
+              }
             }}
-            disabled={!question?.id}
+            disabled={!question?.id || startMutation.isPending}
             className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <Play size={16} />
-            开始挑战
+            {startMutation.isPending ? "准备中..." : "开始挑战"}
           </button>
           <button
             type="button"

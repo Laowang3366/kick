@@ -3,18 +3,25 @@ package com.excel.forum.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.excel.forum.entity.DailyChallenge;
 import com.excel.forum.entity.PracticeAnswer;
+import com.excel.forum.entity.PracticeAttempt;
 import com.excel.forum.entity.PracticeChapter;
 import com.excel.forum.entity.PracticeLevel;
 import com.excel.forum.entity.PracticeRecord;
 import com.excel.forum.entity.PracticeWorld;
 import com.excel.forum.entity.Question;
+import com.excel.forum.entity.dto.PracticeCampaignStartRequest;
+import com.excel.forum.entity.dto.PracticeCampaignSubmitRequest;
+import com.excel.forum.entity.dto.PracticeSubmitAnswerRequest;
+import com.excel.forum.entity.dto.PracticeSubmitRequest;
 import com.excel.forum.mapper.DailyChallengeMapper;
 import com.excel.forum.mapper.PracticeAnswerMapper;
+import com.excel.forum.mapper.PracticeAttemptMapper;
 import com.excel.forum.mapper.PracticeChapterMapper;
 import com.excel.forum.mapper.PracticeLevelMapper;
 import com.excel.forum.mapper.PracticeRecordMapper;
 import com.excel.forum.mapper.PracticeWorldMapper;
 import com.excel.forum.service.PracticeCampaignService;
+import com.excel.forum.service.PracticeService;
 import com.excel.forum.service.QuestionCategoryService;
 import com.excel.forum.service.QuestionService;
 import lombok.RequiredArgsConstructor;
@@ -37,8 +44,10 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     private final PracticeChapterMapper practiceChapterMapper;
     private final PracticeLevelMapper practiceLevelMapper;
     private final DailyChallengeMapper dailyChallengeMapper;
+    private final PracticeAttemptMapper practiceAttemptMapper;
     private final PracticeRecordMapper practiceRecordMapper;
     private final PracticeAnswerMapper practiceAnswerMapper;
+    private final PracticeService practiceService;
     private final QuestionService questionService;
     private final QuestionCategoryService questionCategoryService;
 
@@ -155,6 +164,97 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         response.put("chapter", chapterSummaryMap.get(level.getChapterId()));
         response.put("level", levelNode);
         response.put("question", questionPayload);
+        return response;
+    }
+
+    @Override
+    public Map<String, Object> startCampaignLevel(Long levelId, Long userId, PracticeCampaignStartRequest request) {
+        if (userId == null) {
+            throw new IllegalStateException("未登录");
+        }
+        PracticeLevel level = practiceLevelMapper.selectById(levelId);
+        if (level == null || !Boolean.TRUE.equals(level.getEnabled())) {
+            throw new IllegalArgumentException("关卡不存在");
+        }
+
+        PracticeAttempt attempt = new PracticeAttempt();
+        attempt.setUserId(userId);
+        attempt.setLevelId(level.getId());
+        attempt.setQuestionId(level.getQuestionId());
+        attempt.setAttemptType(request == null || request.getAttemptType() == null || request.getAttemptType().isBlank()
+                ? "campaign"
+                : request.getAttemptType());
+        attempt.setResultStatus("started");
+        attempt.setScore(0);
+        attempt.setStars(0);
+        attempt.setErrorCount(0);
+        attempt.setGainedExp(0);
+        attempt.setGainedPoints(0);
+        attempt.setIsFirstPass(false);
+        practiceAttemptMapper.insert(attempt);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("attemptId", attempt.getId());
+        response.put("levelId", level.getId());
+        response.put("targetTimeSeconds", level.getTargetTimeSeconds());
+        response.put("startTime", attempt.getSubmitTime());
+        return response;
+    }
+
+    @Override
+    public Map<String, Object> submitCampaignLevel(Long levelId, Long userId, PracticeCampaignSubmitRequest request) {
+        if (userId == null) {
+            throw new IllegalStateException("未登录");
+        }
+        if (request == null || request.getAttemptId() == null) {
+            throw new IllegalArgumentException("挑战参数不完整");
+        }
+        PracticeLevel level = practiceLevelMapper.selectById(levelId);
+        if (level == null || !Boolean.TRUE.equals(level.getEnabled())) {
+            throw new IllegalArgumentException("关卡不存在");
+        }
+        PracticeAttempt attempt = practiceAttemptMapper.selectById(request.getAttemptId());
+        if (attempt == null || !Objects.equals(attempt.getUserId(), userId) || !Objects.equals(attempt.getLevelId(), levelId)) {
+            throw new IllegalArgumentException("挑战记录不存在");
+        }
+        Question question = questionService.getById(level.getQuestionId());
+        if (question == null || !Boolean.TRUE.equals(question.getEnabled())) {
+            throw new IllegalArgumentException("题目不存在");
+        }
+
+        PracticeSubmitAnswerRequest answerRequest = new PracticeSubmitAnswerRequest();
+        answerRequest.setQuestionId(question.getId());
+        answerRequest.setUserAnswer(request.getUserAnswer());
+
+        PracticeSubmitRequest submitRequest = new PracticeSubmitRequest();
+        submitRequest.setCategoryId(question.getQuestionCategoryId());
+        submitRequest.setQuestionCategoryId(question.getQuestionCategoryId());
+        submitRequest.setMode("campaign");
+        submitRequest.setDifficulty(question.getDifficulty());
+        submitRequest.setDurationSeconds(request.getUsedSeconds());
+        submitRequest.setAnswers(List.of(answerRequest));
+
+        Map<String, Object> submitResult = practiceService.submitPractice(userId, submitRequest);
+        boolean passed = toInt(submitResult.get("correctCount")) > 0;
+        int stars = passed ? 1 : 0;
+
+        attempt.setUsedSeconds(request.getUsedSeconds());
+        attempt.setResultStatus(passed ? "passed" : "failed");
+        attempt.setScore(toInt(submitResult.get("score")));
+        attempt.setStars(stars);
+        attempt.setErrorCount(passed ? 0 : 1);
+        attempt.setGainedExp(toInt(submitResult.get("expGained")));
+        attempt.setGainedPoints(toInt(submitResult.get("rewardPoints")));
+        attempt.setIsFirstPass(Boolean.TRUE.equals(submitResult.get("firstPass")));
+        practiceAttemptMapper.updateById(attempt);
+
+        Long nextLevelId = findNextLevelId(level);
+        Map<String, Object> response = new LinkedHashMap<>(submitResult);
+        response.put("passed", passed);
+        response.put("stars", stars);
+        response.put("attemptId", attempt.getId());
+        response.put("levelId", level.getId());
+        response.put("nextLevelId", nextLevelId);
         return response;
     }
 
@@ -322,6 +422,29 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         }
         var category = questionCategoryService.getById(questionCategoryId);
         return category == null ? "未分类挑战" : category.getName();
+    }
+
+    private Long findNextLevelId(PracticeLevel currentLevel) {
+        List<PracticeLevel> levels = listEnabledLevelsByChapterId().getOrDefault(currentLevel.getChapterId(), List.of());
+        for (int i = 0; i < levels.size(); i += 1) {
+            if (Objects.equals(levels.get(i).getId(), currentLevel.getId())) {
+                if (i + 1 < levels.size()) {
+                    return levels.get(i + 1).getId();
+                }
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private int toInt(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.parseInt(String.valueOf(value));
     }
 
     private Long toLong(Object value) {
