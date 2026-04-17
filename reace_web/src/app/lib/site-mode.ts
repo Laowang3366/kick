@@ -9,6 +9,8 @@ const LITE_ALLOWED_PREFIXES = [
   "/mall",
   "/profile",
   "/settings",
+  "/notifications",
+  "/notification",
   "/tools",
   "/points-history",
   "/task-center",

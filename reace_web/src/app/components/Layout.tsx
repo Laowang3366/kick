@@ -177,7 +177,7 @@ export function Layout() {
 
   const notificationsPreviewQuery = useQuery({
     queryKey: notificationKeys.list({ page: 1, limit: 5, scope: "layout" }),
-    enabled: isAuthenticated && forumEnabled,
+    enabled: isAuthenticated,
     queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=5", { silent: true }),
   });
   const mentionNotificationsQuery = useQuery({
@@ -189,7 +189,7 @@ export function Layout() {
   });
   const unreadNotificationsQuery = useQuery({
     queryKey: [...notificationKeys.all, "unread-count"] as const,
-    enabled: isAuthenticated && forumEnabled,
+    enabled: isAuthenticated,
     queryFn: () => api.get<{ count: number }>("/api/notifications/unread-count", { silent: true }),
   });
   const unreadMessagesQuery = useQuery({
@@ -199,7 +199,7 @@ export function Layout() {
   });
   const popupNotificationsQuery = useQuery({
     queryKey: notificationKeys.list({ page: 1, limit: 20, type: "site_notification", scope: "popup-notification" }),
-    enabled: isAuthenticated && forumEnabled,
+    enabled: isAuthenticated,
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
     queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=20&type=site_notification", { silent: true }),
@@ -811,8 +811,9 @@ export function Layout() {
               {!isMobile ? <span>{checkinStatus?.hasCheckedInToday ? "已签到" : "签到"}</span> : null}
             </button>
 
-            {forumEnabled ? (
+            {isAuthenticated ? (
               <>
+                {forumEnabled ? (
                 <Link 
                   to="/messages"
                   className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
@@ -821,11 +822,13 @@ export function Layout() {
                   <Mail size={20} />
                   {renderCountBadge(unreadMessageCount, "teal")}
                 </Link>
+                ) : null}
 
                 <div className="relative" ref={notificationRef}>
                   <button 
                     onClick={() => setShowNotifications(!showNotifications)}
                     className="p-2 text-slate-500 hover:bg-gray-100 rounded-full transition-colors relative"
+                    title="通知"
                   >
                     <Bell size={20} />
                     {renderCountBadge(unreadNotificationCount, "rose")}
