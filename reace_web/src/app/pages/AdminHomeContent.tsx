@@ -45,7 +45,16 @@ const defaultArticleForm = {
   categoryId: "",
   title: "",
   summary: "",
+  oneLineUsage: "",
   content: "",
+  audienceTrack: "beginner",
+  difficulty: "basic",
+  recommendLevel: 1,
+  functionTags: "",
+  starter: false,
+  homeFeatured: false,
+  relatedChapterIds: [] as number[],
+  relatedQuestionIds: [] as number[],
   sortOrder: 0,
   enabled: true,
 };
@@ -89,9 +98,23 @@ export function AdminHomeContent() {
       }
     },
   });
+  const articleLinkOptionsQuery = useQuery({
+    queryKey: adminKeys.tutorialLinkOptions(),
+    enabled: isAdmin,
+    queryFn: async () => {
+      try {
+        return await api.get<any>("/api/admin/tutorials/link-options", { silent: true });
+      } catch (error) {
+        handleAdminError(error, navigate);
+        return { chapters: [], questions: [] };
+      }
+    },
+  });
 
   const categories = categoriesQuery.data || [];
   const articles = articlesQuery.data || [];
+  const chapterOptions = articleLinkOptionsQuery.data?.chapters || [];
+  const questionOptions = articleLinkOptionsQuery.data?.questions || [];
   const categoryOptions = useMemo(
     () => categories.map((item: any) => ({ value: String(item.id), label: item.name })),
     [categories]
@@ -176,7 +199,16 @@ export function AdminHomeContent() {
       categoryId: String(item.categoryId || ""),
       title: item.title || "",
       summary: item.summary || "",
+      oneLineUsage: item.oneLineUsage || "",
       content: item.content || "",
+      audienceTrack: item.audienceTrack || "beginner",
+      difficulty: item.difficulty || "basic",
+      recommendLevel: item.recommendLevel ?? 1,
+      functionTags: item.functionTags || "",
+      starter: Boolean(item.starter),
+      homeFeatured: Boolean(item.homeFeatured),
+      relatedChapterIds: item.relatedChapterIds || [],
+      relatedQuestionIds: item.relatedQuestionIds || [],
       sortOrder: item.sortOrder ?? 0,
       enabled: item.enabled ?? true,
     });
@@ -196,6 +228,7 @@ export function AdminHomeContent() {
       const payload = {
         ...articleForm,
         categoryId: Number(articleForm.categoryId),
+        recommendLevel: Number(articleForm.recommendLevel || 0),
       };
       if (editingArticle?.id) {
         await api.put(`/api/admin/tutorials/articles/${editingArticle.id}`, payload);
@@ -298,11 +331,13 @@ export function AdminHomeContent() {
             <TableHeader>
               <TableRow>
                 <TableHead>标题</TableHead>
-                <TableHead>所属分类</TableHead>
-                <TableHead>摘要</TableHead>
-                <TableHead>排序</TableHead>
-                <TableHead>启用</TableHead>
-                <TableHead>操作</TableHead>
+              <TableHead>所属分类</TableHead>
+              <TableHead>轨道 / 难度</TableHead>
+              <TableHead>关联练习</TableHead>
+              <TableHead>摘要</TableHead>
+              <TableHead>排序</TableHead>
+              <TableHead>启用</TableHead>
+              <TableHead>操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -313,6 +348,13 @@ export function AdminHomeContent() {
                     <div className="mt-1 text-xs text-slate-400">ID {item.id}</div>
                   </TableCell>
                   <TableCell>{item.categoryName || "-"}</TableCell>
+                  <TableCell>
+                    <div className="text-sm font-semibold text-slate-700">{audienceTrackLabel[item.audienceTrack] || "通用"}</div>
+                    <div className="mt-1 text-xs text-slate-400">{difficultyLabel[item.difficulty] || "基础"}</div>
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-500">
+                    章节 {item.relatedChapterIds?.length || 0} / 题目 {item.relatedQuestionIds?.length || 0}
+                  </TableCell>
                   <TableCell className="max-w-[420px] truncate">{item.summary || "暂无摘要"}</TableCell>
                   <TableCell>{item.sortOrder ?? 0}</TableCell>
                   <TableCell>
@@ -324,7 +366,16 @@ export function AdminHomeContent() {
                             categoryId: item.categoryId,
                             title: item.title,
                             summary: item.summary,
+                            oneLineUsage: item.oneLineUsage,
                             content: item.content,
+                            audienceTrack: item.audienceTrack,
+                            difficulty: item.difficulty,
+                            recommendLevel: item.recommendLevel,
+                            functionTags: item.functionTags,
+                            starter: item.starter,
+                            homeFeatured: item.homeFeatured,
+                            relatedChapterIds: item.relatedChapterIds || [],
+                            relatedQuestionIds: item.relatedQuestionIds || [],
                             sortOrder: item.sortOrder,
                             enabled: next,
                           });
@@ -405,12 +456,98 @@ export function AdminHomeContent() {
         <Field label="条目标题">
           <input value={articleForm.title} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, title: e.target.value }))} className={inputClassName()} />
         </Field>
+        <Field label="一句话用途">
+          <input value={articleForm.oneLineUsage} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, oneLineUsage: e.target.value }))} className={inputClassName()} />
+        </Field>
         <Field label="摘要">
           <textarea value={articleForm.summary} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, summary: e.target.value }))} className={textareaClassName()} />
+        </Field>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="学习轨道">
+            <select value={articleForm.audienceTrack} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, audienceTrack: e.target.value }))} className={inputClassName()}>
+              {Object.entries(audienceTrackLabel).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="难度等级">
+            <select value={articleForm.difficulty} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, difficulty: e.target.value }))} className={inputClassName()}>
+              {Object.entries(difficultyLabel).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="推荐权重">
+            <input type="number" value={articleForm.recommendLevel} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, recommendLevel: Number(e.target.value || 0) }))} className={inputClassName()} />
+          </Field>
+        </div>
+        <Field label="函数标签">
+          <input value={articleForm.functionTags} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, functionTags: e.target.value }))} placeholder="例如：SUM, AVERAGE" className={inputClassName()} />
         </Field>
         <Field label="正文内容（支持基础 HTML）">
           <textarea value={articleForm.content} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, content: e.target.value }))} className={`${textareaClassName()} min-h-[240px]`} />
         </Field>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Field label="关联章节">
+            <div className="max-h-[220px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+              <div className="space-y-2">
+                {chapterOptions.map((item: any) => (
+                  <label key={item.id} className="flex cursor-pointer items-start gap-3 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={articleForm.relatedChapterIds.includes(item.id)}
+                      onChange={(event) =>
+                        setArticleForm((prev: any) => ({
+                          ...prev,
+                          relatedChapterIds: toggleId(prev.relatedChapterIds, item.id, event.target.checked),
+                        }))
+                      }
+                    />
+                    <span>
+                      <span className="block font-semibold text-slate-800">{item.name}</span>
+                      {item.description ? <span className="mt-0.5 block text-xs text-slate-400">{item.description}</span> : null}
+                    </span>
+                  </label>
+                ))}
+                {chapterOptions.length === 0 ? <div className="text-sm text-slate-400">暂无可关联章节</div> : null}
+              </div>
+            </div>
+          </Field>
+          <Field label="关联题目">
+            <div className="max-h-[220px] overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+              <div className="space-y-2">
+                {questionOptions.map((item: any) => (
+                  <label key={item.id} className="flex cursor-pointer items-start gap-3 rounded-xl bg-white px-3 py-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={articleForm.relatedQuestionIds.includes(item.id)}
+                      onChange={(event) =>
+                        setArticleForm((prev: any) => ({
+                          ...prev,
+                          relatedQuestionIds: toggleId(prev.relatedQuestionIds, item.id, event.target.checked),
+                        }))
+                      }
+                    />
+                    <span className="block font-semibold text-slate-800">{item.title}</span>
+                  </label>
+                ))}
+                {questionOptions.length === 0 ? <div className="text-sm text-slate-400">暂无可关联题目</div> : null}
+              </div>
+            </div>
+          </Field>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <AdminFormSwitch
+            label="标记为新手起步内容"
+            checked={Boolean(articleForm.starter)}
+            onCheckedChange={(next) => setArticleForm((prev: any) => ({ ...prev, starter: next }))}
+          />
+          <AdminFormSwitch
+            label="在首页优先展示"
+            checked={Boolean(articleForm.homeFeatured)}
+            onCheckedChange={(next) => setArticleForm((prev: any) => ({ ...prev, homeFeatured: next }))}
+          />
+        </div>
         <AdminFormSwitch
           label="启用该条目"
           checked={Boolean(articleForm.enabled)}
@@ -510,4 +647,26 @@ function handleAdminError(error: unknown, navigate: ReturnType<typeof useNavigat
     return;
   }
   toast.error("后台请求失败");
+}
+
+const audienceTrackLabel: Record<string, string> = {
+  beginner: "新手入门",
+  advanced: "进阶提升",
+  general: "通用",
+};
+
+const difficultyLabel: Record<string, string> = {
+  basic: "基础",
+  medium: "中等",
+  advanced: "进阶",
+};
+
+function toggleId(values: number[], id: number, checked: boolean) {
+  const next = new Set(values || []);
+  if (checked) {
+    next.add(id);
+  } else {
+    next.delete(id);
+  }
+  return Array.from(next);
 }

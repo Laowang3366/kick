@@ -3,6 +3,7 @@ export const adminKeys = {
   stats: () => ["admin", "stats"] as const,
   tutorialCategories: () => ["admin", "tutorials", "categories"] as const,
   tutorialArticles: (params: Record<string, unknown>) => ["admin", "tutorials", "articles", params] as const,
+  tutorialLinkOptions: () => ["admin", "tutorials", "link-options"] as const,
   templates: (params: Record<string, unknown>) => ["admin", "templates", params] as const,
   review: (params: Record<string, unknown>) => ["admin", "review", params] as const,
   practiceReview: (params: Record<string, unknown>) => ["admin", "practice-review", params] as const,

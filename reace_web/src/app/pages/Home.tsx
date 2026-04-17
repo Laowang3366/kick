@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, FileText, Lightbulb, Search } from "lucide-react";
 import { motion } from "motion/react";
+import { useNavigate } from "react-router";
 import { LitePageFrame } from "../components/LiteSurface";
 import { api } from "../lib/api";
 import { tutorialKeys } from "../lib/query-keys";
 
 export function Home() {
+  const navigate = useNavigate();
   const tutorialsQuery = useQuery({
     queryKey: tutorialKeys.home(),
     queryFn: () => api.get<any>("/api/tutorials/home", { silent: true }),
@@ -207,6 +209,25 @@ export function Home() {
                 {activeArticle.summary ? (
                   <p className="mt-3 text-sm leading-7 text-slate-500">{activeArticle.summary}</p>
                 ) : null}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {activeArticle.audienceTrack ? (
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                      {trackLabel[activeArticle.audienceTrack] || "通用轨道"}
+                    </span>
+                  ) : null}
+                  {activeArticle.difficulty ? (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+                      {difficultyLabel[activeArticle.difficulty] || "基础难度"}
+                    </span>
+                  ) : null}
+                  {Array.isArray(activeArticle.functionTags)
+                    ? activeArticle.functionTags.map((tag: string) => (
+                        <span key={tag} className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
+                          {tag}
+                        </span>
+                      ))
+                    : null}
+                </div>
 
                 <div className="mt-6 rounded-[24px] border border-slate-200 bg-white px-5 py-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
                   {activeArticle.content ? (
@@ -218,6 +239,71 @@ export function Home() {
                     <div className="text-sm text-slate-400">当前条目暂无正文内容。</div>
                   )}
                 </div>
+
+                {activeArticle.oneLineUsage || activeArticle.relatedChapters?.length || activeArticle.relatedQuestions?.length ? (
+                  <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+                    <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
+                      <div className="text-[11px] font-black tracking-[0.18em] text-slate-400">关联练习</div>
+                      <h3 className="mt-2 text-xl font-black text-slate-900">学完就练</h3>
+                      <p className="mt-2 text-sm leading-7 text-slate-500">
+                        {activeArticle.oneLineUsage || "当前条目已补齐练习关联，直接进入对应章节或题目即可验证掌握情况。"}
+                      </p>
+
+                      {activeArticle.relatedChapters?.length ? (
+                        <div className="mt-5">
+                          <div className="text-sm font-bold text-slate-700">关联章节</div>
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {activeArticle.relatedChapters.map((chapter: any) => (
+                              <button
+                                key={chapter.id}
+                                type="button"
+                                onClick={() => navigate(`/practice/chapter/${chapter.id}`)}
+                                className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-left transition hover:border-teal-200 hover:bg-teal-100/70"
+                              >
+                                <div className="text-sm font-bold text-teal-800">{chapter.name}</div>
+                                {chapter.description ? <div className="mt-1 max-w-[260px] text-xs text-teal-700/75">{chapter.description}</div> : null}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {activeArticle.relatedQuestions?.length ? (
+                        <div className="mt-5">
+                          <div className="text-sm font-bold text-slate-700">关联题目</div>
+                          <div className="mt-3 flex flex-wrap gap-3">
+                            {activeArticle.relatedQuestions.map((question: any) => (
+                              <button
+                                key={question.id}
+                                type="button"
+                                onClick={() => navigate(`/practice/question/${question.id}`, { state: { backTo: "/" } })}
+                                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-white"
+                              >
+                                <div className="text-sm font-bold text-slate-800">{question.title}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fffd_100%)] px-5 py-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
+                      <div className="text-[11px] font-black tracking-[0.18em] text-slate-400">学习提示</div>
+                      <h3 className="mt-2 text-xl font-black text-slate-900">推荐学习路径</h3>
+                      <div className="mt-4 space-y-3">
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                          1. 先看当前函数的语法和示例，确认参数含义。
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                          2. 立即进入对应章节或题目练习，验证公式是否真正会写。
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                          3. 错题优先重复练，确保函数写法和场景选择都过关。
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -226,3 +312,15 @@ export function Home() {
     </LitePageFrame>
   );
 }
+
+const trackLabel: Record<string, string> = {
+  beginner: "新手入门",
+  advanced: "进阶提升",
+  general: "通用轨道",
+};
+
+const difficultyLabel: Record<string, string> = {
+  basic: "基础",
+  medium: "中等",
+  advanced: "进阶",
+};

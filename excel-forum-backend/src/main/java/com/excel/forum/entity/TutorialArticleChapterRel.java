@@ -10,27 +10,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("tutorial_article")
-public class TutorialArticle {
+@TableName("tutorial_article_chapter_rel")
+public class TutorialArticleChapterRel {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private Long categoryId;
-    private String title;
-    private String summary;
-    private String oneLineUsage;
-    private String content;
-    private String audienceTrack;
-    private String difficulty;
-    private Integer recommendLevel;
-    private String functionTags;
-    private Boolean starter;
-    private Boolean homeFeatured;
+    private Long articleId;
+    private Long chapterId;
     private Integer sortOrder;
-    private Boolean enabled;
-    @TableField(exist = false)
-    private java.util.List<Long> relatedChapterIds;
-    @TableField(exist = false)
-    private java.util.List<Long> relatedQuestionIds;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableField(fill = FieldFill.INSERT_UPDATE)
