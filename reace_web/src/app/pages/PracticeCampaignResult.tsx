@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Award, CheckCircle2, ChevronRight, Clock3, RotateCcw, Sparkles, Target, XCircle } from "lucide-react";
 import { motion } from "motion/react";
 import { useLocation, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { api } from "../lib/api";
 import { formatDateTime, formatDuration } from "../lib/format";
+import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignResult() {
@@ -29,6 +31,28 @@ export function PracticeCampaignResult() {
   const record = recordQuery.data;
   const passed = record ? (record.correctCount || 0) > 0 : passedFromState;
   const stars = record ? Math.max(((record.correctCount || 0) > 0 ? 1 : 0), starsFromState) : starsFromState;
+
+  const handleStartLevel = async (levelId?: number | null) => {
+    if (!levelId) {
+      return;
+    }
+    try {
+      const levelDetail = await api.get<any>(`/api/practice/campaign/levels/${levelId}`, { silent: true });
+      const level = levelDetail?.level;
+      const chapter = levelDetail?.chapter;
+      const result = await startCampaignLevel(levelId, level?.questionId || levelDetail?.question?.id);
+      navigate(`/practice/question/${result.questionId}`, {
+        state: {
+          backTo: chapter?.id ? `/practice/chapters?chapter=${chapter.id}` : "/practice/chapters",
+          campaignLevel: level,
+          campaignChapter: chapter,
+          campaignAttemptId: result.attemptId,
+        },
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "开始答题失败");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-[960px] px-4 py-5 sm:px-6 sm:py-6">
@@ -98,11 +122,9 @@ export function PracticeCampaignResult() {
           ) : null}
 
           <div className="mt-8 rounded-[28px] border border-slate-200 bg-white px-5 py-5 text-left shadow-sm">
-            <div className="text-[12px] font-black tracking-[0.18em] text-slate-400">SUMMARY</div>
-            <div className="mt-3 text-lg font-black text-slate-900">{campaignChapter?.name || record?.questionCategoryName || "当前章节"}</div>
+            <div className="text-lg font-black text-slate-900">{campaignChapter?.name || record?.questionCategoryName || "当前章节"}</div>
             <div className="mt-2 text-sm leading-7 text-slate-500">
-              提交时间：{record?.submitTime ? formatDateTime(record.submitTime) : "-"}。
-              当前版本已接入闯关记录、基础三星结算、章节解锁、首通额外奖励和每日挑战奖励。
+              {passed ? "本次挑战已完成结算，可以继续前往下一关或重新练习。" : "本次挑战未通过，可以返回章节后重新尝试。"}
             </div>
           </div>
 
@@ -110,27 +132,21 @@ export function PracticeCampaignResult() {
             {nextLevelId ? (
               <button
                 type="button"
-                onClick={() => navigate(`/practice/level/${nextLevelId}/prepare`)}
+                onClick={() => void handleStartLevel(nextLevelId)}
                 className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-black text-white"
               >
-                下一关
+                下一关答题
                 <ChevronRight size={15} />
               </button>
             ) : null}
             {campaignLevel?.questionId ? (
               <button
                 type="button"
-                onClick={() => navigate(`/practice/question/${campaignLevel.questionId}`, {
-                  state: {
-                    backTo: campaignChapter?.id ? `/practice/chapter/${campaignChapter.id}` : "/practice",
-                    campaignLevel,
-                    campaignChapter,
-                  },
-                })}
+                onClick={() => void handleStartLevel(campaignLevel?.id)}
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700"
               >
                 <RotateCcw size={15} />
-                再试一次
+                再次答题
               </button>
             ) : null}
             <button

@@ -6,6 +6,8 @@ import com.excel.forum.entity.dto.PracticeCampaignSubmitRequest;
 import java.util.Map;
 
 public interface PracticeCampaignService {
+    void syncCampaignCatalog();
+
     Map<String, Object> getCampaignOverview(Long userId);
 
     Map<String, Object> getCampaignChapters(Long userId);

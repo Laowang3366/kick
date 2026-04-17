@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, RotateCcw } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { api } from "../lib/api";
 import { formatDateTime } from "../lib/format";
+import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
-import { toast } from "sonner";
 
 export function PracticeCampaignWrongs() {
   const navigate = useNavigate();
@@ -23,6 +24,28 @@ export function PracticeCampaignWrongs() {
   });
 
   const records = wrongsQuery.data?.records || [];
+
+  const handleRetry = async (levelId?: number | null) => {
+    if (!levelId) {
+      return;
+    }
+    try {
+      const levelDetail = await api.get<any>(`/api/practice/campaign/levels/${levelId}`, { silent: true });
+      const level = levelDetail?.level;
+      const chapter = levelDetail?.chapter;
+      const result = await startCampaignLevel(levelId, level?.questionId || levelDetail?.question?.id);
+      navigate(`/practice/question/${result.questionId}`, {
+        state: {
+          backTo: chapter?.id ? `/practice/chapters?chapter=${chapter.id}` : "/practice/chapters",
+          campaignLevel: level,
+          campaignChapter: chapter,
+          campaignAttemptId: result.attemptId,
+        },
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "开始答题失败");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-[1080px] px-4 py-5 sm:px-6 sm:py-6">
@@ -63,11 +86,11 @@ export function PracticeCampaignWrongs() {
                 <div className="flex shrink-0 flex-col gap-2">
                   <button
                     type="button"
-                    onClick={() => item.recommendedLevelId && navigate(`/practice/level/${item.recommendedLevelId}/prepare`)}
+                    onClick={() => void handleRetry(item.recommendedLevelId)}
                     className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-4 py-2 text-sm font-black text-rose-600"
                   >
                     <RotateCcw size={15} />
-                    立即重练
+                    开始答题
                     <ChevronRight size={15} />
                   </button>
                   <button

@@ -534,16 +534,20 @@ public class PracticeServiceImpl implements PracticeService {
                     request.getAnswerSnapshotJson()
             );
             request.setAnswerSnapshotJson(normalizedAnswerSnapshot);
-            request.setGradingRuleJson(excelTemplateGradingService.buildSimpleRuleJson(
-                    request.getAnswerSheet(),
-                    request.getAnswerRange(),
-                    request.getCheckFormula()
-            ));
-            request.setExpectedSnapshotJson(excelTemplateGradingService.buildExpectedSnapshotJson(
+            request.setGradingRuleJson(excelTemplateGradingService.buildRuleJson(
+                    request.getTemplateFileUrl(),
                     request.getAnswerSheet(),
                     request.getAnswerRange(),
                     request.getCheckFormula(),
-                    normalizedAnswerSnapshot
+                    request.getGradingRuleJson()
+            ));
+            request.setExpectedSnapshotJson(excelTemplateGradingService.buildExpectedSnapshotJson(
+                    request.getTemplateFileUrl(),
+                    request.getAnswerSheet(),
+                    request.getAnswerRange(),
+                    request.getCheckFormula(),
+                    normalizedAnswerSnapshot,
+                    request.getGradingRuleJson()
             ));
             request.setSheetCountLimit(request.getSheetCountLimit() == null || request.getSheetCountLimit() < 1 ? 5 : request.getSheetCountLimit());
             request.setVersion(request.getVersion() == null || request.getVersion() < 1 ? 1 : request.getVersion());

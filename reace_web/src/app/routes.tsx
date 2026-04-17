@@ -10,7 +10,11 @@ function lazyPage(importer: () => Promise<any>, exportName: string) {
 }
 
 function LiteRedirect() {
-  return <Navigate to="/" replace />;
+  return <Navigate to="/practice" replace />;
+}
+
+function AdminRedirect() {
+  return <Navigate to="/admin/overview" replace />;
 }
 
 function pageRoute(path: string, importer: () => Promise<any>, exportName: string, allowedInLite = false) {
@@ -31,15 +35,17 @@ export const router = createBrowserRouter([
     children: [
       { index: true, lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminIndex") },
       { path: "overview", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminOverview") },
-      { path: "review", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminReview") },
-      { path: "reports", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminReports") },
+      { path: "home-content", lazy: lazyPage(() => import("./pages/AdminHomeContent"), "AdminHomeContent") },
+      { path: "review", Component: AdminRedirect },
+      { path: "reports", Component: AdminRedirect },
       { path: "users", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminUsers") },
-      { path: "posts", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminPosts") },
-      { path: "categories", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminCategories") },
-      { path: "drafts", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminDrafts") },
-      { path: "notifications", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminNotifications") },
+      { path: "posts", Component: AdminRedirect },
+      { path: "categories", Component: AdminRedirect },
+      { path: "drafts", Component: AdminRedirect },
+      { path: "notifications", Component: AdminRedirect },
       { path: "questions", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminQuestions") },
       { path: "question-categories", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminQuestionCategories") },
+      { path: "templates", lazy: lazyPage(() => import("./pages/AdminTemplateCenter"), "AdminTemplateCenter") },
       { path: "points", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminPoints") },
       { path: "mall", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminMall") },
       { path: "levels", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminLevels") },
@@ -52,9 +58,9 @@ export const router = createBrowserRouter([
       { index: true, lazy: lazyPage(() => import("./pages/Home"), "Home") },
       { path: "chat", Component: LiteRedirect },
       pageRoute("practice", () => import("./pages/PracticeCampaignHub"), "PracticeCampaignHub", true),
+      pageRoute("practice/chapters", () => import("./pages/PracticeCampaignChapters"), "PracticeCampaignChapters", true),
       pageRoute("practice/classic", () => import("./pages/Practice"), "Practice", true),
       pageRoute("practice/chapter/:id", () => import("./pages/PracticeCampaignChapter"), "PracticeCampaignChapter", true),
-      pageRoute("practice/level/:id/prepare", () => import("./pages/PracticeCampaignLevelPrepare"), "PracticeCampaignLevelPrepare", true),
       pageRoute("practice/result/:id", () => import("./pages/PracticeCampaignResult"), "PracticeCampaignResult", true),
       pageRoute("practice/daily", () => import("./pages/PracticeCampaignDaily"), "PracticeCampaignDaily", true),
       pageRoute("practice/wrongs", () => import("./pages/PracticeCampaignWrongs"), "PracticeCampaignWrongs", true),
@@ -63,16 +69,21 @@ export const router = createBrowserRouter([
       pageRoute("practice/question/:id", () => import("./pages/PracticeDetail"), "PracticeDetail", true),
       pageRoute("practice/history", () => import("./pages/PracticeHistory"), "PracticeHistory", true),
       pageRoute("practice/history/:id", () => import("./pages/PracticeRecordDetail"), "PracticeRecordDetail", true),
+      pageRoute("templates", () => import("./pages/TemplateCenter"), "TemplateCenter", true),
+      pageRoute("templates/records", () => import("./pages/TemplatePurchaseRecords"), "TemplatePurchaseRecords", true),
       pageRoute("mall", () => import("./pages/Mall"), "Mall", true),
+      pageRoute("mall/props", () => import("./pages/MallProps"), "MallProps", true),
+      pageRoute("mall/redemptions", () => import("./pages/MallRedemptions"), "MallRedemptions", true),
       { path: "messages", Component: LiteRedirect },
       pageRoute("tools", () => import("./pages/Tools"), "Tools", true),
+      pageRoute("tools/history", () => import("./pages/ToolsHistory"), "ToolsHistory", true),
       { path: "notifications", Component: LiteRedirect },
-      { path: "profile", Component: LiteRedirect },
+      pageRoute("profile", () => import("./pages/ProfileCenter"), "ProfileCenter", true),
       { path: "user/:id", Component: LiteRedirect },
       { path: "board/:id", Component: LiteRedirect },
       { path: "post/:id", Component: LiteRedirect },
       { path: "notification/:id", Component: LiteRedirect },
-      { path: "settings", Component: LiteRedirect },
+      pageRoute("settings", () => import("./pages/Settings"), "Settings", true),
       pageRoute("points-history", () => import("./pages/PointHistory"), "PointHistory", true),
       pageRoute("task-center", () => import("./pages/TaskCenter"), "TaskCenter", true),
     ],

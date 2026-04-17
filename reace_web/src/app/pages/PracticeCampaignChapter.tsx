@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Award, ChevronRight, Crown, Lock, Play, Sparkles, Target } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { api } from "../lib/api";
+import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignChapter() {
@@ -16,6 +18,25 @@ export function PracticeCampaignChapter() {
 
   const chapter = chapterQuery.data?.chapter;
   const levels = chapterQuery.data?.levels || [];
+
+  const handleStartLevel = async (level: any) => {
+    if (!level || level.status === "locked") {
+      return;
+    }
+    try {
+      const result = await startCampaignLevel(level.id, level.questionId);
+      navigate(`/practice/question/${result.questionId}`, {
+        state: {
+          backTo: chapter?.id ? `/practice/chapters?chapter=${chapter.id}` : "/practice/chapters",
+          campaignLevel: level,
+          campaignChapter: chapter,
+          campaignAttemptId: result.attemptId,
+        },
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "开始答题失败");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-[1180px] px-4 py-5 sm:px-6 sm:py-6">
@@ -70,7 +91,7 @@ export function PracticeCampaignChapter() {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.04 }}
-              onClick={() => !isLocked && navigate(`/practice/level/${level.id}/prepare`)}
+              onClick={() => void handleStartLevel(level)}
               className={`rounded-[28px] border p-5 text-left transition-all ${
                 isLocked
                   ? "border-slate-200 bg-slate-100/70 opacity-70"
@@ -129,7 +150,7 @@ export function PracticeCampaignChapter() {
                   ))}
                 </div>
                 <div className="inline-flex items-center gap-2 text-sm font-black text-slate-600">
-                  {isLocked ? "等待解锁" : "进入准备页"}
+                  {isLocked ? "等待解锁" : "开始答题"}
                   {isLocked ? <Lock size={14} /> : isAvailable ? <Play size={14} /> : <ChevronRight size={14} />}
                 </div>
               </div>

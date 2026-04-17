@@ -13,6 +13,7 @@ import {
   LoaderCircle,
   Lock,
   MessageSquare,
+  Plus,
   RefreshCcw,
   Send,
   ShieldAlert,
@@ -2089,7 +2090,7 @@ export function AdminQuestionCategories() {
   return (
     <AdminPageShell
       title="题目分类"
-      description="维护练习题目使用的分类体系。"
+      description="维护练习题目分类，同时控制前台章节板块的名称、描述、排序与启用状态。"
     >
       <AdminSection title="分类列表" actions={<AddButton onClick={openCreate}>新增题目分类</AddButton>}>
         <Table>
@@ -2133,6 +2134,7 @@ export function AdminQuestionCategories() {
         open={open}
         onOpenChange={setOpen}
         title={editing ? "编辑题目分类" : "新增题目分类"}
+        description="分类名称、描述、排序和启用状态会同步到前台章节板块。"
         submitLabel={editing ? "保存分类" : "创建分类"}
         onSubmit={submit}
       >
@@ -2293,6 +2295,8 @@ export function AdminQuestions() {
   };
 
   const openEdit = async (item: any) => {
+    const dynamicArrayRules = parseDynamicArrayRulesFromJson(item.gradingRuleJson, item.answerSheet || "");
+    const gradingMode = dynamicArrayRules.some((rule) => rule.anchorCell && rule.spillRange) ? "dynamic_array" : "simple";
     setEditing(item);
     setForm({
       title: item.title || "",
@@ -2306,6 +2310,9 @@ export function AdminQuestions() {
       answerRange: item.answerRange || "",
       answerSnapshotJson: item.answerSnapshotJson || "",
       checkFormula: item.checkFormula ?? false,
+      gradingMode,
+      dynamicArrayRules,
+      gradingRuleJson: item.gradingRuleJson || "",
       sheetCountLimit: item.sheetCountLimit ?? 5,
       version: item.version ?? 1,
     });
@@ -2320,8 +2327,16 @@ export function AdminQuestions() {
   };
 
   const submit = async () => {
-    const resolvedSheetName = form.answerSheet || selection?.sheetName || selectedSheetName;
-    const resolvedRange = isTemplateEditMode ? (selectionToRangeRef(selection) || form.answerRange) : form.answerRange;
+    const primaryDynamicRule = Array.isArray(form.dynamicArrayRules) && form.dynamicArrayRules.length > 0
+      ? form.dynamicArrayRules[0]
+      : defaultDynamicArrayRule();
+    const isDynamicArrayMode = form.gradingMode === "dynamic_array";
+    const resolvedSheetName = isDynamicArrayMode
+      ? (primaryDynamicRule.sheet || selectedSheetName || selection?.sheetName || "")
+      : (form.answerSheet || selection?.sheetName || selectedSheetName);
+    const resolvedRange = isDynamicArrayMode
+      ? (primaryDynamicRule.spillRange || selectionToRangeRef(selection) || form.answerRange)
+      : (isTemplateEditMode ? (selectionToRangeRef(selection) || form.answerRange) : form.answerRange);
     if (!form.templateFileUrl) {
       toast.error("请先上传 Excel 模板");
       return;
@@ -2333,6 +2348,25 @@ export function AdminQuestions() {
     if (!resolvedRange) {
       toast.error("请先在表格中框选答题区域");
       return;
+    }
+    const normalizedDynamicRules = isDynamicArrayMode
+      ? (form.dynamicArrayRules || []).map((item: any) => ({
+        ...item,
+        sheet: String(item?.sheet || "").trim(),
+        anchorCell: String(item?.anchorCell || "").trim().toUpperCase(),
+        spillRange: String(item?.spillRange || "").trim().toUpperCase(),
+        score: Math.max(1, Number(item?.score || 1)),
+      }))
+      : [];
+    if (isDynamicArrayMode) {
+      if (normalizedDynamicRules.length === 0) {
+        toast.error("请至少配置一条动态数组判题规则");
+        return;
+      }
+      if (normalizedDynamicRules.some((item: any) => !item.sheet || !item.anchorCell || !item.spillRange)) {
+        toast.error("动态数组规则必须填写工作表、锚点单元格和溢出区域");
+        return;
+      }
     }
     const latestWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
     if (latestWorkbook !== editorWorkbook) {
@@ -2358,7 +2392,8 @@ export function AdminQuestions() {
       answerSheet: resolvedSheetName,
       answerRange: resolvedRange,
       answerSnapshotJson: JSON.stringify(answerSnapshot),
-      checkFormula: Boolean(form.checkFormula),
+      checkFormula: isDynamicArrayMode ? Boolean(primaryDynamicRule.requireAnchorFormula) : Boolean(form.checkFormula),
+      gradingRuleJson: isDynamicArrayMode ? buildDynamicArrayRuleJson(normalizedDynamicRules) : "",
       sheetCountLimit: Number(form.sheetCountLimit || 5),
       version: Number(form.version || 1),
     };
@@ -2501,6 +2536,7 @@ export function AdminQuestions() {
         answerSheet: "",
         answerRange: "",
         answerSnapshotJson: "",
+        dynamicArrayRules: [defaultDynamicArrayRule()],
       };
       setForm(nextForm);
       setIsTemplateEditMode(true);
@@ -2511,21 +2547,31 @@ export function AdminQuestions() {
     }
   };
 
+  const isDynamicArrayMode = form.gradingMode === "dynamic_array";
+  const primaryDynamicRule = Array.isArray(form.dynamicArrayRules) && form.dynamicArrayRules.length > 0
+    ? form.dynamicArrayRules[0]
+    : defaultDynamicArrayRule();
+  const primarySheetName = isDynamicArrayMode
+    ? (primaryDynamicRule.sheet || form.answerSheet || selectedSheetName)
+    : (form.answerSheet || selectedSheetName);
+  const primaryRangeRef = isDynamicArrayMode
+    ? primaryDynamicRule.spillRange
+    : form.answerRange;
   const currentSelectionText = isTemplateEditMode
-    ? (selectionToRangeRef(selection) || form.answerRange || "未选择")
-    : (form.answerRange || "未选择");
+    ? (selectionToRangeRef(selection) || primaryRangeRef || "未选择")
+    : (primaryRangeRef || "未选择");
   const sheetOptions = templateWorkbook.sheets || [];
   const currentPreviewWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
   const answerPreview = extractRangeAnswerSnapshot(
     currentPreviewWorkbook,
-    form.answerSheet || selectedSheetName,
-    isTemplateEditMode ? (selectionToRangeRef(selection) || form.answerRange) : form.answerRange,
+    primarySheetName,
+    isTemplateEditMode ? (selectionToRangeRef(selection) || primaryRangeRef) : primaryRangeRef,
   );
-  const previewRangeRef = isTemplateEditMode ? (selectionToRangeRef(selection) || form.answerRange) : form.answerRange;
+  const previewRangeRef = isTemplateEditMode ? (selectionToRangeRef(selection) || primaryRangeRef) : primaryRangeRef;
   const previewRange = previewRangeRef ? parseRangeRef(previewRangeRef) : null;
-  const persistedRange = form.answerRange ? parseRangeRef(form.answerRange) : null;
-  const persistedFocusRange = form.answerSheet && persistedRange
-    ? normalizeSelection(form.answerSheet, persistedRange.startRow, persistedRange.startCol, persistedRange.endRow, persistedRange.endCol)
+  const persistedRange = primaryRangeRef ? parseRangeRef(primaryRangeRef) : null;
+  const persistedFocusRange = primarySheetName && persistedRange
+    ? normalizeSelection(primarySheetName, persistedRange.startRow, persistedRange.startCol, persistedRange.endRow, persistedRange.endCol)
     : null;
   const prevSelectionForSheet = (sheetName: string, rangeText: string) => {
     const parsed = rangeText ? parseRangeRef(rangeText) : null;
@@ -2549,12 +2595,12 @@ export function AdminQuestions() {
     : [];
   const openAnswerRangeEditor = () => {
     if (!isTemplateEditMode) return;
-    const sheetName = form.answerSheet || selectedSheetName;
+    const sheetName = primarySheetName;
     if (!sheetName) {
       toast.error("请先选择答题工作表");
       return;
     }
-    const parsedRange = form.answerRange ? parseRangeRef(form.answerRange) : null;
+    const parsedRange = primaryRangeRef ? parseRangeRef(primaryRangeRef) : null;
     const nextSelection = parsedRange
       ? normalizeSelection(sheetName, parsedRange.startRow, parsedRange.startCol, parsedRange.endRow, parsedRange.endCol)
       : normalizeSelection(sheetName, 1, 1, 1, 1);
@@ -2573,6 +2619,11 @@ export function AdminQuestions() {
       ...prev,
       answerSheet: selection.sheetName,
       answerRange: nextRange,
+      dynamicArrayRules: prev.gradingMode === "dynamic_array"
+        ? (prev.dynamicArrayRules || []).map((item: any, index: number) => (index === 0
+          ? { ...item, sheet: selection.sheetName, spillRange: nextRange }
+          : item))
+        : prev.dynamicArrayRules,
     }));
     setSelectedSheetName(selection.sheetName);
     setIsSelectingAnswerRange(false);
@@ -2777,6 +2828,36 @@ export function AdminQuestions() {
           <Field label="难度"><input type="number" value={form.difficulty} onChange={(e) => setForm((prev: any) => ({ ...prev, difficulty: e.target.value }))} className={inputClassName()} /></Field>
           <Field label="奖励积分"><input type="number" value={form.points} onChange={(e) => setForm((prev: any) => ({ ...prev, points: e.target.value }))} className={inputClassName()} /></Field>
         </div>
+        <div className="grid gap-4 md:grid-cols-[220px,1fr]">
+          <Field label="判题模式">
+            <select
+              value={form.gradingMode}
+              onChange={(e) => setForm((prev: any) => ({
+                ...prev,
+                gradingMode: e.target.value,
+                dynamicArrayRules: e.target.value === "dynamic_array"
+                  ? ((prev.dynamicArrayRules?.length && prev.dynamicArrayRules.some((item: any) => item.anchorCell || item.spillRange))
+                    ? prev.dynamicArrayRules
+                    : [{
+                      ...defaultDynamicArrayRule(prev.answerSheet || selectedSheetName),
+                      sheet: prev.answerSheet || selectedSheetName || "",
+                      spillRange: prev.answerRange || "",
+                      requireAnchorFormula: prev.checkFormula !== false,
+                    }])
+                  : prev.dynamicArrayRules,
+              }))}
+              className={inputClassName()}
+            >
+              <option value="simple">普通区域判题</option>
+              <option value="dynamic_array">动态数组判题</option>
+            </select>
+          </Field>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            {form.gradingMode === "dynamic_array"
+              ? "动态数组模式会同时校验溢出结果、锚点公式以及扩展区域是否被手工改写。"
+              : "普通区域模式会按答题区域逐格比对值，勾选后会额外校验函数公式。"}
+          </div>
+        </div>
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -2803,15 +2884,21 @@ export function AdminQuestions() {
           </div>
           {sheetOptions.length > 0 && (
             <div className="grid gap-4 md:grid-cols-4">
-              <Field label="答题工作表">
+              <Field label={isDynamicArrayMode ? "首条规则工作表" : "答题工作表"}>
                 <select
-                  value={form.answerSheet || selectedSheetName}
+                  value={primarySheetName}
                   disabled={!isTemplateEditMode}
                   onChange={(e) => {
                     const nextSheetName = e.target.value;
                     setSelectedSheetName(nextSheetName);
-                    setForm((prev: any) => ({ ...prev, answerSheet: nextSheetName }));
-                    const persistedForSheet = prevSelectionForSheet(nextSheetName, form.answerRange);
+                    setForm((prev: any) => ({
+                      ...prev,
+                      answerSheet: nextSheetName,
+                      dynamicArrayRules: prev.gradingMode === "dynamic_array"
+                        ? (prev.dynamicArrayRules || []).map((item: any, index: number) => (index === 0 ? { ...item, sheet: nextSheetName } : item))
+                        : prev.dynamicArrayRules,
+                    }));
+                    const persistedForSheet = prevSelectionForSheet(nextSheetName, primaryRangeRef);
                     setSelection(persistedForSheet);
                   }}
                   className={inputClassName()}
@@ -2820,7 +2907,7 @@ export function AdminQuestions() {
                   {sheetOptions.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
                 </select>
               </Field>
-              <Field label="答题区域">
+              <Field label={isDynamicArrayMode ? "首条规则溢出区域" : "答题区域"}>
                 <div className="flex gap-2">
                   <input value={currentSelectionText} readOnly className={inputClassName()} />
                   <button
@@ -2845,23 +2932,191 @@ export function AdminQuestions() {
                   )}
                 </div>
               </Field>
-              <label className="flex items-end">
-                <span className={`inline-flex h-9 items-center gap-2 rounded-[2px] border border-[#d9d9d9] bg-white px-3 text-sm font-medium text-slate-700 ${!isTemplateEditMode ? "opacity-60" : ""}`}>
+              {isDynamicArrayMode ? (
+                <Field label="首条规则锚点">
                   <input
-                    type="checkbox"
-                    checked={Boolean(form.checkFormula)}
+                    value={primaryDynamicRule.anchorCell}
                     disabled={!isTemplateEditMode}
-                    onChange={(e) => setForm((prev: any) => ({ ...prev, checkFormula: e.target.checked }))}
+                    onChange={(e) => setForm((prev: any) => ({
+                      ...prev,
+                      dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, index: number) => (index === 0
+                        ? { ...item, anchorCell: e.target.value.toUpperCase() }
+                        : item)),
+                    }))}
+                    className={inputClassName()}
+                    placeholder="例如 F2"
                   />
-                  检测函数公式
-                </span>
-              </label>
+                </Field>
+              ) : (
+                <label className="flex items-end">
+                  <span className={`inline-flex h-9 items-center gap-2 rounded-[2px] border border-[#d9d9d9] bg-white px-3 text-sm font-medium text-slate-700 ${!isTemplateEditMode ? "opacity-60" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form.checkFormula)}
+                      disabled={!isTemplateEditMode}
+                      onChange={(e) => setForm((prev: any) => ({ ...prev, checkFormula: e.target.checked }))}
+                    />
+                    检测函数公式
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
+          {isDynamicArrayMode && (
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-slate-900">动态数组规则</div>
+                  <div className="mt-1 text-xs text-slate-500">支持多条规则统一判题，首条规则会同步到模板编辑器预览。</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev: any) => ({
+                    ...prev,
+                    dynamicArrayRules: [...(prev.dynamicArrayRules || []), defaultDynamicArrayRule(primarySheetName)],
+                  }))}
+                  className={secondaryButtonClassName()}
+                >
+                  <Plus size={14} />
+                  新增规则
+                </button>
+              </div>
+              <div className="space-y-4">
+                {(form.dynamicArrayRules || []).map((rule: any, index: number) => (
+                  <div key={`dynamic-rule-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="text-sm font-black text-slate-800">规则 {index + 1}</div>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev: any) => {
+                          const nextRules = (prev.dynamicArrayRules || []).filter((_: any, ruleIndex: number) => ruleIndex !== index);
+                          return { ...prev, dynamicArrayRules: nextRules.length > 0 ? nextRules : [defaultDynamicArrayRule(primarySheetName)] };
+                        })}
+                        className={secondaryButtonClassName()}
+                        disabled={(form.dynamicArrayRules || []).length <= 1}
+                      >
+                        <Trash2 size={14} />
+                        删除
+                      </button>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <Field label="工作表">
+                        <select
+                          value={rule.sheet}
+                          onChange={(e) => setForm((prev: any) => ({
+                            ...prev,
+                            dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                              ? { ...item, sheet: e.target.value }
+                              : item)),
+                          }))}
+                          className={inputClassName()}
+                        >
+                          <option value="">请选择</option>
+                          {sheetOptions.map((item) => <option key={`dynamic-sheet-${index}-${item.name}`} value={item.name}>{item.name}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="锚点单元格">
+                        <input
+                          value={rule.anchorCell}
+                          onChange={(e) => setForm((prev: any) => ({
+                            ...prev,
+                            dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                              ? { ...item, anchorCell: e.target.value.toUpperCase() }
+                              : item)),
+                          }))}
+                          className={inputClassName()}
+                          placeholder="例如 F2"
+                        />
+                      </Field>
+                      <Field label="溢出区域">
+                        <input
+                          value={rule.spillRange}
+                          onChange={(e) => setForm((prev: any) => ({
+                            ...prev,
+                            dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                              ? { ...item, spillRange: e.target.value.toUpperCase() }
+                              : item)),
+                          }))}
+                          className={inputClassName()}
+                          placeholder="例如 F2:G6"
+                        />
+                      </Field>
+                      <Field label="分值">
+                        <input
+                          type="number"
+                          min="1"
+                          value={rule.score}
+                          onChange={(e) => setForm((prev: any) => ({
+                            ...prev,
+                            dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                              ? { ...item, score: e.target.value }
+                              : item)),
+                          }))}
+                          className={inputClassName()}
+                        />
+                      </Field>
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <Field label="规则名称">
+                        <input
+                          value={rule.label}
+                          onChange={(e) => setForm((prev: any) => ({
+                            ...prev,
+                            dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                              ? { ...item, label: e.target.value }
+                              : item)),
+                          }))}
+                          className={inputClassName()}
+                          placeholder="例如 按条件筛选结果"
+                        />
+                      </Field>
+                      <Field label="公式关键字">
+                        <input
+                          value={rule.formulaKeywordsText}
+                          onChange={(e) => setForm((prev: any) => ({
+                            ...prev,
+                            dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                              ? { ...item, formulaKeywordsText: e.target.value }
+                              : item)),
+                          }))}
+                          className={inputClassName()}
+                          placeholder="例如 FILTER, SORT"
+                        />
+                      </Field>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <AdminFormSwitch
+                        label="首格必须包含公式"
+                        checked={Boolean(rule.requireAnchorFormula)}
+                        onCheckedChange={(next) => setForm((prev: any) => ({
+                          ...prev,
+                          dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                            ? { ...item, requireAnchorFormula: next }
+                            : item)),
+                        }))}
+                      />
+                      <AdminFormSwitch
+                        label="溢出子单元格不允许手填公式"
+                        checked={Boolean(rule.requireSpillCellsWithoutFormula)}
+                        onCheckedChange={(next) => setForm((prev: any) => ({
+                          ...prev,
+                          dynamicArrayRules: (prev.dynamicArrayRules || []).map((item: any, ruleIndex: number) => (ruleIndex === index
+                            ? { ...item, requireSpillCellsWithoutFormula: next }
+                            : item)),
+                        }))}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           <div className="mt-4 text-xs text-slate-500">
             {isTemplateEditMode
-              ? "先选工作表，再在表格里拖拽框选答题区域；框选完成后，在表格中直接填写标准答案或公式。"
-              : "当前为查看态。点击“修改规则”后才允许调整工作表、答题区域和标准答案。"}
+              ? (isDynamicArrayMode
+                ? "先维护动态数组规则，首条规则可借助模板编辑器框选溢出区域；框选后请补充锚点单元格与公式关键字。"
+                : "先选工作表，再在表格里拖拽框选答题区域；框选完成后，在表格中直接填写标准答案或公式。")
+              : "当前为查看态。点击“修改规则”后才允许调整工作表、判题区域和标准答案。"}
           </div>
           {previewRange && (
             <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
@@ -2869,7 +3124,7 @@ export function AdminQuestions() {
                 <div>
                   <div className="text-sm font-black text-slate-900">标准答案预览</div>
                   <div className="mt-1 text-xs text-slate-500">
-                    {form.answerSheet || selectedSheetName || "-"} / {previewRangeRef || "-"}
+                    {primarySheetName || "-"} / {previewRangeRef || "-"}
                   </div>
                 </div>
                 {answerPreviewHasEmptyCell ? (
@@ -3828,7 +4083,7 @@ export function AdminMall() {
   };
 
   return (
-    <AdminPageShell title="商城管理" description="维护积分商城商品、商品类型与兑换记录。">
+      <AdminPageShell title="积分经验中心" description="维护兑换商品、商品类型与兑换记录。">
       <AdminStatGrid>
         <AdminStatCard label="商品总数" value={stats?.totalItems ?? "-"} />
         <AdminStatCard label="上架商品" value={stats?.enabledItems ?? "-"} />
@@ -5195,9 +5450,73 @@ function defaultQuestionForm() {
     answerRange: "",
     answerSnapshotJson: "",
     checkFormula: false,
+    gradingMode: "simple",
+    dynamicArrayRules: [defaultDynamicArrayRule()],
+    gradingRuleJson: "",
     sheetCountLimit: 5,
     version: 1,
   };
+}
+
+function defaultDynamicArrayRule(sheet = "") {
+  return {
+    sheet,
+    anchorCell: "",
+    spillRange: "",
+    score: 1,
+    label: "",
+    formulaKeywordsText: "",
+    requireAnchorFormula: true,
+    requireSpillCellsWithoutFormula: true,
+  };
+}
+
+function parseFormulaKeywords(value: unknown) {
+  return String(value || "")
+    .split(/[,，\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseDynamicArrayRulesFromJson(gradingRuleJson: unknown, fallbackSheet = "") {
+  if (!gradingRuleJson) {
+    return [defaultDynamicArrayRule(fallbackSheet)];
+  }
+  try {
+    const parsed = JSON.parse(String(gradingRuleJson));
+    const rules = Array.isArray(parsed?.dynamicArrayRules) ? parsed.dynamicArrayRules : [];
+    if (rules.length === 0) {
+      return [defaultDynamicArrayRule(fallbackSheet)];
+    }
+    return rules.map((item: any) => ({
+      sheet: String(item?.sheet || fallbackSheet || ""),
+      anchorCell: String(item?.anchorCell || ""),
+      spillRange: String(item?.spillRange || ""),
+      score: Number(item?.score || 1),
+      label: String(item?.label || ""),
+      formulaKeywordsText: Array.isArray(item?.formulaKeywords) ? item.formulaKeywords.join(", ") : "",
+      requireAnchorFormula: item?.requireAnchorFormula !== false,
+      requireSpillCellsWithoutFormula: item?.requireSpillCellsWithoutFormula !== false,
+    }));
+  } catch {
+    return [defaultDynamicArrayRule(fallbackSheet)];
+  }
+}
+
+function buildDynamicArrayRuleJson(rules: any[]) {
+  const normalizedRules = (rules || [])
+    .map((item) => ({
+      sheet: String(item?.sheet || "").trim(),
+      anchorCell: String(item?.anchorCell || "").trim().toUpperCase(),
+      spillRange: String(item?.spillRange || "").trim().toUpperCase(),
+      score: Math.max(1, Number(item?.score || 1)),
+      label: String(item?.label || "").trim(),
+      requireAnchorFormula: item?.requireAnchorFormula !== false,
+      requireSpillCellsWithoutFormula: item?.requireSpillCellsWithoutFormula !== false,
+      formulaKeywords: parseFormulaKeywords(item?.formulaKeywordsText),
+    }))
+    .filter((item) => item.sheet && item.anchorCell && item.spillRange);
+  return JSON.stringify({ dynamicArrayRules: normalizedRules });
 }
 
 function defaultPointsRuleForm(defaultType = "daily") {

@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Award, CheckCircle2, Clock3, Gift, Play, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { api } from "../lib/api";
+import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
 
@@ -14,6 +16,32 @@ export function PracticeCampaignDaily() {
   });
 
   const challenge = dailyQuery.data?.challenge;
+
+  const handleStartDaily = async () => {
+    if (!isAuthenticated) {
+      navigate("/auth");
+      return;
+    }
+    if (!challenge?.levelId) {
+      return;
+    }
+    try {
+      const levelDetail = await api.get<any>(`/api/practice/campaign/levels/${challenge.levelId}`, { silent: true });
+      const level = levelDetail?.level;
+      const chapter = levelDetail?.chapter;
+      const result = await startCampaignLevel(challenge.levelId, level?.questionId || levelDetail?.question?.id);
+      navigate(`/practice/question/${result.questionId}`, {
+        state: {
+          backTo: chapter?.id ? `/practice/chapters?chapter=${chapter.id}` : "/practice/chapters",
+          campaignLevel: level,
+          campaignChapter: chapter,
+          campaignAttemptId: result.attemptId,
+        },
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "开始答题失败");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-[960px] px-4 py-5 sm:px-6 sm:py-6">
@@ -60,17 +88,11 @@ export function PracticeCampaignDaily() {
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  if (!isAuthenticated) {
-                    navigate("/auth");
-                    return;
-                  }
-                  navigate(`/practice/level/${challenge.levelId}/prepare`);
-                }}
+                onClick={() => void handleStartDaily()}
                 className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3 text-sm font-black text-white"
               >
                 <Play size={16} />
-                {challenge.completed ? "再次挑战" : "开始每日挑战"}
+                {challenge.completed ? "再次开始答题" : "开始答题"}
               </button>
               {challenge.configured === false ? (
                 <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-500">

@@ -26,6 +26,7 @@ import com.excel.forum.service.PointsTaskService;
 import com.excel.forum.service.PointsRecordService;
 import com.excel.forum.service.PointsRuleOptionService;
 import com.excel.forum.service.PointsRuleService;
+import com.excel.forum.service.PracticeCampaignService;
 import com.excel.forum.service.PracticeQuestionSubmissionService;
 import com.excel.forum.service.PostPublishingService;
 import com.excel.forum.service.PostShareService;
@@ -146,6 +147,9 @@ class RequestParsingErrorTest {
     private PracticeQuestionSubmissionService practiceQuestionSubmissionService;
 
     @Mock
+    private PracticeCampaignService practiceCampaignService;
+
+    @Mock
     private MallService mallService;
 
     @Mock
@@ -260,7 +264,8 @@ class RequestParsingErrorTest {
                 checkinRecordMapper,
                 adminLogMapper,
                 postEditHistoryMapper,
-                htmlSanitizer
+                htmlSanitizer,
+                practiceCampaignService
         );
         mockMvc = MockMvcBuilders.standaloneSetup(postController, adminController)
                 .setControllerAdvice(new GlobalExceptionHandler())

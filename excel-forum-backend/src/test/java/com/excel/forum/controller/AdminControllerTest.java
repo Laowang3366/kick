@@ -45,6 +45,7 @@ import com.excel.forum.service.PointsRuleService;
 import com.excel.forum.service.PostService;
 import com.excel.forum.service.PostShareService;
 import com.excel.forum.service.PostViewService;
+import com.excel.forum.service.PracticeCampaignService;
 import com.excel.forum.service.PracticeQuestionSubmissionService;
 import com.excel.forum.service.QuestionCategoryService;
 import com.excel.forum.service.QuestionExcelTemplateService;
@@ -164,6 +165,9 @@ class AdminControllerTest {
     private PracticeQuestionSubmissionService practiceQuestionSubmissionService;
 
     @Mock
+    private PracticeCampaignService practiceCampaignService;
+
+    @Mock
     private SiteNotificationService siteNotificationService;
 
     @Mock
@@ -268,7 +272,8 @@ class AdminControllerTest {
                 checkinRecordMapper,
                 adminLogMapper,
                 postEditHistoryMapper,
-                htmlSanitizer
+                htmlSanitizer,
+                practiceCampaignService
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -520,9 +525,16 @@ class AdminControllerTest {
     void createExcelQuestionUsesExplicitTemplateFields() throws Exception {
         when(excelTemplateGradingService.normalizeAnswerSnapshotJson(anyString(), anyString(), anyString(), any(), anyString()))
                 .thenReturn("{\"values\":[[\"100\"]],\"formulas\":[]}");
-        when(excelTemplateGradingService.buildSimpleRuleJson("Sheet1", "B2", true))
+        when(excelTemplateGradingService.buildRuleJson("/uploads/demo.xlsx", "Sheet1", "B2", true, null))
                 .thenReturn("{\"answerSheet\":\"Sheet1\",\"answerRange\":\"B2\",\"checkFormula\":true,\"score\":1}");
-        when(excelTemplateGradingService.buildExpectedSnapshotJson("Sheet1", "B2", true, "{\"values\":[[\"100\"]],\"formulas\":[]}"))
+        when(excelTemplateGradingService.buildExpectedSnapshotJson(
+                "/uploads/demo.xlsx",
+                "Sheet1",
+                "B2",
+                true,
+                "{\"values\":[[\"100\"]],\"formulas\":[]}",
+                "{\"answerSheet\":\"Sheet1\",\"answerRange\":\"B2\",\"checkFormula\":true,\"score\":1}"
+        ))
                 .thenReturn("{\"rangeValues\":{\"Sheet1!B2\":[[\"100\"]]},\"rangeFormulas\":{\"Sheet1!B2\":[[\"\"]]}}");
         when(excelTemplateGradingService.normalizeRuleJson(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         when(excelTemplateGradingService.buildRuleSummary(anyString())).thenReturn(java.util.Map.of("mode", "simple_answer"));

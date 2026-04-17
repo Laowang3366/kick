@@ -1,14 +1,9 @@
 import {
-  BellRing,
   BookMarked,
-  ClipboardCheck,
   Coins,
-  FileStack,
-  Files,
-  Flag,
-  FolderKanban,
   Gauge,
   Layers3,
+  PanelsTopLeft,
   ShoppingBag,
   Shield,
   Users,
@@ -17,15 +12,11 @@ import {
 export type AdminRole = "admin" | "moderator";
 export type AdminModuleKey =
   | "overview"
-  | "review"
-  | "reports"
+  | "home-content"
   | "users"
-  | "posts"
-  | "categories"
-  | "drafts"
-  | "notifications"
   | "questions"
   | "question-categories"
+  | "templates"
   | "points"
   | "mall"
   | "levels";
@@ -40,17 +31,13 @@ export type AdminModule = {
 
 export const ADMIN_MODULES: AdminModule[] = [
   { key: "overview", label: "后台总览", path: "/admin/overview", icon: Gauge, roles: ["admin", "moderator"] },
-  { key: "review", label: "帖子审核", path: "/admin/review", icon: ClipboardCheck, roles: ["admin", "moderator"] },
-  { key: "reports", label: "举报处理", path: "/admin/reports", icon: Flag, roles: ["admin", "moderator"] },
-  { key: "categories", label: "分类管理", path: "/admin/categories", icon: FolderKanban, roles: ["admin", "moderator"] },
+  { key: "home-content", label: "首页内容", path: "/admin/home-content", icon: PanelsTopLeft, roles: ["admin"] },
   { key: "users", label: "用户管理", path: "/admin/users", icon: Users, roles: ["admin"] },
-  { key: "posts", label: "帖子管理", path: "/admin/posts", icon: Files, roles: ["admin", "moderator"] },
-  { key: "drafts", label: "草稿管理", path: "/admin/drafts", icon: FileStack, roles: ["admin"] },
-  { key: "notifications", label: "站内通知", path: "/admin/notifications", icon: BellRing, roles: ["admin"] },
   { key: "questions", label: "题库管理", path: "/admin/questions", icon: BookMarked, roles: ["admin"] },
   { key: "question-categories", label: "题目分类", path: "/admin/question-categories", icon: Layers3, roles: ["admin"] },
+  { key: "templates", label: "模板中心", path: "/admin/templates", icon: PanelsTopLeft, roles: ["admin"] },
   { key: "points", label: "积分体系", path: "/admin/points", icon: Coins, roles: ["admin"] },
-  { key: "mall", label: "商城管理", path: "/admin/mall", icon: ShoppingBag, roles: ["admin"] },
+  { key: "mall", label: "积分经验中心", path: "/admin/mall", icon: ShoppingBag, roles: ["admin"] },
   { key: "levels", label: "等级体系", path: "/admin/levels", icon: Shield, roles: ["admin"] },
 ];
 

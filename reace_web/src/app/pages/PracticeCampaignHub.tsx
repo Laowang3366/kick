@@ -1,13 +1,17 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Award, Brain, Flame, Gift, Lock, Map, Play, Sparkles, Target, AlertTriangle, Trophy } from "lucide-react";
+import { Award, ClipboardList, History, Lock, Map, Target, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
+import { LitePageFrame } from "../components/LiteSurface";
 import { api } from "../lib/api";
 import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignHub() {
   const navigate = useNavigate();
+  const mapViewportRef = useRef<HTMLDivElement | null>(null);
+  const [mapViewportWidth, setMapViewportWidth] = useState(0);
+  const [availableMapHeight, setAvailableMapHeight] = useState(720);
   const overviewQuery = useQuery({
     queryKey: practiceKeys.campaignOverview(),
     queryFn: () => api.get<any>("/api/practice/campaign/overview", { silent: true }),
@@ -17,260 +21,295 @@ export function PracticeCampaignHub() {
     queryFn: () => api.get<any>("/api/practice/campaign/chapters", { silent: true }),
   });
 
-  const overview = overviewQuery.data || {};
   const chapters = chaptersQuery.data?.chapters || [];
-  const currentChapter = overview.currentChapter;
-  const currentLevel = overview.currentLevel;
-  const summary = overview.summary || {};
+  const currentChapter =
+    overviewQuery.data?.currentChapter ||
+    chapters.find((chapter: any) => chapter.unlocked) ||
+    chapters[0] ||
+    null;
+  const mapChapters = useMemo(() => chapters.slice(0, 10), [chapters]);
+  const mapNodeWidth = 232;
+  const mapNodeHeight = 150;
+  const mapColumns = 4;
+  const mapStepX = 270;
+  const mapRows = Math.max(1, Math.ceil(Math.max(mapChapters.length, 1) / mapColumns));
+  const mapTopPadding = 38;
+  const mapBottomPadding = 72;
+  const mapViewportSafety = 40;
+  const fittingMapHeight = Math.max(400, availableMapHeight - mapViewportSafety);
+  const rawMapStepY =
+    mapRows > 1
+      ? (fittingMapHeight - mapTopPadding - mapBottomPadding - mapNodeHeight) / (mapRows - 1)
+      : 0;
+  const mapStepY =
+    mapRows > 1
+      ? Math.min(mapNodeHeight + 110, Math.max(mapNodeHeight + 48, rawMapStepY))
+      : 0;
+  const mapRowJitter = mapRows > 1 ? Math.min(52, mapStepY * 0.18) : 0;
+  const mapLaneOffsets = [0, mapRowJitter * 0.75, mapRowJitter * 0.2, mapRowJitter];
+  const mapBoardHeight =
+    mapRows > 1
+      ? Math.max(
+          fittingMapHeight,
+          mapTopPadding + (mapRows - 1) * mapStepY + mapNodeHeight + mapBottomPadding + mapRowJitter
+        )
+      : Math.max(fittingMapHeight, mapNodeHeight + mapTopPadding + mapBottomPadding);
+  const mapNodes = useMemo(
+    () =>
+      mapChapters.map((chapter: any, index: number) => {
+        const row = Math.floor(index / mapColumns);
+        const rowIndex = index % mapColumns;
+        const visualColumn = row % 2 === 0 ? rowIndex : mapColumns - rowIndex - 1;
+        const left = 36 + visualColumn * mapStepX;
+        const centeredTop = Math.max(mapTopPadding, (mapBoardHeight - mapNodeHeight) / 2);
+        const top =
+          mapRows > 1
+            ? mapTopPadding + row * mapStepY + mapLaneOffsets[visualColumn]
+            : centeredTop;
+        return {
+          chapter,
+          index,
+          left,
+          top,
+          centerX: left + mapNodeWidth / 2,
+          centerY: top + mapNodeHeight / 2,
+        };
+      }),
+    [mapBoardHeight, mapChapters, mapLaneOffsets, mapRows, mapStepY]
+  );
+  const mapBoardWidth = Math.max(
+    920,
+    36 + Math.max(0, mapColumns - 1) * mapStepX + mapNodeWidth + 36
+  );
+  const widthScale = mapViewportWidth ? Math.min(1, (mapViewportWidth - 8) / mapBoardWidth) : 1;
+  const heightScale = Math.min(1, availableMapHeight / mapBoardHeight);
+  const mapScale = Math.min(widthScale, heightScale);
+  const scaledBoardHeight = Math.max(400, Math.round(mapBoardHeight * mapScale));
 
-  const chapterCards = useMemo(() => chapters.slice(0, 6), [chapters]);
+  useEffect(() => {
+    const syncViewport = () => {
+      const viewportEl = mapViewportRef.current;
+      if (!viewportEl) {
+        return;
+      }
+      const { top } = viewportEl.getBoundingClientRect();
+      setMapViewportWidth(viewportEl.clientWidth || 0);
+      setAvailableMapHeight(Math.max(420, window.innerHeight - top - 28));
+    };
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+
+    const observer = new ResizeObserver(() => syncViewport());
+    if (mapViewportRef.current) {
+      observer.observe(mapViewportRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", syncViewport);
+      observer.disconnect();
+    };
+  }, []);
 
   return (
-    <div className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6 sm:py-6">
-      <div className="overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,#082f49_0%,#0f766e_45%,#14b8a6_100%)] px-6 py-8 text-white shadow-[0_24px_70px_rgba(8,47,73,0.26)] sm:px-8 sm:py-10">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/12 px-4 py-2 text-[12px] font-black tracking-[0.18em] text-white/85">
-              <Sparkles size={14} />
-              EXCEL 闯关模式
+    <LitePageFrame className="max-w-[1500px]">
+      <section className="overflow-hidden rounded-[38px] border border-[#d8ece7] bg-[linear-gradient(180deg,#f4fbf8_0%,#eef7fa_100%)] px-5 py-8 shadow-[0_22px_64px_rgba(15,23,42,0.08)] sm:px-8">
+        <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-teal-600 shadow-sm">
+              <Map size={20} />
             </div>
-            <h1 className="mt-5 text-3xl font-black tracking-tight sm:text-5xl">从基础到进阶，按章节一路闯过去</h1>
-            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-white/82 sm:text-[17px]">
-              当前版本已接入闯关大厅、章节地图和关卡准备链路。你可以从当前章节继续推进，也可以手动进入章节地图查看关卡分布。
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentLevel?.id) {
-                    navigate(`/practice/level/${currentLevel.id}/prepare`);
-                    return;
-                  }
-                  if (currentChapter?.id) {
-                    navigate(`/practice/chapter/${currentChapter.id}`);
-                  }
-                }}
-                className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-black text-slate-900 transition hover:-translate-y-0.5"
-              >
-                <Play size={16} />
-                继续闯关
-              </button>
-              <button
-                type="button"
-                onClick={() => currentChapter?.id && navigate(`/practice/chapter/${currentChapter.id}`)}
-                className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-6 py-3 text-sm font-bold text-white"
-              >
-                <Map size={16} />
-                查看章节地图
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:w-[440px]">
-            {[
-              { label: "当前星数", value: summary.totalStars ?? 0, icon: Award },
-              { label: "已通关", value: summary.clearedLevels ?? 0, icon: Target },
-              { label: "当前连胜", value: summary.currentStreak ?? 0, icon: Flame },
-              { label: "今日挑战", value: overview.dailyChallenge ? "已开放" : "待配置", icon: Gift },
-            ].map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.label} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 backdrop-blur-sm">
-                  <div className="flex items-center gap-2 text-white/72">
-                    <Icon size={14} />
-                    <span className="text-[11px] font-bold tracking-wide">{item.label}</span>
-                  </div>
-                  <div className="mt-3 text-2xl font-black text-white">{item.value}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[30px] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-[13px] font-black uppercase tracking-[0.18em] text-teal-500">Current Run</div>
-              <h2 className="mt-2 text-[24px] font-black tracking-tight text-slate-900">继续当前章节</h2>
-            </div>
-            <Brain size={26} className="text-teal-500" />
-          </div>
-          <div className="mt-5 rounded-[26px] bg-slate-50 p-5">
-            <div className="text-sm font-bold text-slate-500">当前章节</div>
-            <div className="mt-2 text-2xl font-black text-slate-900">{currentChapter?.name || "暂无章节"}</div>
-            <div className="mt-1 text-sm text-slate-500">{currentChapter?.description || "暂未生成章节描述"}</div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl bg-white px-4 py-3">
-                <div className="text-[11px] font-bold text-slate-400">当前关卡</div>
-                <div className="mt-2 text-sm font-black text-slate-800 line-clamp-2">{currentLevel?.title || "未找到可挑战关卡"}</div>
-              </div>
-              <div className="rounded-2xl bg-white px-4 py-3">
-                <div className="text-[11px] font-bold text-slate-400">章节进度</div>
-                <div className="mt-2 text-xl font-black text-slate-800">{currentChapter?.progress ?? 0}%</div>
-              </div>
-              <div className="rounded-2xl bg-white px-4 py-3">
-                <div className="text-[11px] font-bold text-slate-400">章节星数</div>
-                <div className="mt-2 text-xl font-black text-slate-800">{currentChapter?.totalStars ?? 0}</div>
-              </div>
-            </div>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => currentLevel?.id && navigate(`/practice/level/${currentLevel.id}/prepare`)}
-                disabled={!currentLevel?.id}
-                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                进入关卡
-                <ArrowRight size={15} />
-              </button>
-              <button
-                type="button"
-                onClick={() => currentChapter?.id && navigate(`/practice/chapter/${currentChapter.id}`)}
-                disabled={!currentChapter?.id}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                查看地图
-              </button>
+              <h1 className="text-[30px] font-black tracking-tight text-slate-900">章节地图</h1>
+              <p className="mt-1 text-sm text-slate-500">点击节点进入对应章节。</p>
             </div>
           </div>
-        </div>
-
-        <div className="rounded-[30px] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
-          <div className="text-[13px] font-black uppercase tracking-[0.18em] text-amber-500">Daily Challenge</div>
-          <h2 className="mt-2 text-[24px] font-black tracking-tight text-slate-900">今日挑战</h2>
-          {overview.dailyChallenge ? (
-            <div className="mt-5 rounded-[26px] bg-[linear-gradient(135deg,#fff7ed_0%,#ffedd5_100%)] p-5">
-              <div className="text-lg font-black text-slate-900">{overview.dailyChallenge.title}</div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-white/80 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">奖励经验</div>
-                  <div className="mt-2 text-xl font-black text-amber-600">{overview.dailyChallenge.rewardExp}</div>
-                </div>
-                <div className="rounded-2xl bg-white/80 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">奖励积分</div>
-                  <div className="mt-2 text-xl font-black text-amber-600">{overview.dailyChallenge.rewardPoints}</div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-5 rounded-[26px] border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center">
-              <div className="text-sm font-bold text-slate-600">今日挑战暂未配置</div>
-              <div className="mt-2 text-xs text-slate-400">后台每日挑战接入后，这里会展示当天限时关卡。</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-3">
-        <button
-          type="button"
-          onClick={() => navigate("/practice/daily")}
-          className="rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_100%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[12px] font-black tracking-[0.18em] text-amber-500">DAILY</div>
-              <div className="mt-2 text-2xl font-black text-slate-900">每日挑战</div>
-            </div>
-            <Gift size={24} className="text-amber-500" />
-          </div>
-          <div className="mt-3 text-sm leading-6 text-slate-500">每天一关，奖励更高，可作为主线之外的加成挑战。</div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate("/practice/wrongs")}
-          className="rounded-[28px] border border-rose-200 bg-[linear-gradient(135deg,#fff1f2_0%,#ffffff_100%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[12px] font-black tracking-[0.18em] text-rose-500">WRONG BOOK</div>
-              <div className="mt-2 text-2xl font-black text-slate-900">错题重练</div>
-            </div>
-            <AlertTriangle size={24} className="text-rose-500" />
-          </div>
-          <div className="mt-3 text-sm leading-6 text-slate-500">闯关失败的题目会自动沉淀到这里，适合定向补练。</div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate("/practice/ranking")}
-          className="rounded-[28px] border border-sky-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_100%)] p-5 text-left shadow-sm transition hover:-translate-y-0.5"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[12px] font-black tracking-[0.18em] text-sky-500">RANKING</div>
-              <div className="mt-2 text-2xl font-black text-slate-900">闯关排行</div>
-            </div>
-            <Trophy size={24} className="text-sky-500" />
-          </div>
-          <div className="mt-3 text-sm leading-6 text-slate-500">按总星数、满星数和累计得分排序，形成长期挑战动力。</div>
-        </button>
-      </div>
-
-      <div className="mt-6 rounded-[30px] border border-slate-200/70 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[13px] font-black uppercase tracking-[0.18em] text-slate-400">Chapter Map</div>
-            <h2 className="mt-2 text-[24px] font-black tracking-tight text-slate-900">章节总览</h2>
-          </div>
-        </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {chapterCards.map((chapter: any, index: number) => (
-            <motion.button
-              key={chapter.id}
+          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            <button
               type="button"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              onClick={() => chapter.unlocked && navigate(`/practice/chapter/${chapter.id}`)}
-              className={`rounded-[26px] border p-5 text-left transition-all ${
-                chapter.unlocked
-                  ? "border-slate-200 bg-slate-50 hover:border-teal-300 hover:bg-white"
-                  : "border-slate-200 bg-slate-100/70 opacity-75"
-              }`}
+              onClick={() => navigate("/practice/chapters")}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[12px] font-black tracking-[0.18em] text-slate-400">CHAPTER</div>
-                  <div className="mt-2 text-xl font-black text-slate-900">{chapter.name}</div>
-                </div>
-                {chapter.unlocked ? (
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-black text-emerald-600">已解锁</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-slate-200 px-3 py-1 text-[11px] font-black text-slate-500">
-                    <Lock size={12} />
-                    未解锁
-                  </span>
-                )}
-              </div>
-              <div className="mt-3 text-sm leading-6 text-slate-500 line-clamp-2">{chapter.description || "当前章节暂无描述"}</div>
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-white px-3 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">进度</div>
-                  <div className="mt-2 text-lg font-black text-slate-800">{chapter.progress}%</div>
-                </div>
-                <div className="rounded-2xl bg-white px-3 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">关卡</div>
-                  <div className="mt-2 text-lg font-black text-slate-800">{chapter.totalLevels}</div>
-                </div>
-                <div className="rounded-2xl bg-white px-3 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">星数</div>
-                  <div className="mt-2 text-lg font-black text-slate-800">{chapter.totalStars}</div>
-                </div>
-              </div>
-            </motion.button>
-          ))}
-          {chapterCards.length === 0 ? (
-            <div className="col-span-full rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
-              <div className="text-sm font-bold text-slate-600">暂未生成闯关章节</div>
-              <div className="mt-2 text-xs text-slate-400">请先确认后端迁移已执行，并且题库中存在 Excel 模板题。</div>
-            </div>
-          ) : null}
+              查看所有章节列表
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/practice/ranking")}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
+            >
+              <Trophy size={15} />
+              闯关排行
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/practice/daily")}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
+            >
+              <Target size={15} />
+              每日挑战
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/practice/wrongs")}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
+            >
+              <ClipboardList size={15} />
+              错题重练
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/practice/history")}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
+            >
+              <History size={15} />
+              练习记录
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
+
+        <div>
+          <section className="relative overflow-hidden rounded-[34px] border border-[#dcefe9] bg-[linear-gradient(180deg,#effaf7_0%,#f8fcff_100%)] px-5 py-8 sm:px-8">
+            <div className="absolute inset-0 opacity-40">
+              <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.10),transparent_28%)]" />
+            </div>
+            <div ref={mapViewportRef} className="relative overflow-hidden pb-1">
+              <div className="flex justify-center" style={{ height: `${scaledBoardHeight}px` }}>
+                <div
+                  className="relative shrink-0 rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.58)_0%,rgba(255,255,255,0.78)_100%)] px-4 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
+                  style={{
+                    width: `${mapBoardWidth}px`,
+                    height: `${mapBoardHeight}px`,
+                    transform: `scale(${mapScale})`,
+                    transformOrigin: "top center",
+                  }}
+                >
+                <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+                  {mapNodes.slice(0, -1).map((node, index) => {
+                    const next = mapNodes[index + 1];
+                    if (!next) {
+                      return null;
+                    }
+                    const controlX = (node.centerX + next.centerX) / 2;
+                    const controlY = Math.min(node.centerY, next.centerY) - 32;
+                    return (
+                      <path
+                        key={`${node.chapter.id}-${next.chapter.id}`}
+                        d={`M ${node.centerX} ${node.centerY} Q ${controlX} ${controlY} ${next.centerX} ${next.centerY}`}
+                        fill="none"
+                        stroke="rgba(20,184,166,0.28)"
+                        strokeWidth="6"
+                        strokeLinecap="round"
+                        strokeDasharray="10 12"
+                      />
+                    );
+                  })}
+                </svg>
+
+                {mapNodes.map(({ chapter, index, left, top, centerX, centerY }) => {
+                  const isCurrent = currentChapter?.id === chapter.id;
+                  const isCompleted = Boolean(chapter.completed);
+                  const isUnlocked = Boolean(chapter.unlocked);
+
+                  return (
+                    <motion.div
+                      key={chapter.id}
+                      initial={{ opacity: 0, scale: 0.94, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="absolute"
+                      style={{ left, top, width: `${mapNodeWidth}px` }}
+                    >
+                      <div
+                        className="pointer-events-none absolute z-0 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[5px] border-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]"
+                        style={{
+                          left: `${centerX - left}px`,
+                          top: `${centerY - top}px`,
+                          background: isCompleted ? "#14b8a6" : isCurrent ? "#f59e0b" : isUnlocked ? "#38bdf8" : "#cbd5e1",
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/practice/chapters?chapter=${chapter.id}`)}
+                        className={`group relative z-10 w-full overflow-hidden rounded-[28px] border px-4 py-4 text-left transition ${
+                          isCompleted
+                            ? "border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_72%)] shadow-[0_18px_44px_rgba(16,185,129,0.10)]"
+                            : isCurrent
+                              ? "border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_70%)] shadow-[0_18px_44px_rgba(251,146,60,0.14)]"
+                              : isUnlocked
+                                ? "border-slate-200 bg-white/96 hover:border-teal-200 hover:shadow-[0_18px_44px_rgba(15,23,42,0.08)]"
+                                : "border-slate-200 bg-slate-100/90 opacity-85"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-black tracking-[0.18em] text-slate-400">
+                              章节 {(index + 1).toString().padStart(2, "0")}
+                            </div>
+                            <div className="mt-2 line-clamp-1 text-[26px] font-black tracking-tight text-slate-900">{chapter.name}</div>
+                          </div>
+                          <div
+                            className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black ${
+                              isCompleted
+                                ? "bg-emerald-50 text-emerald-600"
+                                : isCurrent
+                                  ? "bg-amber-50 text-amber-700"
+                                  : isUnlocked
+                                    ? "bg-sky-50 text-sky-700"
+                                    : "bg-slate-200 text-slate-500"
+                            }`}
+                          >
+                            {isCompleted ? "已通关" : isCurrent ? "当前" : isUnlocked ? "可进入" : "未解锁"}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 h-2 rounded-full bg-slate-100">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              isCompleted
+                                ? "bg-[linear-gradient(90deg,#10b981,#14b8a6)]"
+                                : isUnlocked
+                                  ? "bg-[linear-gradient(90deg,#f59e0b,#fb923c)]"
+                                  : "bg-slate-300"
+                            }`}
+                            style={{ width: `${Math.max(6, Number(chapter.progress || 0))}%` }}
+                          />
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-3 gap-2">
+                          <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
+                            <div className="text-[10px] font-bold text-slate-400">进度</div>
+                            <div className="mt-1.5 text-lg font-black text-slate-900">{chapter.progress}%</div>
+                          </div>
+                          <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
+                            <div className="text-[10px] font-bold text-slate-400">题目</div>
+                            <div className="mt-1.5 text-lg font-black text-slate-900">{chapter.totalLevels}</div>
+                          </div>
+                          <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
+                            <div className="text-[10px] font-bold text-slate-400">星数</div>
+                            <div className="mt-1.5 flex items-center gap-1 text-amber-500">
+                              <Award size={15} />
+                              <span className="text-lg font-black text-slate-900">{chapter.totalStars}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {!isUnlocked ? (
+                          <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-black text-slate-400">
+                            <Lock size={12} />
+                            当前章节尚未解锁
+                          </div>
+                        ) : null}
+                      </button>
+                    </motion.div>
+                  );
+                })}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </LitePageFrame>
   );
 }

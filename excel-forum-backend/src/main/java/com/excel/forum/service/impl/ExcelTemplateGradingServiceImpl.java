@@ -81,6 +81,9 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
             if (config.getHeaderRules() == null) {
                 config.setHeaderRules(new ArrayList<>());
             }
+            if (config.getDynamicArrayRules() == null) {
+                config.setDynamicArrayRules(new ArrayList<>());
+            }
             if (config.getExpectedAnswerValues() == null) {
                 config.setExpectedAnswerValues(new ArrayList<>());
             }
@@ -119,6 +122,35 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
         config.setAnswerRange(defaultText(answerRange));
         config.setCheckFormula(Boolean.TRUE.equals(checkFormula));
         config.setScore(1);
+        return writeJson(config);
+    }
+
+    @Override
+    public String buildRuleJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String gradingRuleJson) {
+        ExcelTemplateRuleConfig config = parseRuleConfig(gradingRuleJson);
+        if (!hasDynamicArrayRules(config)) {
+            return buildSimpleRuleJson(answerSheet, answerRange, checkFormula);
+        }
+
+        ExcelWorkbookSnapshot workbookSnapshot = loadWorkbookSnapshot(fileUrl);
+        List<ExcelTemplateRuleConfig.DynamicArrayRule> normalizedRules = new ArrayList<>();
+        for (int index = 0; index < config.getDynamicArrayRules().size(); index += 1) {
+            ExcelTemplateRuleConfig.DynamicArrayRule sourceRule = config.getDynamicArrayRules().get(index);
+            ExcelTemplateRuleConfig.DynamicArrayRule normalizedRule = normalizeDynamicArrayRule(
+                    workbookSnapshot,
+                    sourceRule,
+                    index,
+                    answerSheet
+            );
+            normalizedRules.add(normalizedRule);
+        }
+
+        config.setAnswerSheet(null);
+        config.setAnswerRange(null);
+        config.setExpectedAnswerValues(new ArrayList<>());
+        config.setCheckFormula(false);
+        config.setScore(0);
+        config.setDynamicArrayRules(normalizedRules);
         return writeJson(config);
     }
 
@@ -189,6 +221,15 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
     }
 
     @Override
+    public String buildExpectedSnapshotJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson, String gradingRuleJson) {
+        ExcelTemplateRuleConfig ruleConfig = parseRuleConfig(gradingRuleJson);
+        if (hasDynamicArrayRules(ruleConfig)) {
+            return buildExpectedSnapshotJson(fileUrl, gradingRuleJson, null);
+        }
+        return buildExpectedSnapshotJson(answerSheet, answerRange, checkFormula, answerSnapshotJson);
+    }
+
+    @Override
     public String buildExpectedSnapshotJson(String fileUrl, String gradingRuleJson, String expectedSnapshotJson) {
         if (StringUtils.hasText(expectedSnapshotJson)) {
             parseExpectedSnapshot(expectedSnapshotJson);
@@ -235,6 +276,23 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
             String key = buildKey(rule.getSheet(), rule.getRange());
             expectedSnapshot.getHeaderValues().put(key, getHeaderValues(workbookSnapshot, rule.getSheet(), rule.getRange()));
         }
+        for (ExcelTemplateRuleConfig.DynamicArrayRule rule : ruleConfig.getDynamicArrayRules()) {
+            if (!StringUtils.hasText(rule.getSheet()) || !StringUtils.hasText(rule.getSpillRange())) {
+                continue;
+            }
+            String spillKey = buildKey(rule.getSheet(), rule.getSpillRange());
+            expectedSnapshot.getRangeValues().put(spillKey, getRangeValues(workbookSnapshot, rule.getSheet(), rule.getSpillRange()));
+            expectedSnapshot.getRangeFormulas().put(spillKey, getRangeFormulas(workbookSnapshot, rule.getSheet(), rule.getSpillRange()));
+
+            String anchorFormula = getCellFormula(workbookSnapshot, rule.getSheet(), rule.getAnchorCell());
+            if (Boolean.TRUE.equals(rule.getRequireAnchorFormula()) && !hasFormula(anchorFormula)) {
+                throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的锚点单元格未设置公式");
+            }
+            if (!rule.getFormulaKeywords().isEmpty() && !containsFormulaKeywords(anchorFormula, rule.getFormulaKeywords())) {
+                throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的锚点公式未包含指定关键字");
+            }
+            expectedSnapshot.getCellFormulas().put(buildKey(rule.getSheet(), rule.getAnchorCell()), anchorFormula);
+        }
         return writeJson(expectedSnapshot);
     }
 
@@ -250,6 +308,9 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
             }
             if (snapshot.getCellValues() == null) {
                 snapshot.setCellValues(new LinkedHashMap<>());
+            }
+            if (snapshot.getCellFormulas() == null) {
+                snapshot.setCellFormulas(new LinkedHashMap<>());
             }
             if (snapshot.getRangeValues() == null) {
                 snapshot.setRangeValues(new LinkedHashMap<>());
@@ -371,6 +432,68 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
             }
         }
 
+        for (ExcelTemplateRuleConfig.DynamicArrayRule rule : ruleConfig.getDynamicArrayRules()) {
+            int ruleScore = safeScore(rule.getScore());
+            totalScore += ruleScore;
+            String spillKey = buildKey(rule.getSheet(), rule.getSpillRange());
+            String anchorKey = buildKey(rule.getSheet(), rule.getAnchorCell());
+
+            List<List<Object>> expectedValues = expectedSnapshot.getRangeValues().getOrDefault(spillKey, List.of());
+            List<List<Object>> actualValues = getRangeValues(safeSubmission, rule.getSheet(), rule.getSpillRange());
+            List<List<String>> actualFormulas = getRangeFormulas(safeSubmission, rule.getSheet(), rule.getSpillRange());
+            String expectedAnchorFormula = expectedSnapshot.getCellFormulas().get(anchorKey);
+            String actualAnchorFormula = getCellFormula(safeSubmission, rule.getSheet(), rule.getAnchorCell());
+
+            boolean valuesPassed = compareMatrix(expectedValues, actualValues);
+            boolean anchorFormulaPassed = !Boolean.TRUE.equals(rule.getRequireAnchorFormula()) || hasFormula(actualAnchorFormula);
+            boolean keywordsPassed = rule.getFormulaKeywords().isEmpty() || containsFormulaKeywords(actualAnchorFormula, rule.getFormulaKeywords());
+            boolean spillFormulaPassed = !Boolean.TRUE.equals(rule.getRequireSpillCellsWithoutFormula())
+                    || hasNoExtraFormulas(actualFormulas, rule.getSheet(), rule.getAnchorCell(), rule.getSpillRange());
+            boolean passed = valuesPassed && anchorFormulaPassed && keywordsPassed && spillFormulaPassed;
+            if (passed) {
+                achievedScore += ruleScore;
+            }
+
+            Map<String, Object> expected = new LinkedHashMap<>();
+            expected.put("values", expectedValues);
+            expected.put("anchorFormula", expectedAnchorFormula);
+            expected.put("formulaKeywords", rule.getFormulaKeywords());
+            expected.put("spillChildFormulaEmpty", Boolean.TRUE.equals(rule.getRequireSpillCellsWithoutFormula()));
+
+            Map<String, Object> actual = new LinkedHashMap<>();
+            actual.put("values", actualValues);
+            actual.put("anchorFormula", actualAnchorFormula);
+            actual.put("spillFormulas", actualFormulas);
+
+            Map<String, Object> result = buildRuleResult(
+                    "dynamic_array",
+                    defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()),
+                    spillKey,
+                    passed,
+                    expected,
+                    actual,
+                    ruleScore
+            );
+            if (!passed) {
+                List<String> failureReasons = new ArrayList<>();
+                if (!valuesPassed) {
+                    failureReasons.add("结果区域不匹配");
+                }
+                if (!anchorFormulaPassed) {
+                    failureReasons.add("锚点缺少公式");
+                }
+                if (!keywordsPassed) {
+                    failureReasons.add("锚点公式关键字不匹配");
+                }
+                if (!spillFormulaPassed) {
+                    failureReasons.add("溢出子单元格存在额外公式");
+                }
+                result.put("message", String.join("，", failureReasons));
+                failedLabels.add(result.get("label").toString());
+            }
+            ruleResults.add(result);
+        }
+
         evaluation.setRuleResults(ruleResults);
         evaluation.setScore(achievedScore);
         evaluation.setTotalScore(totalScore);
@@ -395,17 +518,21 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
             summary.put("cellRuleCount", 0);
             summary.put("rangeRuleCount", 1);
             summary.put("headerRuleCount", 0);
+            summary.put("dynamicArrayRuleCount", 0);
             summary.put("totalScore", totalScore);
             return summary;
         }
+        summary.put("mode", hasDynamicArrayRules(config) ? "dynamic_array" : "rule_engine");
         summary.put("requiredSheetCount", config.getRequiredSheets().size());
         summary.put("cellRuleCount", config.getCellRules().size());
         summary.put("rangeRuleCount", config.getRangeRules().size());
         summary.put("headerRuleCount", config.getHeaderRules().size());
+        summary.put("dynamicArrayRuleCount", config.getDynamicArrayRules().size());
         summary.put("totalScore",
                 config.getCellRules().stream().map(ExcelTemplateRuleConfig.CellRule::getScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum()
                         + config.getRangeRules().stream().map(ExcelTemplateRuleConfig.RangeRule::getScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum()
-                        + config.getHeaderRules().stream().map(ExcelTemplateRuleConfig.HeaderRule::getScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum());
+                        + config.getHeaderRules().stream().map(ExcelTemplateRuleConfig.HeaderRule::getScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum()
+                        + config.getDynamicArrayRules().stream().map(ExcelTemplateRuleConfig.DynamicArrayRule::getScore).filter(Objects::nonNull).mapToInt(Integer::intValue).sum());
         return summary;
     }
 
@@ -681,6 +808,15 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
         return formulas;
     }
 
+    private String getCellFormula(ExcelWorkbookSnapshot workbookSnapshot, String sheetName, String cellRef) {
+        ExcelWorkbookSnapshot.SheetSnapshot sheet = findSheet(workbookSnapshot, sheetName);
+        if (sheet == null || sheet.getCells() == null) {
+            return "";
+        }
+        ExcelWorkbookSnapshot.CellSnapshot cell = sheet.getCells().get(normalizeCellRef(cellRef));
+        return cell == null || !StringUtils.hasText(cell.getFormula()) ? "" : cell.getFormula();
+    }
+
     private List<String> getHeaderValues(ExcelWorkbookSnapshot workbookSnapshot, String sheetName, String rangeRef) {
         return getRangeValues(workbookSnapshot, sheetName, rangeRef).stream()
                 .findFirst()
@@ -772,6 +908,45 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
         return true;
     }
 
+    private boolean containsFormulaKeywords(String formula, List<String> keywords) {
+        String normalizedFormula = normalizeFormula(formula);
+        if (!StringUtils.hasText(normalizedFormula)) {
+            return false;
+        }
+        for (String keyword : keywords) {
+            String normalizedKeyword = normalizeFormula(keyword);
+            if (!StringUtils.hasText(normalizedKeyword)) {
+                continue;
+            }
+            if (!normalizedFormula.contains(normalizedKeyword)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean hasNoExtraFormulas(List<List<String>> formulas, String sheetName, String anchorCell, String spillRange) {
+        RangeRef range = parseRange(spillRange);
+        CellRef anchor = parseCell(anchorCell);
+        if (range == null || anchor == null) {
+            return true;
+        }
+        for (int row = 0; row < formulas.size(); row += 1) {
+            List<String> formulaRow = formulas.get(row);
+            for (int col = 0; col < formulaRow.size(); col += 1) {
+                int currentRow = range.startRow + row;
+                int currentCol = range.startCol + col;
+                if (currentRow == anchor.row() && currentCol == anchor.col()) {
+                    continue;
+                }
+                if (hasFormula(formulaRow.get(col))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private boolean compareValue(Object expected, Object actual) {
         if (expected == null || "".equals(expected)) {
             return actual == null || normalizeText(actual).isEmpty();
@@ -809,7 +984,14 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
     }
 
     private boolean hasSimpleAnswerRule(ExcelTemplateRuleConfig config) {
-        return config != null && StringUtils.hasText(config.getAnswerSheet()) && StringUtils.hasText(config.getAnswerRange());
+        return config != null
+                && !hasDynamicArrayRules(config)
+                && StringUtils.hasText(config.getAnswerSheet())
+                && StringUtils.hasText(config.getAnswerRange());
+    }
+
+    private boolean hasDynamicArrayRules(ExcelTemplateRuleConfig config) {
+        return config != null && config.getDynamicArrayRules() != null && !config.getDynamicArrayRules().isEmpty();
     }
 
     private int safeScore(Integer score) {
@@ -870,6 +1052,54 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
             normalized = normalized.substring(1);
         }
         return normalized.replace(" ", "").toUpperCase(Locale.ROOT);
+    }
+
+    private ExcelTemplateRuleConfig.DynamicArrayRule normalizeDynamicArrayRule(
+            ExcelWorkbookSnapshot workbookSnapshot,
+            ExcelTemplateRuleConfig.DynamicArrayRule sourceRule,
+            int index,
+            String fallbackSheet
+    ) {
+        ExcelTemplateRuleConfig.DynamicArrayRule target = new ExcelTemplateRuleConfig.DynamicArrayRule();
+        String sheetName = StringUtils.hasText(sourceRule.getSheet()) ? sourceRule.getSheet().trim() : defaultText(fallbackSheet);
+        String anchorCell = normalizeCellRef(sourceRule.getAnchorCell());
+        String spillRange = defaultText(sourceRule.getSpillRange()).toUpperCase(Locale.ROOT);
+
+        if (!StringUtils.hasText(sheetName)) {
+            throw new IllegalArgumentException("动态数组规则 #" + (index + 1) + " 未选择工作表");
+        }
+        if (findSheet(workbookSnapshot, sheetName) == null) {
+            throw new IllegalArgumentException("动态数组规则 #" + (index + 1) + " 的工作表不存在");
+        }
+        CellRef anchor = parseCell(anchorCell);
+        RangeRef spill = parseRange(spillRange);
+        if (anchor == null) {
+            throw new IllegalArgumentException("动态数组规则 #" + (index + 1) + " 的锚点单元格格式不正确");
+        }
+        if (spill == null) {
+            throw new IllegalArgumentException("动态数组规则 #" + (index + 1) + " 的溢出区域格式不正确");
+        }
+        if (anchor.row() < spill.startRow || anchor.row() > spill.endRow || anchor.col() < spill.startCol || anchor.col() > spill.endCol) {
+            throw new IllegalArgumentException("动态数组规则 #" + (index + 1) + " 的锚点单元格必须位于溢出区域内");
+        }
+
+        List<String> formulaKeywords = sourceRule.getFormulaKeywords() == null
+                ? new ArrayList<>()
+                : sourceRule.getFormulaKeywords().stream()
+                .map(this::defaultText)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+
+        target.setSheet(sheetName);
+        target.setAnchorCell(anchorCell);
+        target.setSpillRange(spillRange);
+        target.setScore(safeScore(sourceRule.getScore()) > 0 ? sourceRule.getScore() : 1);
+        target.setLabel(defaultText(sourceRule.getLabel()));
+        target.setRequireAnchorFormula(!Boolean.FALSE.equals(sourceRule.getRequireAnchorFormula()));
+        target.setRequireSpillCellsWithoutFormula(!Boolean.FALSE.equals(sourceRule.getRequireSpillCellsWithoutFormula()));
+        target.setFormulaKeywords(new ArrayList<>(formulaKeywords));
+        return target;
     }
 
     private boolean hasFormula(String formula) {

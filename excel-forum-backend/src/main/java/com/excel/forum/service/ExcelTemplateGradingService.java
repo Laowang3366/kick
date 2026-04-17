@@ -19,11 +19,15 @@ public interface ExcelTemplateGradingService {
 
     String buildSimpleRuleJson(String answerSheet, String answerRange, Boolean checkFormula);
 
+    String buildRuleJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String gradingRuleJson);
+
     ExcelTemplateAnswerSnapshot parseAnswerSnapshot(String json);
 
     String normalizeAnswerSnapshotJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson);
 
     String buildExpectedSnapshotJson(String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson);
+
+    String buildExpectedSnapshotJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson, String gradingRuleJson);
 
     String buildExpectedSnapshotJson(String fileUrl, String gradingRuleJson, String expectedSnapshotJson);
 

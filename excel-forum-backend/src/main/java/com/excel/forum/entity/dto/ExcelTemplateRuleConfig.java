@@ -16,6 +16,7 @@ public class ExcelTemplateRuleConfig {
     private List<CellRule> cellRules = new ArrayList<>();
     private List<RangeRule> rangeRules = new ArrayList<>();
     private List<HeaderRule> headerRules = new ArrayList<>();
+    private List<DynamicArrayRule> dynamicArrayRules = new ArrayList<>();
 
     @Data
     public static class CellRule {
@@ -42,5 +43,17 @@ public class ExcelTemplateRuleConfig {
         private List<String> expectedHeaders = new ArrayList<>();
         private Integer score;
         private String label;
+    }
+
+    @Data
+    public static class DynamicArrayRule {
+        private String sheet;
+        private String anchorCell;
+        private String spillRange;
+        private Integer score;
+        private String label;
+        private Boolean requireAnchorFormula = true;
+        private Boolean requireSpillCellsWithoutFormula = true;
+        private List<String> formulaKeywords = new ArrayList<>();
     }
 }

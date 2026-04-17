@@ -137,7 +137,7 @@ export function PracticeDetail() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate(backTo)} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-900">
+            <button onClick={() => navigate(backTo, { replace: true })} className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-900">
               <ArrowLeft size={18} />
             </button>
             <div>

@@ -22,7 +22,12 @@ import {
   Package,
   Award,
   Ticket,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Gift,
+  History,
+  Target as TargetIcon,
+  ClipboardList,
+  FolderKanban
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -392,14 +397,29 @@ export function Layout() {
     }
   };
 
-  const navItems = [
-    { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
-    { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
-    { name: "积分商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
-    { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
-  ];
-  const mobileTopNavItems = navItems.filter((item) => ["/practice", "/mall", "/tools"].includes(item.path));
-  const mobileDrawerNavItems: Array<{ name: string; path: string; icon: React.ReactNode }> = [];
+  const navItems = ONLINE_LITE_MODE
+    ? [
+        { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
+        { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
+        { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
+        { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
+        { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
+        { name: "个人中心", path: "/profile", icon: <User size={18} strokeWidth={1.5} /> },
+      ]
+    : [
+        { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
+        { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
+        { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
+        { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
+        { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
+        { name: "个人中心", path: "/profile", icon: <User size={18} strokeWidth={1.5} /> },
+      ];
+  const activeLiteModule = ONLINE_LITE_MODE
+    ? navItems.find((item) => location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(`${item.path}/`))) || navItems[0]
+    : null;
+  const mobileDrawerNavItems: Array<{ name: string; path: string; icon: React.ReactNode }> = ONLINE_LITE_MODE
+    ? [...navItems]
+    : [];
   const mobileBottomNavItems = forumEnabled
     ? [
         { key: "home", name: "主页", path: "/", icon: <Home size={18} strokeWidth={1.6} /> },
@@ -409,7 +429,6 @@ export function Layout() {
         { key: "profile", name: "我的", path: isAuthenticated ? "/profile" : "/auth", icon: <User size={18} strokeWidth={1.6} /> },
       ]
     : [
-        { key: "home", name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.6} /> },
         { key: "practice", name: "练习", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.6} /> },
         { key: "mall", name: "商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.6} /> },
         { key: "tools", name: "实用", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.6} /> },
@@ -457,71 +476,87 @@ export function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50/50 text-slate-800 font-sans">
+    <div className="relative flex h-screen overflow-hidden bg-[linear-gradient(180deg,#f5f9fb_0%,#edf3f6_56%,#eef7f3_100%)] text-slate-800 font-sans">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.10),transparent_30%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.10),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(251,146,60,0.08),transparent_22%)]" />
       {/* Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-gray-200/60 bg-white md:flex">
-        <div className="h-16 flex items-center px-6 border-b border-gray-100">
-          <div className="flex items-center gap-2 text-teal-600">
+      <aside
+        className="relative z-10 hidden w-72 shrink-0 flex-col border-r border-white/60 bg-white/72 backdrop-blur-2xl md:flex"
+      >
+        <div className="flex min-h-20 items-center px-6 border-b border-slate-200/60">
+          <div className="flex items-center gap-3 text-teal-600">
             <Activity size={24} strokeWidth={2.5} />
-            <span className="font-bold text-lg tracking-tight">Excel社区</span>
+            <div>
+              <div className="font-black text-lg tracking-tight text-slate-900">Excel社区</div>
+              <div className="text-[11px] font-bold tracking-[0.18em] text-slate-400">LITE WORKSPACE</div>
+            </div>
           </div>
         </div>
 
-        <nav className="flex-1 py-6 px-4 space-y-1">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  isActive
-                    ? "bg-slate-100 text-slate-900 font-bold"
-                    : "text-slate-600 hover:bg-gray-50 hover:text-slate-900"
-                }`}
-              >
-                <div className={isActive ? "text-slate-800" : "text-slate-400"}>
-                  {item.icon}
+        <div className="flex-1 px-4 py-6">
+          {ONLINE_LITE_MODE ? (
+            <div className="space-y-4">
+              <div>
+                <div className="px-2 text-[11px] font-black tracking-[0.18em] text-slate-400">主导航</div>
+                <div className="mt-3 space-y-1.5">
+                  {navItems.map((item) => {
+                    const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(`${item.path}/`));
+                    return (
+                      <button
+                        key={`lite-module-${item.path}`}
+                        type="button"
+                        onClick={() => navigate(item.path)}
+                        className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
+                          isActive
+                            ? "bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_100%)] text-white shadow-[0_12px_30px_rgba(15,23,42,0.12)]"
+                            : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+                        }`}
+                      >
+                        <span className={isActive ? "text-white" : "text-slate-400"}>{item.icon}</span>
+                        <span>{item.name}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <span>{item.name}</span>
-                {isActive && (
-                  <motion.div
-                    layoutId="active-nav-indicator"
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    className="absolute left-0 w-1 h-6 bg-slate-800 rounded-r-full"
-                  />
-                )}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-gray-100 flex flex-col gap-2">
-          <Link 
-            to="/settings"
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-gray-50 hover:text-slate-900 rounded-xl transition-all"
-          >
-            <Settings size={20} className="text-slate-400" />
-            <span>设置</span>
-          </Link>
-          <button 
-            onClick={async () => {
-              await logout();
-              toast.success("已退出登录");
-              navigate('/auth');
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
-          >
-            <LogOut size={20} className="text-rose-400" />
-            <span>退出登录</span>
-          </button>
+              </div>
+            </div>
+          ) : (
+            <nav className="space-y-2">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`relative flex items-center gap-3 rounded-2xl px-4 py-3.5 transition-all duration-200 ${
+                      isActive
+                        ? "bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_100%)] text-white font-black shadow-[0_16px_36px_rgba(15,23,42,0.12)]"
+                        : "text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-[0_10px_24px_rgba(15,23,42,0.04)]"
+                    }`}
+                  >
+                    <div className={isActive ? "text-white" : "text-slate-400"}>
+                      {item.icon}
+                    </div>
+                    <span>{item.name}</span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-nav-indicator"
+                        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                        className="absolute left-2 h-7 w-1 rounded-r-full bg-white/88"
+                      />
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
         </div>
+
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b border-gray-200/60 bg-white/80 px-4 backdrop-blur-md md:px-6">
+        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b border-white/60 bg-white/66 px-4 backdrop-blur-2xl md:px-6">
           
           <div className="flex min-w-0 flex-1 items-center gap-4">
             {isMobile ? (
@@ -567,61 +602,18 @@ export function Layout() {
                         );
                       })}
                     </nav>
-                    <div className="space-y-2 border-t border-slate-100 px-4 py-4">
-                      {isAuthenticated ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMobileNavOpen(false);
-                              openPropsDialog();
-                            }}
-                            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
-                          >
-                            <Package size={18} className="text-slate-400" />
-                            <span>我的道具</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              setMobileNavOpen(false);
-                              await logout();
-                              toast.success("已退出登录");
-                              navigate("/auth");
-                            }}
-                            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-rose-500 transition hover:bg-rose-50"
-                          >
-                            <LogOut size={18} className="text-rose-400" />
-                            <span>退出登录</span>
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
                   </div>
                 </SheetContent>
               </Sheet>
             ) : null}
-            {isMobile ? (
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {mobileTopNavItems.map((item) => {
-                    const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
-                    return (
-                      <button
-                        key={`mobile-header-${item.path}`}
-                        type="button"
-                        onClick={() => navigate(item.path)}
-                        className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-black transition ${
-                          isActive
-                            ? "bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.16)]"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        <span className={isActive ? "text-white" : "text-slate-400"}>{item.icon}</span>
-                        <span>{item.name}</span>
-                      </button>
-                    );
-                  })}
+            {ONLINE_LITE_MODE ? (
+              <div className="min-w-0 flex-1">
+                <div className="text-[11px] font-black tracking-[0.18em] text-slate-400">
+                  {isMobile ? "当前模块" : "CURRENT MODULE"}
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-slate-900">
+                  <span className="text-teal-600">{activeLiteModule?.icon}</span>
+                  <span className="truncate text-lg font-black tracking-tight">{activeLiteModule?.name || "首页"}</span>
                 </div>
               </div>
             ) : forumEnabled ? (
@@ -729,7 +721,7 @@ export function Layout() {
               </AnimatePresence>
             </div>
             ) : (
-              <div className="text-sm font-bold text-slate-400">当前线上仅保留小试牛刀、积分商城、实用功能</div>
+              <div className="text-sm font-bold text-slate-400">当前线上保留首页、小试牛刀、积分经验中心、实用功能、个人中心</div>
             )}
 
             {!isMobile && forumEnabled ? (
@@ -839,7 +831,7 @@ export function Layout() {
               </>
             ) : null}
 
-            <div className={`${isMobile ? "hidden" : "pl-4 border-l border-gray-200"}`}>
+            <div className={`${isMobile ? "" : "pl-4 border-l border-gray-200"} flex items-center gap-2`}>
               {isAuthenticated && !isMobile ? (
                 <HoverCard openDelay={120} closeDelay={80}>
                   <HoverCardTrigger asChild>
@@ -864,21 +856,10 @@ export function Layout() {
                     )}
                     <button
                       type="button"
-                      onClick={openPropsDialog}
+                      onClick={() => navigate("/profile")}
                       className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
                     >
-                      我的道具
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await logout();
-                        toast.success("已退出登录");
-                        navigate("/auth");
-                      }}
-                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-rose-500 transition hover:bg-rose-50"
-                    >
-                      退出登录
+                      个人中心
                     </button>
                   </HoverCardContent>
                 </HoverCard>
@@ -895,16 +876,7 @@ export function Layout() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">
                     {canAccessAdmin && <DropdownMenuItem onClick={() => navigate(getDefaultAdminPath(user?.role))}>进入管理后台</DropdownMenuItem>}
-                    <DropdownMenuItem onClick={openPropsDialog}>我的道具</DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={async () => {
-                        await logout();
-                        toast.success("已退出登录");
-                        navigate("/auth");
-                      }}
-                    >
-                      退出登录
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/profile")}>个人中心</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
@@ -917,12 +889,36 @@ export function Layout() {
                   <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
                 </Link>
               )}
+              {isAuthenticated ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/settings")}
+                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                  >
+                    <Settings size={16} className="text-slate-400" />
+                    {!isMobile ? <span>设置</span> : null}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await logout();
+                      toast.success("已退出登录");
+                      navigate("/auth");
+                    }}
+                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-100"
+                  >
+                    <LogOut size={16} className="text-rose-500" />
+                    {!isMobile ? <span>退出登录</span> : null}
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50/30">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -1151,7 +1147,7 @@ export function Layout() {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>我的道具</DialogTitle>
-            <DialogDescription>这里统一收纳你通过积分商城兑换获得的道具、头衔与权益，可在此选择使用。</DialogDescription>
+                      <DialogDescription>这里统一收纳你通过积分经验中心兑换获得的道具、头衔与权益，可在此选择使用。</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             {propsRecords.length > 0 ? (
@@ -1210,7 +1206,7 @@ export function Layout() {
               })
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
-                暂无已获得的道具，先去积分商城兑换吧。
+                        暂无已获得的道具，先去积分经验中心兑换吧。
               </div>
             )}
           </div>

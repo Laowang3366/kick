@@ -1,6 +1,9 @@
 export const adminKeys = {
   all: ["admin"] as const,
   stats: () => ["admin", "stats"] as const,
+  tutorialCategories: () => ["admin", "tutorials", "categories"] as const,
+  tutorialArticles: (params: Record<string, unknown>) => ["admin", "tutorials", "articles", params] as const,
+  templates: (params: Record<string, unknown>) => ["admin", "templates", params] as const,
   review: (params: Record<string, unknown>) => ["admin", "review", params] as const,
   practiceReview: (params: Record<string, unknown>) => ["admin", "practice-review", params] as const,
   reports: (params: Record<string, unknown>) => ["admin", "reports", params] as const,
@@ -73,6 +76,15 @@ export const homeKeys = {
   overview: () => ["home", "overview"] as const,
   checkinStatus: () => ["home", "checkin-status"] as const,
   levelRules: () => ["home", "level-rules"] as const,
+};
+
+export const tutorialKeys = {
+  home: () => ["tutorials", "home"] as const,
+};
+
+export const templateKeys = {
+  list: (category: string) => ["templates", "list", category] as const,
+  records: () => ["templates", "records"] as const,
 };
 
 export const practiceKeys = {

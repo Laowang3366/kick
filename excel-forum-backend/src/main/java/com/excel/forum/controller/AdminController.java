@@ -95,6 +95,7 @@ public class AdminController {
     private final AdminLogMapper adminLogMapper;
     private final PostEditHistoryMapper postEditHistoryMapper;
     private final HtmlSanitizer htmlSanitizer;
+    private final PracticeCampaignService practiceCampaignService;
 
     @GetMapping("/users")
     public ResponseEntity<?> getUsers(
@@ -750,6 +751,7 @@ public class AdminController {
             category.setEnabled(true);
         }
         questionCategoryService.save(category);
+        practiceCampaignService.syncCampaignCatalog();
         QuestionCategory saved = questionCategoryService.getById(category.getId());
         saved.setQuestionCount(questionCategoryService.countQuestions(saved.getId()));
         return ResponseEntity.ok(buildQuestionCategoryResponse(saved));
@@ -772,6 +774,7 @@ public class AdminController {
             category.setEnabled(existing.getEnabled());
         }
         questionCategoryService.updateById(category);
+        practiceCampaignService.syncCampaignCatalog();
         QuestionCategory updated = questionCategoryService.getById(id);
         updated.setQuestionCount(questionCategoryService.countQuestions(id));
         return ResponseEntity.ok(buildQuestionCategoryResponse(updated));
@@ -788,6 +791,7 @@ public class AdminController {
             return ResponseEntity.badRequest().body(Map.of("message", "当前分类下仍有题目，无法删除"));
         }
         questionCategoryService.removeById(id);
+        practiceCampaignService.syncCampaignCatalog();
         return ResponseEntity.ok(Map.of("message", "题目分类已删除"));
     }
 
@@ -2022,6 +2026,7 @@ public class AdminController {
             template.setSheetCountLimit(submission.getSheetCountLimit() == null || submission.getSheetCountLimit() < 1 ? 5 : submission.getSheetCountLimit());
             template.setVersion(submission.getVersion() == null || submission.getVersion() < 1 ? 1 : submission.getVersion());
             questionExcelTemplateService.save(template);
+            practiceCampaignService.syncCampaignCatalog();
 
             submission.setReviewNote("已完成，已归属到【" + targetCategory.getName() + "】模块，入库题目 #" + question.getId());
         } else {
@@ -2067,6 +2072,7 @@ public class AdminController {
         questionService.save(question);
         QuestionExcelTemplate template = buildQuestionExcelTemplate(question.getId(), request, new QuestionExcelTemplate());
         questionExcelTemplateService.save(template);
+        practiceCampaignService.syncCampaignCatalog();
         return ResponseEntity.ok(buildAdminQuestionResponse(question, template));
     }
 
@@ -2114,6 +2120,7 @@ public class AdminController {
                 Objects.requireNonNullElseGet(existingTemplate, QuestionExcelTemplate::new)
         );
         questionExcelTemplateService.saveOrUpdate(template);
+        practiceCampaignService.syncCampaignCatalog();
         return ResponseEntity.ok(buildAdminQuestionResponse(updatedQuestion, template));
     }
 
@@ -2121,11 +2128,13 @@ public class AdminController {
     public ResponseEntity<?> deleteQuestion(@PathVariable Long id) {
         questionExcelTemplateService.removeByQuestionId(id);
         questionService.removeById(id);
+        practiceCampaignService.syncCampaignCatalog();
         return ResponseEntity.ok(Map.of("message", "题目已删除"));
     }
 
     @GetMapping("/practice-campaign/levels")
     public ResponseEntity<?> getPracticeCampaignLevels() {
+        practiceCampaignService.syncCampaignCatalog();
         QueryWrapper<PracticeLevel> levelQuery = new QueryWrapper<>();
         levelQuery.eq("enabled", true).orderByAsc("chapter_id").orderByAsc("sort_order").orderByAsc("id");
         List<Map<String, Object>> records = practiceLevelMapper.selectList(levelQuery).stream().map(level -> {
@@ -2335,16 +2344,20 @@ public class AdminController {
                     request.getAnswerSnapshotJson()
             );
             request.setAnswerSnapshotJson(normalizedAnswerSnapshot);
-            request.setGradingRuleJson(excelTemplateGradingService.buildSimpleRuleJson(
-                    request.getAnswerSheet(),
-                    request.getAnswerRange(),
-                    request.getCheckFormula()
-            ));
-            request.setExpectedSnapshotJson(excelTemplateGradingService.buildExpectedSnapshotJson(
+            request.setGradingRuleJson(excelTemplateGradingService.buildRuleJson(
+                    request.getTemplateFileUrl(),
                     request.getAnswerSheet(),
                     request.getAnswerRange(),
                     request.getCheckFormula(),
-                    normalizedAnswerSnapshot
+                    request.getGradingRuleJson()
+            ));
+            request.setExpectedSnapshotJson(excelTemplateGradingService.buildExpectedSnapshotJson(
+                    request.getTemplateFileUrl(),
+                    request.getAnswerSheet(),
+                    request.getAnswerRange(),
+                    request.getCheckFormula(),
+                    normalizedAnswerSnapshot,
+                    request.getGradingRuleJson()
             ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
