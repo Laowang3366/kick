@@ -97,17 +97,12 @@ export function TemplateCenter() {
     <LitePageFrame className="max-w-[1480px]">
       <LiteHero
         eyebrow="模板中心"
-        title="按行业取用可落地的 Excel 模板"
-        description="模板按行业分类收口，直接展示场景、预览图、函数构成、难度和下载积分。已下载模板不重复扣分。"
+        title="Excel 模板中心"
+        description="按行业查看和下载 Excel 模板。"
         className="bg-[linear-gradient(135deg,#1f2937_0%,#0f766e_42%,#f59e0b_100%)]"
         actions={
           <div className="flex flex-wrap gap-3">
-            <div className="rounded-full border border-white/16 bg-white/10 px-5 py-3 text-sm font-bold text-white/90">
-              当前筛选：{selectedCategoryLabel}
-            </div>
-            <div className="rounded-full border border-white/16 bg-white/10 px-5 py-3 text-sm font-bold text-white/90">
-              可下载模板：{summary.withFile}
-            </div>
+            <div className="rounded-full border border-white/16 bg-white/10 px-5 py-3 text-sm font-bold text-white/90">当前行业：{selectedCategoryLabel}</div>
             <button
               type="button"
               onClick={() => {
