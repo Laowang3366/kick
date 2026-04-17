@@ -19,8 +19,9 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Gift,
 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
@@ -35,6 +36,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 const PAGE_SIZE = 7;
 
 const typeConfig: Record<string, { icon: any; label: string; color: string; bg: string }> = {
+  system: { icon: Gift, label: "积分通知", color: "text-amber-600", bg: "bg-amber-50 border-amber-100" },
   reply: { icon: MessageSquare, label: "回复", color: "text-blue-600", bg: "bg-blue-50 border-blue-100" },
   like: { icon: Heart, label: "点赞", color: "text-rose-500", bg: "bg-rose-50 border-rose-100" },
   favorite: { icon: Star, label: "收藏", color: "text-amber-600", bg: "bg-amber-50 border-amber-100" },
@@ -66,7 +68,8 @@ function hasLink(notification: any): boolean {
 
 function tabTypeFilter(tab: string): string | undefined {
   switch (tab) {
-    case "system": return "site_notification,feedback_result";
+    case "points": return "system";
+    case "announcements": return "site_notification";
     case "posts": return "reply,like,favorite,MENTION,post_deleted,reply_deleted,report_delete,post_review,review_request";
     case "follows": return "follow,level_up";
     default: return undefined;
@@ -87,14 +90,23 @@ function useNotificationCounts() {
 
 export function Notifications() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useSession();
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState("all");
+  const initialTab = useMemo(() => {
+    const tab = searchParams.get("tab");
+    return ["all", "points", "announcements", "posts", "follows"].includes(tab || "") ? (tab as string) : "all";
+  }, [searchParams]);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [page, setPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const typeFilter = useMemo(() => tabTypeFilter(activeTab), [activeTab]);
 
@@ -130,10 +142,16 @@ export function Notifications() {
 
   const tabs = [
     { id: "all", label: "全部通知", icon: <Bell size={18} strokeWidth={1.5} />, count: counts?.all ?? 0 },
-    { id: "system", label: "系统通知", icon: <Radio size={18} strokeWidth={1.5} />, count: counts?.system ?? 0 },
+    { id: "points", label: "积分通知", icon: <Gift size={18} strokeWidth={1.5} />, count: counts?.points ?? 0 },
+    { id: "announcements", label: "网站公告", icon: <Radio size={18} strokeWidth={1.5} />, count: counts?.announcements ?? 0 },
     { id: "posts", label: "帖子互动", icon: <MessageSquare size={18} strokeWidth={1.5} />, count: counts?.posts ?? 0 },
     { id: "follows", label: "关注/等级", icon: <UserPlus size={18} strokeWidth={1.5} />, count: counts?.follows ?? 0 },
   ];
+
+  const switchTab = (tabId: string) => {
+    setActiveTab(tabId);
+    setSearchParams(tabId === "all" ? {} : { tab: tabId });
+  };
 
   // 标记全部已读
   const markAllReadMutation = useMutation({
@@ -302,7 +320,7 @@ export function Notifications() {
   }, [page, totalPages]);
 
   const openMobileTab = (tabId: string) => {
-    setActiveTab(tabId);
+    switchTab(tabId);
     setMobilePanelOpen(true);
   };
 
@@ -494,7 +512,7 @@ export function Notifications() {
             {tabs.map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => switchTab(tab.id)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all font-bold text-[14px] ${
                   activeTab === tab.id
                     ? "bg-slate-100 text-slate-900"

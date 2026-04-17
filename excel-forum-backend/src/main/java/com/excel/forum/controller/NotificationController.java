@@ -218,6 +218,7 @@ public class NotificationController {
     private String buildNotificationTitle(Notification notification) {
         String type = notification.getType() == null ? "" : notification.getType();
         return switch (type) {
+            case "system" -> "积分发放通知";
             case "reply" -> "有人回复了你";
             case "like" -> "有人点赞了你";
             case "favorite" -> "有人收藏了你的内容";

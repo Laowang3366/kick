@@ -852,6 +852,28 @@ export function Layout() {
                         全部已读
                       </button>
                     </div>
+                    <div className="grid grid-cols-2 gap-2 border-b border-gray-50 bg-slate-50/70 px-3 py-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNotifications(false);
+                          navigate("/notifications?tab=points");
+                        }}
+                        className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-50"
+                      >
+                        积分通知
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNotifications(false);
+                          navigate("/notifications?tab=announcements");
+                        }}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        网站公告
+                      </button>
+                    </div>
                     <div className="max-h-80 overflow-y-auto">
                       {notificationItems.map((item) => (
                         <div 
