@@ -11,6 +11,7 @@ export function PracticeCampaignHub() {
   const navigate = useNavigate();
   const mapViewportRef = useRef<HTMLDivElement | null>(null);
   const [mapViewportWidth, setMapViewportWidth] = useState(0);
+  const [availableMapHeight, setAvailableMapHeight] = useState(720);
   const overviewQuery = useQuery({
     queryKey: practiceKeys.campaignOverview(),
     queryFn: () => api.get<any>("/api/practice/campaign/overview", { silent: true }),
@@ -33,15 +34,26 @@ export function PracticeCampaignHub() {
   const mapStepX = 270;
   const mapRows = Math.max(1, Math.ceil(Math.max(mapChapters.length, 1) / mapColumns));
   const mapTopPadding = 38;
-  const mapBottomPadding = 48;
-  const mapRowGap = 84;
-  const mapStepY = mapRows > 1 ? mapNodeHeight + mapRowGap : 0;
-  const mapRowJitter = mapRows > 1 ? 18 : 0;
+  const mapBottomPadding = 72;
+  const mapViewportSafety = 40;
+  const fittingMapHeight = Math.max(400, availableMapHeight - mapViewportSafety);
+  const rawMapStepY =
+    mapRows > 1
+      ? (fittingMapHeight - mapTopPadding - mapBottomPadding - mapNodeHeight) / (mapRows - 1)
+      : 0;
+  const mapStepY =
+    mapRows > 1
+      ? Math.min(mapNodeHeight + 110, Math.max(mapNodeHeight + 48, rawMapStepY))
+      : 0;
+  const mapRowJitter = mapRows > 1 ? Math.min(52, mapStepY * 0.18) : 0;
   const mapLaneOffsets = [0, mapRowJitter * 0.75, mapRowJitter * 0.2, mapRowJitter];
   const mapBoardHeight =
     mapRows > 1
-      ? mapTopPadding + (mapRows - 1) * mapStepY + mapNodeHeight + mapBottomPadding + mapRowJitter
-      : Math.max(320, mapNodeHeight + mapTopPadding + mapBottomPadding);
+      ? Math.max(
+          fittingMapHeight,
+          mapTopPadding + (mapRows - 1) * mapStepY + mapNodeHeight + mapBottomPadding + mapRowJitter
+        )
+      : Math.max(fittingMapHeight, mapNodeHeight + mapTopPadding + mapBottomPadding);
   const mapNodes = useMemo(
     () =>
       mapChapters.map((chapter: any, index: number) => {
@@ -69,7 +81,9 @@ export function PracticeCampaignHub() {
     920,
     36 + Math.max(0, mapColumns - 1) * mapStepX + mapNodeWidth + 36
   );
-  const mapScale = mapViewportWidth ? Math.min(1, (mapViewportWidth - 8) / mapBoardWidth) : 1;
+  const widthScale = mapViewportWidth ? Math.min(1, (mapViewportWidth - 8) / mapBoardWidth) : 1;
+  const heightScale = Math.min(1, availableMapHeight / mapBoardHeight);
+  const mapScale = Math.min(widthScale, heightScale);
   const scaledBoardHeight = Math.max(400, Math.round(mapBoardHeight * mapScale));
 
   useEffect(() => {
@@ -78,7 +92,9 @@ export function PracticeCampaignHub() {
       if (!viewportEl) {
         return;
       }
+      const { top } = viewportEl.getBoundingClientRect();
       setMapViewportWidth(viewportEl.clientWidth || 0);
+      setAvailableMapHeight(Math.max(420, window.innerHeight - top - 28));
     };
 
     syncViewport();
