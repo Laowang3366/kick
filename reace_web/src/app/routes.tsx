@@ -42,7 +42,7 @@ export const router = createBrowserRouter([
       { path: "posts", Component: AdminRedirect },
       { path: "categories", Component: AdminRedirect },
       { path: "drafts", Component: AdminRedirect },
-      { path: "notifications", Component: AdminRedirect },
+      { path: "notifications", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminNotifications") },
       { path: "questions", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminQuestions") },
       { path: "question-categories", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminQuestionCategories") },
       { path: "templates", lazy: lazyPage(() => import("./pages/AdminTemplateCenter"), "AdminTemplateCenter") },

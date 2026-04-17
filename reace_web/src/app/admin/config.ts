@@ -1,4 +1,5 @@
 import {
+  BellRing,
   BookMarked,
   Coins,
   Gauge,
@@ -13,6 +14,7 @@ export type AdminRole = "admin" | "moderator";
 export type AdminModuleKey =
   | "overview"
   | "home-content"
+  | "notifications"
   | "users"
   | "questions"
   | "question-categories"
@@ -32,6 +34,7 @@ export type AdminModule = {
 export const ADMIN_MODULES: AdminModule[] = [
   { key: "overview", label: "后台总览", path: "/admin/overview", icon: Gauge, roles: ["admin", "moderator"] },
   { key: "home-content", label: "首页内容", path: "/admin/home-content", icon: PanelsTopLeft, roles: ["admin"] },
+  { key: "notifications", label: "通知管理", path: "/admin/notifications", icon: BellRing, roles: ["admin"] },
   { key: "users", label: "用户管理", path: "/admin/users", icon: Users, roles: ["admin"] },
   { key: "questions", label: "题库管理", path: "/admin/questions", icon: BookMarked, roles: ["admin"] },
   { key: "question-categories", label: "题目分类", path: "/admin/question-categories", icon: Layers3, roles: ["admin"] },
