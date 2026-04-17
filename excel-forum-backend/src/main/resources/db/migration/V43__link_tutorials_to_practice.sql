@@ -1,11 +1,23 @@
 ALTER TABLE tutorial_article
-    ADD COLUMN IF NOT EXISTS one_line_usage VARCHAR(255) NULL AFTER summary,
-    ADD COLUMN IF NOT EXISTS audience_track VARCHAR(32) NOT NULL DEFAULT 'general' AFTER content,
-    ADD COLUMN IF NOT EXISTS difficulty VARCHAR(32) NOT NULL DEFAULT 'basic' AFTER audience_track,
-    ADD COLUMN IF NOT EXISTS recommend_level INT NOT NULL DEFAULT 0 AFTER difficulty,
-    ADD COLUMN IF NOT EXISTS function_tags VARCHAR(500) NULL AFTER recommend_level,
-    ADD COLUMN IF NOT EXISTS starter TINYINT(1) NOT NULL DEFAULT 0 AFTER function_tags,
-    ADD COLUMN IF NOT EXISTS home_featured TINYINT(1) NOT NULL DEFAULT 0 AFTER starter;
+    ADD COLUMN one_line_usage VARCHAR(255) NULL AFTER summary;
+
+ALTER TABLE tutorial_article
+    ADD COLUMN audience_track VARCHAR(32) NOT NULL DEFAULT 'general' AFTER content;
+
+ALTER TABLE tutorial_article
+    ADD COLUMN difficulty VARCHAR(32) NOT NULL DEFAULT 'basic' AFTER audience_track;
+
+ALTER TABLE tutorial_article
+    ADD COLUMN recommend_level INT NOT NULL DEFAULT 0 AFTER difficulty;
+
+ALTER TABLE tutorial_article
+    ADD COLUMN function_tags VARCHAR(500) NULL AFTER recommend_level;
+
+ALTER TABLE tutorial_article
+    ADD COLUMN starter TINYINT(1) NOT NULL DEFAULT 0 AFTER function_tags;
+
+ALTER TABLE tutorial_article
+    ADD COLUMN home_featured TINYINT(1) NOT NULL DEFAULT 0 AFTER starter;
 
 CREATE TABLE IF NOT EXISTS tutorial_article_chapter_rel (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
