@@ -447,7 +447,6 @@ export function Layout() {
         { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
         { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
         { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
-        { name: "个人中心", path: "/profile", icon: <User size={18} strokeWidth={1.5} /> },
       ]
     : [
         { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
@@ -455,7 +454,6 @@ export function Layout() {
         { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
         { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
         { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
-        { name: "个人中心", path: "/profile", icon: <User size={18} strokeWidth={1.5} /> },
       ];
   const activeLiteModule = ONLINE_LITE_MODE
     ? navItems.find((item) => location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(`${item.path}/`))) || navItems[0]
@@ -898,40 +896,26 @@ export function Layout() {
 
             <div className={`${isMobile ? "" : "pl-4 border-l border-gray-200"} flex items-center gap-2`}>
               {isAuthenticated && !isMobile ? (
-                <HoverCard openDelay={120} closeDelay={80}>
-                  <HoverCardTrigger asChild>
-                    <button type="button" className="flex items-center gap-2 cursor-pointer group">
-                      <img
-                        src={normalizeAvatarUrl(user?.avatar, user?.username)}
-                        alt="Profile"
-                        className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
-                      />
-                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
-                    </button>
-                  </HoverCardTrigger>
-                  <HoverCardContent align="end" className="w-auto min-w-0 rounded-xl border border-gray-100 bg-white/95 backdrop-blur-sm p-1.5 shadow-lg">
-                    {canAccessAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(getDefaultAdminPath(user?.role))}
-                        className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
-                      >
-                        管理后台
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => navigate("/profile")}
-                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
-                    >
-                      个人中心
-                    </button>
-                  </HoverCardContent>
-                </HoverCard>
+                <button
+                  type="button"
+                  onClick={() => navigate("/profile")}
+                  className="flex items-center gap-2 cursor-pointer group"
+                >
+                  <img
+                    src={normalizeAvatarUrl(user?.avatar, user?.username)}
+                    alt="Profile"
+                    className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
+                  />
+                  <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
+                </button>
               ) : isAuthenticated && isMobile ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex items-center gap-2 cursor-pointer group rounded-full p-1">
+                    <button
+                      type="button"
+                      onClick={() => navigate("/profile")}
+                      className="flex items-center gap-2 cursor-pointer group rounded-full p-1"
+                    >
                       <img 
                         src={normalizeAvatarUrl(user?.avatar, user?.username)} 
                         alt="Profile" 
@@ -941,7 +925,6 @@ export function Layout() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">
                     {canAccessAdmin && <DropdownMenuItem onClick={() => navigate(getDefaultAdminPath(user?.role))}>进入管理后台</DropdownMenuItem>}
-                    <DropdownMenuItem onClick={() => navigate("/profile")}>个人中心</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
