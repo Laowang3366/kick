@@ -6,6 +6,7 @@ import com.excel.forum.mapper.CheckinRecordMapper;
 import com.excel.forum.service.CheckinService;
 import com.excel.forum.service.ExperienceService;
 import com.excel.forum.service.ExperienceRuleService;
+import com.excel.forum.service.PointsRuleService;
 import com.excel.forum.service.PointsTaskService;
 import com.excel.forum.service.UserEntitlementService;
 import com.excel.forum.service.UserService;
@@ -29,11 +30,14 @@ import java.util.Set;
 public class CheckinServiceImpl implements CheckinService {
     public static final int MIN_EXP = 1;
     public static final int MAX_EXP = 20;
+    private static final int MAX_STREAK_POINTS_BONUS = 6;
+    private static final int MAX_STREAK_EXP_BONUS = 12;
 
     private final CheckinRecordMapper checkinRecordMapper;
     private final ExperienceService experienceService;
     private final ExperienceRuleService experienceRuleService;
     private final UserService userService;
+    private final PointsRuleService pointsRuleService;
     private final PointsTaskService pointsTaskService;
     private final UserEntitlementService userEntitlementService;
 
@@ -45,17 +49,30 @@ public class CheckinServiceImpl implements CheckinService {
 
         CheckinRecord todayRecord = getTodayRecord(userId, today);
         List<CheckinRecord> monthRecords = listMonthRecords(userId, targetMonth);
+        int currentContinuousDays = calculateContinuousDays(userId, today);
+        int previewContinuousDays = todayRecord != null ? currentContinuousDays : currentContinuousDays + 1;
+        int previewPoints = resolveCheckinPointsReward(previewContinuousDays);
+        int previewExpBonus = resolveCheckinExpBonus(previewContinuousDays);
+        int basePoints = resolveBaseCheckinPoints();
 
         Map<String, Object> response = new HashMap<>();
         response.put("hasCheckedInToday", todayRecord != null);
         response.put("todayExp", todayRecord != null ? todayRecord.getGainedExp() : 0);
-        response.put("continuousDays", calculateContinuousDays(userId, today));
+        response.put("continuousDays", currentContinuousDays);
+        response.put("currentContinuousDays", currentContinuousDays);
+        response.put("previewContinuousDays", previewContinuousDays);
         response.put("totalDays", countTotalDays(userId));
         response.put("totalExp", sumTotalExp(userId));
         response.put("checkinDates", monthRecords.stream().map(record -> record.getCheckinDate().toString()).toList());
         response.put("month", targetMonth.toString());
         response.put("expMin", expRange[0]);
         response.put("expMax", expRange[1]);
+        response.put("previewExpMin", expRange[0] + previewExpBonus);
+        response.put("previewExpMax", expRange[1] + previewExpBonus);
+        response.put("previewExpBonus", previewExpBonus);
+        response.put("previewPoints", previewPoints);
+        response.put("basePoints", basePoints);
+        response.put("previewPointsBonus", Math.max(previewPoints - basePoints, 0));
         response.put("makeupCardCount", userEntitlementService.countAvailableByKey(userId, UserEntitlementService.KEY_CHECKIN_MAKEUP_CARD));
         LocalDate latestMissedDate = findLatestMissedCheckinDate(userId, today);
         response.put("latestMissedDate", latestMissedDate == null ? null : latestMissedDate.toString());
@@ -72,7 +89,10 @@ public class CheckinServiceImpl implements CheckinService {
             throw new IllegalStateException("今天已经签到过了");
         }
 
-        int gainedExp = experienceRuleService.resolveRandomExp(ExperienceService.BIZ_DAILY_CHECKIN, MIN_EXP, MAX_EXP);
+        int streakDays = calculateContinuousDays(userId, today) + 1;
+        int expBonus = resolveCheckinExpBonus(streakDays);
+        int pointsRewardValue = resolveCheckinPointsReward(streakDays);
+        int gainedExp = experienceRuleService.resolveRandomExp(ExperienceService.BIZ_DAILY_CHECKIN, MIN_EXP, MAX_EXP) + expBonus;
 
         CheckinRecord record = new CheckinRecord();
         record.setUserId(userId);
@@ -85,15 +105,24 @@ public class CheckinServiceImpl implements CheckinService {
         }
 
         experienceService.awardDailyCheckin(userId, today, gainedExp);
-        Map<String, Object> taskReward = pointsTaskService.awardTask(userId, PointsTaskService.TASK_DAILY_CHECKIN, null, "完成每日签到");
+        Map<String, Object> taskReward = pointsTaskService.awardTaskWithPoints(
+                userId,
+                PointsTaskService.TASK_DAILY_CHECKIN,
+                null,
+                "完成每日签到",
+                pointsRewardValue
+        );
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "签到成功");
         response.put("gainedExp", gainedExp);
+        response.put("gainedPoints", pointsRewardValue);
+        response.put("continuousDays", streakDays);
+        response.put("streakExpBonus", expBonus);
+        response.put("streakPointsBonus", Math.max(pointsRewardValue - resolveBaseCheckinPoints(), 0));
         if (taskReward != null) {
             response.put("pointsRewards", java.util.List.of(taskReward));
         }
-        response.put("continuousDays", calculateContinuousDays(userId, today));
         response.put("totalDays", countTotalDays(userId));
         response.put("totalExp", sumTotalExp(userId));
         response.put("checkinDate", today.toString());
@@ -116,7 +145,10 @@ public class CheckinServiceImpl implements CheckinService {
             throw new IllegalStateException("暂无可用补签卡");
         }
 
-        int gainedExp = experienceRuleService.resolveRandomExp(ExperienceService.BIZ_DAILY_CHECKIN, MIN_EXP, MAX_EXP);
+        int streakDays = calculateContinuousDays(userId, missedDate) + 1;
+        int expBonus = resolveCheckinExpBonus(streakDays);
+        int pointsRewardValue = resolveCheckinPointsReward(streakDays);
+        int gainedExp = experienceRuleService.resolveRandomExp(ExperienceService.BIZ_DAILY_CHECKIN, MIN_EXP, MAX_EXP) + expBonus;
 
         CheckinRecord record = new CheckinRecord();
         record.setUserId(userId);
@@ -129,18 +161,22 @@ public class CheckinServiceImpl implements CheckinService {
         }
 
         experienceService.awardDailyCheckin(userId, missedDate, gainedExp);
-        Map<String, Object> taskReward = pointsTaskService.awardTaskForDate(
+        Map<String, Object> taskReward = pointsTaskService.awardTaskForDateWithPoints(
                 userId,
                 PointsTaskService.TASK_DAILY_CHECKIN,
                 Long.parseLong(missedDate.format(DateTimeFormatter.BASIC_ISO_DATE)),
                 "使用补签卡补签",
-                missedDate
+                missedDate,
+                pointsRewardValue
         );
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "补签成功");
         response.put("madeUpDate", missedDate.toString());
         response.put("gainedExp", gainedExp);
+        response.put("gainedPoints", pointsRewardValue);
+        response.put("streakExpBonus", expBonus);
+        response.put("streakPointsBonus", Math.max(pointsRewardValue - resolveBaseCheckinPoints(), 0));
         if (taskReward != null) {
             response.put("pointsRewards", java.util.List.of(taskReward));
         }
@@ -226,6 +262,26 @@ public class CheckinServiceImpl implements CheckinService {
             max = min;
         }
         return new int[] { min, max };
+    }
+
+    private int resolveBaseCheckinPoints() {
+        var rule = pointsRuleService.getRuleByTaskKey(PointsTaskService.TASK_DAILY_CHECKIN);
+        if (rule == null || rule.getPoints() == null || rule.getPoints() <= 0) {
+            return 0;
+        }
+        return rule.getPoints();
+    }
+
+    private int resolveCheckinPointsReward(int streakDays) {
+        int basePoints = resolveBaseCheckinPoints();
+        if (basePoints <= 0) {
+            return 0;
+        }
+        return basePoints + Math.min(Math.max(streakDays - 1, 0), MAX_STREAK_POINTS_BONUS);
+    }
+
+    private int resolveCheckinExpBonus(int streakDays) {
+        return Math.min(Math.max(streakDays - 1, 0) * 2, MAX_STREAK_EXP_BONUS);
     }
 
     private YearMonth parseMonth(String month) {

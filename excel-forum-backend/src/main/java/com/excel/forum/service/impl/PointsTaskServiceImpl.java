@@ -25,22 +25,38 @@ public class PointsTaskServiceImpl implements PointsTaskService {
     @Override
     @Transactional
     public Map<String, Object> awardTask(Long userId, String taskKey, Long bizId, String description) {
-        return awardTaskInternal(userId, taskKey, bizId, description, null);
+        return awardTaskInternal(userId, taskKey, bizId, description, null, null);
     }
 
     @Override
     @Transactional
     public Map<String, Object> awardTaskForDate(Long userId, String taskKey, Long bizId, String description, LocalDate taskDate) {
-        return awardTaskInternal(userId, taskKey, bizId, description, taskDate);
+        return awardTaskInternal(userId, taskKey, bizId, description, taskDate, null);
     }
 
-    private Map<String, Object> awardTaskInternal(Long userId, String taskKey, Long bizId, String description, LocalDate taskDateOverride) {
+    @Override
+    @Transactional
+    public Map<String, Object> awardTaskWithPoints(Long userId, String taskKey, Long bizId, String description, Integer pointsOverride) {
+        return awardTaskInternal(userId, taskKey, bizId, description, null, pointsOverride);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> awardTaskForDateWithPoints(Long userId, String taskKey, Long bizId, String description, LocalDate taskDate, Integer pointsOverride) {
+        return awardTaskInternal(userId, taskKey, bizId, description, taskDate, pointsOverride);
+    }
+
+    private Map<String, Object> awardTaskInternal(Long userId, String taskKey, Long bizId, String description, LocalDate taskDateOverride, Integer pointsOverride) {
         if (userId == null || taskKey == null || taskKey.isBlank()) {
             return null;
         }
 
         PointsRule rule = pointsRuleService.getRuleByTaskKey(taskKey);
         if (rule == null || rule.getPoints() == null || rule.getPoints() <= 0) {
+            return null;
+        }
+        int finalPoints = pointsOverride != null && pointsOverride > 0 ? pointsOverride : rule.getPoints();
+        if (finalPoints <= 0) {
             return null;
         }
 
@@ -62,7 +78,7 @@ public class PointsTaskServiceImpl implements PointsTaskService {
                 taskKey,
                 bizId,
                 taskDate,
-                rule.getPoints(),
+                finalPoints,
                 recordDescription
         );
 
@@ -70,7 +86,7 @@ public class PointsTaskServiceImpl implements PointsTaskService {
         reward.put("ruleId", rule.getId());
         reward.put("taskKey", taskKey);
         reward.put("name", rule.getName());
-        reward.put("points", rule.getPoints());
+        reward.put("points", finalPoints);
         reward.put("type", rule.getType());
         reward.put("description", recordDescription);
         return reward;

@@ -17,5 +17,9 @@ public interface PointsTaskService {
 
     Map<String, Object> awardTaskForDate(Long userId, String taskKey, Long bizId, String description, LocalDate taskDate);
 
+    Map<String, Object> awardTaskWithPoints(Long userId, String taskKey, Long bizId, String description, Integer pointsOverride);
+
+    Map<String, Object> awardTaskForDateWithPoints(Long userId, String taskKey, Long bizId, String description, LocalDate taskDate, Integer pointsOverride);
+
     List<Map<String, Object>> getUserTasks(Long userId);
 }
