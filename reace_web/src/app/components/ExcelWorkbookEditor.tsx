@@ -14,6 +14,8 @@ import { loadUniverRuntime, type FWorkbook, type IWorkbookData, type UniverRunti
 type ExcelWorkbookEditorProps = {
   workbook: ExcelWorkbookSnapshot;
   onWorkbookChange?: (next: ExcelWorkbookSnapshot) => void;
+  onEditorReady?: () => void;
+  onEditorError?: (message: string) => void;
   selectedSheetName: string;
   onSelectedSheetNameChange: (sheetName: string) => void;
   selection?: ExcelRangeSelection | null;
@@ -153,6 +155,8 @@ function toCellRef(row: number, col: number) {
 export function ExcelWorkbookEditor({
   workbook,
   onWorkbookChange,
+  onEditorReady,
+  onEditorError,
   selectedSheetName,
   onSelectedSheetNameChange,
   selection = null,
@@ -182,6 +186,8 @@ export function ExcelWorkbookEditor({
   const latestOnSelectionChangeRef = useRef(onSelectionChange);
   const latestOnSelectedSheetNameChangeRef = useRef(onSelectedSheetNameChange);
   const latestOnWorkbookChangeRef = useRef(onWorkbookChange);
+  const latestOnEditorReadyRef = useRef(onEditorReady);
+  const latestOnEditorErrorRef = useRef(onEditorError);
   const lastFocusedRangeKeyRef = useRef("");
   const [instanceVersion, setInstanceVersion] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -215,6 +221,14 @@ export function ExcelWorkbookEditor({
   }, [onWorkbookChange]);
 
   useEffect(() => {
+    latestOnEditorReadyRef.current = onEditorReady;
+  }, [onEditorReady]);
+
+  useEffect(() => {
+    latestOnEditorErrorRef.current = onEditorError;
+  }, [onEditorError]);
+
+  useEffect(() => {
     let active = true;
     loadUniverRuntime()
       .then((resolvedRuntime) => {
@@ -224,7 +238,9 @@ export function ExcelWorkbookEditor({
       })
       .catch(() => {
         if (!active) return;
-        setRuntimeError("编辑器资源加载失败，请刷新后重试");
+        const message = "编辑器资源加载失败，请刷新后重试";
+        setRuntimeError(message);
+        latestOnEditorErrorRef.current?.(message);
       });
     return () => {
       active = false;
@@ -233,6 +249,7 @@ export function ExcelWorkbookEditor({
 
   useEffect(() => {
     if (!runtime || !containerRef.current) return;
+    let disposed = false;
 
     const { createUniver, LocaleType, mergeLocales, UniverPresetSheetsCoreZhCN, UniverSheetsCorePreset } = runtime;
 
@@ -330,9 +347,16 @@ export function ExcelWorkbookEditor({
       targetSheet.getRange(rangeRef).activate();
     };
 
-    void applyPermissions();
+    void (async () => {
+      await applyPermissions();
+      await Promise.resolve();
+      if (!disposed && bindingRef.current?.workbook === univerWorkbook) {
+        latestOnEditorReadyRef.current?.();
+      }
+    })();
 
     return () => {
+      disposed = true;
       onSnapshotCaptureReady?.(null);
       disposables.forEach((item) => item.dispose());
       univerAPI.dispose();
