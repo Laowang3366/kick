@@ -76,11 +76,12 @@ export function RichContentEditor({
   const previewHtml = useMemo(() => normalizedValue || renderRichContent(""), [normalizedValue]);
 
   useEffect(() => {
+    if (mode !== "edit") return;
     if (editorRef.current && editorRef.current.innerHTML !== normalizedValue) {
       editorRef.current.innerHTML = normalizedValue;
       highlightEditorCodeBlocks();
     }
-  }, [normalizedValue]);
+  }, [mode, normalizedValue]);
 
   const syncEditorContent = () => {
     onChange(editorRef.current?.innerHTML || "");
