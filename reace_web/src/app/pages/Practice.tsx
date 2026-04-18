@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Award, CheckCircle2, Clock, FileSpreadsheet, LoaderCircle, Play, Target, UploadCloud, ClipboardList, History } from "lucide-react";
 import { motion } from "motion/react";
@@ -18,6 +18,7 @@ import {
 } from "../lib/excel";
 import { formatNumber } from "../lib/format";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
+import { scheduleExcelEditorPreload } from "../lib/excel-editor-preload";
 import { practiceKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
 
@@ -58,6 +59,8 @@ export function Practice() {
   const [editorFullscreenVersion, setEditorFullscreenVersion] = useState(0);
   const [submissionForm, setSubmissionForm] = useState(defaultSubmissionForm());
   const editorSnapshotGetterRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
+
+  useEffect(() => scheduleExcelEditorPreload(), []);
 
   const categoriesQuery = useQuery({
     queryKey: practiceKeys.categories(),

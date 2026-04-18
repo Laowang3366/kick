@@ -1,9 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createUniver, LocaleType, mergeLocales } from "@univerjs/presets";
-import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
-import UniverPresetSheetsCoreZhCN from "@univerjs/preset-sheets-core/locales/zh-CN";
-import type { FWorkbook, IWorkbookData } from "@univerjs/preset-sheets-core";
-import "@univerjs/preset-sheets-core/lib/index.css";
 import { Expand, Minimize2 } from "lucide-react";
 import {
   ExcelRangeSelection,
@@ -14,6 +9,7 @@ import {
   selectionToRangeRef,
 } from "../lib/excel";
 import { getStoredUser } from "../lib/session-store";
+import { loadUniverRuntime, type FWorkbook, type IWorkbookData, type UniverRuntime } from "../lib/univer-runtime";
 
 type ExcelWorkbookEditorProps = {
   workbook: ExcelWorkbookSnapshot;
@@ -58,20 +54,16 @@ function isSameSelection(
     && left.endCol === right.endCol;
 }
 
-function createSheetId(index: number) {
-  return `sheet-${index + 1}`;
-}
-
 function createWorkbookId() {
   return "excel-practice-workbook";
 }
 
-function workbookSnapshotToUniverData(workbook: ExcelWorkbookSnapshot): Partial<IWorkbookData> {
+function workbookSnapshotToUniverData(workbook: ExcelWorkbookSnapshot, locale: string): Partial<IWorkbookData> {
   return {
     id: createWorkbookId(),
     name: "ExcelPractice",
     appVersion: "0.20.0",
-    locale: LocaleType.ZH_CN,
+    locale,
     styles: {},
   };
 }
@@ -193,6 +185,8 @@ export function ExcelWorkbookEditor({
   const lastFocusedRangeKeyRef = useRef("");
   const [instanceVersion, setInstanceVersion] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [runtime, setRuntime] = useState<UniverRuntime | null>(null);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
   const workbookKey = useMemo(() => JSON.stringify(workbook), [workbook]);
 
@@ -221,7 +215,26 @@ export function ExcelWorkbookEditor({
   }, [onWorkbookChange]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    let active = true;
+    loadUniverRuntime()
+      .then((resolvedRuntime) => {
+        if (!active) return;
+        setRuntime(resolvedRuntime);
+        setRuntimeError(null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setRuntimeError("编辑器资源加载失败，请刷新后重试");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!runtime || !containerRef.current) return;
+
+    const { createUniver, LocaleType, mergeLocales, UniverPresetSheetsCoreZhCN, UniverSheetsCorePreset } = runtime;
 
     const { univerAPI } = createUniver({
       locale: LocaleType.ZH_CN,
@@ -235,7 +248,7 @@ export function ExcelWorkbookEditor({
       ],
     });
 
-    const univerWorkbook = univerAPI.createWorkbook(workbookSnapshotToUniverData(workbook));
+    const univerWorkbook = univerAPI.createWorkbook(workbookSnapshotToUniverData(workbook, LocaleType.ZH_CN));
     hydratingRef.current = true;
     applyWorkbookSnapshotToUniver(univerWorkbook, workbook);
     hydratingRef.current = false;
@@ -325,7 +338,7 @@ export function ExcelWorkbookEditor({
       univerAPI.dispose();
       bindingRef.current = null;
     };
-  }, [instanceVersion]);
+  }, [instanceVersion, runtime, workbook, workbookKey, editableRange, restrictEditingToRange, onSnapshotCaptureReady]);
 
   useEffect(() => {
     const binding = bindingRef.current;
@@ -436,7 +449,19 @@ export function ExcelWorkbookEditor({
           </button>
         </div>
       </div>
-      <div ref={containerRef} className={resolvedViewportClassName} />
+      <div className={resolvedViewportClassName}>
+        {runtimeError ? (
+          <div className="flex h-full items-center justify-center px-6 text-sm text-rose-500">
+            {runtimeError}
+          </div>
+        ) : runtime ? (
+          <div ref={containerRef} className="h-full w-full" />
+        ) : (
+          <div className="flex h-full items-center justify-center px-6 text-sm text-slate-400">
+            首次加载编辑器组件中...
+          </div>
+        )}
+      </div>
     </div>
   );
 

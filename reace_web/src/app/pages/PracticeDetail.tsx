@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { scheduleExcelEditorPreload } from "../lib/excel-editor-preload";
 import { ExcelWorkbookSnapshot, normalizeSelection, parseRangeRef } from "../lib/excel";
 import { formatDuration } from "../lib/format";
 import { practiceKeys } from "../lib/query-keys";
@@ -27,6 +28,8 @@ export function PracticeDetail() {
   const [workbook, setWorkbook] = useState<ExcelWorkbookSnapshot>({ sheets: [] });
   const [submitting, setSubmitting] = useState(false);
   const editorSnapshotGetterRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
+
+  useEffect(() => scheduleExcelEditorPreload(), []);
 
   const detailQuery = useQuery({
     queryKey: practiceKeys.detail(isRandomMode ? "random" : id || "unknown"),

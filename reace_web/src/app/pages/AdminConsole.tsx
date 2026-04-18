@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Switch } from "../components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { api, ApiError } from "../lib/api";
+import { scheduleExcelEditorPreload } from "../lib/excel-editor-preload";
 import {
   buildWorkbookWithAnswerSnapshot,
   columnIndexToLabel,
@@ -2231,6 +2232,8 @@ export function AdminQuestions() {
     },
   });
   const campaignLevels = campaignLevelsQuery.data?.records || [];
+
+  useEffect(() => scheduleExcelEditorPreload(), []);
 
   useEffect(() => {
     const record = campaignDailyQuery.data?.record;
