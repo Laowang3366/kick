@@ -10,22 +10,15 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("user_wrong_question")
-public class UserWrongQuestion {
+@TableName("user_learning_profile")
+public class UserLearningProfile {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
-    private Long questionId;
-    private Long levelId;
-    private Integer wrongCount;
-    private String status;
-    private LocalDateTime nextReviewAt;
-    private Integer reviewRound;
-    private String lastReviewResult;
-    private LocalDateTime masteredAt;
-    private LocalDateTime archivedAt;
-    private LocalDateTime lastWrongTime;
-    private Boolean resolved;
+    private String currentTrack;
+    private String selfAssessmentLevel;
+    private Long recommendedChapterId;
+    private Long recommendedArticleId;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
     @TableField(fill = FieldFill.INSERT_UPDATE)

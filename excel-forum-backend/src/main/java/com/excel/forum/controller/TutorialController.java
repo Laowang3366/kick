@@ -8,6 +8,7 @@ import com.excel.forum.entity.TutorialArticleChapterRel;
 import com.excel.forum.entity.TutorialArticleQuestionRel;
 import com.excel.forum.entity.TutorialCategory;
 import com.excel.forum.mapper.PracticeChapterMapper;
+import com.excel.forum.service.OnboardingService;
 import com.excel.forum.service.QuestionService;
 import com.excel.forum.service.TutorialArticleService;
 import com.excel.forum.service.TutorialArticleChapterRelService;
@@ -16,7 +17,9 @@ import com.excel.forum.service.TutorialCategoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.HashMap;
@@ -36,15 +39,23 @@ public class TutorialController {
     private final TutorialArticleQuestionRelService tutorialArticleQuestionRelService;
     private final PracticeChapterMapper practiceChapterMapper;
     private final QuestionService questionService;
+    private final OnboardingService onboardingService;
 
     @GetMapping("/home")
-    public ResponseEntity<?> getHomeTutorials() {
+    public ResponseEntity<?> getHomeTutorials(
+            @RequestAttribute(value = "userId", required = false) Long userId,
+            @RequestParam(value = "track", required = false) String track) {
+        String effectiveTrack = onboardingService.resolveTrack(userId, track);
         List<TutorialCategory> categories = tutorialCategoryService.listWithArticleCount(true);
         Map<Long, List<TutorialArticle>> articlesByCategoryId = tutorialArticleService.groupByCategoryIds(
                 categories.stream().map(TutorialCategory::getId).filter(Objects::nonNull).toList(),
                 true
         );
-        List<Long> articleIds = articlesByCategoryId.values().stream()
+        Map<Long, List<TutorialArticle>> visibleArticlesByCategoryId =
+                effectiveTrack != null && !effectiveTrack.isBlank()
+                        ? filterArticlesByTrack(articlesByCategoryId, effectiveTrack)
+                        : articlesByCategoryId;
+        List<Long> articleIds = visibleArticlesByCategoryId.values().stream()
                 .flatMap(List::stream)
                 .map(TutorialArticle::getId)
                 .filter(Objects::nonNull)
@@ -69,7 +80,7 @@ public class TutorialController {
                 .collect(Collectors.toMap(Question::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
         List<Map<String, Object>> records = categories.stream()
                 .map(category -> {
-                    List<Map<String, Object>> articles = articlesByCategoryId.getOrDefault(category.getId(), List.of()).stream()
+                    List<Map<String, Object>> articles = visibleArticlesByCategoryId.getOrDefault(category.getId(), List.of()).stream()
                             .map(article -> toArticleMap(
                                     article,
                                     chapterRelMap.getOrDefault(article.getId(), List.of()),
@@ -87,8 +98,24 @@ public class TutorialController {
                     result.put("articles", articles);
                     return result;
                 })
+                .filter(item -> !((List<?>) item.get("articles")).isEmpty())
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(Map.of("categories", records));
+        return ResponseEntity.ok(Map.of(
+                "categories", records,
+                "learningTrack", effectiveTrack == null ? "general" : effectiveTrack
+        ));
+    }
+
+    private Map<Long, List<TutorialArticle>> filterArticlesByTrack(Map<Long, List<TutorialArticle>> articlesByCategoryId, String track) {
+        return articlesByCategoryId.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().stream()
+                                .filter(article -> matchesTrack(defaultText(article.getAudienceTrack(), "general"), track))
+                                .collect(Collectors.toList()),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
     }
 
     private Map<String, Object> toArticleMap(
@@ -155,5 +182,20 @@ public class TutorialController {
 
     private String defaultText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private boolean matchesTrack(String articleTrack, String track) {
+        if (track == null || track.isBlank()) {
+            return true;
+        }
+        String normalizedArticleTrack = defaultText(articleTrack, "general").trim().toLowerCase();
+        String normalizedTrack = track.trim().toLowerCase();
+        if ("beginner".equals(normalizedTrack)) {
+            return "beginner".equals(normalizedArticleTrack) || "general".equals(normalizedArticleTrack);
+        }
+        if ("intermediate".equals(normalizedTrack)) {
+            return "advanced".equals(normalizedArticleTrack) || "general".equals(normalizedArticleTrack);
+        }
+        return true;
     }
 }

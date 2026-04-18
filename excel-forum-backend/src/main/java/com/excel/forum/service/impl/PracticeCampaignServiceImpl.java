@@ -39,6 +39,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -54,6 +55,10 @@ import java.util.stream.Collectors;
 public class PracticeCampaignServiceImpl implements PracticeCampaignService {
     private static final String DEFAULT_WORLD_NAME = "Excel 闯关";
     private static final String UNCATEGORIZED_CHAPTER_NAME = "未分类挑战";
+    private static final String WRONG_STATUS_NEW = "new";
+    private static final String WRONG_STATUS_REVIEWING = "reviewing";
+    private static final String WRONG_STATUS_MASTERED = "mastered";
+    private static final String WRONG_STATUS_ARCHIVED = "archived";
 
     private final PracticeWorldMapper practiceWorldMapper;
     private final PracticeChapterMapper practiceChapterMapper;
@@ -354,13 +359,17 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             throw new IllegalStateException("未登录");
         }
         QueryWrapper<UserWrongQuestion> queryWrapper = new QueryWrapper<>();
-        queryWrapper.eq("user_id", userId).eq("resolved", false).orderByDesc("last_wrong_time");
+        queryWrapper.eq("user_id", userId)
+                .ne("status", WRONG_STATUS_ARCHIVED)
+                .orderByAsc("next_review_at")
+                .orderByDesc("last_wrong_time");
         List<UserWrongQuestion> wrongs = userWrongQuestionMapper.selectList(queryWrapper);
         List<Long> questionIds = wrongs.stream().map(UserWrongQuestion::getQuestionId).filter(Objects::nonNull).toList();
         Map<Long, Question> questionMap = questionIds.isEmpty()
                 ? Map.of()
                 : questionService.listByIds(questionIds).stream().collect(Collectors.toMap(Question::getId, item -> item, (left, right) -> left));
 
+        LocalDateTime now = LocalDateTime.now();
         List<Map<String, Object>> records = wrongs.stream().map(item -> {
             Question question = questionMap.get(item.getQuestionId());
             Map<String, Object> row = new LinkedHashMap<>();
@@ -372,10 +381,32 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             row.put("lastWrongTime", item.getLastWrongTime());
             row.put("recommendedLevelId", item.getLevelId());
             row.put("difficulty", question == null ? 1 : question.getDifficulty());
+            row.put("status", defaultText(item.getStatus(), WRONG_STATUS_REVIEWING));
+            row.put("nextReviewAt", item.getNextReviewAt());
+            row.put("reviewRound", item.getReviewRound() == null ? 0 : item.getReviewRound());
+            row.put("lastReviewResult", defaultText(item.getLastReviewResult(), ""));
+            row.put("masteredAt", item.getMasteredAt());
+            row.put("archivedAt", item.getArchivedAt());
+            row.put("due", isDueForReview(item, now));
             return row;
         }).toList();
 
-        return Map.of("records", records);
+        List<Map<String, Object>> todayReviews = records.stream()
+                .filter(item -> Boolean.TRUE.equals(item.get("due")))
+                .toList();
+        long masteredCount = records.stream()
+                .filter(item -> WRONG_STATUS_MASTERED.equals(item.get("status")))
+                .count();
+
+        return Map.of(
+                "todayReviews", todayReviews,
+                "reviewPool", records,
+                "summary", Map.of(
+                        "dueCount", todayReviews.size(),
+                        "totalCount", records.size(),
+                        "masteredCount", masteredCount
+                )
+        );
     }
 
     @Override
@@ -387,9 +418,48 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         if (wrongQuestion == null || !Objects.equals(wrongQuestion.getUserId(), userId)) {
             throw new IllegalArgumentException("错题记录不存在");
         }
-        wrongQuestion.setResolved(true);
+        markWrongQuestionMastered(wrongQuestion);
         userWrongQuestionMapper.updateById(wrongQuestion);
         return Map.of("message", "错题已标记为已掌握");
+    }
+
+    @Override
+    public Map<String, Object> submitWrongQuestionReviewResult(Long userId, Long wrongQuestionId, String result) {
+        if (userId == null) {
+            throw new IllegalStateException("未登录");
+        }
+        UserWrongQuestion wrongQuestion = userWrongQuestionMapper.selectById(wrongQuestionId);
+        if (wrongQuestion == null || !Objects.equals(wrongQuestion.getUserId(), userId)) {
+            throw new IllegalArgumentException("错题记录不存在");
+        }
+        String normalizedResult = result == null ? "" : result.trim().toLowerCase();
+        if (!"pass".equals(normalizedResult) && !"fail".equals(normalizedResult)) {
+            throw new IllegalArgumentException("复习结果无效");
+        }
+        applyWrongQuestionReviewResult(wrongQuestion, normalizedResult);
+        userWrongQuestionMapper.updateById(wrongQuestion);
+        return Map.of(
+                "message", "复习结果已更新",
+                "status", defaultText(wrongQuestion.getStatus(), WRONG_STATUS_REVIEWING),
+                "nextReviewAt", wrongQuestion.getNextReviewAt(),
+                "reviewRound", wrongQuestion.getReviewRound() == null ? 0 : wrongQuestion.getReviewRound()
+        );
+    }
+
+    @Override
+    public Map<String, Object> archiveWrongQuestion(Long userId, Long wrongQuestionId) {
+        if (userId == null) {
+            throw new IllegalStateException("未登录");
+        }
+        UserWrongQuestion wrongQuestion = userWrongQuestionMapper.selectById(wrongQuestionId);
+        if (wrongQuestion == null || !Objects.equals(wrongQuestion.getUserId(), userId)) {
+            throw new IllegalArgumentException("错题记录不存在");
+        }
+        wrongQuestion.setStatus(WRONG_STATUS_ARCHIVED);
+        wrongQuestion.setResolved(true);
+        wrongQuestion.setArchivedAt(LocalDateTime.now());
+        userWrongQuestionMapper.updateById(wrongQuestion);
+        return Map.of("message", "错题已归档");
     }
 
     @Override
@@ -991,8 +1061,8 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
         queryWrapper.eq("user_id", userId).eq("question_id", level.getQuestionId()).last("limit 1");
         UserWrongQuestion wrong = userWrongQuestionMapper.selectOne(queryWrapper);
         if (passed) {
-            if (wrong != null) {
-                wrong.setResolved(true);
+            if (wrong != null && !WRONG_STATUS_ARCHIVED.equals(defaultText(wrong.getStatus(), WRONG_STATUS_REVIEWING))) {
+                applyWrongQuestionReviewResult(wrong, "pass");
                 userWrongQuestionMapper.updateById(wrong);
             }
             return;
@@ -1004,16 +1074,68 @@ public class PracticeCampaignServiceImpl implements PracticeCampaignService {
             wrong.setQuestionId(level.getQuestionId());
             wrong.setLevelId(level.getId());
             wrong.setWrongCount(1);
+            wrong.setStatus(WRONG_STATUS_NEW);
+            wrong.setNextReviewAt(LocalDateTime.now());
+            wrong.setReviewRound(0);
+            wrong.setLastReviewResult("fail");
+            wrong.setMasteredAt(null);
+            wrong.setArchivedAt(null);
             wrong.setResolved(false);
-            wrong.setLastWrongTime(java.time.LocalDateTime.now());
+            wrong.setLastWrongTime(LocalDateTime.now());
             userWrongQuestionMapper.insert(wrong);
         } else {
-            wrong.setResolved(false);
             wrong.setLevelId(level.getId());
             wrong.setWrongCount((wrong.getWrongCount() == null ? 0 : wrong.getWrongCount()) + 1);
-            wrong.setLastWrongTime(java.time.LocalDateTime.now());
+            applyWrongQuestionReviewResult(wrong, "fail");
+            wrong.setLastWrongTime(LocalDateTime.now());
             userWrongQuestionMapper.updateById(wrong);
         }
+    }
+
+    private void applyWrongQuestionReviewResult(UserWrongQuestion wrongQuestion, String result) {
+        LocalDateTime now = LocalDateTime.now();
+        wrongQuestion.setLastReviewResult(result);
+        wrongQuestion.setArchivedAt(null);
+        if ("pass".equals(result)) {
+            wrongQuestion.setResolved(true);
+            wrongQuestion.setReviewRound((wrongQuestion.getReviewRound() == null ? 0 : wrongQuestion.getReviewRound()) + 1);
+            wrongQuestion.setLastWrongTime(wrongQuestion.getLastWrongTime() == null ? now : wrongQuestion.getLastWrongTime());
+            int reviewRound = wrongQuestion.getReviewRound() == null ? 0 : wrongQuestion.getReviewRound();
+            if (reviewRound >= 3) {
+                markWrongQuestionMastered(wrongQuestion);
+                wrongQuestion.setNextReviewAt(now.plusDays(7));
+            } else {
+                wrongQuestion.setStatus(reviewRound == 1 ? WRONG_STATUS_NEW : WRONG_STATUS_REVIEWING);
+                wrongQuestion.setMasteredAt(null);
+                wrongQuestion.setNextReviewAt(now.plusDays(reviewRound == 1 ? 1 : 3));
+            }
+            return;
+        }
+
+        wrongQuestion.setResolved(false);
+        wrongQuestion.setStatus(wrongQuestion.getId() == null ? WRONG_STATUS_NEW : WRONG_STATUS_REVIEWING);
+        wrongQuestion.setReviewRound(0);
+        wrongQuestion.setNextReviewAt(now);
+        wrongQuestion.setMasteredAt(null);
+    }
+
+    private void markWrongQuestionMastered(UserWrongQuestion wrongQuestion) {
+        LocalDateTime now = LocalDateTime.now();
+        wrongQuestion.setResolved(true);
+        wrongQuestion.setStatus(WRONG_STATUS_MASTERED);
+        wrongQuestion.setReviewRound(Math.max(3, wrongQuestion.getReviewRound() == null ? 0 : wrongQuestion.getReviewRound()));
+        wrongQuestion.setLastReviewResult("pass");
+        wrongQuestion.setMasteredAt(now);
+        wrongQuestion.setNextReviewAt(now.plusDays(7));
+        wrongQuestion.setArchivedAt(null);
+    }
+
+    private boolean isDueForReview(UserWrongQuestion wrongQuestion, LocalDateTime now) {
+        if (wrongQuestion == null || WRONG_STATUS_ARCHIVED.equals(defaultText(wrongQuestion.getStatus(), WRONG_STATUS_REVIEWING))) {
+            return false;
+        }
+        LocalDateTime nextReviewAt = wrongQuestion.getNextReviewAt();
+        return nextReviewAt == null || !nextReviewAt.isAfter(now);
     }
 
     private int awardLevelFirstPassBonus(Long userId, PracticeLevel level, boolean passed, UserLevelProgress existingProgress) {

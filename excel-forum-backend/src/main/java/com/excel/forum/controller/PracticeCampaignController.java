@@ -2,6 +2,7 @@ package com.excel.forum.controller;
 
 import com.excel.forum.entity.dto.PracticeCampaignStartRequest;
 import com.excel.forum.entity.dto.PracticeCampaignSubmitRequest;
+import com.excel.forum.entity.dto.WrongQuestionReviewRequest;
 import com.excel.forum.service.PracticeCampaignService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -88,6 +89,37 @@ public class PracticeCampaignController {
             @PathVariable Long wrongQuestionId) {
         try {
             return ResponseEntity.ok(practiceCampaignService.resolveWrongQuestion(userId, wrongQuestionId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/wrongs/{wrongQuestionId}/review-result")
+    public ResponseEntity<?> submitWrongQuestionReviewResult(
+            @RequestAttribute Long userId,
+            @PathVariable Long wrongQuestionId,
+            @RequestBody(required = false) WrongQuestionReviewRequest request) {
+        try {
+            return ResponseEntity.ok(practiceCampaignService.submitWrongQuestionReviewResult(
+                    userId,
+                    wrongQuestionId,
+                    request == null ? null : request.getResult()
+            ));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/wrongs/{wrongQuestionId}/archive")
+    public ResponseEntity<?> archiveWrongQuestion(
+            @RequestAttribute Long userId,
+            @PathVariable Long wrongQuestionId) {
+        try {
+            return ResponseEntity.ok(practiceCampaignService.archiveWrongQuestion(userId, wrongQuestionId));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (IllegalStateException e) {

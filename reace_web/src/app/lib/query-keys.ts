@@ -83,6 +83,17 @@ export const tutorialKeys = {
   home: () => ["tutorials", "home"] as const,
 };
 
+export const onboardingKeys = {
+  recommendation: () => ["onboarding", "recommendation"] as const,
+};
+
+export const searchKeys = {
+  all: (keyword: string) => ["search", "all", keyword] as const,
+  tutorials: (keyword: string) => ["search", "tutorials", keyword] as const,
+  questions: (keyword: string) => ["search", "questions", keyword] as const,
+  functions: (keyword: string) => ["search", "functions", keyword] as const,
+};
+
 export const templateKeys = {
   list: (category: string) => ["templates", "list", category] as const,
   records: () => ["templates", "records"] as const,

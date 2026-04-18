@@ -89,7 +89,11 @@ export function Layout() {
   const [showSearchTypeDropdown, setShowSearchTypeDropdown] = useState(false);
   const searchTypeDropdownRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchSuggestions, setSearchSuggestions] = useState<{ posts: any[]; users: any[] }>({ posts: [], users: [] });
+  const [searchSuggestions, setSearchSuggestions] = useState<{ tutorials: any[]; questions: any[]; functions: any[] }>({
+    tutorials: [],
+    questions: [],
+    functions: [],
+  });
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -152,22 +156,15 @@ export function Layout() {
   useEffect(() => {
     const keyword = searchQuery.trim();
     if (!keyword) {
-      setSearchSuggestions({ posts: [], users: [] });
+      setSearchSuggestions({ tutorials: [], questions: [], functions: [] });
       setShowSuggestions(false);
       return;
     }
     const timer = setTimeout(async () => {
       try {
-        const [postsResult, usersResult] = await Promise.all([
-          (searchType === "all" || searchType === "post")
-            ? api.get<{ posts: any[] }>(`/api/posts/search?q=${encodeURIComponent(keyword)}&page=1&limit=5`, { auth: false, silent: true })
-            : { posts: [] },
-          (searchType === "all" || searchType === "user")
-            ? api.get<{ users: any[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}&page=1&limit=3`, { auth: false, silent: true })
-            : { users: [] },
-        ]);
-        setSearchSuggestions({ posts: postsResult.posts || [], users: usersResult.users || [] });
-        setShowSuggestions(true);
+        const result = await fetchSearchSuggestions(searchType, keyword);
+        setSearchSuggestions(result);
+        setShowSuggestions(hasSearchSuggestions(result));
       } catch {
         setShowSuggestions(false);
       }
@@ -408,32 +405,16 @@ export function Layout() {
 
     const keyword = searchQuery.trim();
     try {
-      if (searchType === "user") {
-        const result = await api.get<{ users: any[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true });
-        if (result.users?.[0]?.id) {
-          navigate(`/user/${result.users[0].id}`);
-        } else {
-          toast.info("未找到相关用户");
-        }
-      } else if (searchType === "post") {
-        const result = await api.get<{ posts: any[] }>(`/api/posts/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true });
-        if (result.posts?.[0]?.id) {
-          navigate(`/post/${result.posts[0].id}`);
-        } else {
-          toast.info("未找到相关帖子");
-        }
+      const result = await fetchSearchSuggestions(searchType, keyword, 1);
+      const firstResult =
+        result.tutorials?.[0] ||
+        result.questions?.[0] ||
+        result.functions?.[0] ||
+        null;
+      if (firstResult?.targetUrl) {
+        navigate(firstResult.targetUrl);
       } else {
-        const [posts, users] = await Promise.all([
-          api.get<{ posts: any[] }>(`/api/posts/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true }),
-          api.get<{ users: any[] }>(`/api/users/search?q=${encodeURIComponent(keyword)}&page=1&limit=1`, { silent: true }),
-        ]);
-        if (posts.posts?.[0]?.id) {
-          navigate(`/post/${posts.posts[0].id}`);
-        } else if (users.users?.[0]?.id) {
-          navigate(`/user/${users.users[0].id}`);
-        } else {
-          toast.info("未找到相关内容");
-        }
+        toast.info("未找到相关内容");
       }
     } finally {
       setSearchQuery("");
@@ -672,7 +653,7 @@ export function Layout() {
                   onClick={() => setShowSearchTypeDropdown(!showSearchTypeDropdown)}
                   className="flex items-center gap-1 pl-3 pr-2 py-1.5 text-sm text-slate-500 hover:text-slate-700 bg-transparent rounded-l-full border-r border-gray-200"
                 >
-                  {searchType === "user" ? "用户" : searchType === "post" ? "帖子" : "全部"}
+                  {searchType === "tutorial" ? "教程" : searchType === "question" ? "题目" : searchType === "function" ? "函数" : "全部"}
                   <ChevronDown size={14} className={`transition-transform ${showSearchTypeDropdown ? "rotate-180" : ""}`} />
                 </button>
                 
@@ -687,8 +668,9 @@ export function Layout() {
                     >
                       {[
                         { id: "all", label: "全部" },
-                        { id: "user", label: "用户" },
-                        { id: "post", label: "帖子" },
+                        { id: "tutorial", label: "教程" },
+                        { id: "question", label: "题目" },
+                        { id: "function", label: "函数" },
                       ].map((type) => (
                         <button
                           key={type.id}
@@ -712,16 +694,16 @@ export function Layout() {
 
               <input
                 type="text"
-                placeholder="搜索用户、帖子、题目..."
+                placeholder="搜索教程、练习题、函数..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => { if (searchQuery.trim() && (searchSuggestions.posts.length || searchSuggestions.users.length)) setShowSuggestions(true); }}
+                onFocus={() => { if (searchQuery.trim() && hasSearchSuggestions(searchSuggestions)) setShowSuggestions(true); }}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full bg-gray-100/80 border-transparent focus:bg-white focus:border-teal-500 focus:ring-2 focus:ring-teal-200 rounded-full text-sm transition-all outline-none pl-[90px] pr-4 py-2"
               />
 
               <AnimatePresence>
-                {showSuggestions && (searchSuggestions.posts.length > 0 || searchSuggestions.users.length > 0) && (
+                {showSuggestions && hasSearchSuggestions(searchSuggestions) && (
                   <motion.div
                     initial={{ opacity: 0, y: -5 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -729,37 +711,55 @@ export function Layout() {
                     transition={{ duration: 0.15 }}
                     className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl overflow-hidden z-50 max-h-[360px] overflow-y-auto"
                   >
-                    {searchSuggestions.posts.length > 0 && (
+                    {searchSuggestions.tutorials.length > 0 && (
                       <div>
-                        <div className="px-4 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase bg-slate-50/50">帖子</div>
-                        {searchSuggestions.posts.map((post: any) => (
+                        <div className="px-4 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase bg-slate-50/50">教程</div>
+                        {searchSuggestions.tutorials.map((tutorial: any) => (
                           <div
-                            key={`post-${post.id}`}
-                            onClick={() => { setShowSuggestions(false); setSearchQuery(""); navigate(`/post/${post.id}`); }}
+                            key={`tutorial-${tutorial.id}`}
+                            onClick={() => { setShowSuggestions(false); setSearchQuery(""); navigate(tutorial.targetUrl); }}
                             className="px-4 py-3 hover:bg-teal-50 cursor-pointer flex items-start gap-3 transition-colors"
                           >
-                            <MessageSquare size={16} className="text-slate-400 mt-0.5 shrink-0" />
+                            <BookOpen size={16} className="text-slate-400 mt-0.5 shrink-0" />
                             <div className="min-w-0">
-                              <div className="text-sm font-bold text-slate-800 truncate">{post.title}</div>
-                              <div className="text-xs text-slate-400 mt-0.5 truncate">{post.author?.username} · {post.replyCount || 0} 评论</div>
+                              <div className="text-sm font-bold text-slate-800 truncate">{tutorial.title}</div>
+                              <div className="text-xs text-slate-400 mt-0.5 truncate">{tutorial.summary || "点击查看教程详情"}</div>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
-                    {searchSuggestions.users.length > 0 && (
+                    {searchSuggestions.questions.length > 0 && (
                       <div>
-                        <div className="px-4 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase bg-slate-50/50 border-t border-gray-100">用户</div>
-                        {searchSuggestions.users.map((u: any) => (
+                        <div className="px-4 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase bg-slate-50/50 border-t border-gray-100">题目</div>
+                        {searchSuggestions.questions.map((question: any) => (
                           <div
-                            key={`user-${u.id}`}
-                            onClick={() => { setShowSuggestions(false); setSearchQuery(""); navigate(`/user/${u.id}`); }}
+                            key={`question-${question.id}`}
+                            onClick={() => { setShowSuggestions(false); setSearchQuery(""); navigate(question.targetUrl); }}
                             className="px-4 py-3 hover:bg-teal-50 cursor-pointer flex items-center gap-3 transition-colors"
                           >
-                            <img src={normalizeAvatarUrl(u.avatar, u.username)} className="w-8 h-8 rounded-full object-cover border border-gray-100" alt="" />
+                            <TargetIcon size={16} className="shrink-0 text-slate-400" />
                             <div className="min-w-0">
-                              <div className="text-sm font-bold text-slate-800 truncate">{u.username}</div>
-                              <div className="text-xs text-slate-400">{u.role || "用户"}</div>
+                              <div className="text-sm font-bold text-slate-800 truncate">{question.title}</div>
+                              <div className="text-xs text-slate-400 truncate">{question.summary || "点击开始练习"}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {searchSuggestions.functions.length > 0 && (
+                      <div>
+                        <div className="px-4 py-2 text-[11px] font-bold text-slate-400 tracking-wider uppercase bg-slate-50/50 border-t border-gray-100">函数</div>
+                        {searchSuggestions.functions.map((func: any) => (
+                          <div
+                            key={`function-${func.id}`}
+                            onClick={() => { setShowSuggestions(false); setSearchQuery(""); navigate(func.targetUrl); }}
+                            className="px-4 py-3 hover:bg-teal-50 cursor-pointer flex items-center gap-3 transition-colors"
+                          >
+                            <Wrench size={16} className="shrink-0 text-slate-400" />
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-slate-800 truncate">{func.title}</div>
+                              <div className="text-xs text-slate-400 truncate">{func.summary || "点击查看相关教程"}</div>
                             </div>
                           </div>
                         ))}
@@ -1054,7 +1054,7 @@ export function Layout() {
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <div>
                             <div className="text-base font-black text-slate-900">站内搜索</div>
-                            <div className="mt-1 text-xs font-medium text-slate-500">搜索用户、帖子与题目内容</div>
+                            <div className="mt-1 text-xs font-medium text-slate-500">搜索教程、题目与函数</div>
                           </div>
                           <button
                             type="button"
@@ -1067,11 +1067,12 @@ export function Layout() {
                             <X size={17} />
                           </button>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-4 gap-2">
                           {[
                             { key: "all", label: "全部" },
-                            { key: "user", label: "用户" },
-                            { key: "post", label: "帖子" },
+                            { key: "tutorial", label: "教程" },
+                            { key: "question", label: "题目" },
+                            { key: "function", label: "函数" },
                           ].map((option) => (
                             <button
                               key={option.key}
@@ -1097,7 +1098,7 @@ export function Layout() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             onFocus={() => {
-                              if (searchQuery.trim() && (searchSuggestions.posts.length || searchSuggestions.users.length)) {
+                              if (searchQuery.trim() && hasSearchSuggestions(searchSuggestions)) {
                                 setShowSuggestions(true);
                               }
                             }}
@@ -1123,20 +1124,20 @@ export function Layout() {
                           </button>
                         </div>
                         <div className="mt-4 max-h-[42vh] overflow-y-auto">
-                          {showSuggestions && (searchSuggestions.posts.length > 0 || searchSuggestions.users.length > 0) ? (
+                          {showSuggestions && hasSearchSuggestions(searchSuggestions) ? (
                             <div className="space-y-4">
-                              {searchSuggestions.posts.length > 0 ? (
+                              {searchSuggestions.tutorials.length > 0 ? (
                                 <div className="space-y-2">
-                                  <div className="px-1 text-[11px] font-black tracking-[0.18em] text-slate-400">帖子</div>
-                                  {searchSuggestions.posts.map((post) => (
+                                  <div className="px-1 text-[11px] font-black tracking-[0.18em] text-slate-400">教程</div>
+                                  {searchSuggestions.tutorials.map((tutorial) => (
                                     <button
-                                      key={`mobile-search-post-${post.id}`}
+                                      key={`mobile-search-tutorial-${tutorial.id}`}
                                       type="button"
                                       onClick={() => {
                                         setMobileSearchOpen(false);
                                         setShowSuggestions(false);
                                         setSearchQuery("");
-                                        navigate(`/post/${post.id}`);
+                                        navigate(tutorial.targetUrl);
                                       }}
                                       className="flex w-full items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-3 text-left transition hover:border-teal-200 hover:bg-teal-50/60"
                                     >
@@ -1144,36 +1145,60 @@ export function Layout() {
                                         <Search size={14} />
                                       </div>
                                       <div className="min-w-0 flex-1">
-                                        <div className="truncate text-sm font-bold text-slate-800">{post.title || "未命名帖子"}</div>
-                                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{post.content || "点击查看帖子详情"}</div>
+                                        <div className="truncate text-sm font-bold text-slate-800">{tutorial.title || "未命名教程"}</div>
+                                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{tutorial.summary || "点击查看教程详情"}</div>
                                       </div>
                                     </button>
                                   ))}
                                 </div>
                               ) : null}
-                              {searchSuggestions.users.length > 0 ? (
+                              {searchSuggestions.questions.length > 0 ? (
                                 <div className="space-y-2">
-                                  <div className="px-1 text-[11px] font-black tracking-[0.18em] text-slate-400">用户</div>
-                                  {searchSuggestions.users.map((account) => (
+                                  <div className="px-1 text-[11px] font-black tracking-[0.18em] text-slate-400">题目</div>
+                                  {searchSuggestions.questions.map((question) => (
                                     <button
-                                      key={`mobile-search-user-${account.id}`}
+                                      key={`mobile-search-question-${question.id}`}
                                       type="button"
                                       onClick={() => {
                                         setMobileSearchOpen(false);
                                         setShowSuggestions(false);
                                         setSearchQuery("");
-                                        navigate(`/user/${account.id}`);
+                                        navigate(question.targetUrl);
                                       }}
                                       className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-3 text-left transition hover:border-teal-200 hover:bg-teal-50/60"
                                     >
-                                      <img
-                                        src={normalizeAvatarUrl(account.avatar, account.username)}
-                                        alt={account.username || "用户"}
-                                        className="h-10 w-10 rounded-full object-cover ring-1 ring-slate-200"
-                                      />
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-500 ring-1 ring-slate-200">
+                                        <TargetIcon size={16} />
+                                      </div>
                                       <div className="min-w-0 flex-1">
-                                        <div className="truncate text-sm font-bold text-slate-800">{account.username || "未命名用户"}</div>
-                                        <div className="mt-1 truncate text-xs text-slate-500">{account.bio || "点击查看个人主页"}</div>
+                                        <div className="truncate text-sm font-bold text-slate-800">{question.title || "未命名题目"}</div>
+                                        <div className="mt-1 truncate text-xs text-slate-500">{question.summary || "点击开始练习"}</div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {searchSuggestions.functions.length > 0 ? (
+                                <div className="space-y-2">
+                                  <div className="px-1 text-[11px] font-black tracking-[0.18em] text-slate-400">函数</div>
+                                  {searchSuggestions.functions.map((func) => (
+                                    <button
+                                      key={`mobile-search-function-${func.id}`}
+                                      type="button"
+                                      onClick={() => {
+                                        setMobileSearchOpen(false);
+                                        setShowSuggestions(false);
+                                        setSearchQuery("");
+                                        navigate(func.targetUrl);
+                                      }}
+                                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-3 text-left transition hover:border-teal-200 hover:bg-teal-50/60"
+                                    >
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-500 ring-1 ring-slate-200">
+                                        <Wrench size={16} />
+                                      </div>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-bold text-slate-800">{func.title || "未命名函数"}</div>
+                                        <div className="mt-1 truncate text-xs text-slate-500">{func.summary || "点击查看相关教程"}</div>
                                       </div>
                                     </button>
                                   ))}
@@ -1186,7 +1211,7 @@ export function Layout() {
                                 <Search size={18} />
                               </div>
                               <div className="text-sm font-bold text-slate-700">输入关键词开始搜索</div>
-                              <div className="mt-1 text-xs leading-5 text-slate-500">支持按用户、帖子和题目进行站内检索</div>
+                              <div className="mt-1 text-xs leading-5 text-slate-500">支持按教程、题目和函数进行站内检索</div>
                             </div>
                           )}
                         </div>
@@ -1499,4 +1524,29 @@ function renderCountBadge(count: number, tone: "teal" | "rose") {
       {label}
     </span>
   );
+}
+
+async function fetchSearchSuggestions(searchType: string, keyword: string, limit = 5) {
+  if (searchType === "tutorial") {
+    const result = await api.get<{ records: any[] }>(`/api/search/tutorials?q=${encodeURIComponent(keyword)}&limit=${limit}`, { auth: false, silent: true });
+    return { tutorials: result.records || [], questions: [], functions: [] };
+  }
+  if (searchType === "question") {
+    const result = await api.get<{ records: any[] }>(`/api/search/questions?q=${encodeURIComponent(keyword)}&limit=${limit}`, { auth: false, silent: true });
+    return { tutorials: [], questions: result.records || [], functions: [] };
+  }
+  if (searchType === "function") {
+    const result = await api.get<{ records: any[] }>(`/api/search/functions?q=${encodeURIComponent(keyword)}&limit=${limit}`, { auth: false, silent: true });
+    return { tutorials: [], questions: [], functions: result.records || [] };
+  }
+  const result = await api.get<any>(`/api/search/all?q=${encodeURIComponent(keyword)}&limit=${limit}`, { auth: false, silent: true });
+  return {
+    tutorials: result.tutorials || [],
+    questions: result.questions || [],
+    functions: result.functions || [],
+  };
+}
+
+function hasSearchSuggestions(suggestions: { tutorials: any[]; questions: any[]; functions: any[] }) {
+  return suggestions.tutorials.length > 0 || suggestions.questions.length > 0 || suggestions.functions.length > 0;
 }
