@@ -400,7 +400,7 @@ export function ExcelWorkbookEditor({
       univerAPI.dispose();
       bindingRef.current = null;
     };
-  }, [instanceVersion, runtime, workbook, workbookKey, editableRangeKey, permissionScopeKey]);
+  }, [instanceVersion, runtime, workbookKey, editableRangeKey, permissionScopeKey]);
 
   useEffect(() => {
     const binding = bindingRef.current;

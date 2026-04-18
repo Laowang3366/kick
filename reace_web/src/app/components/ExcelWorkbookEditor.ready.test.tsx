@@ -345,6 +345,42 @@ describe("ExcelWorkbookEditor ready callbacks", () => {
     expect(initialCaptureReady).not.toHaveBeenCalledWith(null);
   });
 
+  test("does not recreate workbook when workbook prop identity changes but content stays the same", async () => {
+    const onEditorReady = vi.fn();
+    const { runtime, univerAPI } = createMockRuntime();
+    loadUniverRuntimeMock.mockResolvedValue(runtime);
+
+    const view = renderEditor({ onEditorReady });
+
+    await waitFor(() => {
+      expect(loadUniverRuntimeMock).toHaveBeenCalledTimes(1);
+      expect(univerAPI.createWorkbook).toHaveBeenCalledTimes(1);
+      expect(onEditorReady).toHaveBeenCalledTimes(1);
+    });
+
+    view.rerender(
+      <ExcelWorkbookEditor
+        workbook={{
+          sheets: workbookSnapshot.sheets.map((sheet) => ({
+            ...sheet,
+            cells: { ...sheet.cells },
+          })),
+        }}
+        selectedSheetName="Sheet1"
+        onSelectedSheetNameChange={vi.fn()}
+        onEditorReady={onEditorReady}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(loadUniverRuntimeMock).toHaveBeenCalledTimes(1);
+    expect(univerAPI.createWorkbook).toHaveBeenCalledTimes(1);
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+  });
+
   test("does not reload runtime or repeat editor error when only callback identities change after failure", async () => {
     const onEditorError = vi.fn();
     loadUniverRuntimeMock.mockRejectedValue(new Error("boom"));
