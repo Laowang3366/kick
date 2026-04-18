@@ -88,6 +88,19 @@ npm run build
 - 阅读 [SECURITY.md](./SECURITY.md)
 - 阅读 [docs/release-audit.md](./docs/release-audit.md)
 - 阅读 [docs/test-report.md](./docs/test-report.md)
+- 阅读 [docs/deployment-operations.md](./docs/deployment-operations.md)
+
+## 生产部署入口
+
+当前生产环境唯一部署源码目录约定为 `/www/wwwroot/kick-deploy/repo`。
+
+以下目录职责固定：
+
+- `/www/wwwroot/kick-deploy/repo`：生产部署源码与构建入口
+- `/www/wwwroot/kick-web`：前端静态运行目录
+- `/www/wwwroot/kick-backend`：后端 JAR 与环境变量目录
+
+`/www/wwwroot/kick-src/kick` 仅保留为历史工作目录，不再作为发布入口。
 
 ## 当前仓库状态
 
