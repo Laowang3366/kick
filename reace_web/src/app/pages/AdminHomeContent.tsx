@@ -4,6 +4,7 @@ import { Edit3, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { RichContentEditor } from "../components/RichContentEditor";
 import { Switch } from "../components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import {
@@ -484,8 +485,13 @@ export function AdminHomeContent() {
         <Field label="函数标签">
           <input value={articleForm.functionTags} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, functionTags: e.target.value }))} placeholder="例如：SUM, AVERAGE" className={inputClassName()} />
         </Field>
-        <Field label="正文内容（支持基础 HTML）">
-          <textarea value={articleForm.content} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, content: e.target.value }))} className={`${textareaClassName()} min-h-[240px]`} />
+        <Field label="正文内容">
+          <RichContentEditor
+            value={articleForm.content}
+            onChange={(nextValue) => setArticleForm((prev: any) => ({ ...prev, content: nextValue }))}
+            placeholder="开始撰写条目正文..."
+            minHeightClassName="min-h-[360px]"
+          />
         </Field>
         <div className="grid gap-4 xl:grid-cols-2">
           <Field label="关联章节">
