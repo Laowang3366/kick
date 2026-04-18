@@ -73,6 +73,10 @@ export function Home() {
 
   const categories = tutorialsQuery.data?.categories || [];
   const learningTrack = recommendationQuery.data?.track || tutorialsQuery.data?.learningTrack || "general";
+  const visibleCategories = useMemo(
+    () => categories.filter((category: any) => matchesTutorialTrack(category.audienceTrack || "general", learningTrack)),
+    [categories, learningTrack]
+  );
   const recommendedArticleId = recommendationQuery.data?.recommendedArticle?.id || null;
   const recommendedChapter = recommendationQuery.data?.recommendedChapter || null;
   const searchResults = deferredKeyword ? searchQuery.data || EMPTY_SEARCH : EMPTY_SEARCH;
@@ -82,7 +86,7 @@ export function Home() {
   }, [isAuthenticated, recommendationQuery.data?.needsAssessment]);
 
   useEffect(() => {
-    if (!categories.length) {
+    if (!visibleCategories.length) {
       setActiveCategoryId(null);
       setActiveArticleId(null);
       setExpandedCategoryId(null);
@@ -91,20 +95,20 @@ export function Home() {
 
     const articleParam = Number(new URLSearchParams(location.search).get("article") || "");
     const preferredArticleId = Number.isFinite(articleParam) && articleParam > 0 ? articleParam : recommendedArticleId;
-    const preferredSelection = preferredArticleId ? findArticleSelection(categories, preferredArticleId) : null;
-    const fallbackCategory = categories.find((item: any) => item.id === activeCategoryId) || categories[0];
+    const preferredSelection = preferredArticleId ? findArticleSelection(visibleCategories, preferredArticleId) : null;
+    const fallbackCategory = visibleCategories.find((item: any) => item.id === activeCategoryId) || visibleCategories[0];
     const fallbackArticle = fallbackCategory?.articles?.find((item: any) => item.id === activeArticleId) || fallbackCategory?.articles?.[0] || null;
     const nextCategoryId = preferredSelection?.categoryId || fallbackCategory?.id || null;
     const nextArticleId = preferredSelection?.articleId || fallbackArticle?.id || null;
 
     setActiveCategoryId(nextCategoryId);
     setActiveArticleId(nextArticleId);
-    setExpandedCategoryId((current) => current && categories.some((item: any) => item.id === current) ? current : nextCategoryId);
-  }, [categories, location.search, recommendedArticleId, activeArticleId, activeCategoryId]);
+    setExpandedCategoryId((current) => current && visibleCategories.some((item: any) => item.id === current) ? current : nextCategoryId);
+  }, [visibleCategories, location.search, recommendedArticleId, activeArticleId, activeCategoryId]);
 
   const activeCategory = useMemo(
-    () => categories.find((item: any) => item.id === activeCategoryId) || categories[0] || null,
-    [categories, activeCategoryId]
+    () => visibleCategories.find((item: any) => item.id === activeCategoryId) || visibleCategories[0] || null,
+    [visibleCategories, activeCategoryId]
   );
   const activeArticle = useMemo(
     () => activeCategory?.articles?.find((item: any) => item.id === activeArticleId) || activeCategory?.articles?.[0] || null,
@@ -116,7 +120,9 @@ export function Home() {
     if (!articleId) {
       return;
     }
-    const selection = categoryId ? { articleId, categoryId } : findArticleSelection(categories, articleId);
+    const selection = categoryId && visibleCategories.some((item: any) => item.id === categoryId)
+      ? { articleId, categoryId }
+      : findArticleSelection(visibleCategories, articleId);
     if (!selection) {
       return;
     }
@@ -208,7 +214,7 @@ export function Home() {
                 </div>
               ) : (
                 <div className="mt-3 space-y-2">
-                  {categories.map((category: any, index: number) => {
+                  {visibleCategories.map((category: any, index: number) => {
                     const isActive = category.id === activeCategory?.id;
                     const isExpanded = category.id === expandedCategoryId;
                     return (
@@ -278,7 +284,7 @@ export function Home() {
                 </div>
               )}
 
-              {!categories.length ? (
+              {!visibleCategories.length ? (
                 <div className="mt-4 rounded-[22px] border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-400">
                   暂无可展示分类
                 </div>
@@ -520,6 +526,18 @@ function findArticleSelection(categories: any[], articleId: number) {
     }
   }
   return null;
+}
+
+function matchesTutorialTrack(categoryTrack: string, learningTrack: string) {
+  const normalizedCategoryTrack = (categoryTrack || "general").trim().toLowerCase();
+  const normalizedLearningTrack = (learningTrack || "general").trim().toLowerCase();
+  if (normalizedLearningTrack === "beginner") {
+    return normalizedCategoryTrack === "beginner" || normalizedCategoryTrack === "general";
+  }
+  if (normalizedLearningTrack === "intermediate") {
+    return normalizedCategoryTrack === "advanced" || normalizedCategoryTrack === "general";
+  }
+  return true;
 }
 
 const trackLabel: Record<string, string> = {

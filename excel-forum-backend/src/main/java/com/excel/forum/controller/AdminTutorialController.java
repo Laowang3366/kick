@@ -228,6 +228,7 @@ public class AdminTutorialController {
     private void applyCategory(TutorialCategory category, AdminTutorialCategoryRequest request) {
         category.setName(normalizeText(request.getName()));
         category.setDescription(normalizeText(request.getDescription()));
+        category.setAudienceTrack(normalizeAudienceTrack(request.getAudienceTrack()));
         category.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
         category.setEnabled(request.getEnabled() == null || Boolean.TRUE.equals(request.getEnabled()));
     }
@@ -392,5 +393,20 @@ public class AdminTutorialController {
 
     private String defaultText(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String normalizeAudienceTrack(String value) {
+        String normalized = normalizeText(value);
+        if (normalized == null) {
+            return "general";
+        }
+        String lowered = normalized.toLowerCase();
+        if ("beginner".equals(lowered)) {
+            return "beginner";
+        }
+        if ("advanced".equals(lowered) || "intermediate".equals(lowered)) {
+            return "advanced";
+        }
+        return "general";
     }
 }

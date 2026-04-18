@@ -39,6 +39,7 @@ type FormDialogProps = {
 const defaultCategoryForm = {
   name: "",
   description: "",
+  audienceTrack: "general",
   sortOrder: 0,
   enabled: true,
 };
@@ -148,6 +149,7 @@ export function AdminHomeContent() {
     setCategoryForm({
       name: item.name || "",
       description: item.description || "",
+      audienceTrack: item.audienceTrack || "general",
       sortOrder: item.sortOrder ?? 0,
       enabled: item.enabled ?? true,
     });
@@ -266,6 +268,7 @@ export function AdminHomeContent() {
             <TableRow>
               <TableHead>分类名称</TableHead>
               <TableHead>说明</TableHead>
+              <TableHead>适用轨道</TableHead>
               <TableHead>条目数</TableHead>
               <TableHead>排序</TableHead>
               <TableHead>启用</TableHead>
@@ -277,6 +280,7 @@ export function AdminHomeContent() {
               <TableRow key={item.id}>
                 <TableCell className="font-bold text-slate-800">{item.name}</TableCell>
                 <TableCell className="max-w-[420px] truncate">{item.description || "-"}</TableCell>
+                <TableCell>{audienceTrackLabel[item.audienceTrack] || "通用"}</TableCell>
                 <TableCell>{item.articleCount ?? 0}</TableCell>
                 <TableCell>{item.sortOrder ?? 0}</TableCell>
                 <TableCell>
@@ -287,6 +291,7 @@ export function AdminHomeContent() {
                         await api.put(`/api/admin/tutorials/categories/${item.id}`, {
                           name: item.name,
                           description: item.description,
+                          audienceTrack: item.audienceTrack,
                           sortOrder: item.sortOrder,
                           enabled: next,
                         });
@@ -422,7 +427,14 @@ export function AdminHomeContent() {
         <Field label="分类说明">
           <textarea value={categoryForm.description} onChange={(e) => setCategoryForm((prev: any) => ({ ...prev, description: e.target.value }))} className={textareaClassName()} />
         </Field>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field label="适用轨道">
+            <select value={categoryForm.audienceTrack} onChange={(e) => setCategoryForm((prev: any) => ({ ...prev, audienceTrack: e.target.value }))} className={inputClassName()}>
+              {Object.entries(audienceTrackLabel).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="排序">
             <input type="number" value={categoryForm.sortOrder} onChange={(e) => setCategoryForm((prev: any) => ({ ...prev, sortOrder: Number(e.target.value || 0) }))} className={inputClassName()} />
           </Field>

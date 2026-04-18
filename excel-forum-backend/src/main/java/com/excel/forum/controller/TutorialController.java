@@ -47,6 +47,11 @@ public class TutorialController {
             @RequestParam(value = "track", required = false) String track) {
         String effectiveTrack = onboardingService.resolveTrack(userId, track);
         List<TutorialCategory> categories = tutorialCategoryService.listWithArticleCount(true);
+        if (effectiveTrack != null && !effectiveTrack.isBlank()) {
+            categories = categories.stream()
+                    .filter(category -> matchesTrack(defaultText(category.getAudienceTrack(), "general"), effectiveTrack))
+                    .collect(Collectors.toList());
+        }
         Map<Long, List<TutorialArticle>> articlesByCategoryId = tutorialArticleService.groupByCategoryIds(
                 categories.stream().map(TutorialCategory::getId).filter(Objects::nonNull).toList(),
                 true
@@ -93,6 +98,7 @@ public class TutorialController {
                     result.put("id", category.getId());
                     result.put("name", category.getName());
                     result.put("description", category.getDescription() == null ? "" : category.getDescription());
+                    result.put("audienceTrack", defaultText(category.getAudienceTrack(), "general"));
                     result.put("sortOrder", category.getSortOrder() == null ? 0 : category.getSortOrder());
                     result.put("articleCount", articles.size());
                     result.put("articles", articles);

@@ -16,6 +16,7 @@ public class TutorialCategory {
     private Long id;
     private String name;
     private String description;
+    private String audienceTrack;
     private Integer sortOrder;
     private Boolean enabled;
     @TableField(exist = false)
