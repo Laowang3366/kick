@@ -24,6 +24,11 @@ export default defineConfig({
     },
   },
   build: {
+    // The Excel editor is already route-level lazy loaded and ships with the
+    // Univer spreadsheet engine. Its dedicated chunk is expected to exceed the
+    // default 500 kB warning threshold, so raise the threshold to keep real
+    // build regressions actionable.
+    chunkSizeWarningLimit: 5500,
     rollupOptions: {
       output: {
         manualChunks(id) {
