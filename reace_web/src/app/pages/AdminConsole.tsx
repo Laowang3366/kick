@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { ExcelWorkbookPreview } from "../components/ExcelWorkbookPreview";
 import { Switch } from "../components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { api, ApiError } from "../lib/api";
@@ -2188,7 +2189,10 @@ export function AdminQuestions() {
   const [isTemplateEditMode, setIsTemplateEditMode] = useState(true);
   const [isSelectingAnswerRange, setIsSelectingAnswerRange] = useState(false);
   const [editorFullscreenVersion, setEditorFullscreenVersion] = useState(0);
+  const [editorReady, setEditorReady] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const editorSnapshotGetterRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
+  const templateLoadRequestRef = useRef(0);
   const size = 10;
   const query = new URLSearchParams({ page: String(page), size: String(size), type: "excel_template" });
   if (questionCategoryId) query.set("questionCategoryId", questionCategoryId);
@@ -2247,7 +2251,27 @@ export function AdminQuestions() {
     });
   }, [campaignDailyQuery.data]);
 
+  const exitEditorFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    }
+  };
+
+  const invalidateTemplateLoad = () => {
+    templateLoadRequestRef.current += 1;
+  };
+
+  const resetEditorShellState = () => {
+    editorSnapshotGetterRef.current = null;
+    setEditorReady(false);
+    setEditorError(null);
+  };
+
   const resetEditorState = () => {
+    invalidateTemplateLoad();
+    exitEditorFullscreen();
+    resetEditorShellState();
+    setTemplateLoading(false);
     setTemplateWorkbook({ sheets: [] });
     setEditorWorkbook({ sheets: [] });
     setSelectedSheetName("");
@@ -2262,6 +2286,9 @@ export function AdminQuestions() {
     answerRange?: string | null,
     answerSnapshotJson?: string | null,
   ) => {
+    const requestId = templateLoadRequestRef.current + 1;
+    templateLoadRequestRef.current = requestId;
+    resetEditorShellState();
     setTemplateLoading(true);
     try {
       const snapshot = await adminRequest<any>(
@@ -2269,6 +2296,7 @@ export function AdminQuestions() {
         navigate,
         role,
       );
+      if (templateLoadRequestRef.current !== requestId) return;
       if (!snapshot) return;
       const sheetName = answerSheet || snapshot.sheets?.[0]?.name || "";
       const workbookWithAnswer = buildWorkbookWithAnswerSnapshot(snapshot, answerSheet, answerRange, answerSnapshotJson);
@@ -2280,7 +2308,9 @@ export function AdminQuestions() {
         ? normalizeSelection(sheetName, parsedRange.startRow, parsedRange.startCol, parsedRange.endRow, parsedRange.endCol)
         : null);
     } finally {
-      setTemplateLoading(false);
+      if (templateLoadRequestRef.current === requestId) {
+        setTemplateLoading(false);
+      }
     }
   };
 
@@ -2366,7 +2396,9 @@ export function AdminQuestions() {
         return;
       }
     }
-    const latestWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
+    const latestWorkbook = editorReady && !editorError
+      ? (editorSnapshotGetterRef.current?.() || editorWorkbook)
+      : editorWorkbook;
     if (latestWorkbook !== editorWorkbook) {
       setEditorWorkbook(latestWorkbook);
     }
@@ -2559,7 +2591,9 @@ export function AdminQuestions() {
     ? (selectionToRangeRef(selection) || primaryRangeRef || "未选择")
     : (primaryRangeRef || "未选择");
   const sheetOptions = templateWorkbook.sheets || [];
-  const currentPreviewWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
+  const currentPreviewWorkbook = editorReady && !editorError
+    ? (editorSnapshotGetterRef.current?.() || editorWorkbook)
+    : editorWorkbook;
   const answerPreview = extractRangeAnswerSnapshot(
     currentPreviewWorkbook,
     primarySheetName,
@@ -2625,9 +2659,7 @@ export function AdminQuestions() {
     }));
     setSelectedSheetName(selection.sheetName);
     setIsSelectingAnswerRange(false);
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
-    }
+    exitEditorFullscreen();
   };
 
   return (
@@ -2806,7 +2838,16 @@ export function AdminQuestions() {
 
       <FormDialog
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) {
+            invalidateTemplateLoad();
+            exitEditorFullscreen();
+            resetEditorShellState();
+            setIsSelectingAnswerRange(false);
+            setTemplateLoading(false);
+          }
+        }}
         title={editing ? "编辑 Excel 模板题" : "新增 Excel 模板题"}
         description="上传模板后，直接在表格里选择答题工作表、框选区域，并填写标准答案。"
         submitLabel={editing ? "保存题目" : "创建题目"}
@@ -3191,34 +3232,70 @@ export function AdminQuestions() {
           {templateLoading ? (
             <div className="flex h-48 items-center justify-center text-sm text-slate-400">正在加载模板...</div>
           ) : sheetOptions.length > 0 ? (
-            <Suspense fallback={<div className="flex h-[460px] items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
-              <ExcelWorkbookEditor
-                workbook={editorWorkbook}
-                onWorkbookChange={isTemplateEditMode ? setEditorWorkbook : undefined}
-                selectedSheetName={selectedSheetName}
-                onSelectedSheetNameChange={(sheetName) => {
-                  setSelectedSheetName(sheetName);
-                  if (isTemplateEditMode) {
-                    setForm((prev: any) => ({ ...prev, answerSheet: sheetName }));
-                  }
-                }}
-                selection={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
-                onSelectionChange={isTemplateEditMode && isSelectingAnswerRange ? ((nextSelection) => {
-                  setSelection(nextSelection);
-                }) : undefined}
-                editableRange={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
-                selectionEnabled={isTemplateEditMode && isSelectingAnswerRange}
-                focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
-                focusRequestVersion={editorFullscreenVersion}
-                requestFullscreenVersion={editorFullscreenVersion}
-                showConfirmSelectionButton={isSelectingAnswerRange}
-                confirmSelectionLabel="确认区域"
-                onConfirmSelection={confirmAnswerRange}
-                onSnapshotCaptureReady={(capture) => {
-                  editorSnapshotGetterRef.current = capture;
-                }}
-              />
-            </Suspense>
+            <div className="relative h-[460px]">
+              <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
+                <div className={editorReady ? "h-full" : "pointer-events-none h-full opacity-0"}>
+                  <ExcelWorkbookEditor
+                    workbook={editorWorkbook}
+                    onWorkbookChange={isTemplateEditMode ? setEditorWorkbook : undefined}
+                    onEditorReady={() => {
+                      setEditorReady(true);
+                      setEditorError(null);
+                    }}
+                    onEditorError={(message) => {
+                      setEditorReady(false);
+                      setEditorError(message);
+                      editorSnapshotGetterRef.current = null;
+                    }}
+                    selectedSheetName={selectedSheetName}
+                    onSelectedSheetNameChange={(sheetName) => {
+                      setSelectedSheetName(sheetName);
+                      if (isTemplateEditMode) {
+                        setForm((prev: any) => ({ ...prev, answerSheet: sheetName }));
+                      }
+                    }}
+                    selection={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
+                    onSelectionChange={isTemplateEditMode && isSelectingAnswerRange ? ((nextSelection) => {
+                      setSelection(nextSelection);
+                    }) : undefined}
+                    editableRange={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
+                    selectionEnabled={isTemplateEditMode && isSelectingAnswerRange}
+                    focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
+                    focusRequestVersion={editorFullscreenVersion}
+                    requestFullscreenVersion={editorFullscreenVersion}
+                    showConfirmSelectionButton={isSelectingAnswerRange}
+                    confirmSelectionLabel="确认区域"
+                    onConfirmSelection={confirmAnswerRange}
+                    onSnapshotCaptureReady={(capture) => {
+                      editorSnapshotGetterRef.current = capture;
+                    }}
+                  />
+                </div>
+              </Suspense>
+              {!editorReady ? (
+                <div data-testid="admin-questions-preview-shell" className="absolute inset-0 z-10 flex flex-col gap-3">
+                  <div className={`rounded-2xl border px-4 py-3 text-sm font-bold shadow-sm ${
+                    editorError
+                      ? "border-rose-100 bg-rose-50 text-rose-600"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}>
+                    {editorError || "编辑器准备中"}
+                  </div>
+                  <ExcelWorkbookPreview
+                    workbook={editorWorkbook}
+                    selectedSheetName={selectedSheetName}
+                    onSelectedSheetNameChange={(sheetName) => {
+                      setSelectedSheetName(sheetName);
+                      if (isTemplateEditMode) {
+                        setForm((prev: any) => ({ ...prev, answerSheet: sheetName }));
+                      }
+                    }}
+                    focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
+                    className="flex-1"
+                  />
+                </div>
+              ) : null}
+            </div>
           ) : (
             <div className="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
               上传 Excel 模板后即可开始配置

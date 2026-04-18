@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { ExcelWorkbookPreview } from "../components/ExcelWorkbookPreview";
 import { api } from "../lib/api";
 import {
   buildWorkbookWithAnswerSnapshot,
@@ -58,7 +59,10 @@ export function Practice() {
   const [isSelectingAnswerRange, setIsSelectingAnswerRange] = useState(false);
   const [editorFullscreenVersion, setEditorFullscreenVersion] = useState(0);
   const [submissionForm, setSubmissionForm] = useState(defaultSubmissionForm());
+  const [editorReady, setEditorReady] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const editorSnapshotGetterRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
+  const templateLoadRequestRef = useRef(0);
 
   useEffect(() => scheduleExcelEditorPreload(), []);
 
@@ -97,8 +101,28 @@ export function Practice() {
       || item.questionCategoryName === activeTab
   ));
 
+  const exitEditorFullscreen = () => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen();
+    }
+  };
+
+  const invalidateTemplateLoad = () => {
+    templateLoadRequestRef.current += 1;
+  };
+
+  const resetEditorShellState = () => {
+    editorSnapshotGetterRef.current = null;
+    setEditorReady(false);
+    setEditorError(null);
+  };
+
   const resetSubmissionState = () => {
+    invalidateTemplateLoad();
+    exitEditorFullscreen();
+    resetEditorShellState();
     setSubmissionForm(defaultSubmissionForm());
+    setTemplateLoading(false);
     setTemplateWorkbook({ sheets: [] });
     setEditorWorkbook({ sheets: [] });
     setSelectedSheetName("");
@@ -112,9 +136,15 @@ export function Practice() {
     answerRange?: string | null,
     answerSnapshotJson?: string | null,
   ) => {
+    const requestId = templateLoadRequestRef.current + 1;
+    templateLoadRequestRef.current = requestId;
+    resetEditorShellState();
     setTemplateLoading(true);
     try {
       const snapshot = await api.get<any>(`/api/practice/template-snapshot?fileUrl=${encodeURIComponent(fileUrl)}`, { silent: true });
+      if (templateLoadRequestRef.current !== requestId) {
+        return;
+      }
       const sheetName = answerSheet || snapshot?.sheets?.[0]?.name || "";
       const workbookWithAnswer = buildWorkbookWithAnswerSnapshot(snapshot, answerSheet, answerRange, answerSnapshotJson);
       setTemplateWorkbook(snapshot || { sheets: [] });
@@ -125,7 +155,9 @@ export function Practice() {
         ? normalizeSelection(sheetName, parsedRange.startRow, parsedRange.startCol, parsedRange.endRow, parsedRange.endCol)
         : null);
     } finally {
-      setTemplateLoading(false);
+      if (templateLoadRequestRef.current === requestId) {
+        setTemplateLoading(false);
+      }
     }
   };
 
@@ -133,7 +165,9 @@ export function Practice() {
     mutationFn: async () => {
       const resolvedSheetName = submissionForm.answerSheet || selection?.sheetName || selectedSheetName;
       const resolvedRange = selectionToRangeRef(selection) || submissionForm.answerRange;
-      const latestWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
+      const latestWorkbook = editorReady && !editorError
+        ? (editorSnapshotGetterRef.current?.() || editorWorkbook)
+        : editorWorkbook;
       const answerSnapshot = extractRangeAnswerSnapshot(latestWorkbook, resolvedSheetName, resolvedRange);
       return api.post("/api/practice/submissions", {
         title: submissionForm.title.trim(),
@@ -237,9 +271,7 @@ export function Practice() {
     }));
     setSelectedSheetName(selection.sheetName);
     setIsSelectingAnswerRange(false);
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
-    }
+    exitEditorFullscreen();
   };
 
   const handleSubmitQuestion = () => {
@@ -261,7 +293,9 @@ export function Practice() {
       toast.error("请先在表格中框选答题区域");
       return;
     }
-    const latestWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
+    const latestWorkbook = editorReady && !editorError
+      ? (editorSnapshotGetterRef.current?.() || editorWorkbook)
+      : editorWorkbook;
     const answerSnapshot = extractRangeAnswerSnapshot(latestWorkbook, resolvedSheetName, resolvedRange);
     const hasEmptyAnswerCell = answerSnapshot.values.some((row) => (
       row.some((value) => String(value ?? "").trim().length === 0)
@@ -275,7 +309,9 @@ export function Practice() {
 
   const currentSelectionText = selectionToRangeRef(selection) || submissionForm.answerRange || "未选择";
   const sheetOptions = templateWorkbook.sheets || [];
-  const currentPreviewWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
+  const currentPreviewWorkbook = editorReady && !editorError
+    ? (editorSnapshotGetterRef.current?.() || editorWorkbook)
+    : editorWorkbook;
   const answerPreview = extractRangeAnswerSnapshot(
     currentPreviewWorkbook,
     submissionForm.answerSheet || selectedSheetName,
@@ -464,6 +500,10 @@ export function Practice() {
           setSubmissionOpen(nextOpen);
           if (!nextOpen) {
             setIsSelectingAnswerRange(false);
+            invalidateTemplateLoad();
+            exitEditorFullscreen();
+            resetEditorShellState();
+            setTemplateLoading(false);
           }
         }}>
           <DialogContent className="!w-[min(1660px,calc(100vw-1rem))] !max-w-[min(1660px,calc(100vw-1rem))] sm:!max-w-[min(1660px,calc(100vw-1rem))]">
@@ -670,32 +710,66 @@ export function Practice() {
                     {templateLoading ? (
                       <div className="flex h-48 items-center justify-center text-sm text-slate-400">正在加载模板...</div>
                     ) : sheetOptions.length > 0 ? (
-                      <Suspense fallback={<div className="flex h-[460px] items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
-                        <ExcelWorkbookEditor
-                          workbook={editorWorkbook}
-                          onWorkbookChange={setEditorWorkbook}
-                          selectedSheetName={selectedSheetName}
-                          onSelectedSheetNameChange={(sheetName) => {
-                            setSelectedSheetName(sheetName);
-                            setSubmissionForm((prev) => ({ ...prev, answerSheet: sheetName }));
-                          }}
-                          selection={isSelectingAnswerRange ? selection : undefined}
-                          onSelectionChange={isSelectingAnswerRange ? setSelection : undefined}
-                          editableRange={isSelectingAnswerRange ? selection : undefined}
-                          selectionEnabled={isSelectingAnswerRange}
-                          focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
-                          focusRequestVersion={editorFullscreenVersion}
-                          requestFullscreenVersion={editorFullscreenVersion}
-                          showConfirmSelectionButton={isSelectingAnswerRange}
-                          confirmSelectionLabel="确认区域"
-                          onConfirmSelection={confirmAnswerRange}
-                          onSnapshotCaptureReady={(capture) => {
-                            editorSnapshotGetterRef.current = capture;
-                          }}
-                          className="min-w-[1170px]"
-                          viewportClassName="h-[460px] max-h-[50vh] w-full"
-                        />
-                      </Suspense>
+                      <div className="relative h-[460px] max-h-[50vh]">
+                        <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
+                          <div className={editorReady ? "h-full" : "pointer-events-none h-full opacity-0"}>
+                            <ExcelWorkbookEditor
+                              workbook={editorWorkbook}
+                              onWorkbookChange={setEditorWorkbook}
+                              onEditorReady={() => {
+                                setEditorReady(true);
+                                setEditorError(null);
+                              }}
+                              onEditorError={(message) => {
+                                setEditorReady(false);
+                                setEditorError(message);
+                                editorSnapshotGetterRef.current = null;
+                              }}
+                              selectedSheetName={selectedSheetName}
+                              onSelectedSheetNameChange={(sheetName) => {
+                                setSelectedSheetName(sheetName);
+                                setSubmissionForm((prev) => ({ ...prev, answerSheet: sheetName }));
+                              }}
+                              selection={isSelectingAnswerRange ? selection : undefined}
+                              onSelectionChange={isSelectingAnswerRange ? setSelection : undefined}
+                              editableRange={isSelectingAnswerRange ? selection : undefined}
+                              selectionEnabled={isSelectingAnswerRange}
+                              focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
+                              focusRequestVersion={editorFullscreenVersion}
+                              requestFullscreenVersion={editorFullscreenVersion}
+                              showConfirmSelectionButton={isSelectingAnswerRange}
+                              confirmSelectionLabel="确认区域"
+                              onConfirmSelection={confirmAnswerRange}
+                              onSnapshotCaptureReady={(capture) => {
+                                editorSnapshotGetterRef.current = capture;
+                              }}
+                              className="min-w-[1170px]"
+                              viewportClassName="h-[460px] max-h-[50vh] w-full"
+                            />
+                          </div>
+                        </Suspense>
+                        {!editorReady ? (
+                          <div data-testid="practice-preview-shell" className="absolute inset-0 z-10 flex flex-col gap-3">
+                            <div className={`rounded-2xl border px-4 py-3 text-sm font-bold shadow-sm ${
+                              editorError
+                                ? "border-rose-100 bg-rose-50 text-rose-600"
+                                : "border-slate-200 bg-white text-slate-600"
+                            }`}>
+                              {editorError || "编辑器准备中"}
+                            </div>
+                            <ExcelWorkbookPreview
+                              workbook={editorWorkbook}
+                              selectedSheetName={selectedSheetName}
+                              onSelectedSheetNameChange={(sheetName) => {
+                                setSelectedSheetName(sheetName);
+                                setSubmissionForm((prev) => ({ ...prev, answerSheet: sheetName }));
+                              }}
+                              focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
+                              className="flex-1"
+                            />
+                          </div>
+                        ) : null}
+                      </div>
                     ) : (
                       <div className="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
                         上传 Excel 模板后即可开始配置
@@ -718,7 +792,10 @@ export function Practice() {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setSubmissionOpen(false)}
+                  onClick={() => {
+                    resetSubmissionState();
+                    setSubmissionOpen(false);
+                  }}
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   取消
