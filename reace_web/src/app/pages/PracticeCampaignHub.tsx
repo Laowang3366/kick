@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Award, ClipboardList, History, Lock, Map, Target, Trophy } from "lucide-react";
+import { ArrowRight, Award, ClipboardList, History, Lock, Map, Target, Trophy } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { LitePageFrame } from "../components/LiteSurface";
+import { useIsMobile } from "../components/ui/use-mobile";
 import { api } from "../lib/api";
 import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignHub() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const mapViewportRef = useRef<HTMLDivElement | null>(null);
   const [mapViewportWidth, setMapViewportWidth] = useState(0);
   const [availableMapHeight, setAvailableMapHeight] = useState(720);
@@ -87,6 +89,10 @@ export function PracticeCampaignHub() {
   const scaledBoardHeight = Math.max(400, Math.round(mapBoardHeight * mapScale));
 
   useEffect(() => {
+    if (isMobile) {
+      return;
+    }
+
     const syncViewport = () => {
       const viewportEl = mapViewportRef.current;
       if (!viewportEl) {
@@ -100,16 +106,19 @@ export function PracticeCampaignHub() {
     syncViewport();
     window.addEventListener("resize", syncViewport);
 
-    const observer = new ResizeObserver(() => syncViewport());
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => syncViewport())
+        : null;
     if (mapViewportRef.current) {
-      observer.observe(mapViewportRef.current);
+      observer?.observe(mapViewportRef.current);
     }
 
     return () => {
       window.removeEventListener("resize", syncViewport);
-      observer.disconnect();
+      observer?.disconnect();
     };
-  }, []);
+  }, [isMobile]);
 
   return (
     <LitePageFrame className="max-w-[1500px]">
@@ -121,10 +130,10 @@ export function PracticeCampaignHub() {
             </div>
             <div>
               <h1 className="text-[30px] font-black tracking-tight text-slate-900">章节地图</h1>
-              <p className="mt-1 text-sm text-slate-500">点击节点进入对应章节。</p>
+              <p className="mt-1 text-sm text-slate-500">{isMobile ? "手机端已切换为更易点击的章节路线视图。" : "点击节点进入对应章节。"}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+          <div className={`flex flex-wrap items-center gap-3 ${isMobile ? "sm:grid sm:grid-cols-2" : "lg:justify-end"}`}>
             <button
               type="button"
               onClick={() => navigate("/practice/chapters")}
@@ -167,6 +176,132 @@ export function PracticeCampaignHub() {
           </div>
         </div>
 
+        {isMobile ? (
+          <div className="space-y-4">
+            {currentChapter ? (
+              <section className="rounded-[30px] border border-white/80 bg-[linear-gradient(145deg,rgba(255,255,255,0.96)_0%,rgba(236,253,245,0.95)_100%)] p-5 shadow-[0_16px_42px_rgba(15,23,42,0.08)]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3 py-1 text-[11px] font-black tracking-[0.14em] text-teal-700">
+                      当前推荐章节
+                    </div>
+                    <h2 className="mt-3 text-[26px] font-black tracking-tight text-slate-900">{currentChapter.name}</h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      从上到下查看章节路线，点击卡片即可进入对应章节列表。
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-3 py-2 shadow-sm">
+                    <div className="text-[10px] font-bold text-slate-400">进度</div>
+                    <div className="mt-1 text-lg font-black text-slate-900">{currentChapter.progress || 0}%</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/practice/chapters?chapter=${currentChapter.id}`)}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-3 text-sm font-black text-white"
+                >
+                  继续当前章节
+                  <ArrowRight size={16} />
+                </button>
+              </section>
+            ) : null}
+
+            <section className="rounded-[30px] border border-[#dcefe9] bg-[linear-gradient(180deg,#effaf7_0%,#f8fcff_100%)] p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-black tracking-[0.18em] text-teal-700">MOBILE ROUTE</div>
+                  <div className="mt-1 text-lg font-black text-slate-900">章节路线</div>
+                </div>
+                <div className="rounded-full bg-white px-3 py-1 text-[11px] font-black text-slate-500 shadow-sm">
+                  共 {mapChapters.length} 章
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {mapChapters.map((chapter: any, index: number) => {
+                  const isCurrent = currentChapter?.id === chapter.id;
+                  const isCompleted = Boolean(chapter.completed);
+                  const isUnlocked = Boolean(chapter.unlocked);
+
+                  return (
+                    <button
+                      key={chapter.id}
+                      type="button"
+                      onClick={() => navigate(`/practice/chapters?chapter=${chapter.id}`)}
+                      className={`w-full rounded-[26px] border px-4 py-4 text-left transition ${
+                        isCompleted
+                          ? "border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_72%)] shadow-[0_14px_34px_rgba(16,185,129,0.09)]"
+                          : isCurrent
+                            ? "border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_72%)] shadow-[0_14px_34px_rgba(251,146,60,0.12)]"
+                            : isUnlocked
+                              ? "border-slate-200 bg-white shadow-[0_12px_28px_rgba(15,23,42,0.05)]"
+                              : "border-slate-200 bg-slate-100/90 opacity-90"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black tracking-[0.18em] text-slate-400">
+                            章节 {(index + 1).toString().padStart(2, "0")}
+                          </div>
+                          <div className="mt-2 text-[22px] font-black tracking-tight text-slate-900">{chapter.name}</div>
+                        </div>
+                        <div
+                          className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black ${
+                            isCompleted
+                              ? "bg-emerald-50 text-emerald-600"
+                              : isCurrent
+                                ? "bg-amber-50 text-amber-700"
+                                : isUnlocked
+                                  ? "bg-sky-50 text-sky-700"
+                                  : "bg-slate-200 text-slate-500"
+                          }`}
+                        >
+                          {isCompleted ? "已通关" : isCurrent ? "当前" : isUnlocked ? "可进入" : "未解锁"}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 h-2 rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${
+                            isCompleted
+                              ? "bg-[linear-gradient(90deg,#10b981,#14b8a6)]"
+                              : isUnlocked
+                                ? "bg-[linear-gradient(90deg,#f59e0b,#fb923c)]"
+                                : "bg-slate-300"
+                          }`}
+                          style={{ width: `${Math.max(6, Number(chapter.progress || 0))}%` }}
+                        />
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                          <div className="text-[10px] font-bold text-slate-400">进度</div>
+                          <div className="mt-1.5 text-lg font-black text-slate-900">{chapter.progress}%</div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                          <div className="text-[10px] font-bold text-slate-400">题目</div>
+                          <div className="mt-1.5 text-lg font-black text-slate-900">{chapter.totalLevels}</div>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                          <div className="text-[10px] font-bold text-slate-400">星数</div>
+                          <div className="mt-1.5 flex items-center gap-1 text-amber-500">
+                            <Award size={15} />
+                            <span className="text-lg font-black text-slate-900">{chapter.totalStars}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 inline-flex items-center gap-2 text-[12px] font-black text-slate-600">
+                        {isUnlocked ? "进入章节" : "等待解锁"}
+                        {isUnlocked ? <ArrowRight size={14} /> : <Lock size={14} />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+        ) : (
         <div>
           <section className="relative overflow-hidden rounded-[34px] border border-[#dcefe9] bg-[linear-gradient(180deg,#effaf7_0%,#f8fcff_100%)] px-5 py-8 sm:px-8">
             <div className="absolute inset-0 opacity-40">
@@ -309,6 +444,7 @@ export function PracticeCampaignHub() {
             </div>
           </section>
         </div>
+        )}
       </section>
     </LitePageFrame>
   );
