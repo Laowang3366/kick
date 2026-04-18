@@ -244,6 +244,40 @@ describe("ExcelWorkbookEditor ready callbacks", () => {
     expect(nextOnEditorError).not.toHaveBeenCalled();
   });
 
+  test("does not recreate workbook when only onSnapshotCaptureReady identity changes", async () => {
+    const initialCaptureReady = vi.fn();
+    const nextCaptureReady = vi.fn();
+    const { runtime, univerAPI } = createMockRuntime();
+    loadUniverRuntimeMock.mockResolvedValue(runtime);
+
+    const view = renderEditor({ onSnapshotCaptureReady: initialCaptureReady });
+
+    await waitFor(() => {
+      expect(loadUniverRuntimeMock).toHaveBeenCalledTimes(1);
+      expect(univerAPI.createWorkbook).toHaveBeenCalledTimes(1);
+      expect(initialCaptureReady).toHaveBeenCalledTimes(1);
+    });
+
+    view.rerender(
+      <ExcelWorkbookEditor
+        workbook={workbookSnapshot}
+        selectedSheetName="Sheet1"
+        onSelectedSheetNameChange={vi.fn()}
+        onSnapshotCaptureReady={nextCaptureReady}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(loadUniverRuntimeMock).toHaveBeenCalledTimes(1);
+    expect(univerAPI.createWorkbook).toHaveBeenCalledTimes(1);
+    expect(initialCaptureReady).toHaveBeenCalledTimes(1);
+    expect(nextCaptureReady).toHaveBeenCalledTimes(1);
+    expect(initialCaptureReady).not.toHaveBeenCalledWith(null);
+  });
+
   test("does not reload runtime or repeat editor error when only callback identities change after failure", async () => {
     const onEditorError = vi.fn();
     loadUniverRuntimeMock.mockRejectedValue(new Error("boom"));

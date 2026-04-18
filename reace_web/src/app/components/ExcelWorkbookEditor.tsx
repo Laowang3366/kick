@@ -188,6 +188,8 @@ export function ExcelWorkbookEditor({
   const latestOnWorkbookChangeRef = useRef(onWorkbookChange);
   const latestOnEditorReadyRef = useRef(onEditorReady);
   const latestOnEditorErrorRef = useRef(onEditorError);
+  const latestOnSnapshotCaptureReadyRef = useRef(onSnapshotCaptureReady);
+  const snapshotCaptureRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
   const lastFocusedRangeKeyRef = useRef("");
   const [instanceVersion, setInstanceVersion] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -227,6 +229,13 @@ export function ExcelWorkbookEditor({
   useEffect(() => {
     latestOnEditorErrorRef.current = onEditorError;
   }, [onEditorError]);
+
+  useEffect(() => {
+    latestOnSnapshotCaptureReadyRef.current = onSnapshotCaptureReady;
+    if (snapshotCaptureRef.current) {
+      onSnapshotCaptureReady?.(snapshotCaptureRef.current);
+    }
+  }, [onSnapshotCaptureReady]);
 
   useEffect(() => {
     let active = true;
@@ -272,7 +281,8 @@ export function ExcelWorkbookEditor({
     lastAppliedExternalRef.current = workbookKey;
     lastInternalSnapshotRef.current = workbookKey;
     const captureSnapshot = () => univerDataToWorkbookSnapshot(univerWorkbook.save());
-    onSnapshotCaptureReady?.(captureSnapshot);
+    snapshotCaptureRef.current = captureSnapshot;
+    latestOnSnapshotCaptureReadyRef.current?.(captureSnapshot);
 
     const syncWorkbookSnapshot = () => {
       if (hydratingRef.current) return;
@@ -357,12 +367,13 @@ export function ExcelWorkbookEditor({
 
     return () => {
       disposed = true;
-      onSnapshotCaptureReady?.(null);
+      snapshotCaptureRef.current = null;
+      latestOnSnapshotCaptureReadyRef.current?.(null);
       disposables.forEach((item) => item.dispose());
       univerAPI.dispose();
       bindingRef.current = null;
     };
-  }, [instanceVersion, runtime, workbook, workbookKey, editableRange, restrictEditingToRange, onSnapshotCaptureReady]);
+  }, [instanceVersion, runtime, workbook, workbookKey, editableRange, restrictEditingToRange]);
 
   useEffect(() => {
     const binding = bindingRef.current;

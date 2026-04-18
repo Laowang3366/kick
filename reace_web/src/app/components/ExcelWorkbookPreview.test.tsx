@@ -107,4 +107,39 @@ describe("ExcelWorkbookPreview", () => {
     expect(screen.queryByRole("columnheader", { name: "I" })).not.toBeInTheDocument();
     expect(container.querySelector("[data-cell-ref='A1']")).not.toHaveAttribute("data-focused", "true");
   });
+
+  test("limits rendered window for very large sheets while keeping occupied and focused cells visible", () => {
+    const hugeWorkbook: ExcelWorkbookSnapshot = {
+      sheets: [
+        {
+          name: "LargeSheet",
+          rowCount: 5000,
+          columnCount: 1000,
+          cells: {
+            A1: { value: "左上角", display: "左上角" },
+            AZ60: { value: "窗口边缘", display: "窗口边缘" },
+          },
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ExcelWorkbookPreview
+        workbook={hugeWorkbook}
+        selectedSheetName="LargeSheet"
+        onSelectedSheetNameChange={vi.fn()}
+        focusRange={{ sheetName: "LargeSheet", startRow: 60, startCol: 52, endRow: 60, endCol: 52 }}
+      />,
+    );
+
+    expect(screen.getByText("左上角")).toBeInTheDocument();
+    expect(screen.getByText("窗口边缘")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "AZ" })).toBeInTheDocument();
+    expect(container.querySelector("[data-cell-ref='AZ60']")).toHaveAttribute("data-focused", "true");
+    expect(container.querySelectorAll("tbody tr").length).toBeLessThan(5000);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(60);
+    expect(container.querySelectorAll("thead th")).toHaveLength(53);
+    expect(container.querySelector("[data-cell-ref='BA60']")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "BA" })).not.toBeInTheDocument();
+  });
 });

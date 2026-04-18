@@ -15,7 +15,6 @@
 **Files:**
 - Create: `reace_web/src/app/components/ExcelWorkbookPreview.tsx`
 - Create: `reace_web/src/app/components/ExcelWorkbookPreview.test.tsx`
-- Modify: `reace_web/src/app/lib/excel.ts`
 - Test: `reace_web/src/app/components/ExcelWorkbookPreview.test.tsx`
 
 - [ ] **Step 1: 先写失败测试，锁定预览组件的基础行为**
@@ -61,20 +60,15 @@ Run: `npm test -- ExcelWorkbookPreview.test.tsx`
 
 Expected: FAIL，提示 `Cannot find module "./ExcelWorkbookPreview"` 或渲染断言失败。
 
-- [ ] **Step 3: 在 `excel.ts` 中补最小辅助方法，避免预览组件重复写解析逻辑**
+- [ ] **Step 3: 复用现有 `excel.ts` 辅助方法，避免预览组件重复写解析逻辑**
 
-```ts
-export function getCellRef(row: number, col: number) {
-  let current = col;
-  let label = "";
-  while (current > 0) {
-    const remainder = (current - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    current = Math.floor((current - 1) / 26);
-  }
-  return `${label}${row}`;
-}
-```
+实现中优先复用已有能力，例如：
+
+- `columnIndexToLabel`
+- `getSheetSnapshot`
+- `resolveSheetBounds`
+- `isCellInSelection`
+- `toCellRef`
 
 - [ ] **Step 4: 实现最小可用的 `ExcelWorkbookPreview`**
 
@@ -160,12 +154,13 @@ git add reace_web/src/app/components/ExcelWorkbookPreview.tsx reace_web/src/app/
 git commit -m "feat: add excel workbook preview shell"
 ```
 
+实际实现中未修改 `reace_web/src/app/lib/excel.ts`，提交范围应以预览组件与测试文件为准。
+
 ### Task 2: 编辑器 ready 回调与失败保留预览
 
 **Files:**
 - Modify: `reace_web/src/app/components/ExcelWorkbookEditor.tsx`
 - Create: `reace_web/src/app/components/ExcelWorkbookEditor.ready.test.tsx`
-- Modify: `reace_web/src/app/lib/univer-runtime.ts`
 - Test: `reace_web/src/app/components/ExcelWorkbookEditor.ready.test.tsx`
 
 - [ ] **Step 1: 先写失败测试，锁定编辑器 ready 回调与失败状态**
@@ -277,6 +272,8 @@ Expected: PASS
 git add reace_web/src/app/components/ExcelWorkbookEditor.tsx reace_web/src/app/components/ExcelWorkbookEditor.ready.test.tsx reace_web/src/app/lib/univer-runtime.ts
 git commit -m "feat: expose excel editor ready state"
 ```
+
+实际实现中未修改 `reace_web/src/app/lib/univer-runtime.ts`，提交范围应以编辑器组件与 ready 测试文件为准。
 
 ### Task 3: 练习详情页接入预览壳层并验证切换
 
@@ -415,6 +412,13 @@ useEffect(() => {
 // keep preview visible until editor ready
 ```
 
+实现时还需要补充：
+
+- 提交时仅在 `editorReady && !editorError` 时优先使用 snapshot getter
+- 关闭弹窗、重置状态时清空 getter / ready / error
+- 模板快照加载使用 request id 防 stale 回写
+- 关闭弹窗或取消选区时退出 fullscreen
+
 - [ ] **Step 5: 在 `AdminConsole.tsx` 的 `AdminQuestions` 区块接入同样逻辑**
 
 ```tsx
@@ -427,6 +431,13 @@ const resetEditorState = () => {
   // existing resets...
 };
 ```
+
+实现时还需要补充：
+
+- 保存时仅在 `editorReady && !editorError` 时优先使用 snapshot getter
+- 关闭弹窗、重置状态时清空 getter / ready / error
+- 模板快照加载使用 request id 防 stale 回写
+- 关闭弹窗或取消选区时退出 fullscreen
 
 - [ ] **Step 6: 再跑页面测试，确认两个入口都通过**
 
@@ -468,6 +479,7 @@ Expected: 构建成功，生成新的 `dist/assets/ExcelWorkbookEditor-*.js` 与
 
 ```md
 - 检查 spec 中的 “编辑器准备中 / 失败保留预览 / 三个入口页接入”
+- 检查 spec 中是否补充了 stale load 防串写与 fullscreen 清理
 - 检查 plan 中的文件路径、组件名、回调名是否与最终代码一致
 - 如有不一致，同步修正文档
 ```
