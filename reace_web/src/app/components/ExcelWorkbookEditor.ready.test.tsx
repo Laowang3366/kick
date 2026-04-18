@@ -244,6 +244,41 @@ describe("ExcelWorkbookEditor ready callbacks", () => {
     expect(nextOnEditorError).not.toHaveBeenCalled();
   });
 
+  test("does not recreate workbook when editableRange object identity changes but value stays the same", async () => {
+    const onEditorReady = vi.fn();
+    const { runtime, univerAPI } = createMockRuntime();
+    loadUniverRuntimeMock.mockResolvedValue(runtime);
+
+    const view = renderEditor({
+      onEditorReady,
+      editableRange: { sheetName: "Sheet1", startRow: 1, startCol: 1, endRow: 2, endCol: 2 },
+    });
+
+    await waitFor(() => {
+      expect(loadUniverRuntimeMock).toHaveBeenCalledTimes(1);
+      expect(univerAPI.createWorkbook).toHaveBeenCalledTimes(1);
+      expect(onEditorReady).toHaveBeenCalledTimes(1);
+    });
+
+    view.rerender(
+      <ExcelWorkbookEditor
+        workbook={workbookSnapshot}
+        selectedSheetName="Sheet1"
+        onSelectedSheetNameChange={vi.fn()}
+        onEditorReady={onEditorReady}
+        editableRange={{ sheetName: "Sheet1", startRow: 1, startCol: 1, endRow: 2, endCol: 2 }}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(loadUniverRuntimeMock).toHaveBeenCalledTimes(1);
+    expect(univerAPI.createWorkbook).toHaveBeenCalledTimes(1);
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+  });
+
   test("does not recreate workbook when only onSnapshotCaptureReady identity changes", async () => {
     const initialCaptureReady = vi.fn();
     const nextCaptureReady = vi.fn();

@@ -197,6 +197,15 @@ export function ExcelWorkbookEditor({
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
 
   const workbookKey = useMemo(() => JSON.stringify(workbook), [workbook]);
+  const editableRangeKey = useMemo(
+    () => (
+      editableRange
+        ? `${editableRange.sheetName}:${editableRange.startRow}:${editableRange.startCol}:${editableRange.endRow}:${editableRange.endCol}`
+        : ""
+    ),
+    [editableRange],
+  );
+  const permissionScopeKey = restrictEditingToRange ? editableRangeKey : "__unrestricted__";
 
   useEffect(() => {
     latestSelectionRef.current = selection;
@@ -373,7 +382,7 @@ export function ExcelWorkbookEditor({
       univerAPI.dispose();
       bindingRef.current = null;
     };
-  }, [instanceVersion, runtime, workbook, workbookKey, editableRange, restrictEditingToRange]);
+  }, [instanceVersion, runtime, workbook, workbookKey, editableRangeKey, permissionScopeKey]);
 
   useEffect(() => {
     const binding = bindingRef.current;
