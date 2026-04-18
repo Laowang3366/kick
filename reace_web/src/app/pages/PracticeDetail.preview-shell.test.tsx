@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { PracticeDetail } from "./PracticeDetail";
 
 const editorBehavior = {
@@ -144,12 +144,47 @@ describe("PracticeDetail preview shell", () => {
     navigate.mockReset();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   test("shows preview shell and waiting status before the editor becomes ready", () => {
     renderPracticeDetail();
 
-    expect(screen.getByText("编辑器准备中")).toBeInTheDocument();
+    expect(screen.getByText("正在打开轻量预览，编辑器稍后接管")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sheet1" })).toBeInTheDocument();
     expect(screen.getByText("标题")).toBeInTheDocument();
+  });
+
+  test("keeps the lightweight preview interactive before mounting the real editor", async () => {
+    vi.useFakeTimers();
+    editorBehavior.mode = "ready";
+
+    renderPracticeDetail();
+
+    expect(screen.queryByTestId("mock-editor")).not.toBeInTheDocument();
+    expect(editorLifecycle.mounts).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: "Sheet2" }));
+    expect(screen.getByText("第二张")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(649);
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByTestId("mock-editor")).not.toBeInTheDocument();
+    expect(editorLifecycle.mounts).toBe(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.runOnlyPendingTimersAsync();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("mock-editor")).toHaveTextContent("selected=Sheet2");
+    expect(editorLifecycle.mounts).toBe(1);
+
+    vi.useRealTimers();
   });
 
   test("hides the preview shell after the editor reports ready and keeps the active sheet", async () => {
@@ -157,7 +192,7 @@ describe("PracticeDetail preview shell", () => {
 
     renderPracticeDetail();
 
-    expect(screen.getByText("编辑器准备中")).toBeInTheDocument();
+    expect(screen.getByText("正在打开轻量预览，编辑器稍后接管")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sheet1" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sheet2" }));

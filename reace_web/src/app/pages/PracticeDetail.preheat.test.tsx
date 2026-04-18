@@ -34,11 +34,11 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 describe("PracticeDetail editor preheat", () => {
-  test("schedules editor preheat after the page mounts", async () => {
+  test("does not schedule eager editor preheat when the page mounts", async () => {
     render(<PracticeDetail />);
 
     await waitFor(() => {
-      expect(scheduleExcelEditorPreload).toHaveBeenCalledTimes(1);
+      expect(scheduleExcelEditorPreload).not.toHaveBeenCalled();
     });
   });
 });

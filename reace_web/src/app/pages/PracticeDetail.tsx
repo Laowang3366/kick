@@ -1,11 +1,10 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, startTransition, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { ExcelWorkbookPreview } from "../components/ExcelWorkbookPreview";
-import { scheduleExcelEditorPreload } from "../lib/excel-editor-preload";
 import { ExcelWorkbookSnapshot, normalizeSelection, parseRangeRef } from "../lib/excel";
 import { formatDuration } from "../lib/format";
 import { practiceKeys } from "../lib/query-keys";
@@ -13,6 +12,8 @@ import { practiceKeys } from "../lib/query-keys";
 const ExcelWorkbookEditor = lazy(() =>
   import("../components/ExcelWorkbookEditor").then((module) => ({ default: module.ExcelWorkbookEditor }))
 );
+
+const DEFER_EDITOR_MOUNT_MS = 650;
 
 export function PracticeDetail() {
   const { id } = useParams();
@@ -29,10 +30,9 @@ export function PracticeDetail() {
   const [workbook, setWorkbook] = useState<ExcelWorkbookSnapshot>({ sheets: [] });
   const [editorReady, setEditorReady] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [shouldMountEditor, setShouldMountEditor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const editorSnapshotGetterRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
-
-  useEffect(() => scheduleExcelEditorPreload(), []);
 
   const detailQuery = useQuery({
     queryKey: practiceKeys.detail(isRandomMode ? "random" : id || "unknown"),
@@ -66,8 +66,19 @@ export function PracticeDetail() {
   useEffect(() => {
     setEditorReady(false);
     setEditorError(null);
+    setShouldMountEditor(false);
     editorSnapshotGetterRef.current = null;
   }, [question?.id]);
+
+  useEffect(() => {
+    if (!question?.id || currentWorkbook.sheets.length === 0) return;
+    const timerId = window.setTimeout(() => {
+      startTransition(() => {
+        setShouldMountEditor(true);
+      });
+    }, DEFER_EDITOR_MOUNT_MS);
+    return () => window.clearTimeout(timerId);
+  }, [question?.id, currentWorkbook.sheets.length]);
 
   useEffect(() => {
     if (!question) return;
@@ -243,30 +254,32 @@ export function PracticeDetail() {
               </div>
               {currentWorkbook.sheets.length > 0 ? (
                 <div className="relative h-[640px]">
-                  <Suspense fallback={null}>
-                    <div className={editorReady ? "h-full" : "h-full opacity-0 pointer-events-none"}>
-                      <ExcelWorkbookEditor
-                        key={editorKey}
-                        workbook={currentWorkbook}
-                        onWorkbookChange={setWorkbook}
-                        onEditorReady={() => {
-                          setEditorReady(true);
-                          setEditorError(null);
-                        }}
-                        onEditorError={(message) => {
-                          setEditorReady(false);
-                          setEditorError(message);
-                          editorSnapshotGetterRef.current = null;
-                        }}
-                        selectedSheetName={currentSheetName}
-                        onSelectedSheetNameChange={setSelectedSheetName}
-                        editableRange={editableRange}
-                        onSnapshotCaptureReady={(capture) => {
-                          editorSnapshotGetterRef.current = capture;
-                        }}
-                      />
-                    </div>
-                  </Suspense>
+                  {shouldMountEditor ? (
+                    <Suspense fallback={null}>
+                      <div className={editorReady ? "h-full" : "h-full opacity-0 pointer-events-none"}>
+                        <ExcelWorkbookEditor
+                          key={editorKey}
+                          workbook={currentWorkbook}
+                          onWorkbookChange={setWorkbook}
+                          onEditorReady={() => {
+                            setEditorReady(true);
+                            setEditorError(null);
+                          }}
+                          onEditorError={(message) => {
+                            setEditorReady(false);
+                            setEditorError(message);
+                            editorSnapshotGetterRef.current = null;
+                          }}
+                          selectedSheetName={currentSheetName}
+                          onSelectedSheetNameChange={setSelectedSheetName}
+                          editableRange={editableRange}
+                          onSnapshotCaptureReady={(capture) => {
+                            editorSnapshotGetterRef.current = capture;
+                          }}
+                        />
+                      </div>
+                    </Suspense>
+                  ) : null}
                   {!editorReady ? (
                     <div className="absolute inset-0 z-10 flex flex-col gap-3">
                       <div className={`rounded-2xl border px-4 py-3 text-sm font-bold shadow-sm ${
@@ -274,7 +287,7 @@ export function PracticeDetail() {
                           ? "border-rose-100 bg-rose-50 text-rose-600"
                           : "border-slate-200 bg-white text-slate-600"
                       }`}>
-                        {editorError || "编辑器准备中"}
+                        {editorError || (shouldMountEditor ? "编辑器准备中" : "正在打开轻量预览，编辑器稍后接管")}
                       </div>
                       <ExcelWorkbookPreview
                         workbook={currentWorkbook}
