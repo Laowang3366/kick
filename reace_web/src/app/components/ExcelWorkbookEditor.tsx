@@ -88,9 +88,35 @@ function workbookSnapshotToUniverData(workbook: ExcelWorkbookSnapshot, locale: s
     return {
       id: sheetId,
       name: sheet.name,
+      tabColor: "",
+      hidden: 0,
       rowCount: Math.max(sheet.rowCount || 0, 200),
       columnCount: Math.max(sheet.columnCount || 0, 40),
+      zoomRatio: 1,
+      freeze: {
+        xSplit: 0,
+        ySplit: 0,
+        startRow: -1,
+        startColumn: -1,
+      },
+      scrollTop: 0,
+      scrollLeft: 0,
+      defaultColumnWidth: 88,
+      defaultRowHeight: 24,
+      mergeData: [],
       cellData,
+      rowData: {},
+      columnData: {},
+      showGridlines: 1,
+      rowHeader: {
+        width: 46,
+        hidden: 0,
+      },
+      columnHeader: {
+        height: 20,
+        hidden: 0,
+      },
+      rightToLeft: 0,
     };
   });
 
@@ -102,6 +128,7 @@ function workbookSnapshotToUniverData(workbook: ExcelWorkbookSnapshot, locale: s
     sheetOrder: sheets.map((sheet) => sheet.id),
     sheets: Object.fromEntries(sheets.map((sheet) => [sheet.id, sheet])),
     styles: {},
+    resources: [],
   };
 }
 
