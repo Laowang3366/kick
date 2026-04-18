@@ -4,6 +4,7 @@ import {
   ExcelRangeSelection,
   ExcelWorkbookSnapshot,
   normalizeSelection,
+  parseCellRef,
   parseRangeRef,
   parseSheetAndRange,
   selectionToRangeRef,
@@ -61,56 +62,47 @@ function createWorkbookId() {
 }
 
 function workbookSnapshotToUniverData(workbook: ExcelWorkbookSnapshot, locale: string): Partial<IWorkbookData> {
+  const sheets = (workbook.sheets || []).map((sheet, index) => {
+    const sheetId = `sheet-${index + 1}`;
+    const cellData = Object.entries(sheet.cells || {}).reduce<Record<string, Record<string, Record<string, unknown>>>>((rows, [cellRef, cell]) => {
+      const position = parseCellRef(cellRef);
+      if (!position) {
+        return rows;
+      }
+      const rowKey = String(position.row - 1);
+      const colKey = String(position.col - 1);
+      const nextCellData: Record<string, unknown> = {};
+      if (cell?.formula) {
+        nextCellData.f = `=${cell.formula}`;
+      }
+      if (cell?.value !== undefined && cell?.value !== null && String(cell.value).trim() !== "") {
+        nextCellData.v = cell.value;
+      } else if (!cell?.formula) {
+        return rows;
+      }
+      rows[rowKey] ||= {};
+      rows[rowKey][colKey] = nextCellData;
+      return rows;
+    }, {});
+
+    return {
+      id: sheetId,
+      name: sheet.name,
+      rowCount: Math.max(sheet.rowCount || 0, 200),
+      columnCount: Math.max(sheet.columnCount || 0, 40),
+      cellData,
+    };
+  });
+
   return {
     id: createWorkbookId(),
     name: "ExcelPractice",
     appVersion: "0.20.0",
     locale,
+    sheetOrder: sheets.map((sheet) => sheet.id),
+    sheets: Object.fromEntries(sheets.map((sheet) => [sheet.id, sheet])),
     styles: {},
   };
-}
-
-function applyWorkbookSnapshotToUniver(workbookFacade: FWorkbook, snapshot: ExcelWorkbookSnapshot) {
-  const targetSheets = snapshot.sheets || [];
-  if (targetSheets.length === 0) {
-    return;
-  }
-
-  const existingSheets = workbookFacade.getSheets();
-  const primarySheet = existingSheets[0] || workbookFacade.getActiveSheet();
-  primarySheet.setName(targetSheets[0].name);
-
-  for (let index = existingSheets.length; index < targetSheets.length; index += 1) {
-    const target = targetSheets[index];
-    workbookFacade.insertSheet(target.name, {
-      sheet: {
-        rowCount: Math.max(target.rowCount || 0, 200),
-        columnCount: Math.max(target.columnCount || 0, 40),
-      },
-    });
-  }
-
-  const refreshedSheets = workbookFacade.getSheets();
-  for (let index = targetSheets.length; index < refreshedSheets.length; index += 1) {
-    workbookFacade.deleteSheet(refreshedSheets[index]);
-  }
-
-  targetSheets.forEach((sheetSnapshot, index) => {
-    const worksheet = workbookFacade.getSheets()[index];
-    if (!worksheet) return;
-    if (worksheet.getSheetName() !== sheetSnapshot.name) {
-      worksheet.setName(sheetSnapshot.name);
-    }
-    Object.entries(sheetSnapshot.cells || {}).forEach(([cellRef, cell]) => {
-      const value = cell?.formula ? `=${cell.formula}` : cell?.value;
-      if (value === null || value === undefined || String(value).trim() === "") {
-        return;
-      }
-      worksheet.getRange(cellRef).setValue(value as string | number | boolean);
-    });
-  });
-
-  workbookFacade.setActiveSheet(workbookFacade.getSheets()[0]);
 }
 
 function univerDataToWorkbookSnapshot(data: IWorkbookData): ExcelWorkbookSnapshot {
@@ -285,7 +277,6 @@ export function ExcelWorkbookEditor({
 
     const univerWorkbook = univerAPI.createWorkbook(workbookSnapshotToUniverData(workbook, LocaleType.ZH_CN));
     hydratingRef.current = true;
-    applyWorkbookSnapshotToUniver(univerWorkbook, workbook);
     hydratingRef.current = false;
     lastAppliedExternalRef.current = workbookKey;
     lastInternalSnapshotRef.current = workbookKey;

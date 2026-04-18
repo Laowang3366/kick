@@ -153,6 +153,38 @@ describe("ExcelWorkbookEditor ready callbacks", () => {
     });
   });
 
+  test("passes workbook snapshot cells into the initial univer workbook data", async () => {
+    const { runtime, univerAPI } = createMockRuntime();
+    loadUniverRuntimeMock.mockResolvedValue(runtime);
+
+    renderEditor();
+
+    await waitFor(() => {
+      expect(univerAPI.createWorkbook).toHaveBeenCalledTimes(1);
+    });
+
+    expect(univerAPI.createWorkbook).toHaveBeenCalledWith(expect.objectContaining({
+      id: "excel-practice-workbook",
+      name: "ExcelPractice",
+      sheetOrder: ["sheet-1"],
+      sheets: {
+        "sheet-1": expect.objectContaining({
+          id: "sheet-1",
+          name: "Sheet1",
+          rowCount: 200,
+          columnCount: 40,
+          cellData: {
+            "0": {
+              "0": {
+                v: "hello",
+              },
+            },
+          },
+        }),
+      },
+    }));
+  });
+
   test("calls onEditorError with the existing message when runtime loading fails", async () => {
     const onEditorError = vi.fn();
     loadUniverRuntimeMock.mockRejectedValue(new Error("boom"));
