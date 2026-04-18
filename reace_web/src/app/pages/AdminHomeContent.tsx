@@ -485,7 +485,7 @@ export function AdminHomeContent() {
         <Field label="函数标签">
           <input value={articleForm.functionTags} onChange={(e) => setArticleForm((prev: any) => ({ ...prev, functionTags: e.target.value }))} placeholder="例如：SUM, AVERAGE" className={inputClassName()} />
         </Field>
-        <Field label="正文内容">
+        <Field label="正文内容" asLabel={false}>
           <RichContentEditor
             value={articleForm.content}
             onChange={(nextValue) => setArticleForm((prev: any) => ({ ...prev, content: nextValue }))}
@@ -596,12 +596,21 @@ function FormDialog({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  asLabel = true,
+}: {
+  label: string;
+  children: ReactNode;
+  asLabel?: boolean;
+}) {
+  const Wrapper = asLabel ? "label" : "div";
   return (
-    <label className="block">
+    <Wrapper className="block">
       <div className="mb-1.5 text-sm font-bold text-slate-700">{label}</div>
       {children}
-    </label>
+    </Wrapper>
   );
 }
 
