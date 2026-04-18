@@ -302,7 +302,7 @@ export function Home() {
                     {recommendedChapter ? (
                       <button
                         type="button"
-                        onClick={() => navigate(`/practice/chapter/${recommendedChapter.id}`)}
+                        onClick={() => navigate(`/practice/chapters?chapter=${recommendedChapter.id}`)}
                         className="mt-4 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-black text-teal-700"
                       >
                         <Target size={15} />
@@ -407,7 +407,7 @@ export function Home() {
                               <button
                                 key={chapter.id}
                                 type="button"
-                                onClick={() => navigate(`/practice/chapter/${chapter.id}`)}
+                                onClick={() => navigate(`/practice/chapters?chapter=${chapter.id}`)}
                                 className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-left transition hover:border-teal-200 hover:bg-teal-100/70"
                               >
                                 <div className="text-sm font-bold text-teal-800">{chapter.name}</div>
