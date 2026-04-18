@@ -4,7 +4,6 @@ import {
   Home, 
   MessageSquare, 
   BookOpen, 
-  ShoppingBag, 
   Menu,
   Bell, 
   Search,
@@ -42,7 +41,7 @@ import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
 import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
-import { homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
+import { homeKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
 import { useIsMobile } from "./ui/use-mobile";
 import { ONLINE_LITE_MODE, isLiteAllowedPath } from "../lib/site-mode";
@@ -327,7 +326,6 @@ export function Layout() {
         queryClient.invalidateQueries({ queryKey: pointsKeys.overview() }),
         queryClient.invalidateQueries({ queryKey: pointsKeys.records() }),
         queryClient.invalidateQueries({ queryKey: pointsKeys.tasks() }),
-        queryClient.invalidateQueries({ queryKey: mallKeys.overview() }),
         queryClient.invalidateQueries({ queryKey: profileKeys.overview() }),
       ]);
     },
@@ -344,7 +342,6 @@ export function Layout() {
         queryClient.invalidateQueries({ queryKey: pointsKeys.overview() }),
         queryClient.invalidateQueries({ queryKey: pointsKeys.records() }),
         queryClient.invalidateQueries({ queryKey: pointsKeys.tasks() }),
-        queryClient.invalidateQueries({ queryKey: mallKeys.overview() }),
         queryClient.invalidateQueries({ queryKey: profileKeys.overview() }),
       ]);
     },
@@ -426,14 +423,14 @@ export function Layout() {
         { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
         { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
         { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
-        { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
+        { name: "积分中心", path: "/mall", icon: <Award size={18} strokeWidth={1.5} /> },
         { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
       ]
     : [
         { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
         { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
         { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
-        { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
+        { name: "积分中心", path: "/mall", icon: <Award size={18} strokeWidth={1.5} /> },
         { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
       ];
   const activeLiteModule = ONLINE_LITE_MODE
@@ -452,7 +449,7 @@ export function Layout() {
       ]
     : [
         { key: "practice", name: "练习", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.6} /> },
-        { key: "mall", name: "商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.6} /> },
+        { key: "mall", name: "积分", path: "/mall", icon: <Award size={18} strokeWidth={1.6} /> },
         { key: "tools", name: "实用", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.6} /> },
       ];
   const openFeedbackDialog = () => {
@@ -770,7 +767,7 @@ export function Layout() {
               </AnimatePresence>
             </div>
             ) : (
-              <div className="text-sm font-bold text-slate-400">当前线上保留首页、小试牛刀、积分经验中心、实用功能、个人中心</div>
+              <div className="text-sm font-bold text-slate-400">当前线上保留首页、小试牛刀、积分中心、实用功能、个人中心</div>
             )}
 
             {!isMobile && forumEnabled ? (
@@ -1260,7 +1257,7 @@ export function Layout() {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>我的道具</DialogTitle>
-                      <DialogDescription>这里统一收纳你通过积分经验中心兑换获得的道具、头衔与权益，可在此选择使用。</DialogDescription>
+                      <DialogDescription>这里统一收纳你历史获得的道具、头衔与权益，可在此选择使用。</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             {propsRecords.length > 0 ? (
@@ -1319,7 +1316,7 @@ export function Layout() {
               })
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
-                        暂无已获得的道具，先去积分经验中心兑换吧。
+                        暂无已获得的道具。
               </div>
             )}
           </div>

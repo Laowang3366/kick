@@ -97,13 +97,13 @@ export function TaskCenter() {
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
           <div className="relative z-10 text-center sm:text-left">
             <h2 className="text-3xl font-black mb-3 tracking-tight">完成任务，赚取丰厚积分</h2>
-            <p className="text-teal-50 opacity-90 text-sm sm:text-base leading-relaxed max-w-md">每日参与练习与任务可持续积累积分。积分会同步进入积分经验中心，用于兑换头衔、权益和功能道具。</p>
+            <p className="text-teal-50 opacity-90 text-sm sm:text-base leading-relaxed max-w-md">每日参与练习与任务可持续积累积分。积分会同步进入积分中心，用于记录成长进度和任务完成情况。</p>
           </div>
           <div className="relative z-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-6 min-w-[200px] text-center shrink-0">
             <p className="text-teal-50 text-sm font-medium mb-1">我的积分</p>
             <div className="text-4xl font-black tracking-tight mb-3">{overview?.user?.points || 0}</div>
-            <button onClick={() => navigate("/mall")} className="w-full bg-white text-teal-600 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:scale-105 transition-transform">
-              进入积分经验中心
+            <button onClick={() => navigate("/points-history")} className="w-full bg-white text-teal-600 py-2.5 rounded-xl font-bold text-sm shadow-sm hover:scale-105 transition-transform">
+              查看积分记录
             </button>
           </div>
         </div>

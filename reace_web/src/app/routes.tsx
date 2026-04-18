@@ -17,6 +17,14 @@ function AdminRedirect() {
   return <Navigate to="/admin/overview" replace />;
 }
 
+function MallRedirect() {
+  return <Navigate to="/mall" replace />;
+}
+
+function AdminMallRedirect() {
+  return <Navigate to="/admin/points" replace />;
+}
+
 function pageRoute(path: string, importer: () => Promise<any>, exportName: string, allowedInLite = false) {
   if (ONLINE_LITE_MODE && !allowedInLite) {
     return { path, Component: LiteRedirect };
@@ -47,7 +55,7 @@ export const router = createBrowserRouter([
       { path: "question-categories", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminQuestionCategories") },
       { path: "templates", lazy: lazyPage(() => import("./pages/AdminTemplateCenter"), "AdminTemplateCenter") },
       { path: "points", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminPoints") },
-      { path: "mall", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminMall") },
+      { path: "mall", Component: AdminMallRedirect },
       { path: "levels", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminLevels") },
     ],
   },
@@ -72,8 +80,8 @@ export const router = createBrowserRouter([
       pageRoute("templates", () => import("./pages/TemplateCenter"), "TemplateCenter", true),
       pageRoute("templates/records", () => import("./pages/TemplatePurchaseRecords"), "TemplatePurchaseRecords", true),
       pageRoute("mall", () => import("./pages/Mall"), "Mall", true),
-      pageRoute("mall/props", () => import("./pages/MallProps"), "MallProps", true),
-      pageRoute("mall/redemptions", () => import("./pages/MallRedemptions"), "MallRedemptions", true),
+      { path: "mall/props", Component: MallRedirect },
+      { path: "mall/redemptions", Component: MallRedirect },
       { path: "messages", Component: LiteRedirect },
       pageRoute("tools", () => import("./pages/Tools"), "Tools", true),
       pageRoute("tools/history", () => import("./pages/ToolsHistory"), "ToolsHistory", true),

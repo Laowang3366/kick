@@ -1,7 +1,6 @@
 package com.excel.forum.controller;
 
-import com.excel.forum.service.MallService;
-import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,45 +14,30 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/mall")
-@RequiredArgsConstructor
 public class MallController {
 
-    private final MallService mallService;
+    private static final Map<String, Object> MALL_OFFLINE_RESPONSE = Map.of("message", "积分商城已下线");
 
     @GetMapping("/items")
     public ResponseEntity<?> getItems(
             @RequestParam(required = false) String type,
             @RequestAttribute(value = "userId", required = false) Long userId) {
-        return ResponseEntity.ok(mallService.getItems(type, userId));
+        return mallOffline();
     }
 
     @GetMapping("/types")
     public ResponseEntity<?> getTypes() {
-        return ResponseEntity.ok(mallService.getItemTypes());
+        return mallOffline();
     }
 
     @GetMapping("/overview")
     public ResponseEntity<?> getOverview(@RequestAttribute Long userId) {
-        try {
-            return ResponseEntity.ok(mallService.getOverview(userId));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(404).body(Map.of("message", e.getMessage()));
-        }
+        return mallOffline();
     }
 
     @PostMapping("/redeem")
     public ResponseEntity<?> redeem(@RequestAttribute Long userId, @RequestBody Map<String, Object> body) {
-        Object itemIdValue = body.get("itemId");
-        if (itemIdValue == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "商品ID不能为空"));
-        }
-        try {
-            return ResponseEntity.ok(mallService.redeem(userId, Long.valueOf(itemIdValue.toString())));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        } catch (IllegalStateException e) {
-            return ResponseEntity.status(409).body(Map.of("message", e.getMessage()));
-        }
+        return mallOffline();
     }
 
     @GetMapping("/redemptions")
@@ -61,6 +45,10 @@ public class MallController {
             @RequestAttribute Long userId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer size) {
-        return ResponseEntity.ok(mallService.getRedemptions(userId, page, size));
+        return mallOffline();
+    }
+
+    private ResponseEntity<Map<String, Object>> mallOffline() {
+        return ResponseEntity.status(HttpStatus.GONE).body(MALL_OFFLINE_RESPONSE);
     }
 }

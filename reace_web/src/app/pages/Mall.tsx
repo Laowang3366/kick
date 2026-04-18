@@ -1,120 +1,66 @@
-import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowRight,
   Award,
+  CalendarCheck,
+  ClipboardList,
   Clock3,
-  CreditCard,
-  Gift,
-  Package,
-  ShoppingBag,
+  FileText,
+  Flame,
+  MessageCircle,
   Sparkles,
-  Ticket,
-  Zap,
+  Star,
+  ThumbsUp,
 } from "lucide-react";
-import { motion } from "motion/react";
-import { toast } from "sonner";
+import { useNavigate } from "react-router";
 import { LiteHero, LitePageFrame, LitePanel, LiteSectionTitle } from "../components/LiteSurface";
 import { api } from "../lib/api";
 import { formatDateTime, formatNumber } from "../lib/format";
-import { normalizeImageUrl } from "../lib/mappers";
-import { mallKeys, pointsKeys, practiceKeys } from "../lib/query-keys";
+import { pointsKeys } from "../lib/query-keys";
 
-const iconMap: Record<string, any> = {
-  award: Award,
-  sparkles: Sparkles,
-  gift: Gift,
-  ticket: Ticket,
-  clock: Clock3,
-  zap: Zap,
+const taskIconMap: Record<string, any> = {
+  daily_checkin: CalendarCheck,
+  daily_post: FileText,
+  daily_reply: MessageCircle,
+  first_post: FileText,
+  first_reply: MessageCircle,
+  daily_practice: ThumbsUp,
+  first_practice: Star,
 };
 
-function formatEntitlementStatus(value?: string | null) {
-  if (value === "active") return "已生效";
-  if (value === "pending") return "待发放";
-  if (value === "revoked") return "已撤销";
-  if (value === "expired") return "已过期";
-  return value || "-";
+function resolveRecordTone(change: number) {
+  if (change > 0) {
+    return {
+      badge: "bg-emerald-50 text-emerald-600",
+      icon: "bg-emerald-50 text-emerald-600",
+    };
+  }
+  return {
+    badge: "bg-slate-100 text-slate-500",
+    icon: "bg-slate-100 text-slate-500",
+  };
 }
 
 export function Mall() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [filter, setFilter] = useState("all");
-
   const overviewQuery = useQuery({
-    queryKey: mallKeys.overview(),
-    queryFn: () => api.get<any>("/api/mall/overview", { silent: true }),
-  });
-  const pointsOverviewQuery = useQuery({
     queryKey: pointsKeys.overview(),
     queryFn: () => api.get<any>("/api/points/overview", { silent: true }),
   });
-  const campaignOverviewQuery = useQuery({
-    queryKey: practiceKeys.campaignOverview(),
-    queryFn: () => api.get<any>("/api/practice/campaign/overview", { silent: true }),
-  });
-  const campaignChaptersQuery = useQuery({
-    queryKey: practiceKeys.campaignChapters(),
-    queryFn: () => api.get<any>("/api/practice/campaign/chapters", { silent: true }),
-  });
-  const typesQuery = useQuery({
-    queryKey: mallKeys.types(),
-    queryFn: () => api.get<any>("/api/mall/types", { silent: true }),
-  });
-  const itemsQuery = useQuery({
-    queryKey: mallKeys.items(),
-    queryFn: () => api.get<any>("/api/mall/items", { silent: true }),
-  });
 
-  const items = itemsQuery.data?.items || [];
-  const typeOptions = typesQuery.data?.types || itemsQuery.data?.types || [];
-  const userPoints = pointsOverviewQuery.data?.user?.points ?? overviewQuery.data?.user?.points ?? 0;
-  const userExp = pointsOverviewQuery.data?.user?.exp ?? 0;
-  const expProgress = pointsOverviewQuery.data?.expProgress || {};
-  const campaignSummary = campaignOverviewQuery.data?.summary || {};
-  const totalLevels = (campaignChaptersQuery.data?.chapters || []).reduce(
-    (sum: number, chapter: any) => sum + Number(chapter?.totalLevels || 0),
-    0
-  );
-  const clearedLevels = Number(campaignSummary.clearedLevels || 0);
-  const levelProgressPercent =
-    Number(expProgress.totalInLevel || 0) > 0
-      ? Math.max(0, Math.min(100, Math.round((Number(expProgress.currentInLevel || 0) / Number(expProgress.totalInLevel || 0)) * 100)))
-      : 100;
-
-  const redeemMutation = useMutation({
-    mutationFn: (itemId: number) => api.post<any>("/api/mall/redeem", { itemId }),
-    onSuccess: async (_, itemId) => {
-      const item = items.find((entry) => entry.id === itemId);
-      toast.success(`成功兑换：${item?.name || "商品"}`);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: mallKeys.overview() }),
-        queryClient.invalidateQueries({ queryKey: mallKeys.items() }),
-        queryClient.invalidateQueries({ queryKey: pointsKeys.overview() }),
-      ]);
-    },
-  });
-
-  const filteredItems = useMemo(
-    () => items.filter((item) => filter === "all" || item.type === filter),
-    [filter, items]
-  );
-
-  const handleRedeem = async (item: any) => {
-    if (userPoints < item.price) {
-      toast.error("积分不足，请先去闯关或任务中心获取积分");
-      return;
-    }
-    await redeemMutation.mutateAsync(item.id);
-  };
+  const overview = overviewQuery.data;
+  const user = overview?.user || {};
+  const taskSummary = overview?.taskSummary || {};
+  const todayCheckin = overview?.todayCheckin || {};
+  const recentRecords = overview?.recentRecords || [];
+  const tasks = (overview?.tasks || []).slice(0, 4);
 
   return (
     <LitePageFrame>
       <LiteHero
-        eyebrow="积分经验中心"
-        title="积分、经验与权益兑换"
-        description="统一查看积分与经验成长，同时兑换头衔、权益和功能道具。闯关通过后，积分和经验会同步累计。"
+        eyebrow="POINTS CENTER"
+        title="积分中心"
+        description="积分商城已下线。这里现在只保留积分记录和积分任务，方便查看成长进度与每日完成情况。"
         actions={
           <>
             <button
@@ -123,31 +69,15 @@ export function Mall() {
               className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-black text-slate-900 transition hover:-translate-y-0.5"
             >
               <Clock3 size={16} />
-              积分明细
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/profile")}
-              className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-6 py-3 text-sm font-bold text-white"
-            >
-              <CreditCard size={16} />
-              个人中心
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/mall/props")}
-              className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-6 py-3 text-sm font-bold text-white"
-            >
-              <Package size={16} />
-              我的道具
+              积分记录
             </button>
             <button
               type="button"
               onClick={() => navigate("/task-center")}
-              className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-slate-950/16 px-6 py-3 text-sm font-bold text-white"
+              className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/10 px-6 py-3 text-sm font-bold text-white"
             >
-              <Gift size={16} />
-              任务中心
+              <ClipboardList size={16} />
+              积分任务
             </button>
           </>
         }
@@ -155,21 +85,19 @@ export function Mall() {
           <div className="rounded-[30px] border border-white/12 bg-white/10 p-5 backdrop-blur-md">
             <div className="flex items-center gap-3">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
-                <CreditCard size={24} />
+                <Award size={24} />
               </div>
               <div>
-                <div className="text-[12px] font-black tracking-[0.18em] text-white/68">成长总览</div>
-                <div className="mt-2 text-xl font-black text-white">
-                  Lv.{expProgress.level || 1} {expProgress.levelName || "新手"}
-                </div>
+                <div className="text-[12px] font-black tracking-[0.18em] text-white/68">成长概览</div>
+                <div className="mt-2 text-xl font-black text-white">Lv.{user.level || 1} 学习进度持续累计中</div>
               </div>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3">
               {[
-                { label: "当前积分", value: formatNumber(userPoints) },
-                { label: "当前经验", value: formatNumber(userExp) },
-                { label: "已通关卡", value: `${clearedLevels}/${totalLevels || 0}` },
-                { label: "待处理兑换", value: overviewQuery.data?.pendingRedemptions ?? 0 },
+                { label: "当前积分", value: formatNumber(user.points || 0) },
+                { label: "当前经验", value: formatNumber(user.exp || 0) },
+                { label: "今日积分", value: formatNumber(overview?.todayPointsGain || 0) },
+                { label: "任务完成", value: `${taskSummary.completed || 0}/${taskSummary.total || 0}` },
               ].map((item) => (
                 <div key={item.label} className="rounded-2xl border border-white/10 bg-white/10 px-3 py-3">
                   <div className="text-[11px] font-bold text-white/68">{item.label}</div>
@@ -178,213 +106,128 @@ export function Mall() {
               ))}
             </div>
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 px-4 py-3">
-              <div className="flex items-center justify-between gap-3 text-[11px] font-bold text-white/70">
-                <span>等级进度</span>
-                <span>{levelProgressPercent}%</span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/15">
-                <div className="h-full rounded-full bg-white" style={{ width: `${levelProgressPercent}%` }} />
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-bold text-white/68">今日签到</div>
+                  <div className="mt-1 text-sm font-black text-white">
+                    {todayCheckin.checkedIn ? "已完成" : "未完成"}
+                  </div>
+                </div>
+                <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white">
+                  连续 {todayCheckin.continuousDays || 0} 天
+                </div>
               </div>
             </div>
           </div>
         }
-        className="bg-[linear-gradient(135deg,#5b2c00_0%,#d97706_36%,#fb7185_100%)]"
+        className="bg-[linear-gradient(135deg,#0f766e_0%,#0ea5a4_42%,#0f172a_100%)]"
       />
 
-      <section className="grid gap-5 xl:grid-cols-[0.82fr_1.18fr]">
+      <section className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <LitePanel>
           <LiteSectionTitle
-            eyebrow="兑换记录"
-            title="最近兑换"
-            description="查看最近兑换权益的处理状态。"
+            eyebrow="POINTS HISTORY"
+            title="最近积分记录"
+            description="最近的积分增减会集中留痕，包含签到、练习和互动奖励。"
             action={
               <button
                 type="button"
                 onClick={() => navigate("/points-history")}
                 className="text-sm font-black text-teal-600 transition hover:text-teal-700"
               >
-                查看更多
+                查看全部
               </button>
             }
           />
           <div className="mt-5 space-y-3">
-            {(overviewQuery.data?.recentRedemptions || []).map((record: any) => (
-              <div key={record.id} className="rounded-[24px] border border-slate-200 bg-slate-50/90 px-4 py-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-base font-black text-slate-900">{record.itemName}</div>
-                    <div className="mt-1 text-xs font-semibold text-slate-400">{record.itemTypeLabel || record.itemType}</div>
-                  </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-black ${
-                      record.status === "fulfilled"
-                        ? "bg-emerald-50 text-emerald-600"
-                        : record.status === "pending"
-                          ? "bg-amber-50 text-amber-600"
-                          : "bg-rose-50 text-rose-600"
-                    }`}
-                  >
-                    {record.statusLabel || record.status}
-                  </span>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl bg-white px-3 py-3">
-                    <div className="text-[11px] font-bold text-slate-400">价格</div>
-                    <div className="mt-2 text-sm font-black text-amber-600">{record.price}</div>
-                  </div>
-                  <div className="rounded-2xl bg-white px-3 py-3">
-                    <div className="text-[11px] font-bold text-slate-400">时间</div>
-                    <div className="mt-2 text-sm font-black text-slate-800">{formatDateTime(record.createTime)}</div>
-                  </div>
-                </div>
-                {record.entitlementStatus ? (
-                  <div className="mt-3 rounded-2xl bg-white px-3 py-3 text-sm text-slate-500">
-                    <span className="font-semibold">权益状态：</span>
-                    <span className="font-black text-slate-800">{formatEntitlementStatus(record.entitlementStatus)}</span>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          {!(overviewQuery.data?.recentRedemptions || []).length ? (
-            <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
-              还没有兑换记录，先挑一个权益试试。
-            </div>
-          ) : null}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => navigate("/mall/redemptions")}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700"
-            >
-              查看全部兑换记录
-            </button>
-          </div>
-        </div>
-      </LitePanel>
-
-        <LitePanel className="overflow-hidden">
-          <LiteSectionTitle
-            eyebrow="权益列表"
-            title="可兑换内容"
-            description="按类型筛选并兑换可用权益与道具。"
-          />
-          <div className="mt-5 flex items-center gap-3 overflow-x-auto pb-1">
-            {[{ value: "all", label: "全部内容" }, ...typeOptions.map((item: any) => ({ value: item.value, label: item.label }))].map((type) => (
-              <button
-                key={type.value}
-                type="button"
-                onClick={() => setFilter(type.value)}
-                className={`rounded-full px-5 py-2.5 text-sm font-black whitespace-nowrap transition ${
-                  filter === type.value
-                    ? "bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.14)]"
-                    : "bg-slate-100 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
-                }`}
-              >
-                {type.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {filteredItems.map((item, idx) => {
-              const Icon = iconMap[item.iconKey] || Gift;
-              const buttonLabel = item.canRedeem
-                ? "立即兑换"
-                : item.exchangeState === "points_insufficient"
-                  ? "积分不足"
-                  : item.exchangeState === "sold_out"
-                    ? "已售罄"
-                    : item.exchangeState === "user_limit"
-                      ? "已达限额"
-                      : item.exchangeState === "total_limit"
-                        ? "总量已满"
-                        : item.exchangeState === "not_started"
-                          ? "未开始"
-                          : item.exchangeState === "ended"
-                            ? "已结束"
-                            : "已下架";
-
-              return (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.04 }}
-                  className="group overflow-hidden rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafb_100%)] p-5 shadow-[0_14px_36px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(15,23,42,0.08)]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[22px] border border-teal-100 bg-teal-50 shadow-sm">
-                        {item.coverImage ? (
-                          <img src={normalizeImageUrl(item.coverImage)} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <Icon className="text-teal-600" size={30} />
-                        )}
+            {recentRecords.length > 0 ? (
+              recentRecords.map((record: any) => {
+                const change = Number(record.change || 0);
+                const tone = resolveRecordTone(change);
+                return (
+                  <div key={record.id} className="rounded-[24px] border border-slate-200 bg-slate-50/90 px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${tone.icon}`}>
+                          <Flame size={18} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-base font-black text-slate-900">{record.ruleName || record.description || "积分变动"}</div>
+                          <div className="mt-1 text-xs font-semibold text-slate-400">{formatDateTime(record.createTime)}</div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-xl font-black tracking-tight text-slate-900">{item.name}</div>
-                        <div className="mt-2 inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-600">
-                          {item.typeLabel || item.type}
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${tone.badge}`}>
+                        {change > 0 ? `+${change}` : change}
+                      </span>
+                    </div>
+                    {record.description ? (
+                      <div className="mt-3 rounded-2xl bg-white px-3 py-3 text-sm text-slate-500">{record.description}</div>
+                    ) : null}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
+                暂无积分记录。
+              </div>
+            )}
+          </div>
+        </LitePanel>
+
+        <LitePanel>
+          <LiteSectionTitle
+            eyebrow="TASK PREVIEW"
+            title="积分任务"
+            description="系统会按每日任务和一次性任务自动累计积分，完成后记录会同步写入积分流水。"
+            action={
+              <button
+                type="button"
+                onClick={() => navigate("/task-center")}
+                className="inline-flex items-center gap-2 text-sm font-black text-teal-600 transition hover:text-teal-700"
+              >
+                进入任务中心
+                <ArrowRight size={14} />
+              </button>
+            }
+          />
+          <div className="mt-5 space-y-3">
+            {tasks.length > 0 ? (
+              tasks.map((task: any) => {
+                const Icon = taskIconMap[task.taskKey] || Sparkles;
+                const completed = Boolean(task.completed);
+                return (
+                  <div key={task.id || task.taskKey} className="rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+                    <div className="flex items-start gap-3">
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${completed ? "bg-emerald-50 text-emerald-600" : "bg-teal-50 text-teal-600"}`}>
+                        <Icon size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-base font-black text-slate-900">{task.name}</div>
+                          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-black text-amber-600">
+                            +{task.points || 0}
+                          </span>
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${completed ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                            {task.statusText || (completed ? "已完成" : "待完成")}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-sm leading-6 text-slate-500">{task.description}</div>
+                        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div className={`h-full rounded-full ${completed ? "bg-emerald-500" : "bg-teal-500"}`} style={{ width: completed ? "100%" : "24%" }} />
                         </div>
                       </div>
                     </div>
-                    <div className={`rounded-full px-3 py-1 text-[11px] font-black ${item.canRedeem ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
-                      {item.exchangeMessage}
-                    </div>
                   </div>
-
-                  <p className="mt-4 text-sm leading-6 text-slate-500">{item.description}</p>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
-                      <div className="text-[11px] font-bold text-slate-400">库存</div>
-                      <div className="mt-2 text-sm font-black text-slate-800">
-                        {item.stock === null || item.stock === undefined ? "不限" : item.stock}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
-                      <div className="text-[11px] font-bold text-slate-400">限兑</div>
-                      <div className="mt-2 text-sm font-black text-slate-800">
-                        {item.perUserLimit ? `每人 ${item.perUserLimit}` : item.totalLimit ? `总计 ${item.totalLimit}` : "不限制"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {(item.availableFrom || item.availableUntil) ? (
-                    <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-3 text-xs leading-6 text-slate-500">
-                      <span className="font-semibold">时间窗口：</span>
-                      {item.availableFrom ? formatDateTime(item.availableFrom) : "立即"} - {item.availableUntil ? formatDateTime(item.availableUntil) : "长期"}
-                    </div>
-                  ) : null}
-
-                  {item.exchangeNotice ? (
-                    <div className="mt-3 rounded-2xl border border-dashed border-slate-200 px-3 py-3 text-xs leading-6 text-slate-500">
-                      {item.exchangeNotice}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-                    <div className="flex items-center gap-2 text-amber-500">
-                      <Award size={18} />
-                      <span className="text-2xl font-black">{item.price}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleRedeem(item)}
-                      disabled={!item.canRedeem || redeemMutation.isPending}
-                      className={`inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-black transition ${
-                        item.canRedeem
-                          ? "bg-slate-900 text-white hover:bg-slate-800"
-                          : "bg-slate-100 text-slate-400"
-                      }`}
-                    >
-                      {buttonLabel}
-                      <ShoppingBag size={15} />
-                    </button>
-                  </div>
-                </motion.div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
+                暂无积分任务。
+              </div>
+            )}
+          </div>
+          <div className="mt-5 rounded-[24px] border border-dashed border-teal-200 bg-teal-50/70 px-4 py-4 text-sm leading-7 text-teal-800">
+            商城兑换能力已关闭，积分仅用于记录成长、练习激励和任务完成情况。
           </div>
         </LitePanel>
       </section>

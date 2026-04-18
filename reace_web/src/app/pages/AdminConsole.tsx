@@ -279,7 +279,6 @@ export function AdminOverview() {
   const moderationStats = stats?.moderation || {};
   const practiceStats = stats?.practice || {};
   const pointsStats = stats?.pointsAndLevels || {};
-  const mallStats = stats?.mall || {};
 
   const focusMetrics = [
     { label: "在线用户", value: overviewStats.onlineUsers ?? 0, hint: `管理员 ${userStats.admins ?? 0} / 版主 ${userStats.moderators ?? 0}`, icon: Users, tone: "teal" },
@@ -299,7 +298,7 @@ export function AdminOverview() {
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-900">社区运营总览</h1>
             <p className="mt-3 text-sm leading-7 text-slate-500">
-              按用户、内容、互动、审核、练习、商城六个维度集中查看本站关键数据，优先暴露今日变化和待处理事项。
+              按用户、内容、互动、审核、练习与积分成长五个维度集中查看本站关键数据，优先暴露今日变化和待处理事项。
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[520px]">
@@ -355,16 +354,12 @@ export function AdminOverview() {
           </div>
         </AdminSection>
 
-        <AdminSection title="积分、等级与商城">
+        <AdminSection title="积分与等级">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <OverviewDataCard label="积分规则" value={pointsStats.pointsRules ?? 0} hint={`启用 ${pointsStats.enabledPointsRules ?? 0}`} />
             <OverviewDataCard label="积分记录" value={pointsStats.pointsRecords ?? 0} hint={`规则选项 ${pointsStats.pointsOptions ?? 0}`} />
             <OverviewDataCard label="经验规则 / 等级" value={`${pointsStats.expRules ?? 0} / ${pointsStats.levelRules ?? 0}`} hint={`经验日志 ${pointsStats.expLogs ?? 0}`} />
-            <OverviewDataCard label="用户权益" value={pointsStats.entitlements ?? 0} hint={`商城待发放 ${mallStats.pendingRedemptions ?? 0}`} />
-            <OverviewDataCard label="商城商品" value={mallStats.totalItems ?? 0} hint={`启用 ${mallStats.enabledItems ?? 0}`} />
-            <OverviewDataCard label="商品类型" value={mallStats.typeCount ?? 0} />
-            <OverviewDataCard label="兑换已发放" value={mallStats.fulfilledRedemptions ?? 0} />
-            <OverviewDataCard label="兑换已取消" value={mallStats.cancelledRedemptions ?? 0} />
+            <OverviewDataCard label="用户权益" value={pointsStats.entitlements ?? 0} />
           </div>
         </AdminSection>
       </div>

@@ -5,7 +5,6 @@ import {
   Gauge,
   Layers3,
   PanelsTopLeft,
-  ShoppingBag,
   Shield,
   Users,
 } from "lucide-react";
@@ -20,7 +19,6 @@ export type AdminModuleKey =
   | "question-categories"
   | "templates"
   | "points"
-  | "mall"
   | "levels";
 
 export type AdminModule = {
@@ -40,7 +38,6 @@ export const ADMIN_MODULES: AdminModule[] = [
   { key: "question-categories", label: "题目分类", path: "/admin/question-categories", icon: Layers3, roles: ["admin"] },
   { key: "templates", label: "模板中心", path: "/admin/templates", icon: PanelsTopLeft, roles: ["admin"] },
   { key: "points", label: "积分体系", path: "/admin/points", icon: Coins, roles: ["admin"] },
-  { key: "mall", label: "积分经验中心", path: "/admin/mall", icon: ShoppingBag, roles: ["admin"] },
   { key: "levels", label: "等级体系", path: "/admin/levels", icon: Shield, roles: ["admin"] },
 ];
 
