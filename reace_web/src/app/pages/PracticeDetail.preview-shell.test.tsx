@@ -134,7 +134,7 @@ function renderPracticeDetail() {
   return render(<PracticeDetail />);
 }
 
-describe("PracticeDetail preview shell", () => {
+describe("PracticeDetail loading shell", () => {
   beforeEach(() => {
     editorBehavior.mode = "pending";
     editorLifecycle.mounts = 0;
@@ -148,24 +148,23 @@ describe("PracticeDetail preview shell", () => {
     vi.useRealTimers();
   });
 
-  test("shows preview shell and waiting status before the editor becomes ready", () => {
+  test("shows a loading shell before the editor becomes ready", () => {
     renderPracticeDetail();
 
-    expect(screen.getByText("正在打开轻量预览，编辑器稍后接管")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sheet1" })).toBeInTheDocument();
-    expect(screen.getByText("标题")).toBeInTheDocument();
+    expect(screen.getByText("题目加载中...")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sheet1" })).not.toBeInTheDocument();
+    expect(screen.queryByText("标题")).not.toBeInTheDocument();
   });
 
-  test("keeps the lightweight preview interactive before mounting the real editor", async () => {
+  test("keeps the loading shell visible before mounting the real editor", async () => {
     vi.useFakeTimers();
     editorBehavior.mode = "ready";
 
     renderPracticeDetail();
 
+    expect(screen.getByText("题目加载中...")).toBeInTheDocument();
     expect(screen.queryByTestId("mock-editor")).not.toBeInTheDocument();
     expect(editorLifecycle.mounts).toBe(0);
-    fireEvent.click(screen.getByRole("button", { name: "Sheet2" }));
-    expect(screen.getByText("第二张")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(649);
@@ -181,40 +180,35 @@ describe("PracticeDetail preview shell", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByTestId("mock-editor")).toHaveTextContent("selected=Sheet2");
+    expect(screen.getByTestId("mock-editor")).toHaveTextContent("selected=Sheet1");
     expect(editorLifecycle.mounts).toBe(1);
 
     vi.useRealTimers();
   });
 
-  test("hides the preview shell after the editor reports ready and keeps the active sheet", async () => {
+  test("hides the loading shell after the editor reports ready", async () => {
     editorBehavior.mode = "ready";
 
     renderPracticeDetail();
 
-    expect(screen.getByText("正在打开轻量预览，编辑器稍后接管")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sheet1" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Sheet2" }));
+    expect(screen.getByText("题目加载中...")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByTestId("mock-editor")).toHaveTextContent("selected=Sheet2");
-      expect(screen.queryByText("编辑器准备中")).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Sheet1" })).not.toBeInTheDocument();
-      expect(screen.queryByText("标题")).not.toBeInTheDocument();
+      expect(screen.getByTestId("mock-editor")).toHaveTextContent("selected=Sheet1");
+      expect(screen.queryByText("题目加载中...")).not.toBeInTheDocument();
       expect(editorLifecycle.mounts).toBe(1);
     });
   });
 
-  test("keeps the preview shell visible when the editor initialization fails", async () => {
+  test("keeps the loading shell visible when the editor initialization fails", async () => {
     editorBehavior.mode = "error";
 
     renderPracticeDetail();
 
     await waitFor(() => {
       expect(screen.getByText("编辑器资源加载失败，请刷新后重试")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Sheet1" })).toBeInTheDocument();
-      expect(screen.getByText("标题")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Sheet1" })).not.toBeInTheDocument();
+      expect(screen.queryByText("标题")).not.toBeInTheDocument();
     });
   });
 

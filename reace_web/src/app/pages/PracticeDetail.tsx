@@ -4,7 +4,6 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
-import { ExcelWorkbookPreview } from "../components/ExcelWorkbookPreview";
 import { ExcelWorkbookSnapshot, normalizeSelection, parseRangeRef } from "../lib/excel";
 import { formatDuration } from "../lib/format";
 import { practiceKeys } from "../lib/query-keys";
@@ -281,21 +280,14 @@ export function PracticeDetail() {
                     </Suspense>
                   ) : null}
                   {!editorReady ? (
-                    <div className="absolute inset-0 z-10 flex flex-col gap-3">
-                      <div className={`rounded-2xl border px-4 py-3 text-sm font-bold shadow-sm ${
+                    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[28px] bg-white/92 backdrop-blur-[1px]">
+                      <div className={`rounded-2xl border px-5 py-4 text-sm font-bold shadow-sm ${
                         editorError
                           ? "border-rose-100 bg-rose-50 text-rose-600"
                           : "border-slate-200 bg-white text-slate-600"
                       }`}>
-                        {editorError || (shouldMountEditor ? "编辑器准备中" : "正在打开轻量预览，编辑器稍后接管")}
+                        {editorError || "题目加载中..."}
                       </div>
-                      <ExcelWorkbookPreview
-                        workbook={currentWorkbook}
-                        selectedSheetName={currentSheetName}
-                        onSelectedSheetNameChange={setSelectedSheetName}
-                        focusRange={editableRange}
-                        className="flex-1"
-                      />
                     </div>
                   ) : null}
                 </div>
