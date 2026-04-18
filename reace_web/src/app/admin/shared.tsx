@@ -126,6 +126,24 @@ export function FilterField({
   );
 }
 
+export function AdminFormField({
+  label,
+  children,
+  asLabel = true,
+}: {
+  label: string;
+  children: React.ReactNode;
+  asLabel?: boolean;
+}) {
+  const Wrapper = asLabel ? "label" : "div";
+  return (
+    <Wrapper className="block">
+      <div className="mb-1.5 text-sm font-bold text-slate-700">{label}</div>
+      {children}
+    </Wrapper>
+  );
+}
+
 export function inputClassName() {
   return "h-9 w-full rounded-[2px] border border-[#d9d9d9] bg-white px-3 text-sm text-[#262626] outline-none transition placeholder:text-[#bfbfbf] focus:border-[#1677ff] focus:ring-2 focus:ring-[#1677ff]/10";
 }

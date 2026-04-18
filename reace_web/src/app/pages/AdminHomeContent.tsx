@@ -9,6 +9,7 @@ import { Switch } from "../components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import {
   AddButton,
+  AdminFormField,
   AdminEmptyState,
   AdminPageShell,
   AdminPermissionNotice,
@@ -596,23 +597,7 @@ function FormDialog({
   );
 }
 
-function Field({
-  label,
-  children,
-  asLabel = true,
-}: {
-  label: string;
-  children: ReactNode;
-  asLabel?: boolean;
-}) {
-  const Wrapper = asLabel ? "label" : "div";
-  return (
-    <Wrapper className="block">
-      <div className="mb-1.5 text-sm font-bold text-slate-700">{label}</div>
-      {children}
-    </Wrapper>
-  );
-}
+const Field = AdminFormField;
 
 function AdminFormSwitch({
   label,
