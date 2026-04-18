@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { ExcelWorkbookPreview } from "../components/ExcelWorkbookPreview";
 import { scheduleExcelEditorPreload } from "../lib/excel-editor-preload";
 import { ExcelWorkbookSnapshot, normalizeSelection, parseRangeRef } from "../lib/excel";
 import { formatDuration } from "../lib/format";
@@ -26,6 +27,8 @@ export function PracticeDetail() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [selectedSheetName, setSelectedSheetName] = useState("");
   const [workbook, setWorkbook] = useState<ExcelWorkbookSnapshot>({ sheets: [] });
+  const [editorReady, setEditorReady] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const editorSnapshotGetterRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
 
@@ -50,14 +53,21 @@ export function PracticeDetail() {
     : null;
   const currentWorkbook = workbook.sheets.length > 0 ? workbook : (question?.templateWorkbook || { sheets: [] });
   const currentSheetName = selectedSheetName || question?.answerSheet || question?.templateWorkbook?.sheets?.[0]?.name || "";
-  const editorKey = `${question?.id || "unknown"}-${currentWorkbook.sheets.length}-${currentSheetName}-${Object.keys(currentWorkbook.sheets?.[0]?.cells || {}).length}`;
+  const editorKey = `${question?.id || "unknown"}-${currentWorkbook.sheets.length}-${Object.keys(currentWorkbook.sheets?.[0]?.cells || {}).length}`;
 
   useEffect(() => {
     if (!question?.templateWorkbook?.sheets?.length) return;
     setWorkbook(question.templateWorkbook);
     setSelectedSheetName(question.answerSheet || question.templateWorkbook.sheets?.[0]?.name || "");
     setElapsedSeconds(0);
+    editorSnapshotGetterRef.current = null;
   }, [question]);
+
+  useEffect(() => {
+    setEditorReady(false);
+    setEditorError(null);
+    editorSnapshotGetterRef.current = null;
+  }, [question?.id]);
 
   useEffect(() => {
     if (!question) return;
@@ -75,7 +85,9 @@ export function PracticeDetail() {
     if (!question?.id) return;
     setSubmitting(true);
     try {
-      const latestWorkbook = editorSnapshotGetterRef.current?.() || currentWorkbook;
+      const latestWorkbook = editorReady && !editorError
+        ? (editorSnapshotGetterRef.current?.() || currentWorkbook)
+        : currentWorkbook;
       if (latestWorkbook !== workbook) {
         setWorkbook(latestWorkbook);
       }
@@ -230,19 +242,50 @@ export function PracticeDetail() {
                 请在 <span className="text-emerald-600">{question.answerSheet} / {question.answerRange}</span> 内作答，系统仅按该区域进行判题。
               </div>
               {currentWorkbook.sheets.length > 0 ? (
-                <Suspense fallback={<div className="flex h-[640px] items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">正在加载编辑器...</div>}>
-                  <ExcelWorkbookEditor
-                    key={editorKey}
-                    workbook={currentWorkbook}
-                    onWorkbookChange={setWorkbook}
-                    selectedSheetName={currentSheetName}
-                    onSelectedSheetNameChange={setSelectedSheetName}
-                    editableRange={editableRange}
-                    onSnapshotCaptureReady={(capture) => {
-                      editorSnapshotGetterRef.current = capture;
-                    }}
-                  />
-                </Suspense>
+                <div className="relative h-[640px]">
+                  <Suspense fallback={null}>
+                    <div className={editorReady ? "h-full" : "h-full opacity-0 pointer-events-none"}>
+                      <ExcelWorkbookEditor
+                        key={editorKey}
+                        workbook={currentWorkbook}
+                        onWorkbookChange={setWorkbook}
+                        onEditorReady={() => {
+                          setEditorReady(true);
+                          setEditorError(null);
+                        }}
+                        onEditorError={(message) => {
+                          setEditorReady(false);
+                          setEditorError(message);
+                          editorSnapshotGetterRef.current = null;
+                        }}
+                        selectedSheetName={currentSheetName}
+                        onSelectedSheetNameChange={setSelectedSheetName}
+                        editableRange={editableRange}
+                        onSnapshotCaptureReady={(capture) => {
+                          editorSnapshotGetterRef.current = capture;
+                        }}
+                      />
+                    </div>
+                  </Suspense>
+                  {!editorReady ? (
+                    <div className="absolute inset-0 z-10 flex flex-col gap-3">
+                      <div className={`rounded-2xl border px-4 py-3 text-sm font-bold shadow-sm ${
+                        editorError
+                          ? "border-rose-100 bg-rose-50 text-rose-600"
+                          : "border-slate-200 bg-white text-slate-600"
+                      }`}>
+                        {editorError || "编辑器准备中"}
+                      </div>
+                      <ExcelWorkbookPreview
+                        workbook={currentWorkbook}
+                        selectedSheetName={currentSheetName}
+                        onSelectedSheetNameChange={setSelectedSheetName}
+                        focusRange={editableRange}
+                        className="flex-1"
+                      />
+                    </div>
+                  ) : null}
+                </div>
               ) : (
                 <div className="flex h-[640px] items-center justify-center rounded-[28px] border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
                   正在加载题目模板...
