@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bold,
@@ -580,6 +580,9 @@ export function AdminHomeContent() {
 
 type ContentEditorMode = "content" | "preview" | "split";
 
+const tutorialHtmlContentClass =
+  "text-slate-700 [&_a]:font-semibold [&_a]:text-emerald-700 [&_blockquote]:mt-4 [&_blockquote]:border-l-4 [&_blockquote]:border-emerald-400 [&_blockquote]:bg-emerald-50 [&_blockquote]:px-4 [&_blockquote]:py-3 [&_code]:font-mono [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-black [&_h2]:text-slate-950 [&_hr]:my-5 [&_hr]:border-slate-200 [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-xl [&_li]:mt-1 [&_ol]:mt-3 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mt-3 [&_p]:leading-7 [&_pre]:mt-4 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:bg-slate-950 [&_pre]:p-4 [&_pre]:text-sm [&_pre]:text-slate-100 [&_table]:mt-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-3 [&_th]:py-2 [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-6";
+
 function TutorialContentEditor({
   value,
   onChange,
@@ -587,74 +590,73 @@ function TutorialContentEditor({
   value: string;
   onChange: (next: string) => void;
 }) {
-  const [mode, setMode] = useState<ContentEditorMode>("preview");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [mode, setMode] = useState<ContentEditorMode>("content");
+  const editorRef = useRef<HTMLDivElement>(null);
   const sourceValue = value || "";
-  const lineCount = Math.max(1, sourceValue.split(/\r\n|\r|\n/).length);
 
-  const focusEditor = (start?: number, end?: number) => {
-    window.setTimeout(() => {
-      const editor = textareaRef.current;
-      if (!editor) return;
-      editor.focus();
-      if (typeof start === "number") {
-        editor.selectionStart = start;
-        editor.selectionEnd = typeof end === "number" ? end : start;
-      }
-    }, 0);
-  };
-
-  const updateSource = (next: string, start?: number, end?: number) => {
-    if (mode === "preview") {
-      setMode("content");
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || document.activeElement === editor) return;
+    if (editor.innerHTML !== sourceValue) {
+      editor.innerHTML = sourceValue;
     }
-    onChange(next);
-    focusEditor(start, end);
+  }, [mode, sourceValue]);
+
+  const syncEditorContent = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const html = editor.innerHTML === "<br>" ? "" : editor.innerHTML;
+    onChange(html);
   };
 
-  const wrapSelection = (before: string, after: string, fallback: string) => {
-    const editor = textareaRef.current;
-    const start = editor?.selectionStart ?? sourceValue.length;
-    const end = editor?.selectionEnd ?? sourceValue.length;
-    const selected = sourceValue.slice(start, end) || fallback;
-    const next = `${sourceValue.slice(0, start)}${before}${selected}${after}${sourceValue.slice(end)}`;
-    const cursorStart = start + before.length;
-    updateSource(next, cursorStart, cursorStart + selected.length);
+  const runEditorCommand = (command: string, commandValue?: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    document.execCommand(command, false, commandValue);
+    syncEditorContent();
   };
 
-  const insertBlock = (snippet: string, cursorOffset?: number) => {
-    const editor = textareaRef.current;
-    const start = editor?.selectionStart ?? sourceValue.length;
-    const end = editor?.selectionEnd ?? sourceValue.length;
-    const prefix = start > 0 && !sourceValue.slice(0, start).endsWith("\n") ? "\n" : "";
-    const suffix = snippet.endsWith("\n") ? "" : "\n";
-    const block = `${prefix}${snippet}${suffix}`;
-    const next = `${sourceValue.slice(0, start)}${block}${sourceValue.slice(end)}`;
-    const cursor = start + prefix.length + (cursorOffset ?? snippet.length);
-    updateSource(next, cursor);
-  };
+  const insertHtml = (html: string) => runEditorCommand("insertHTML", html);
+
+  const selectedText = () => window.getSelection()?.toString() || "";
 
   const actions: Array<{ label: string; icon: LucideIcon; onClick: () => void }> = [
-    { label: "加粗", icon: Bold, onClick: () => wrapSelection("<strong>", "</strong>", "重点文字") },
-    { label: "斜体", icon: Italic, onClick: () => wrapSelection("<em>", "</em>", "强调文字") },
-    { label: "删除线", icon: Strikethrough, onClick: () => wrapSelection("<s>", "</s>", "删除文字") },
-    { label: "标题", icon: Heading2, onClick: () => insertBlock("<h2>小标题</h2>\n<p>这里填写正文。</p>", 4) },
-    { label: "列表", icon: List, onClick: () => insertBlock("<ul>\n  <li>列表项</li>\n</ul>", 12) },
-    { label: "引用", icon: Quote, onClick: () => insertBlock("<blockquote>引用内容</blockquote>", 12) },
-    { label: "链接", icon: Link2, onClick: () => wrapSelection('<a href="https://example.com">', "</a>", "链接文本") },
-    { label: "图片", icon: ImageIcon, onClick: () => insertBlock('<img src="/uploads/example.png" alt="图片说明" />', 10) },
-    { label: "代码块", icon: Code2, onClick: () => insertBlock("<pre><code>=SUM(A1:A10)</code></pre>", 11) },
+    { label: "加粗", icon: Bold, onClick: () => runEditorCommand("bold") },
+    { label: "斜体", icon: Italic, onClick: () => runEditorCommand("italic") },
+    { label: "删除线", icon: Strikethrough, onClick: () => runEditorCommand("strikeThrough") },
+    { label: "标题", icon: Heading2, onClick: () => insertHtml(`<h2>${escapeHtml(selectedText() || "小标题")}</h2><p><br></p>`) },
+    { label: "列表", icon: List, onClick: () => runEditorCommand("insertUnorderedList") },
+    { label: "引用", icon: Quote, onClick: () => insertHtml(`<blockquote>${escapeHtml(selectedText() || "引用内容")}</blockquote><p><br></p>`) },
+    {
+      label: "链接",
+      icon: Link2,
+      onClick: () => {
+        const href = window.prompt("链接地址", "https://");
+        if (!href) return;
+        insertHtml(`<a href="${escapeHtml(href)}">${escapeHtml(selectedText() || "链接文本")}</a>`);
+      },
+    },
+    {
+      label: "图片",
+      icon: ImageIcon,
+      onClick: () => {
+        const src = window.prompt("图片地址", "/uploads/example.png");
+        if (!src) return;
+        insertHtml(`<img src="${escapeHtml(src)}" alt="图片说明" />`);
+      },
+    },
+    { label: "代码块", icon: Code2, onClick: () => insertHtml(`<pre><code>${escapeHtml(selectedText() || "=SUM(A1:A10)")}</code></pre><p><br></p>`) },
     {
       label: "表格",
       icon: Table2,
       onClick: () =>
-        insertBlock(
-          "<table>\n  <thead><tr><th>字段</th><th>说明</th></tr></thead>\n  <tbody><tr><td>示例</td><td>内容</td></tr></tbody>\n</table>",
-          22
+        insertHtml(
+          "<table><thead><tr><th>字段</th><th>说明</th></tr></thead><tbody><tr><td>示例</td><td>内容</td></tr></tbody></table><p><br></p>"
         ),
     },
-    { label: "分割线", icon: Minus, onClick: () => insertBlock("<hr />") },
-    { label: "清空", icon: Eraser, onClick: () => updateSource("") },
+    { label: "分割线", icon: Minus, onClick: () => runEditorCommand("insertHorizontalRule") },
+    { label: "清除格式", icon: Eraser, onClick: () => runEditorCommand("removeFormat") },
   ];
 
   const editorTabs: Array<{ key: ContentEditorMode; label: string }> = [
@@ -670,6 +672,8 @@ function TutorialContentEditor({
           key={label}
           type="button"
           title={label}
+          aria-label={label}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onClick}
           className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 transition hover:bg-white hover:text-slate-950 hover:shadow-sm"
         >
@@ -679,21 +683,22 @@ function TutorialContentEditor({
     </div>
   );
 
-  const renderSourcePane = (compact = false) => (
+  const renderVisualEditor = (compact = false) => (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {renderToolbar()}
-      <div className="grid grid-cols-[48px_minmax(0,1fr)]">
-        <div className="select-none border-r border-slate-100 bg-slate-50 px-3 py-3 text-right font-mono text-xs leading-6 text-slate-400">
-          {Array.from({ length: lineCount }, (_, index) => (
-            <div key={index}>{index + 1}</div>
-          ))}
-        </div>
-        <textarea
-          ref={textareaRef}
-          value={sourceValue}
-          onChange={(event) => onChange(event.target.value)}
-          className={`w-full resize-y border-0 bg-white px-4 py-3 font-mono text-sm leading-6 text-slate-800 outline-none placeholder:text-slate-300 ${compact ? "min-h-[320px]" : "min-h-[360px]"}`}
-          placeholder={"<h2>作用</h2>\n<p>直接输入教程正文，预览页会显示标签效果。</p>"}
+      <div className="relative">
+        {!sourceValue.trim() ? (
+          <div className="pointer-events-none absolute left-6 top-5 text-sm text-slate-400">
+            直接输入正文，工具栏可设置标题、列表、引用、链接、图片、代码块和表格。
+          </div>
+        ) : null}
+        <div
+          ref={editorRef}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={syncEditorContent}
+          onBlur={syncEditorContent}
+          className={`overflow-auto px-6 py-5 outline-none ${tutorialHtmlContentClass} ${compact ? "min-h-[320px]" : "min-h-[360px]"}`}
         />
       </div>
     </div>
@@ -722,11 +727,11 @@ function TutorialContentEditor({
       </div>
 
       <div className="p-4">
-        {mode === "content" ? renderSourcePane() : null}
+        {mode === "content" ? renderVisualEditor() : null}
         {mode === "preview" ? <TutorialHtmlPreview value={sourceValue} /> : null}
         {mode === "split" ? (
           <div className="grid gap-4 xl:grid-cols-2">
-            {renderSourcePane(true)}
+            {renderVisualEditor(true)}
             <TutorialHtmlPreview value={sourceValue} compact />
           </div>
         ) : null}
@@ -746,10 +751,18 @@ function TutorialHtmlPreview({ value, compact = false }: { value: string; compac
 
   return (
     <div
-      className={`overflow-auto rounded-2xl border border-slate-200 bg-white px-6 py-5 text-slate-700 shadow-inner [&_a]:font-semibold [&_a]:text-emerald-700 [&_blockquote]:mt-4 [&_blockquote]:border-l-4 [&_blockquote]:border-emerald-400 [&_blockquote]:bg-emerald-50 [&_blockquote]:px-4 [&_blockquote]:py-3 [&_code]:font-mono [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-black [&_h2]:text-slate-950 [&_hr]:my-5 [&_hr]:border-slate-200 [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-xl [&_li]:mt-1 [&_p]:mt-3 [&_p]:leading-7 [&_pre]:mt-4 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:bg-slate-950 [&_pre]:p-4 [&_pre]:text-sm [&_pre]:text-slate-100 [&_table]:mt-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-2 [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-50 [&_th]:px-3 [&_th]:py-2 [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:pl-6 ${compact ? "min-h-[320px]" : "min-h-[360px]"}`}
+      className={`overflow-auto rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-inner ${tutorialHtmlContentClass} ${compact ? "min-h-[320px]" : "min-h-[360px]"}`}
       dangerouslySetInnerHTML={{ __html: value }}
     />
   );
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function FormDialog({
