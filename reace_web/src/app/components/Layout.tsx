@@ -542,6 +542,15 @@ export function Layout() {
     },
   ];
   const moreLiteActive = moreLiteNavItems.some((item) => item.active);
+  const accountMenuPanelClassName = ONLINE_LITE_MODE
+    ? "w-44 rounded-2xl border border-white/10 bg-[#06251a]/96 p-1.5 text-white shadow-[0_18px_44px_rgba(0,0,0,0.30)] backdrop-blur-xl"
+    : "w-44 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_18px_44px_rgba(15,23,42,0.14)]";
+  const accountMenuItemClassName = ONLINE_LITE_MODE
+    ? "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-white/74 transition hover:bg-white/10 hover:text-white"
+    : "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950";
+  const accountMenuDangerClassName = ONLINE_LITE_MODE
+    ? "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-black text-rose-200 transition hover:bg-rose-500/14 hover:text-rose-100"
+    : "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-black text-rose-600 transition hover:bg-rose-50";
 
   useEffect(() => {
     const handleOpenProps = () => {
@@ -1146,45 +1155,33 @@ export function Layout() {
                       </span>
                     </button>
                   </HoverCardTrigger>
-                  <HoverCardContent align="end" className="w-[286px] rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_22px_56px_rgba(15,23,42,0.18)]">
-                    <div className="mb-2 flex items-center gap-3 rounded-[18px] bg-[linear-gradient(135deg,#f0fff7_0%,#e7f6ff_100%)] px-3 py-3">
-                      <img
-                        src={normalizeAvatarUrl(user?.avatar, user?.username)}
-                        alt=""
-                        className="h-10 w-10 rounded-full border border-white object-cover shadow-sm"
-                      />
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-slate-900">{user?.username || "用户"}</div>
-                        <div className="mt-0.5 text-xs font-semibold text-slate-500">学习工作台</div>
-                      </div>
-                    </div>
+                  <HoverCardContent align="end" sideOffset={12} className={accountMenuPanelClassName}>
                     <button
                       type="button"
                       onClick={() => navigate("/profile")}
-                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                      className={accountMenuItemClassName}
                     >
-                      <User size={16} className="text-slate-400" />
+                      <User size={16} className={ONLINE_LITE_MODE ? "text-white/42" : "text-slate-400"} />
                       个人中心
                     </button>
                     <button
                       type="button"
                       onClick={() => navigate("/settings")}
-                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                      className={accountMenuItemClassName}
                     >
-                      <Settings size={16} className="text-slate-400" />
+                      <Settings size={16} className={ONLINE_LITE_MODE ? "text-white/42" : "text-slate-400"} />
                       设置
                     </button>
                     {canAccessAdmin ? (
                       <button
                         type="button"
                         onClick={() => navigate(getDefaultAdminPath(user?.role))}
-                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                        className={accountMenuItemClassName}
                       >
-                        <ClipboardList size={16} className="text-slate-400" />
+                        <ClipboardList size={16} className={ONLINE_LITE_MODE ? "text-white/42" : "text-slate-400"} />
                         管理后台
                       </button>
                     ) : null}
-                    <div className="my-2 h-px bg-slate-100" />
                     <button
                       type="button"
                       onClick={async () => {
@@ -1192,9 +1189,9 @@ export function Layout() {
                         toast.success("已退出登录");
                         navigate("/auth");
                       }}
-                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-black text-rose-600 transition hover:bg-rose-50"
+                      className={accountMenuDangerClassName}
                     >
-                      <LogOut size={16} className="text-rose-500" />
+                      <LogOut size={16} className={ONLINE_LITE_MODE ? "text-rose-300" : "text-rose-500"} />
                       退出登录
                     </button>
                   </HoverCardContent>
