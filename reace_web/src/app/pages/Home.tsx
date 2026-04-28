@@ -1,326 +1,181 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, FileText, Lightbulb, Search } from "lucide-react";
+import { ArrowRight, BookOpen, FileText, Layers3, Sparkles, Target, Wrench } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { LitePageFrame } from "../components/LiteSurface";
-import { api } from "../lib/api";
-import { tutorialKeys } from "../lib/query-keys";
 
 export function Home() {
   const navigate = useNavigate();
-  const tutorialsQuery = useQuery({
-    queryKey: tutorialKeys.home(),
-    queryFn: () => api.get<any>("/api/tutorials/home", { silent: true }),
-  });
 
-  const categories = tutorialsQuery.data?.categories || [];
-  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
-  const [activeArticleId, setActiveArticleId] = useState<number | null>(null);
-  const [expandedCategoryId, setExpandedCategoryId] = useState<number | null>(null);
-  const [searchKeyword, setSearchKeyword] = useState("");
-
-  const visibleCategories = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase();
-    if (!keyword) {
-      return categories;
-    }
-
-    return categories
-      .map((category: any) => {
-        const categoryMatched = [category.name, category.description]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(keyword));
-        const articles = (category.articles || []).filter((article: any) =>
-          [article.title, article.summary, article.content]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(keyword))
-        );
-        if (categoryMatched) {
-          return category;
-        }
-        if (!articles.length) {
-          return null;
-        }
-        return {
-          ...category,
-          articles,
-        };
-      })
-      .filter(Boolean);
-  }, [categories, searchKeyword]);
-
-  useEffect(() => {
-    if (!visibleCategories.length) {
-      setActiveCategoryId(null);
-      setActiveArticleId(null);
-      setExpandedCategoryId(null);
-      return;
-    }
-    const nextCategoryId = activeCategoryId && visibleCategories.some((item: any) => item.id === activeCategoryId)
-      ? activeCategoryId
-      : visibleCategories[0].id;
-    const matchedCategory = visibleCategories.find((item: any) => item.id === nextCategoryId) || visibleCategories[0];
-    const nextArticleId = activeArticleId && matchedCategory.articles?.some((item: any) => item.id === activeArticleId)
-      ? activeArticleId
-      : matchedCategory.articles?.[0]?.id || null;
-    setActiveCategoryId(nextCategoryId);
-    setActiveArticleId(nextArticleId);
-    setExpandedCategoryId((current) =>
-      current && visibleCategories.some((item: any) => item.id === current) ? current : nextCategoryId
-    );
-  }, [visibleCategories, activeArticleId, activeCategoryId]);
-
-  const activeCategory = useMemo(
-    () => visibleCategories.find((item: any) => item.id === activeCategoryId) || visibleCategories[0] || null,
-    [visibleCategories, activeCategoryId]
-  );
-  const activeArticle = useMemo(
-    () => activeCategory?.articles?.find((item: any) => item.id === activeArticleId) || activeCategory?.articles?.[0] || null,
-    [activeArticleId, activeCategory]
-  );
-  const activeArticleIndex = activeCategory?.articles?.findIndex((item: any) => item.id === activeArticle?.id) ?? -1;
+  const featureCards = [
+    {
+      title: "教程中心",
+      text: "按函数场景组织知识点，直接关联章节和练习题。",
+      icon: <BookOpen size={24} />,
+      action: () => navigate("/tutorials"),
+    },
+    {
+      title: "章节闯关",
+      text: "用关卡地图推进学习路径，记录星级、错题和排行。",
+      icon: <Target size={24} />,
+      action: () => navigate("/practice"),
+    },
+    {
+      title: "模板中心",
+      text: "按行业下载可复用的 Excel 模板，积分体系自动结算。",
+      icon: <Layers3 size={24} />,
+      action: () => navigate("/templates"),
+    },
+    {
+      title: "实用工具",
+      text: "文件转换、历史记录和效率工具集中处理。",
+      icon: <Wrench size={24} />,
+      action: () => navigate("/tools"),
+    },
+  ];
 
   return (
-    <LitePageFrame className="max-w-[1460px]">
-      <section className="overflow-hidden rounded-[34px] border border-slate-200/80 bg-white/88 shadow-[0_18px_48px_rgba(15,23,42,0.05)] backdrop-blur-xl">
-        <div className="grid gap-0 xl:grid-cols-[288px_minmax(0,1fr)]">
-          <aside className="border-b border-slate-100 bg-[linear-gradient(180deg,#f7fbfb_0%,#f1f7fa_100%)] p-4 xl:border-b-0 xl:border-r xl:p-6">
-            <div className="rounded-[28px] border border-slate-200/70 bg-white/78 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              <div className="px-2 text-[11px] font-black tracking-[0.18em] text-slate-400">首页</div>
-              <label className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                <Search size={15} className="text-slate-400" />
-                <input
-                  value={searchKeyword}
-                  onChange={(event) => setSearchKeyword(event.target.value)}
-                  placeholder="搜索函数、场景、公式..."
-                  className="w-full bg-transparent text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
-                />
-              </label>
-              <div className="mt-3 space-y-2">
-                {visibleCategories.map((category: any, index: number) => {
-                  const isActive = category.id === activeCategory?.id;
-                  const isExpanded = category.id === expandedCategoryId;
-                  return (
-                    <motion.div
-                      key={category.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.04 }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveCategoryId(category.id);
-                          setActiveArticleId(category.articles?.[0]?.id || null);
-                          setExpandedCategoryId((current) => (current === category.id ? null : category.id));
-                        }}
-                        className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
-                          isActive
-                            ? "bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_100%)] text-white shadow-[0_12px_30px_rgba(15,23,42,0.12)]"
-                            : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                        }`}
-                      >
-                        <span className={isActive ? "text-white" : "text-slate-400"}>
-                          <Lightbulb size={16} strokeWidth={1.6} />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{category.name}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black tracking-[0.14em] ${
-                          isActive ? "bg-white/14 text-white/88" : "bg-slate-100 text-slate-400"
-                        }`}>
-                          {category.articles?.length || 0}
-                        </span>
-                        <span className={isActive ? "text-white/82" : "text-slate-400"}>
-                          {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                        </span>
-                      </button>
+    <LitePageFrame className="max-w-none px-0 py-0">
+      <section className="relative isolate min-h-[640px] overflow-hidden bg-[#00140d] px-5 pb-8 pt-20 text-white sm:min-h-[700px] sm:px-8 sm:pt-24 lg:min-h-[760px] lg:pt-28">
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(118deg,rgba(0,176,80,0.52)_0%,rgba(34,197,94,0.22)_28%,transparent_50%),radial-gradient(circle_at_78%_18%,rgba(124,255,178,0.18),transparent_34%),linear-gradient(180deg,#00140d_0%,#001b12_100%)]" />
+        <div className="absolute inset-0 -z-10 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,0.2)_1px,transparent_1px)] [background-size:100%_8px]" />
+        <div className="absolute left-[8%] top-8 -z-10 h-[420px] w-[420px] rounded-full bg-[#00b050]/24 blur-[110px]" />
+        <div className="absolute right-[8%] top-24 -z-10 h-[360px] w-[360px] rounded-full bg-[#7cffb2]/14 blur-[120px]" />
 
-                      {isExpanded && category.articles?.length ? (
-                        <div className="mt-2 space-y-1 pl-4">
-                          {category.articles.map((article: any, articleIndex: number) => {
-                            const isArticleActive = article.id === activeArticle?.id && category.id === activeCategory?.id;
-                            return (
-                              <button
-                                key={article.id}
-                                type="button"
-                                onClick={() => {
-                                  setActiveCategoryId(category.id);
-                                  setActiveArticleId(article.id);
-                                }}
-                                className={`flex w-full items-center gap-3 rounded-2xl px-4 py-2.5 text-left text-sm transition ${
-                                  isArticleActive
-                                    ? "bg-teal-50 text-teal-700"
-                                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                                }`}
-                              >
-                                <span className={isArticleActive ? "text-teal-600" : "text-slate-300"}>
-                                  <FileText size={14} strokeWidth={1.8} />
-                                </span>
-                                <span className="min-w-0 flex-1 truncate font-semibold">{article.title}</span>
-                                <span className="text-[10px] font-black tracking-[0.18em] text-slate-300">
-                                  {(articleIndex + 1).toString().padStart(2, "0")}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                    </motion.div>
-                  );
-                })}
+        <div className="mx-auto flex min-h-[430px] max-w-[1320px] flex-col items-center justify-center text-center sm:min-h-[500px] lg:min-h-[560px]">
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/8 px-5 py-2 text-sm text-white/82 backdrop-blur"
+          >
+            <Sparkles size={16} className="text-white" />
+            Excel 学习平台
+          </motion.div>
+          <motion.h1
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.06 }}
+            className="mt-8 max-w-[1120px] text-[44px] font-black leading-[0.98] tracking-tight text-white sm:text-[76px] lg:text-[92px]"
+          >
+            Excel社区 - 从函数到实战
+          </motion.h1>
+          <p className="mt-6 max-w-3xl text-lg font-semibold leading-8 text-white/58 sm:text-2xl">
+            学函数、做练习、查模板、用工具，围绕 Excel 日常工作形成完整学习路径。
+          </p>
+          <div className="mt-9 flex flex-wrap justify-center gap-4">
+            <button
+              type="button"
+              onClick={() => navigate("/practice")}
+              className="group inline-flex h-[60px] items-center gap-5 rounded-full bg-white pl-7 pr-2 text-2xl font-black text-[#00a651] shadow-[0_18px_44px_rgba(255,255,255,0.14)] transition hover:bg-[#00b050] hover:text-white"
+            >
+              立即练习
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#00b050] text-white transition group-hover:bg-white group-hover:text-[#00a651]">
+                <ArrowRight size={20} />
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/tutorials")}
+              className="inline-flex h-[60px] items-center rounded-full border border-white/20 bg-white/8 px-7 text-lg font-bold text-white/86 backdrop-blur transition hover:bg-white/14"
+            >
+              进入教程中心
+            </button>
+          </div>
+        </div>
+
+        <div className="mx-auto grid max-w-[1320px] gap-4 lg:grid-cols-4">
+          {featureCards.map((card, index) => (
+            <motion.button
+              key={card.title}
+              type="button"
+              onClick={card.action}
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 + index * 0.04 }}
+              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#0b1f17]/90 p-6 text-left transition hover:-translate-y-1 hover:border-[#00b050]/75"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-[#9cffc3] shadow-[0_0_24px_rgba(0,176,80,0.45)]">
+                {card.icon}
               </div>
+              <div className="mt-5 text-lg font-black text-white">{card.title}</div>
+              <p className="mt-3 text-sm leading-6 text-white/56">{card.text}</p>
+            </motion.button>
+          ))}
+        </div>
+      </section>
 
-              {!visibleCategories.length ? (
-                <div className="mt-4 rounded-[22px] border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-400">
-                  没有匹配到相关函数，换个关键词再试。
-                </div>
-              ) : null}
-
-              {!categories.length ? (
-                <div className="mt-4 rounded-[22px] border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-400">
-                  暂无可展示分类
-                </div>
-              ) : null}
+      <section className="bg-[#00140d] px-5 py-24 text-white sm:px-8">
+        <div className="mx-auto grid max-w-[1320px] gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/8 px-4 py-2 text-sm font-bold text-[#9cffc3]">
+              <FileText size={16} />
+              教程中心
             </div>
-          </aside>
+            <h2 className="mt-6 text-4xl font-black tracking-tight sm:text-5xl">
+              函数教程、分类搜索与关联练习。
+            </h2>
+            <p className="mt-5 text-xl leading-8 text-white/56">
+              按函数类型查看教程，阅读用法、语法和示例后，可进入对应章节继续练习。
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/tutorials")}
+                className="inline-flex items-center gap-2 rounded-full bg-[#00b050] px-6 py-3 text-sm font-black text-white transition hover:bg-[#008f43]"
+              >
+                浏览教程中心
+                <ArrowRight size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/practice/chapters")}
+                className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/8 px-6 py-3 text-sm font-black text-white/82 transition hover:bg-white/14"
+              >
+                查看题型章节
+              </button>
+            </div>
+          </div>
 
-          <div className="min-w-0 p-6">
-            {!activeArticle ? (
-              <div className="flex min-h-[420px] items-center justify-center rounded-[30px] border border-dashed border-slate-200 bg-slate-50/60 px-6 text-center text-sm text-slate-400">
-                暂无首页教程内容，请先在后台新增分类和条目。
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[
+              ["函数分类", "函数基础、逻辑判断、查找引用、文本处理等分类清晰归档。"],
+              ["关键词检索", "可按函数名、教程主题或业务场景快速查找。"],
+              ["关联练习", "教程可进入关联章节和题目，把阅读转为实操。"],
+              ["错题复盘", "练习后的薄弱题目进入错题复习，便于反复巩固。"],
+            ].map(([title, text]) => (
+              <div key={title} className="rounded-[28px] border border-white/10 bg-white/8 px-6 py-7">
+                <div className="text-lg font-black text-white">{title}</div>
+                <p className="mt-3 text-sm leading-6 text-white/52">{text}</p>
               </div>
-            ) : (
-              <div className="rounded-[28px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-6 shadow-[0_14px_36px_rgba(15,23,42,0.04)]">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-                    <FileText size={12} />
-                    当前条目
-                  </div>
-                  {activeCategory ? (
-                    <span className="rounded-full bg-teal-50 px-3 py-1 text-[11px] font-bold text-teal-700">
-                      {activeCategory.name}
-                    </span>
-                  ) : null}
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500">
-                    {activeArticleIndex + 1}/{activeCategory?.articles?.length || 0}
-                  </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white px-5 py-24 sm:px-8">
+        <div className="mx-auto max-w-[1320px]">
+          <div className="mx-auto max-w-4xl text-center">
+            <h2 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">始终围绕实战准备</h2>
+            <p className="mt-5 text-xl leading-8 text-slate-600">
+              把教程、练习、模板和工具串成可复用的学习工作流。
+            </p>
+          </div>
+          <div className="mt-14 grid gap-6 lg:grid-cols-3">
+            {[
+              ["学完即练", "每篇教程都优先连接到章节或题目，减少从阅读到实操的断点。"],
+              ["错题循环", "练习结果进入错题复盘，帮助你把薄弱函数真正练熟。"],
+              ["模板沉淀", "高频业务场景沉淀为模板，学习成果可以直接进入工作。"],
+            ].map(([title, text]) => (
+              <div key={title} className="rounded-[28px] bg-[#eafff2] px-8 py-10">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#00b050] text-white shadow-[0_18px_38px_rgba(0,176,80,0.24)]">
+                  <Sparkles size={26} />
                 </div>
-                <h2 className="mt-3 text-[34px] font-black tracking-tight text-slate-900">{activeArticle.title}</h2>
-                {activeArticle.summary ? (
-                  <p className="mt-3 text-sm leading-7 text-slate-500">{activeArticle.summary}</p>
-                ) : null}
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {activeArticle.audienceTrack ? (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                      {trackLabel[activeArticle.audienceTrack] || "通用轨道"}
-                    </span>
-                  ) : null}
-                  {activeArticle.difficulty ? (
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
-                      {difficultyLabel[activeArticle.difficulty] || "基础难度"}
-                    </span>
-                  ) : null}
-                  {Array.isArray(activeArticle.functionTags)
-                    ? activeArticle.functionTags.map((tag: string) => (
-                        <span key={tag} className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">
-                          {tag}
-                        </span>
-                      ))
-                    : null}
-                </div>
-
-                <div className="mt-6 rounded-[24px] border border-slate-200 bg-white px-5 py-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
-                  {activeArticle.content ? (
-                    <div
-                      className="home-tutorial-content space-y-4 text-[15px] leading-8 text-slate-700"
-                      dangerouslySetInnerHTML={{ __html: activeArticle.content }}
-                    />
-                  ) : (
-                    <div className="text-sm text-slate-400">当前条目暂无正文内容。</div>
-                  )}
-                </div>
-
-                {activeArticle.oneLineUsage || activeArticle.relatedChapters?.length || activeArticle.relatedQuestions?.length ? (
-                  <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-                    <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
-                      <div className="text-[11px] font-black tracking-[0.18em] text-slate-400">关联练习</div>
-                      <h3 className="mt-2 text-xl font-black text-slate-900">学完就练</h3>
-                      <p className="mt-2 text-sm leading-7 text-slate-500">
-                        {activeArticle.oneLineUsage || "当前条目已补齐练习关联，直接进入对应章节或题目即可验证掌握情况。"}
-                      </p>
-
-                      {activeArticle.relatedChapters?.length ? (
-                        <div className="mt-5">
-                          <div className="text-sm font-bold text-slate-700">关联章节</div>
-                          <div className="mt-3 flex flex-wrap gap-3">
-                            {activeArticle.relatedChapters.map((chapter: any) => (
-                              <button
-                                key={chapter.id}
-                                type="button"
-                                onClick={() => navigate(`/practice/chapter/${chapter.id}`)}
-                                className="rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-left transition hover:border-teal-200 hover:bg-teal-100/70"
-                              >
-                                <div className="text-sm font-bold text-teal-800">{chapter.name}</div>
-                                {chapter.description ? <div className="mt-1 max-w-[260px] text-xs text-teal-700/75">{chapter.description}</div> : null}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {activeArticle.relatedQuestions?.length ? (
-                        <div className="mt-5">
-                          <div className="text-sm font-bold text-slate-700">关联题目</div>
-                          <div className="mt-3 flex flex-wrap gap-3">
-                            {activeArticle.relatedQuestions.map((question: any) => (
-                              <button
-                                key={question.id}
-                                type="button"
-                                onClick={() => navigate(`/practice/question/${question.id}`, { state: { backTo: "/" } })}
-                                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:border-slate-300 hover:bg-white"
-                              >
-                                <div className="text-sm font-bold text-slate-800">{question.title}</div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fffd_100%)] px-5 py-5 shadow-[0_10px_28px_rgba(15,23,42,0.04)]">
-                      <div className="text-[11px] font-black tracking-[0.18em] text-slate-400">学习提示</div>
-                      <h3 className="mt-2 text-xl font-black text-slate-900">推荐学习路径</h3>
-                      <div className="mt-4 space-y-3">
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                          1. 先看当前函数的语法和示例，确认参数含义。
-                        </div>
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                          2. 立即进入对应章节或题目练习，验证公式是否真正会写。
-                        </div>
-                        <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                          3. 错题优先重复练，确保函数写法和场景选择都过关。
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
+                <h3 className="mt-9 text-2xl font-black text-slate-950">{title}</h3>
+                <p className="mt-3 text-base leading-7 text-slate-600">{text}</p>
               </div>
-            )}
+            ))}
           </div>
         </div>
       </section>
     </LitePageFrame>
   );
 }
-
-const trackLabel: Record<string, string> = {
-  beginner: "新手入门",
-  advanced: "进阶提升",
-  general: "通用轨道",
-};
-
-const difficultyLabel: Record<string, string> = {
-  basic: "基础",
-  medium: "中等",
-  advanced: "进阶",
-};

@@ -43,7 +43,25 @@
 
 - 当前操作目录为 `/www/wwwroot/kick-deploy/repo`
 - 运行服务为 `kick-backend.service`
-- 本次发布目标是“收敛现有部署链路”，不是临时在其他目录手工替换文件
+- 本次发布目标是“服务器从 Git 拉取代码后构建发布”，不是临时在其他目录手工替换文件
+- 本地变更已经提交并推送到 `deploy.env` 配置的 `BRANCH`，否则服务器无法拉取到本次更新
+
+部署环境文件 `/www/wwwroot/kick-deploy/deploy.env` 需要包含 Git 拉取配置：
+
+```bash
+REPO_URL="https://github.com/Laowang3366/kick.git"
+BRANCH="codex/online-snapshot-20260417"
+GIT_REMOTE="origin"
+GIT_PULL_BEFORE_BUILD="1"
+```
+
+当前线上更新分支沿用 `codex/online-snapshot-20260417`。如果后续切换到新的 Codex 分支，需要先更新服务器 `/www/wwwroot/kick-deploy/deploy.env` 的 `BRANCH`，再执行部署脚本。
+
+仓库内提供了示例文件：
+
+```bash
+scripts/deploy/deploy.env.example
+```
 
 标准部署命令：
 
@@ -55,14 +73,21 @@ bash scripts/deploy/production-deploy.sh
 部署脚本会执行：
 
 1. 校验配置和依赖命令
-2. 打印当前仓库状态
-3. 构建前端 `reace_web/dist`
-4. 构建后端 `excel-forum-backend/target/forum-1.0.0.jar`
-5. 为当前前端目录和后端 JAR 建立时间戳备份
-6. 替换运行时目录
-7. 重启 `kick-backend.service`
-8. 通过 HTTP 接口进行健康检查
-9. 如失败则自动回滚
+2. 校验部署仓库是否干净
+3. 按 `deploy.env` 的 `REPO_URL`、`BRANCH` 和 `GIT_REMOTE` 拉取最新代码
+4. 构建前端 `reace_web/dist`
+5. 构建后端 `excel-forum-backend/target/forum-1.0.0.jar`
+6. 为当前前端目录和后端 JAR 建立时间戳备份
+7. 替换运行时目录
+8. 重启 `kick-backend.service`
+9. 通过 HTTP 接口进行健康检查
+10. 如失败则自动回滚
+
+如果需要临时跳过拉取，仅构建服务器当前代码，可以在执行时覆盖配置：
+
+```bash
+GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh
+```
 
 ## 健康检查
 

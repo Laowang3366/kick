@@ -34,3 +34,8 @@ PRs should state which module changed, summarize user-visible behavior, list ver
 
 ## Security & Configuration Tips
 Backend configuration is driven by `excel-forum-backend/src/main/resources/application.yml`. Prefer environment overrides for `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and `JWT_SECRET`. Database schema changes must be added as new Flyway migrations under `src/main/resources/db/migration/`; do not edit historical migrations in place.
+
+## Online Update Log
+Before deploying or updating `https://www.excelcc.cn/`, read `ONLINE_UPDATE_LOG.md` at the repository root. After each successful online deployment, append a new entry at the top of that file with the change scope, verification commands, deployment target, server backup path, and notes. Do not record secrets or passwords in the log.
+
+Production deployments should use the server-side pull workflow documented in `docs/deployment-operations.md`: run `bash scripts/deploy/production-deploy.sh` from `/www/wwwroot/kick-deploy/repo` on the server, with `/www/wwwroot/kick-deploy/deploy.env` configured from `scripts/deploy/deploy.env.example`. Avoid local `dist` upload deployments except as an explicit emergency fallback, and record that fallback in `ONLINE_UPDATE_LOG.md`.

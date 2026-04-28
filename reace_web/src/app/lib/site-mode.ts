@@ -6,6 +6,7 @@ const LITE_ALLOWED_PREFIXES = [
   "/admin",
   "/practice",
   "/templates",
+  "/tutorials",
   "/mall",
   "/profile",
   "/settings",

@@ -1,315 +1,373 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Award, ClipboardList, History, Lock, Map, Target, Trophy } from "lucide-react";
-import { motion } from "motion/react";
+import { useState } from "react";
+import type { ReactNode } from "react";
+import {
+  Award,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  History,
+  Loader2,
+  Lock,
+  Map,
+  Play,
+  Target,
+  Trophy,
+} from "lucide-react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { LitePageFrame } from "../components/LiteSurface";
 import { api } from "../lib/api";
+import {
+  canExpandChapterQuestions,
+  getCampaignLevelStatusLabel,
+  getChapterQuestionToggleLabel,
+} from "../lib/practice-campaign-ui";
+import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignHub() {
   const navigate = useNavigate();
-  const mapViewportRef = useRef<HTMLDivElement | null>(null);
-  const [mapViewportWidth, setMapViewportWidth] = useState(0);
-  const [availableMapHeight, setAvailableMapHeight] = useState(720);
-  const overviewQuery = useQuery({
-    queryKey: practiceKeys.campaignOverview(),
-    queryFn: () => api.get<any>("/api/practice/campaign/overview", { silent: true }),
-  });
+  const [expandedChapterId, setExpandedChapterId] = useState<number | string | null>(null);
+  const [startingLevelId, setStartingLevelId] = useState<number | string | null>(null);
   const chaptersQuery = useQuery({
     queryKey: practiceKeys.campaignChapters(),
     queryFn: () => api.get<any>("/api/practice/campaign/chapters", { silent: true }),
   });
+  const chapterDetailQuery = useQuery({
+    queryKey: practiceKeys.campaignChapter(expandedChapterId || "none"),
+    enabled: Boolean(expandedChapterId),
+    queryFn: () => api.get<any>(`/api/practice/campaign/chapters/${expandedChapterId}`, { silent: true }),
+  });
 
   const chapters = chaptersQuery.data?.chapters || [];
-  const currentChapter =
-    overviewQuery.data?.currentChapter ||
-    chapters.find((chapter: any) => chapter.unlocked) ||
-    chapters[0] ||
-    null;
-  const mapChapters = useMemo(() => chapters.slice(0, 10), [chapters]);
-  const mapNodeWidth = 232;
-  const mapNodeHeight = 150;
-  const mapColumns = 4;
-  const mapStepX = 270;
-  const mapRows = Math.max(1, Math.ceil(Math.max(mapChapters.length, 1) / mapColumns));
-  const mapTopPadding = 38;
-  const mapBottomPadding = 72;
-  const mapViewportSafety = 40;
-  const fittingMapHeight = Math.max(400, availableMapHeight - mapViewportSafety);
-  const rawMapStepY =
-    mapRows > 1
-      ? (fittingMapHeight - mapTopPadding - mapBottomPadding - mapNodeHeight) / (mapRows - 1)
-      : 0;
-  const mapStepY =
-    mapRows > 1
-      ? Math.min(mapNodeHeight + 110, Math.max(mapNodeHeight + 48, rawMapStepY))
-      : 0;
-  const mapRowJitter = mapRows > 1 ? Math.min(52, mapStepY * 0.18) : 0;
-  const mapLaneOffsets = [0, mapRowJitter * 0.75, mapRowJitter * 0.2, mapRowJitter];
-  const mapBoardHeight =
-    mapRows > 1
-      ? Math.max(
-          fittingMapHeight,
-          mapTopPadding + (mapRows - 1) * mapStepY + mapNodeHeight + mapBottomPadding + mapRowJitter
-        )
-      : Math.max(fittingMapHeight, mapNodeHeight + mapTopPadding + mapBottomPadding);
-  const mapNodes = useMemo(
-    () =>
-      mapChapters.map((chapter: any, index: number) => {
-        const row = Math.floor(index / mapColumns);
-        const rowIndex = index % mapColumns;
-        const visualColumn = row % 2 === 0 ? rowIndex : mapColumns - rowIndex - 1;
-        const left = 36 + visualColumn * mapStepX;
-        const centeredTop = Math.max(mapTopPadding, (mapBoardHeight - mapNodeHeight) / 2);
-        const top =
-          mapRows > 1
-            ? mapTopPadding + row * mapStepY + mapLaneOffsets[visualColumn]
-            : centeredTop;
-        return {
-          chapter,
-          index,
-          left,
-          top,
-          centerX: left + mapNodeWidth / 2,
-          centerY: top + mapNodeHeight / 2,
-        };
-      }),
-    [mapBoardHeight, mapChapters, mapLaneOffsets, mapRows, mapStepY]
-  );
-  const mapBoardWidth = Math.max(
-    920,
-    36 + Math.max(0, mapColumns - 1) * mapStepX + mapNodeWidth + 36
-  );
-  const widthScale = mapViewportWidth ? Math.min(1, (mapViewportWidth - 8) / mapBoardWidth) : 1;
-  const heightScale = Math.min(1, availableMapHeight / mapBoardHeight);
-  const mapScale = Math.min(widthScale, heightScale);
-  const scaledBoardHeight = Math.max(400, Math.round(mapBoardHeight * mapScale));
+  const expandedChapter = chapters.find((chapter: any) => String(chapter.id) === String(expandedChapterId)) || null;
+  const expandedLevels = chapterDetailQuery.data?.levels || [];
 
-  useEffect(() => {
-    const syncViewport = () => {
-      const viewportEl = mapViewportRef.current;
-      if (!viewportEl) {
-        return;
-      }
-      const { top } = viewportEl.getBoundingClientRect();
-      setMapViewportWidth(viewportEl.clientWidth || 0);
-      setAvailableMapHeight(Math.max(420, window.innerHeight - top - 28));
-    };
-
-    syncViewport();
-    window.addEventListener("resize", syncViewport);
-
-    const observer = new ResizeObserver(() => syncViewport());
-    if (mapViewportRef.current) {
-      observer.observe(mapViewportRef.current);
+  const handleToggleQuestions = (chapter: any) => {
+    if (!canExpandChapterQuestions(chapter)) {
+      return;
     }
+    setExpandedChapterId((current) => (String(current) === String(chapter.id) ? null : chapter.id));
+  };
 
-    return () => {
-      window.removeEventListener("resize", syncViewport);
-      observer.disconnect();
-    };
-  }, []);
+  const handleStartLevel = async (level: any, chapter: any) => {
+    if (!level || level.status === "locked") {
+      return;
+    }
+    setStartingLevelId(level.id);
+    try {
+      const result = await startCampaignLevel(level.id, level.questionId);
+      navigate(`/practice/question/${result.questionId}`, {
+        state: {
+          backTo: "/practice",
+          campaignLevel: level,
+          campaignChapter: chapter,
+          campaignAttemptId: result.attemptId,
+        },
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "开始答题失败");
+    } finally {
+      setStartingLevelId(null);
+    }
+  };
 
   return (
-    <LitePageFrame className="max-w-[1500px]">
-      <section className="overflow-hidden rounded-[38px] border border-[#d8ece7] bg-[linear-gradient(180deg,#f4fbf8_0%,#eef7fa_100%)] px-5 py-8 shadow-[0_22px_64px_rgba(15,23,42,0.08)] sm:px-8">
-        <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-teal-600 shadow-sm">
-              <Map size={20} />
+    <LitePageFrame className="max-w-[1320px]">
+      <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[#00140d] text-white shadow-[0_28px_72px_rgba(0,20,13,0.22)]">
+        <div className="border-b border-white/10 px-5 py-6 sm:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/12 bg-white/10 text-[#ccfff1] shadow-sm">
+                <Map size={20} />
+              </div>
+              <div>
+                <h1 className="text-[30px] font-black tracking-tight text-white">章节地图</h1>
+                <p className="mt-1 text-sm text-white/52">按章节顺序练习，完成后继续解锁后续内容。</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-[30px] font-black tracking-tight text-slate-900">章节地图</h1>
-              <p className="mt-1 text-sm text-slate-500">点击节点进入对应章节。</p>
+            <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+              <PracticeActionButton onClick={() => navigate("/practice/chapters")}>
+                查看所有章节列表
+              </PracticeActionButton>
+              <PracticeActionButton onClick={() => navigate("/practice/ranking")} icon={<Trophy size={15} />}>
+                闯关排行
+              </PracticeActionButton>
+              <PracticeActionButton onClick={() => navigate("/practice/daily")} icon={<Target size={15} />}>
+                每日挑战
+              </PracticeActionButton>
+              <PracticeActionButton onClick={() => navigate("/practice/wrongs")} icon={<ClipboardList size={15} />}>
+                错题重练
+              </PracticeActionButton>
+              <PracticeActionButton onClick={() => navigate("/practice/history")} icon={<History size={15} />}>
+                练习记录
+              </PracticeActionButton>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-            <button
-              type="button"
-              onClick={() => navigate("/practice/chapters")}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
-            >
-              查看所有章节列表
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/practice/ranking")}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
-            >
-              <Trophy size={15} />
-              闯关排行
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/practice/daily")}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
-            >
-              <Target size={15} />
-              每日挑战
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/practice/wrongs")}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
-            >
-              <ClipboardList size={15} />
-              错题重练
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/practice/history")}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
-            >
-              <History size={15} />
-              练习记录
-            </button>
           </div>
         </div>
 
-        <div>
-          <section className="relative overflow-hidden rounded-[34px] border border-[#dcefe9] bg-[linear-gradient(180deg,#effaf7_0%,#f8fcff_100%)] px-5 py-8 sm:px-8">
-            <div className="absolute inset-0 opacity-40">
-              <div className="h-full w-full bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(14,165,233,0.10),transparent_28%)]" />
-            </div>
-            <div ref={mapViewportRef} className="relative overflow-hidden pb-1">
-              <div className="flex justify-center" style={{ height: `${scaledBoardHeight}px` }}>
-                <div
-                  className="relative shrink-0 rounded-[30px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.58)_0%,rgba(255,255,255,0.78)_100%)] px-4 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
-                  style={{
-                    width: `${mapBoardWidth}px`,
-                    height: `${mapBoardHeight}px`,
-                    transform: `scale(${mapScale})`,
-                    transformOrigin: "top center",
-                  }}
-                >
-                <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
-                  {mapNodes.slice(0, -1).map((node, index) => {
-                    const next = mapNodes[index + 1];
-                    if (!next) {
-                      return null;
-                    }
-                    const controlX = (node.centerX + next.centerX) / 2;
-                    const controlY = Math.min(node.centerY, next.centerY) - 32;
-                    return (
-                      <path
-                        key={`${node.chapter.id}-${next.chapter.id}`}
-                        d={`M ${node.centerX} ${node.centerY} Q ${controlX} ${controlY} ${next.centerX} ${next.centerY}`}
-                        fill="none"
-                        stroke="rgba(20,184,166,0.28)"
-                        strokeWidth="6"
-                        strokeLinecap="round"
-                        strokeDasharray="10 12"
-                      />
-                    );
-                  })}
-                </svg>
+        <div className="px-5 py-5 sm:px-8 sm:py-6">
+          {chapters.length ? (
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+              <div className="grid grid-cols-[70px_minmax(170px,1fr)_96px_140px_74px_74px_190px] gap-3 border-b border-white/10 px-5 py-3 text-xs font-black text-white/42 max-lg:hidden">
+                <span>序号</span>
+                <span>章节</span>
+                <span>状态</span>
+                <span>进度</span>
+                <span>题目</span>
+                <span>星数</span>
+                <span className="text-right">操作</span>
+              </div>
 
-                {mapNodes.map(({ chapter, index, left, top, centerX, centerY }) => {
-                  const isCurrent = currentChapter?.id === chapter.id;
+              <div className="divide-y divide-white/10">
+                {chapters.map((chapter: any, index: number) => {
                   const isCompleted = Boolean(chapter.completed);
                   const isUnlocked = Boolean(chapter.unlocked);
+                  const isExpanded = String(expandedChapterId) === String(chapter.id);
+                  const status = isCompleted ? "已通关" : isUnlocked ? "可进入" : "未解锁";
+                  const progress = Math.max(0, Math.min(100, Number(chapter.progress || 0)));
 
                   return (
-                    <motion.div
-                      key={chapter.id}
-                      initial={{ opacity: 0, scale: 0.94, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="absolute"
-                      style={{ left, top, width: `${mapNodeWidth}px` }}
-                    >
-                      <div
-                        className="pointer-events-none absolute z-0 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[5px] border-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]"
-                        style={{
-                          left: `${centerX - left}px`,
-                          top: `${centerY - top}px`,
-                          background: isCompleted ? "#14b8a6" : isCurrent ? "#f59e0b" : isUnlocked ? "#38bdf8" : "#cbd5e1",
-                        }}
-                      />
-
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/practice/chapters?chapter=${chapter.id}`)}
-                        className={`group relative z-10 w-full overflow-hidden rounded-[28px] border px-4 py-4 text-left transition ${
-                          isCompleted
-                            ? "border-emerald-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#ffffff_72%)] shadow-[0_18px_44px_rgba(16,185,129,0.10)]"
-                            : isCurrent
-                              ? "border-amber-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_70%)] shadow-[0_18px_44px_rgba(251,146,60,0.14)]"
-                              : isUnlocked
-                                ? "border-slate-200 bg-white/96 hover:border-teal-200 hover:shadow-[0_18px_44px_rgba(15,23,42,0.08)]"
-                                : "border-slate-200 bg-slate-100/90 opacity-85"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-[10px] font-black tracking-[0.18em] text-slate-400">
-                              章节 {(index + 1).toString().padStart(2, "0")}
-                            </div>
-                            <div className="mt-2 line-clamp-1 text-[26px] font-black tracking-tight text-slate-900">{chapter.name}</div>
+                    <div key={chapter.id} className={isExpanded ? "bg-white/[0.05]" : ""}>
+                      <div className="grid w-full gap-3 px-5 py-4 text-left transition hover:bg-white/[0.04] max-lg:grid-cols-1 lg:grid-cols-[70px_minmax(170px,1fr)_96px_140px_74px_74px_190px] lg:items-center">
+                        <div className="text-sm font-black text-white/46">
+                          章节 {(index + 1).toString().padStart(2, "0")}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h2 className="truncate text-xl font-black text-white">{chapter.name}</h2>
+                            {!isUnlocked ? <Lock size={14} className="shrink-0 text-white/32" /> : null}
                           </div>
-                          <div
-                            className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-black ${
+                          {chapter.description ? (
+                            <p className="mt-1 line-clamp-1 text-sm text-white/42">{chapter.description}</p>
+                          ) : null}
+                        </div>
+                        <div>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ${
                               isCompleted
-                                ? "bg-emerald-50 text-emerald-600"
-                                : isCurrent
-                                  ? "bg-amber-50 text-amber-700"
-                                  : isUnlocked
-                                    ? "bg-sky-50 text-sky-700"
-                                    : "bg-slate-200 text-slate-500"
+                                ? "bg-emerald-400/14 text-emerald-200"
+                                : isUnlocked
+                                  ? "bg-sky-400/14 text-sky-200"
+                                  : "bg-white/8 text-white/40"
                             }`}
                           >
-                            {isCompleted ? "已通关" : isCurrent ? "当前" : isUnlocked ? "可进入" : "未解锁"}
-                          </div>
+                            {isCompleted ? <CheckCircle2 size={13} /> : isUnlocked ? <Target size={13} /> : <Lock size={13} />}
+                            {status}
+                          </span>
                         </div>
-
-                        <div className="mt-4 h-2 rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full transition-all ${
-                              isCompleted
-                                ? "bg-[linear-gradient(90deg,#10b981,#14b8a6)]"
-                                : isUnlocked
-                                  ? "bg-[linear-gradient(90deg,#f59e0b,#fb923c)]"
-                                  : "bg-slate-300"
+                        <div>
+                          <div className="h-2 rounded-full bg-white/10">
+                            <div
+                              className={`h-full rounded-full ${
+                                isCompleted ? "bg-[#00b050]" : isUnlocked ? "bg-[#7cffb2]" : "bg-white/18"
+                              }`}
+                              style={{ width: `${Math.max(4, progress)}%` }}
+                            />
+                          </div>
+                          <div className="mt-2 text-xs font-bold text-white/46">{progress}%</div>
+                        </div>
+                        <MetricValue label="题目" value={chapter.totalLevels ?? 0} />
+                        <div className="flex items-center gap-1.5 text-sm font-black text-white">
+                          <Award size={15} className="text-amber-300" />
+                          {chapter.totalStars ?? 0}
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2 max-lg:justify-start">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleQuestions(chapter)}
+                            disabled={!isUnlocked}
+                            className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-black transition ${
+                              isUnlocked
+                                ? "border border-white/12 bg-white/8 text-white/78 hover:bg-white/14 hover:text-white"
+                                : "cursor-not-allowed bg-white/5 text-white/28"
                             }`}
-                            style={{ width: `${Math.max(6, Number(chapter.progress || 0))}%` }}
-                          />
+                          >
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            {getChapterQuestionToggleLabel({ isExpanded, isUnlocked })}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/practice/chapters?chapter=${chapter.id}`)}
+                            disabled={!isUnlocked}
+                            className={`inline-flex h-9 items-center justify-center rounded-full px-3 text-xs font-black transition ${
+                              isUnlocked
+                                ? "bg-[#9cffc3] text-[#002d1c] hover:bg-white"
+                                : "cursor-not-allowed bg-white/5 text-white/28"
+                            }`}
+                          >
+                            进入章节
+                          </button>
                         </div>
+                      </div>
 
-                        <div className="mt-4 grid grid-cols-3 gap-2">
-                          <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
-                            <div className="text-[10px] font-bold text-slate-400">进度</div>
-                            <div className="mt-1.5 text-lg font-black text-slate-900">{chapter.progress}%</div>
-                          </div>
-                          <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
-                            <div className="text-[10px] font-bold text-slate-400">题目</div>
-                            <div className="mt-1.5 text-lg font-black text-slate-900">{chapter.totalLevels}</div>
-                          </div>
-                          <div className="rounded-2xl bg-slate-50 px-3 py-2.5">
-                            <div className="text-[10px] font-bold text-slate-400">星数</div>
-                            <div className="mt-1.5 flex items-center gap-1 text-amber-500">
-                              <Award size={15} />
-                              <span className="text-lg font-black text-slate-900">{chapter.totalStars}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {!isUnlocked ? (
-                          <div className="mt-4 inline-flex items-center gap-2 text-[11px] font-black text-slate-400">
-                            <Lock size={12} />
-                            当前章节尚未解锁
-                          </div>
-                        ) : null}
-                      </button>
-                    </motion.div>
+                      {isExpanded ? (
+                        <ChapterQuestionList
+                          chapter={expandedChapter || chapter}
+                          levels={expandedLevels}
+                          isLoading={chapterDetailQuery.isLoading || chapterDetailQuery.isFetching}
+                          isError={chapterDetailQuery.isError}
+                          startingLevelId={startingLevelId}
+                          onStartLevel={handleStartLevel}
+                        />
+                      ) : null}
+                    </div>
                   );
                 })}
-                </div>
               </div>
             </div>
-          </section>
+          ) : (
+            <div className="flex min-h-[260px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/12 bg-white/[0.04] px-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#00b050] text-white shadow-[0_18px_38px_rgba(0,176,80,0.3)]">
+                <Map size={24} />
+              </div>
+              <div className="mt-5 text-2xl font-black text-white">章节等待配置</div>
+              <div className="mt-2 max-w-md text-sm leading-6 text-white/54">
+                后台启用章节后，这里会自动展示章节列表、进度和星级。
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </LitePageFrame>
+  );
+}
+
+function ChapterQuestionList({
+  chapter,
+  levels,
+  isLoading,
+  isError,
+  startingLevelId,
+  onStartLevel,
+}: {
+  chapter: any;
+  levels: any[];
+  isLoading: boolean;
+  isError: boolean;
+  startingLevelId: number | string | null;
+  onStartLevel: (level: any, chapter: any) => Promise<void>;
+}) {
+  if (isLoading) {
+    return (
+      <div className="mx-5 mb-5 rounded-2xl border border-white/10 bg-[#001f15] px-5 py-5 text-sm font-bold text-white/58 sm:mx-8">
+        <span className="inline-flex items-center gap-2">
+          <Loader2 size={16} className="animate-spin" />
+          题目加载中...
+        </span>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="mx-5 mb-5 rounded-2xl border border-red-300/20 bg-red-500/10 px-5 py-5 text-sm font-bold text-red-100 sm:mx-8">
+        题目列表加载失败，请稍后重试。
+      </div>
+    );
+  }
+
+  if (!levels.length) {
+    return (
+      <div className="mx-5 mb-5 rounded-2xl border border-dashed border-white/12 bg-[#001f15] px-5 py-5 text-sm font-bold text-white/50 sm:mx-8">
+        当前章节暂无题目。
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-5 mb-5 overflow-hidden rounded-2xl border border-[#00b050]/20 bg-[#001f15] sm:mx-8">
+      <div className="grid grid-cols-[56px_minmax(160px,1fr)_90px_96px_112px] gap-3 border-b border-white/10 px-4 py-3 text-xs font-black text-white/38 max-md:hidden">
+        <span>序号</span>
+        <span>题目</span>
+        <span>状态</span>
+        <span>奖励</span>
+        <span className="text-right">操作</span>
+      </div>
+      <div className="divide-y divide-white/10">
+        {levels.map((level: any, index: number) => {
+          const isLocked = level.status === "locked";
+          const isPending = String(startingLevelId) === String(level.id);
+          const statusLabel = getCampaignLevelStatusLabel(level.status);
+          return (
+            <div
+              key={level.id}
+              className="grid gap-3 px-4 py-3 md:grid-cols-[56px_minmax(160px,1fr)_90px_96px_112px] md:items-center"
+            >
+              <div className="text-xs font-black text-white/38">题目 {(index + 1).toString().padStart(2, "0")}</div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-black text-white">{level.title || `第 ${index + 1} 题`}</div>
+                {level.summary ? <p className="mt-1 line-clamp-1 text-xs text-white/42">{level.summary}</p> : null}
+              </div>
+              <div>
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-black ${
+                    isLocked
+                      ? "bg-white/7 text-white/34"
+                      : level.status === "perfect"
+                        ? "bg-amber-300/14 text-amber-100"
+                        : level.status === "cleared"
+                          ? "bg-emerald-300/14 text-emerald-100"
+                          : "bg-[#00b050]/18 text-[#9cffc3]"
+                  }`}
+                >
+                  {statusLabel}
+                </span>
+              </div>
+              <div className="text-xs font-black text-white/52">
+                {Number(level.rewardExp || 0)} 经验 / {Number(level.rewardPoints || 0)} 积分
+              </div>
+              <div className="flex justify-end max-md:justify-start">
+                <button
+                  type="button"
+                  onClick={() => void onStartLevel(level, chapter)}
+                  disabled={isLocked || isPending}
+                  className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-black transition ${
+                    isLocked
+                      ? "cursor-not-allowed bg-white/5 text-white/26"
+                      : "bg-[#00b050] text-white hover:bg-[#0ad56b] disabled:bg-white/12 disabled:text-white/40"
+                  }`}
+                >
+                  {isPending ? <Loader2 size={14} className="animate-spin" /> : isLocked ? <Lock size={14} /> : <Play size={14} />}
+                  {isPending ? "进入中" : isLocked ? "未解锁" : "开始答题"}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PracticeActionButton({
+  children,
+  icon,
+  onClick,
+}: {
+  children: string;
+  icon?: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 py-2.5 text-sm font-black text-white/78 transition hover:bg-white/14 hover:text-white"
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+function MetricValue({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="text-sm">
+      <span className="mr-2 text-white/34 lg:hidden">{label}</span>
+      <span className="font-black text-white">{value}</span>
+    </div>
   );
 }

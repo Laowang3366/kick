@@ -42,8 +42,9 @@ import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
 import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
-import { homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
+import { chatKeys, homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
+import { mobilePrimaryNavItems, publicNavItems, resolveActiveNavItem } from "../lib/site-navigation";
 import { useIsMobile } from "./ui/use-mobile";
 import { ONLINE_LITE_MODE, isLiteAllowedPath } from "../lib/site-mode";
 
@@ -93,6 +94,10 @@ export function Layout() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const [categorySearchOpen, setCategorySearchOpen] = useState(false);
+  const [categorySearchScope, setCategorySearchScope] = useState<"tutorial" | "question">("tutorial");
+  const [categorySearchKeyword, setCategorySearchKeyword] = useState("");
+  const categorySearchRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const { user, isAuthenticated, logout } = useSession();
   const canAccessAdmin = hasAdminConsoleAccess(user?.role);
@@ -113,6 +118,9 @@ export function Layout() {
       }
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
+      }
+      if (categorySearchRef.current && !categorySearchRef.current.contains(event.target as Node)) {
+        setCategorySearchOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -440,26 +448,44 @@ export function Layout() {
     }
   };
 
-  const navItems = ONLINE_LITE_MODE
-    ? [
-        { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
-        { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
-        { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
-        { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
-        { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
-      ]
-    : [
-        { name: "首页", path: "/", icon: <Home size={18} strokeWidth={1.5} /> },
-        { name: "小试牛刀", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.5} /> },
-        { name: "模板中心", path: "/templates", icon: <FolderKanban size={18} strokeWidth={1.5} /> },
-        { name: "积分经验中心", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.5} /> },
-        { name: "实用功能", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.5} /> },
-      ];
-  const activeLiteModule = ONLINE_LITE_MODE
-    ? navItems.find((item) => location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(`${item.path}/`))) || navItems[0]
+  const handleCategorySearch = () => {
+    const keyword = categorySearchKeyword.trim();
+    const query = keyword ? `?search=${encodeURIComponent(keyword)}` : "";
+    setCategorySearchOpen(false);
+    if (categorySearchScope === "tutorial") {
+      navigate(`/tutorials${query}`);
+      return;
+    }
+    navigate(`/practice/chapters${query}`);
+  };
+
+  const navIconMap: Record<string, React.ReactNode> = {
+    home: <Home size={18} strokeWidth={1.8} />,
+    practice: <TargetIcon size={18} strokeWidth={1.8} />,
+    templates: <FolderKanban size={18} strokeWidth={1.8} />,
+    tutorials: <BookOpen size={18} strokeWidth={1.8} />,
+    mall: <ShoppingBag size={18} strokeWidth={1.8} />,
+    tools: <ArrowRightLeft size={18} strokeWidth={1.8} />,
+  };
+  const navItems = publicNavItems.map((item) => ({
+    ...item,
+    icon: navIconMap[item.key],
+  }));
+  const primaryLiteNavItems = navItems.filter((item) =>
+    ["home", "practice", "templates", "tutorials"].includes(item.key)
+  );
+  const accountLiteNavItems = navItems.filter((item) =>
+    ["mall", "tools"].includes(item.key)
+  );
+  const activePublicNav = resolveActiveNavItem(location.pathname);
+  const activeLiteModule = activePublicNav
+    ? {
+        ...activePublicNav,
+        icon: navIconMap[activePublicNav.key],
+      }
     : null;
   const mobileDrawerNavItems: Array<{ name: string; path: string; icon: React.ReactNode }> = ONLINE_LITE_MODE
-    ? [...navItems]
+    ? mobilePrimaryNavItems.map((item) => ({ ...item, icon: navIconMap[item.key] }))
     : [];
   const mobileBottomNavItems = forumEnabled
     ? [
@@ -469,11 +495,12 @@ export function Layout() {
         { key: "search", name: "搜索", path: "", icon: <Search size={18} strokeWidth={1.6} /> },
         { key: "profile", name: "我的", path: isAuthenticated ? "/profile" : "/auth", icon: <User size={18} strokeWidth={1.6} /> },
       ]
-    : [
-        { key: "practice", name: "练习", path: "/practice", icon: <BookOpen size={18} strokeWidth={1.6} /> },
-        { key: "mall", name: "商城", path: "/mall", icon: <ShoppingBag size={18} strokeWidth={1.6} /> },
-        { key: "tools", name: "实用", path: "/tools", icon: <ArrowRightLeft size={18} strokeWidth={1.6} /> },
-      ];
+    : mobilePrimaryNavItems.map((item) => ({
+        key: item.key,
+        name: item.shortName,
+        path: item.path,
+        icon: navIconMap[item.key],
+      }));
   const openFeedbackDialog = () => {
     if (!isAuthenticated) {
       navigate("/auth");
@@ -497,6 +524,24 @@ export function Layout() {
     }
     setCheckinOpen(true);
   };
+  const moreLiteNavItems = [
+    ...accountLiteNavItems.map((item) => ({
+      ...item,
+      action: () => navigate(item.path),
+      active: activePublicNav?.key === item.key,
+    })),
+    {
+      key: "checkin",
+      name: checkinStatus?.hasCheckedInToday ? "今日已签到" : "每日签到",
+      shortName: "签到",
+      path: "",
+      description: "连续签到获取积分和经验",
+      icon: <CalendarCheck size={18} strokeWidth={1.8} />,
+      action: openCheckinDialog,
+      active: false,
+    },
+  ];
+  const moreLiteActive = moreLiteNavItems.some((item) => item.active);
 
   useEffect(() => {
     const handleOpenProps = () => {
@@ -525,11 +570,11 @@ export function Layout() {
   };
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[linear-gradient(180deg,#f5f9fb_0%,#edf3f6_56%,#eef7f3_100%)] text-slate-800 font-sans">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.10),transparent_30%),radial-gradient(circle_at_top_right,rgba(14,165,233,0.10),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(251,146,60,0.08),transparent_22%)]" />
+    <div className="relative flex h-screen overflow-hidden bg-[#00140d] text-slate-900 font-sans">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(0,176,80,0.38),transparent_32%),radial-gradient(circle_at_72%_8%,rgba(34,197,94,0.22),transparent_28%),linear-gradient(180deg,#00140d_0%,#001b12_44%,#f4fff8_44%,#f4fff8_100%)]" />
       {/* Sidebar */}
       <aside
-        className="relative z-10 hidden w-72 shrink-0 flex-col border-r border-white/60 bg-white/72 backdrop-blur-2xl md:flex"
+        className="hidden"
       >
         <div className="flex min-h-20 items-center px-6 border-b border-slate-200/60">
           <div className="flex items-center gap-3 text-teal-600">
@@ -603,9 +648,18 @@ export function Layout() {
       </aside>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
+      <div className="relative z-10 flex w-full flex-1 flex-col overflow-hidden">
+        <div className="hidden h-10 items-center justify-center bg-[#ccfff1] px-4 text-sm font-semibold text-slate-950 md:flex">
+          <span>Excel 学习路径升级完成</span>
+          <span className="mx-4 h-4 w-px bg-slate-950/24" />
+          <span>模板中心与练习闯关全新改版</span>
+          <span className="mx-4 h-4 w-px bg-slate-950/24" />
+          <button type="button" onClick={() => navigate("/practice")} className="text-[#008d72] underline-offset-4 hover:underline">
+            立即体验
+          </button>
+        </div>
         {/* Header */}
-        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b border-white/60 bg-white/66 px-4 backdrop-blur-2xl md:px-6">
+        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b border-white/10 bg-[#00140d]/86 px-4 text-white backdrop-blur-2xl md:h-20 md:px-8">
           
           <div className="flex min-w-0 flex-1 items-center gap-4">
             {isMobile ? (
@@ -656,13 +710,155 @@ export function Layout() {
               </Sheet>
             ) : null}
             {ONLINE_LITE_MODE ? (
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-black tracking-[0.18em] text-slate-400">
-                  {isMobile ? "当前模块" : "CURRENT MODULE"}
+              <div className="flex min-w-0 flex-1 items-center gap-4 xl:gap-7">
+                <button
+                  type="button"
+                  onClick={() => navigate("/")}
+                  className="group flex shrink-0 items-center gap-3"
+                  aria-label="返回首页"
+                >
+                  <div className="relative flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#00b050] text-white shadow-[0_12px_28px_rgba(0,176,80,0.38)]">
+                    <Activity size={22} strokeWidth={2.4} />
+                    <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-[#7cffb2] ring-2 ring-[#00140d]" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-lg font-black leading-tight tracking-tight text-white">Excel社区</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/46">Skill Cloud</div>
+                  </div>
+                </button>
+                <nav className="hidden min-w-0 items-center gap-1 lg:flex">
+                  {primaryLiteNavItems.map((item) => {
+                    const isActive = activePublicNav?.key === item.key;
+                    return (
+                      <button
+                        key={item.path}
+                        type="button"
+                        onClick={() => navigate(item.path)}
+                        className={`relative inline-flex h-11 items-center gap-2 rounded-full px-2.5 text-sm font-bold transition xl:px-3 ${
+                          isActive
+                            ? "bg-white text-[#00140d] shadow-[0_14px_32px_rgba(255,255,255,0.16)]"
+                            : "text-white/78 hover:bg-white/10 hover:text-white"
+                        }`}
+                      >
+                        <span className={isActive ? "text-[#00b050]" : "text-white/58"}>{item.icon}</span>
+                        <span className="whitespace-nowrap">{item.name}</span>
+                      </button>
+                    );
+                  })}
+                  <HoverCard openDelay={80} closeDelay={120}>
+                    <HoverCardTrigger asChild>
+                      <button
+                        type="button"
+                        className={`relative inline-flex h-11 items-center gap-2 rounded-full px-2.5 text-sm font-bold transition xl:px-3 ${
+                          moreLiteActive
+                            ? "bg-white text-[#00140d] shadow-[0_14px_32px_rgba(255,255,255,0.16)]"
+                            : "text-white/78 hover:bg-white/10 hover:text-white"
+                        }`}
+                      >
+                        <MoreVertical size={17} className={moreLiteActive ? "text-[#00b050]" : "text-white/58"} />
+                        <span className="whitespace-nowrap">更多</span>
+                        <ChevronDown size={14} className={moreLiteActive ? "text-[#00b050]" : "text-white/42"} />
+                      </button>
+                    </HoverCardTrigger>
+                    <HoverCardContent
+                      align="start"
+                      className="w-[min(420px,calc(100vw-32px))] rounded-[24px] border border-white/12 bg-[#06251a]/96 p-3 text-white shadow-[0_24px_64px_rgba(0,0,0,0.34)] backdrop-blur-xl"
+                    >
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {moreLiteNavItems.map((item) => (
+                          <button
+                            key={`more-${item.key}`}
+                            type="button"
+                            onClick={item.action}
+                            className={`group rounded-[18px] border px-3 py-3 text-left transition ${
+                              item.active
+                                ? "border-[#7cffb2]/60 bg-[#7cffb2]/14"
+                                : "border-white/10 bg-white/7 hover:border-[#7cffb2]/36 hover:bg-white/12"
+                            }`}
+                          >
+                            <span
+                              className={`flex h-9 w-9 items-center justify-center rounded-2xl ${
+                                item.active
+                                  ? "bg-[#7cffb2] text-[#00140d]"
+                                  : "bg-white/10 text-[#9cffc3] group-hover:bg-[#00b050] group-hover:text-white"
+                              }`}
+                            >
+                              {item.icon}
+                            </span>
+                            <span className="mt-3 block text-sm font-black text-white">{item.name}</span>
+                            <span className="mt-1 line-clamp-2 block min-h-[34px] text-xs leading-[17px] text-white/52">
+                              {item.description}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                </nav>
+                <div className="relative hidden lg:block" ref={categorySearchRef}>
+                  <button
+                    type="button"
+                    onClick={() => setCategorySearchOpen((open) => !open)}
+                    className="inline-flex h-11 items-center gap-2 rounded-full border border-white/12 bg-white/8 px-3 text-sm font-bold text-white/82 transition hover:bg-white/14 hover:text-white xl:px-4"
+                  >
+                    <Search size={17} className="text-[#7cffb2]" />
+                    <span className="whitespace-nowrap">分类搜索</span>
+                  </button>
+                  <AnimatePresence>
+                    {categorySearchOpen ? (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                        transition={{ duration: 0.16 }}
+                        className="absolute left-0 top-full z-50 mt-3 w-[360px] overflow-hidden rounded-[26px] border border-white/12 bg-[#06251a]/96 p-4 shadow-[0_24px_64px_rgba(0,0,0,0.34)] backdrop-blur-xl"
+                      >
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { key: "tutorial", label: "教程" },
+                            { key: "question", label: "题型" },
+                          ].map((scope) => (
+                            <button
+                              key={scope.key}
+                              type="button"
+                              onClick={() => setCategorySearchScope(scope.key as "tutorial" | "question")}
+                              className={`h-10 rounded-2xl text-sm font-black transition ${
+                                categorySearchScope === scope.key
+                                  ? "bg-[#7cffb2] text-[#00140d]"
+                                  : "bg-white/8 text-white/62 hover:bg-white/12 hover:text-white"
+                              }`}
+                            >
+                              {scope.label}
+                            </button>
+                          ))}
+                        </div>
+                        <label className="mt-3 flex h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/8 px-4">
+                          <Search size={18} className="text-white/42" />
+                          <input
+                            value={categorySearchKeyword}
+                            onChange={(event) => setCategorySearchKeyword(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                handleCategorySearch();
+                              }
+                            }}
+                            placeholder={categorySearchScope === "tutorial" ? "搜索函数、教程主题..." : "搜索章节、题型..."}
+                            className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/36"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleCategorySearch}
+                          className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#00b050] text-sm font-black text-white transition hover:bg-[#0ac45d]"
+                        >
+                          进入搜索
+                        </button>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-slate-900">
-                  <span className="text-teal-600">{activeLiteModule?.icon}</span>
-                  <span className="truncate text-lg font-black tracking-tight">{activeLiteModule?.name || "首页"}</span>
+                <div className="hidden min-w-0 text-sm font-semibold text-white/48 2xl:block">
+                  {activeLiteModule?.description}
                 </div>
               </div>
             ) : forumEnabled ? (
@@ -797,19 +993,21 @@ export function Layout() {
               </Link>
             ) : null}
 
-            <button
-              type="button"
-              onClick={openCheckinDialog}
-              className={`inline-flex h-10 items-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition ${
-                checkinStatus?.hasCheckedInToday
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-              }`}
-              title={checkinStatus?.hasCheckedInToday ? "今日已签到" : "每日签到"}
-            >
-              <CalendarCheck size={16} className={checkinStatus?.hasCheckedInToday ? "text-emerald-600" : "text-amber-600"} />
-              {!isMobile ? <span>{checkinStatus?.hasCheckedInToday ? "已签到" : "签到"}</span> : null}
-            </button>
+            {!ONLINE_LITE_MODE ? (
+              <button
+                type="button"
+                onClick={openCheckinDialog}
+                className={`inline-flex h-10 items-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition ${
+                  checkinStatus?.hasCheckedInToday
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+                title={checkinStatus?.hasCheckedInToday ? "今日已签到" : "每日签到"}
+              >
+                <CalendarCheck size={16} className={checkinStatus?.hasCheckedInToday ? "text-emerald-600" : "text-amber-600"} />
+                {!isMobile ? <span>{checkinStatus?.hasCheckedInToday ? "已签到" : "签到"}</span> : null}
+              </button>
+            ) : null}
 
             {isAuthenticated ? (
               <>
@@ -919,7 +1117,11 @@ export function Layout() {
               </>
             ) : null}
 
-            <div className={`${isMobile ? "" : "pl-4 border-l border-gray-200"} flex items-center gap-2`}>
+            <div
+              className={`${
+                isMobile ? "" : ONLINE_LITE_MODE ? "pl-4 border-l border-white/10" : "pl-4 border-l border-gray-200"
+              } flex items-center gap-2`}
+            >
               {isAuthenticated && !isMobile ? (
                 <HoverCard openDelay={120} closeDelay={80}>
                   <HoverCardTrigger asChild>
@@ -927,28 +1129,74 @@ export function Layout() {
                       <img
                         src={normalizeAvatarUrl(user?.avatar, user?.username)}
                         alt="Profile"
-                        className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
+                        className={`w-8 h-8 rounded-full object-cover transition-colors ${
+                          ONLINE_LITE_MODE
+                            ? "border border-white/20 group-hover:border-white/60"
+                            : "border border-gray-200 group-hover:border-teal-400"
+                        }`}
                       />
-                      <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
+                      <span
+                        className={`text-sm font-medium ${
+                          ONLINE_LITE_MODE
+                            ? "text-white/82 group-hover:text-white"
+                            : "text-slate-700 group-hover:text-slate-900"
+                        }`}
+                      >
+                        {user?.username || "去登录"}
+                      </span>
                     </button>
                   </HoverCardTrigger>
-                  <HoverCardContent align="end" className="w-auto min-w-[148px] rounded-xl border border-gray-100 bg-white/95 backdrop-blur-sm p-1.5 shadow-lg">
+                  <HoverCardContent align="end" className="w-[286px] rounded-[24px] border border-slate-200 bg-white p-3 shadow-[0_22px_56px_rgba(15,23,42,0.18)]">
+                    <div className="mb-2 flex items-center gap-3 rounded-[18px] bg-[linear-gradient(135deg,#f0fff7_0%,#e7f6ff_100%)] px-3 py-3">
+                      <img
+                        src={normalizeAvatarUrl(user?.avatar, user?.username)}
+                        alt=""
+                        className="h-10 w-10 rounded-full border border-white object-cover shadow-sm"
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-black text-slate-900">{user?.username || "用户"}</div>
+                        <div className="mt-0.5 text-xs font-semibold text-slate-500">学习工作台</div>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => navigate("/profile")}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
+                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
                     >
+                      <User size={16} className="text-slate-400" />
                       个人中心
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/settings")}
+                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                    >
+                      <Settings size={16} className="text-slate-400" />
+                      设置
                     </button>
                     {canAccessAdmin ? (
                       <button
                         type="button"
                         onClick={() => navigate(getDefaultAdminPath(user?.role))}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-600 transition hover:bg-gray-50 hover:text-slate-900"
+                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
                       >
+                        <ClipboardList size={16} className="text-slate-400" />
                         管理后台
                       </button>
                     ) : null}
+                    <div className="my-2 h-px bg-slate-100" />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await logout();
+                        toast.success("已退出登录");
+                        navigate("/auth");
+                      }}
+                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-black text-rose-600 transition hover:bg-rose-50"
+                    >
+                      <LogOut size={16} className="text-rose-500" />
+                      退出登录
+                    </button>
                   </HoverCardContent>
                 </HoverCard>
               ) : isAuthenticated && isMobile ? (
@@ -964,27 +1212,70 @@ export function Layout() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">
                     <DropdownMenuItem onClick={() => navigate("/profile")}>个人中心</DropdownMenuItem>
+                    {ONLINE_LITE_MODE ? (
+                      <>
+                        <DropdownMenuItem onClick={openCheckinDialog}>
+                          {checkinStatus?.hasCheckedInToday ? "今日已签到" : "每日签到"}
+                        </DropdownMenuItem>
+                        {accountLiteNavItems.map((item) => (
+                          <DropdownMenuItem key={`mobile-account-${item.key}`} onClick={() => navigate(item.path)}>
+                            {item.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    ) : null}
+                    <DropdownMenuItem onClick={() => navigate("/settings")}>设置</DropdownMenuItem>
                     {canAccessAdmin && <DropdownMenuItem onClick={() => navigate(getDefaultAdminPath(user?.role))}>进入管理后台</DropdownMenuItem>}
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        await logout();
+                        toast.success("已退出登录");
+                        navigate("/auth");
+                      }}
+                    >
+                      退出登录
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : (
-                <Link to="/auth" className="flex items-center gap-2 cursor-pointer group">
-                  <img 
-                    src={normalizeAvatarUrl(user?.avatar, user?.username)} 
-                    alt="Profile" 
-                    className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
-                  />
-                  <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
-                </Link>
+                ONLINE_LITE_MODE ? (
+                  <div className="hidden items-center gap-2 sm:flex">
+                    <Link
+                      to="/auth"
+                      className="inline-flex h-10 items-center rounded-full px-4 text-sm font-bold text-white/84 transition hover:bg-white/10 hover:text-white"
+                    >
+                      登录
+                    </Link>
+                    <Link
+                      to="/auth"
+                      className="inline-flex h-10 items-center rounded-full bg-white px-5 text-sm font-black text-[#00140d] transition hover:bg-[#ccfff1]"
+                    >
+                      注册
+                    </Link>
+                  </div>
+                ) : (
+                  <Link to="/auth" className="flex items-center gap-2 cursor-pointer group">
+                    <img
+                      src={normalizeAvatarUrl(user?.avatar, user?.username)}
+                      alt="Profile"
+                      className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
+                    />
+                    <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{user?.username || "去登录"}</span>
+                  </Link>
+                )
               )}
-              {isAuthenticated ? (
+              {isAuthenticated && !ONLINE_LITE_MODE ? (
                 <>
                   <button
                     type="button"
                     onClick={() => navigate("/settings")}
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                    className={`inline-flex h-10 items-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition ${
+                      ONLINE_LITE_MODE
+                        ? "border-white/12 bg-white/10 text-white/78 hover:bg-white/16 hover:text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                    }`}
                   >
-                    <Settings size={16} className="text-slate-400" />
+                    <Settings size={16} className={ONLINE_LITE_MODE ? "text-white/58" : "text-slate-400"} />
                     {!isMobile ? <span>设置</span> : null}
                   </button>
                   <button
@@ -1197,7 +1488,7 @@ export function Layout() {
               ) : null}
             </AnimatePresence>
             <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-            <div className={`grid gap-1 ${forumEnabled ? "grid-cols-5" : "grid-cols-4"}`}>
+            <div className={`grid gap-1 ${forumEnabled ? "grid-cols-5" : "grid-cols-5"}`}>
               {mobileBottomNavItems.map((item) => {
                 const isSearch = item.key === "search";
                 const isActive = isSearch

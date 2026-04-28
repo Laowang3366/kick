@@ -99,6 +99,10 @@ source "$DEPLOY_ENV_PATH"
 : "${DEPLOY_USER:?missing DEPLOY_USER}"
 : "${DEPLOY_GROUP:?missing DEPLOY_GROUP}"
 
+GIT_REMOTE="${GIT_REMOTE:-origin}"
+GIT_BRANCH="${GIT_BRANCH:-${BRANCH:-}}"
+GIT_PULL_BEFORE_BUILD="${GIT_PULL_BEFORE_BUILD:-1}"
+
 if [[ "$ROOT_DIR" != "$REPO_DIR" ]]; then
   fail "script must run from canonical repo: expected $REPO_DIR but got $ROOT_DIR"
 fi
@@ -128,13 +132,51 @@ ROLLBACK_READY=0
 mkdir -p "$BACKUP_ROOT"
 
 log "repo dir: $REPO_DIR"
-log "git branch: $(git -C "$REPO_DIR" branch --show-current)"
 if [[ -n "$(git -C "$REPO_DIR" status --short)" ]]; then
-  log "warning: deploy repo has local modifications"
+  log "deploy repo has local modifications"
   git -C "$REPO_DIR" status --short
+  if [[ "$GIT_PULL_BEFORE_BUILD" == "1" ]]; then
+    fail "cannot pull with local modifications in $REPO_DIR"
+  fi
 else
   log "deploy repo worktree is clean"
 fi
+
+if [[ "$GIT_PULL_BEFORE_BUILD" == "1" ]]; then
+  if [[ -n "${REPO_URL:-}" ]]; then
+    current_remote_url="$(git -C "$REPO_DIR" config --get "remote.${GIT_REMOTE}.url" || true)"
+    if [[ "$current_remote_url" != "$REPO_URL" ]]; then
+      log "setting git remote ${GIT_REMOTE} url"
+      git -C "$REPO_DIR" remote set-url "$GIT_REMOTE" "$REPO_URL"
+    fi
+  fi
+
+  if [[ -z "$GIT_BRANCH" ]]; then
+    GIT_BRANCH="$(git -C "$REPO_DIR" branch --show-current)"
+  fi
+  [[ -n "$GIT_BRANCH" ]] || fail "missing git branch; set BRANCH or GIT_BRANCH in $DEPLOY_ENV_PATH"
+
+  log "fetching ${GIT_REMOTE}/${GIT_BRANCH}"
+  git -C "$REPO_DIR" fetch --prune "$GIT_REMOTE" "$GIT_BRANCH"
+  git -C "$REPO_DIR" show-ref --verify --quiet "refs/remotes/${GIT_REMOTE}/${GIT_BRANCH}" \
+    || fail "remote branch not found: ${GIT_REMOTE}/${GIT_BRANCH}"
+
+  current_branch="$(git -C "$REPO_DIR" branch --show-current)"
+  if [[ "$current_branch" != "$GIT_BRANCH" ]]; then
+    log "switching git branch from ${current_branch:-detached} to ${GIT_BRANCH}"
+    if git -C "$REPO_DIR" show-ref --verify --quiet "refs/heads/${GIT_BRANCH}"; then
+      git -C "$REPO_DIR" checkout "$GIT_BRANCH"
+    else
+      git -C "$REPO_DIR" checkout -b "$GIT_BRANCH" --track "${GIT_REMOTE}/${GIT_BRANCH}"
+    fi
+  fi
+
+  log "pulling latest code with fast-forward only"
+  git -C "$REPO_DIR" pull --ff-only "$GIT_REMOTE" "$GIT_BRANCH"
+fi
+
+log "git branch: $(git -C "$REPO_DIR" branch --show-current)"
+log "git commit: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 
 log "building frontend"
 (cd "$REPO_DIR/reace_web" && npm ci && npm run build)

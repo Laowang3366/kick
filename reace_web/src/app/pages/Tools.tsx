@@ -127,7 +127,7 @@ export function Tools() {
       <LiteHero
         eyebrow="实用功能"
         title="文件转换"
-        description="支持 Word、Excel、PDF 文件互转，并保留转换记录。"
+        description="支持 Word、Excel、PDF 文件互转，上传、选择格式、下载结果和历史记录都在同一个工具面板里完成。"
         actions={
           <>
             <button
@@ -173,7 +173,6 @@ export function Tools() {
             </div>
           </div>
         }
-        className="bg-[linear-gradient(135deg,#0a1726_0%,#0f4c81_40%,#0f766e_100%)]"
       />
 
       <section className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">

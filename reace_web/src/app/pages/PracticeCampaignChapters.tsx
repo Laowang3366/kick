@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Award, ChevronDown, ChevronRight, Clock3, FileSpreadsheet, Lock, Map, Play } from "lucide-react";
+import { ArrowLeft, Award, ChevronDown, ChevronRight, Clock3, FileSpreadsheet, Lock, Map, Play, Search } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -13,9 +13,11 @@ export function PracticeCampaignChapters() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialChapterId = Number(searchParams.get("chapter") || 0) || null;
+  const routeSearchKeyword = searchParams.get("search") || searchParams.get("q") || "";
   const [activeChapterId, setActiveChapterId] = useState<number | null>(initialChapterId);
   const [expandedChapterId, setExpandedChapterId] = useState<number | null>(initialChapterId);
   const [activeLevelId, setActiveLevelId] = useState<number | null>(null);
+  const [chapterSearchKeyword, setChapterSearchKeyword] = useState(routeSearchKeyword);
 
   const chaptersQuery = useQuery({
     queryKey: practiceKeys.campaignChapters(),
@@ -29,6 +31,10 @@ export function PracticeCampaignChapters() {
   });
 
   const chapters = chaptersQuery.data?.chapters || [];
+
+  useEffect(() => {
+    setChapterSearchKeyword(routeSearchKeyword);
+  }, [routeSearchKeyword]);
 
   useEffect(() => {
     if (!chapters.length) {
@@ -54,10 +60,31 @@ export function PracticeCampaignChapters() {
     () => chapters.find((item: any) => item.id === activeChapterId) || null,
     [chapters, activeChapterId]
   );
-  const visibleChapters = useMemo(
-    () => (initialChapterId ? (activeChapter ? [activeChapter] : []) : chapters),
-    [activeChapter, chapters, initialChapterId]
-  );
+  const visibleChapters = useMemo(() => {
+    if (initialChapterId) {
+      return activeChapter ? [activeChapter] : [];
+    }
+    const keyword = chapterSearchKeyword.trim().toLowerCase();
+    if (!keyword) {
+      return chapters;
+    }
+    return chapters.filter((chapter: any) =>
+      [chapter.name, chapter.description, chapter.summary]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword))
+    );
+  }, [activeChapter, chapterSearchKeyword, chapters, initialChapterId]);
+
+  useEffect(() => {
+    if (initialChapterId || !visibleChapters.length) {
+      return;
+    }
+    if (activeChapterId && visibleChapters.some((item: any) => item.id === activeChapterId)) {
+      return;
+    }
+    setActiveChapterId(visibleChapters[0].id);
+    setExpandedChapterId(visibleChapters[0].id);
+  }, [activeChapterId, initialChapterId, visibleChapters]);
 
   const activeLevels = chapterDetailQuery.data?.levels || [];
 
@@ -113,6 +140,17 @@ export function PracticeCampaignChapters() {
         <div className="grid gap-0 xl:grid-cols-[320px_minmax(0,1fr)]">
           <aside className="border-b border-slate-100 bg-[linear-gradient(180deg,#f7fbfb_0%,#f1f7fa_100%)] p-4 xl:border-b-0 xl:border-r xl:p-6">
             <div className="rounded-[28px] border border-slate-200/70 bg-white/78 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              {!initialChapterId ? (
+                <label className="mb-3 flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3">
+                  <Search size={16} className="text-slate-400" />
+                  <input
+                    value={chapterSearchKeyword}
+                    onChange={(event) => setChapterSearchKeyword(event.target.value)}
+                    placeholder="搜索章节或题型"
+                    className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+                  />
+                </label>
+              ) : null}
               <div className="space-y-2">
                 {visibleChapters.map((chapter: any, index: number) => {
                   const isActive = chapter.id === activeChapter?.id;
@@ -187,7 +225,7 @@ export function PracticeCampaignChapters() {
 
               {!visibleChapters.length ? (
                 <div className="mt-4 rounded-[22px] border border-dashed border-slate-200 px-4 py-6 text-sm text-slate-400">
-                  暂无可展示章节
+                  {chapterSearchKeyword.trim() ? "暂无匹配章节" : "暂无可展示章节"}
                 </div>
               ) : null}
             </div>

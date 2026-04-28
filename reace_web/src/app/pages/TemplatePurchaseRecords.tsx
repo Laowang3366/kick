@@ -37,7 +37,6 @@ export function TemplatePurchaseRecords() {
         eyebrow="购买记录"
         title="模板购买记录"
         description="这里统一查看你已经购买过的模板、扣减积分和重新下载入口。"
-        className="bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_45%,#22c55e_100%)]"
         actions={
           <div className="flex flex-wrap gap-3">
             <button

@@ -120,22 +120,20 @@ export function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans">
+    <div className="min-h-screen bg-[#f4fff8] flex flex-col md:flex-row font-sans">
       
       {/* Left Column: Branding / Illustration */}
-      <div className="hidden md:flex flex-col justify-between w-1/2 bg-[#1e2330] text-white p-12 relative overflow-hidden">
+      <div className="hidden md:flex flex-col justify-between w-1/2 bg-[#00140d] text-white p-12 relative overflow-hidden">
         {/* Abstract Background Decoration */}
-        <div className="absolute inset-0 z-0 opacity-20">
-          <img 
-            src="https://images.unsplash.com/photo-1772050138888-3ec9233300bd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjbGVhbiUyMGFic3RyYWN0JTIwdGVhbCUyMHdhdmVzJTIwYmFja2dyb3VuZHxlbnwxfHx8fDE3NzU0Nzc2NTV8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral" 
-            alt="Abstract Teal Waves"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#1e2330] via-[#1e2330]/80 to-transparent" />
+        <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_12%,rgba(124,255,178,0.24),transparent_28%),radial-gradient(circle_at_88%_18%,rgba(0,176,80,0.2),transparent_30%),linear-gradient(135deg,#00351f_0%,#00140d_58%,#000805_100%)]" />
+          <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(124,255,178,0.12)_1px,transparent_1px)] [background-size:100%_8px]" />
+          <div className="absolute -right-28 top-10 h-[28rem] w-[28rem] rounded-full bg-[#00b050]/20 blur-3xl" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#00140d] via-[#00140d]/80 to-[#00351f]/20" />
         </div>
 
         <div className="relative z-10 flex items-center gap-3">
-          <div className="bg-teal-500 p-2 rounded-xl">
+          <div className="bg-[#00b050] p-2 rounded-xl shadow-[0_0_30px_rgba(0,176,80,0.3)]">
             <Activity size={28} className="text-white" strokeWidth={2.5} />
           </div>
           <span className="font-bold text-2xl tracking-tight">Excel社区</span>
@@ -148,9 +146,9 @@ export function Auth() {
             transition={{ delay: 0.2 }}
           >
             <h1 className="text-4xl lg:text-5xl font-bold leading-tight mb-6">
-              提升技能，<br/>连接<span className="text-teal-400">数据</span>专家。
+              提升技能，<br/>连接<span className="text-[#7cffb2]">数据</span>专家。
             </h1>
-            <p className="text-slate-400 text-lg leading-relaxed mb-8">
+            <p className="text-[#bdd8c9] text-lg leading-relaxed mb-8">
               加入最活跃的 Excel 爱好者社区。交流公式技巧、分享实战经验，结识志同道合的数据达人。
             </p>
             
@@ -162,11 +160,11 @@ export function Auth() {
                     key={i}
                     src={`https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80&sig=${i}`} 
                     alt="User" 
-                    className="w-10 h-10 rounded-full border-2 border-[#1e2330] object-cover"
+                    className="w-10 h-10 rounded-full border-2 border-[#00140d] object-cover"
                   />
                 ))}
               </div>
-              <div className="text-sm font-medium text-slate-300">
+              <div className="text-sm font-medium text-[#ccf7df]">
                 超过 <span className="text-white">10,000+</span> 成员已加入
               </div>
             </div>
@@ -178,9 +176,9 @@ export function Auth() {
       <div className="flex-1 flex flex-col justify-center p-6 md:p-12 lg:p-20 relative">
         
         {/* Mobile Header */}
-        <div className="md:hidden flex items-center gap-2 mb-10 text-teal-600">
+        <div className="md:hidden flex items-center gap-2 mb-10 text-[#00b050]">
           <Activity size={28} strokeWidth={2.5} />
-          <span className="font-bold text-xl tracking-tight text-slate-800">Excel社区</span>
+          <span className="font-bold text-xl tracking-tight text-[#00140d]">Excel社区</span>
         </div>
 
         <div className="w-full max-w-md mx-auto">
@@ -206,13 +204,13 @@ export function Auth() {
               />
               <button 
                 onClick={() => setIsLogin(true)}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors relative z-10 ${isLogin ? 'text-teal-700' : 'text-slate-500'}`}
+                className={`flex-1 py-2.5 text-sm font-medium transition-colors relative z-10 ${isLogin ? 'text-[#007a39]' : 'text-slate-500'}`}
               >
                 登录
               </button>
               <button 
                 onClick={() => setIsLogin(false)}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors relative z-10 ${!isLogin ? 'text-teal-700' : 'text-slate-500'}`}
+                className={`flex-1 py-2.5 text-sm font-medium transition-colors relative z-10 ${!isLogin ? 'text-[#007a39]' : 'text-slate-500'}`}
               >
                 注册
               </button>
@@ -243,7 +241,7 @@ export function Auth() {
                           value={username}
                           onChange={(e) => setUsername(e.target.value)}
                           placeholder="例如：Excel之神"
-                          className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all outline-none"
+                          className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-[#00b050] focus:ring-4 focus:ring-[#00b050]/10 transition-all outline-none"
                         />
                       </div>
                     </div>
@@ -263,7 +261,7 @@ export function Auth() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder={isLogin ? "请输入用户名或邮箱" : "you@example.com"}
-                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all outline-none"
+                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-[#00b050] focus:ring-4 focus:ring-[#00b050]/10 transition-all outline-none"
                       />
                     </div>
                   </div>
@@ -283,7 +281,7 @@ export function Auth() {
                         onChange={(e) => setPassword(e.target.value)}
                         autoComplete={isLogin ? "current-password" : "new-password"}
                         placeholder="请输入密码"
-                        className="w-full pl-11 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 transition-all outline-none"
+                        className="w-full pl-11 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:bg-white focus:border-[#00b050] focus:ring-4 focus:ring-[#00b050]/10 transition-all outline-none"
                       />
                       <button
                         type="button"
@@ -307,7 +305,7 @@ export function Auth() {
                                 storeRememberedAuth(null);
                               }
                             }}
-                            className="h-4 w-4 rounded border border-slate-300 text-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                            className="h-4 w-4 rounded border border-slate-300 text-[#00b050] focus:ring-2 focus:ring-[#00b050]/20"
                           />
                           记住密码
                         </label>
@@ -317,14 +315,14 @@ export function Auth() {
                             setForgotForm((prev) => ({ ...prev, username: email.trim() }));
                             setForgotOpen(true);
                           }}
-                          className="text-sm font-medium text-teal-600 hover:text-teal-700"
+                          className="text-sm font-medium text-[#00a14a] hover:text-[#007a39]"
                         >
                           忘记密码？
                         </button>
                       </div>
                     )}
                     {!isLogin && (
-                      <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-[#f4fff8]/90 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex flex-1 gap-2">
                             {passwordStrength.bars.map((active, index) => (
@@ -351,7 +349,7 @@ export function Auth() {
                   <button 
                     type="submit"
                     disabled={submitting || (!isLogin && !isRegisterPasswordValid)}
-                    className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg shadow-teal-500/20 flex items-center justify-center gap-2 mt-2"
+                    className="w-full bg-[#00b050] hover:bg-[#008f43] text-white font-bold py-3.5 rounded-2xl transition-all shadow-[0_18px_35px_rgba(0,176,80,0.24)] flex items-center justify-center gap-2 mt-2"
                   >
                     {submitting ? "提交中..." : isLogin ? "立即登录" : "创建账号"}
                     <ArrowRight size={18} />
@@ -363,7 +361,7 @@ export function Auth() {
           </div>
           
           <p className="text-center text-sm text-slate-500 mt-8">
-            继续操作即表示您同意我们的 <a href="#" className="text-teal-600 hover:underline">服务条款</a> 和 <a href="#" className="text-teal-600 hover:underline">隐私政策</a>
+            继续操作即表示您同意我们的 <a href="#" className="text-[#00a14a] hover:underline">服务条款</a> 和 <a href="#" className="text-[#00a14a] hover:underline">隐私政策</a>
           </p>
 
         </div>
@@ -387,7 +385,7 @@ export function Auth() {
                   required
                   value={forgotForm.username}
                   onChange={(e) => setForgotForm((prev) => ({ ...prev, username: e.target.value }))}
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 outline-none transition-all focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 outline-none transition-all focus:border-[#00b050] focus:bg-white focus:ring-4 focus:ring-[#00b050]/10"
                 />
               </div>
             </div>
@@ -402,7 +400,7 @@ export function Auth() {
                   required
                   value={forgotForm.email}
                   onChange={(e) => setForgotForm((prev) => ({ ...prev, email: e.target.value }))}
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 outline-none transition-all focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-4 outline-none transition-all focus:border-[#00b050] focus:bg-white focus:ring-4 focus:ring-[#00b050]/10"
                 />
               </div>
             </div>
@@ -419,7 +417,7 @@ export function Auth() {
                   onChange={(e) => setForgotForm((prev) => ({ ...prev, newPassword: e.target.value }))}
                   autoComplete="new-password"
                   placeholder="请输入密码"
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-12 outline-none transition-all focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-12 outline-none transition-all focus:border-[#00b050] focus:bg-white focus:ring-4 focus:ring-[#00b050]/10"
                 />
                 <button
                   type="button"
@@ -444,7 +442,7 @@ export function Auth() {
                   onChange={(e) => setForgotForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                   autoComplete="new-password"
                   placeholder="请再次输入密码"
-                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-12 outline-none transition-all focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10"
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-12 outline-none transition-all focus:border-[#00b050] focus:bg-white focus:ring-4 focus:ring-[#00b050]/10"
                 />
                 <button
                   type="button"
@@ -460,14 +458,14 @@ export function Auth() {
               <button
                 type="button"
                 onClick={() => setForgotOpen(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-[#f4fff8]"
               >
                 取消
               </button>
               <button
                 type="submit"
                 disabled={forgotSubmitting}
-                className="rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-xl bg-[#00b050] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#008f43] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {forgotSubmitting ? "重置中..." : "重置密码"}
               </button>

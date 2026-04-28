@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, Download, FileImage, FolderKanban, Layers3, Sparkles, Tag } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { LiteHero, LitePageFrame, LitePanel } from "../components/LiteSurface";
+import { LitePageFrame, LitePanel } from "../components/LiteSurface";
 import { api } from "../lib/api";
 import { normalizeResourceUrl } from "../lib/mappers";
 import { pointsKeys, templateKeys } from "../lib/query-keys";
@@ -95,58 +95,43 @@ export function TemplateCenter() {
 
   return (
     <LitePageFrame className="max-w-[1480px]">
-      <LiteHero
-        eyebrow="模板中心"
-        title="Excel 模板中心"
-        description="按行业查看和下载 Excel 模板。"
-        className="bg-[linear-gradient(135deg,#1f2937_0%,#0f766e_42%,#f59e0b_100%)]"
-        actions={
-          <div className="flex flex-wrap gap-3">
-            <div className="rounded-full border border-white/16 bg-white/10 px-5 py-3 text-sm font-bold text-white/90">当前行业：{selectedCategoryLabel}</div>
-            <button
-              type="button"
-              onClick={() => {
-                if (!isAuthenticated) {
-                  navigate("/auth");
-                  return;
-                }
-                navigate("/templates/records");
-              }}
-              className="inline-flex h-[50px] items-center justify-center rounded-full border border-white/18 bg-white/12 px-5 text-sm font-black text-white transition hover:bg-white/18"
-            >
-              查看购买记录
-            </button>
-          </div>
-        }
-        aside={
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-[28px] border border-white/12 bg-white/10 p-5 backdrop-blur-md">
-              <div className="text-[12px] font-black tracking-[0.18em] text-white/68">模板数量</div>
-              <div className="mt-3 text-4xl font-black text-white">{summary.total}</div>
-            </div>
-            <div className="rounded-[28px] border border-white/12 bg-white/10 p-5 backdrop-blur-md">
-              <div className="text-[12px] font-black tracking-[0.18em] text-white/68">免费模板</div>
-              <div className="mt-3 text-4xl font-black text-white">{summary.free}</div>
-            </div>
-            <div className="rounded-[28px] border border-white/12 bg-white/10 p-5 backdrop-blur-md">
-              <div className="text-[12px] font-black tracking-[0.18em] text-white/68">我的积分</div>
-              <div className="mt-3 text-4xl font-black text-white">{isAuthenticated ? currentPoints : "-"}</div>
-            </div>
-            <div className="rounded-[28px] border border-white/12 bg-white/10 p-5 backdrop-blur-md">
-              <div className="text-[12px] font-black tracking-[0.18em] text-white/68">已下载</div>
-              <div className="mt-3 text-4xl font-black text-white">{downloadedCount}</div>
-            </div>
-          </div>
-        }
-      />
+      <div className="flex flex-col gap-5 border-b border-white/10 pb-2 text-white lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="text-sm font-black text-[#9cffc3]">模板中心</div>
+          <h1 className="mt-2 text-[34px] font-black tracking-tight text-white sm:text-[46px]">Excel 模板中心</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/58">
+            按行业筛选可复用模板，支持预览、积分下载和购买记录。
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <TemplateMetric label="当前行业" value={selectedCategoryLabel} />
+          <TemplateMetric label="模板" value={summary.total} />
+          <TemplateMetric label="免费" value={summary.free} />
+          <TemplateMetric label="积分" value={isAuthenticated ? currentPoints : "-"} />
+          <TemplateMetric label="已下载" value={downloadedCount} />
+          <button
+            type="button"
+            onClick={() => {
+              if (!isAuthenticated) {
+                navigate("/auth");
+                return;
+              }
+              navigate("/templates/records");
+            }}
+            className="inline-flex h-10 items-center justify-center rounded-full border border-white/14 bg-white/10 px-4 text-xs font-black text-white/82 transition hover:bg-white/16 hover:text-white"
+          >
+            购买记录
+          </button>
+        </div>
+      </div>
 
-      <LitePanel className="p-5 sm:p-6">
+      <LitePanel className="border-white/10 bg-[#00140d] p-5 text-white shadow-[0_24px_70px_rgba(0,20,13,0.26)] sm:p-6">
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={() => handleCategoryChange("")}
             className={`rounded-full px-4 py-2 text-sm font-black transition ${
-              !selectedCategory ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              !selectedCategory ? "bg-white text-[#00140d]" : "bg-white/8 text-white/58 hover:bg-white/14 hover:text-white"
             }`}
           >
             全部行业
@@ -160,12 +145,12 @@ export function TemplateCenter() {
                 onClick={() => handleCategoryChange(category.key)}
                 className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black transition ${
                   active
-                    ? "bg-teal-600 text-white shadow-[0_12px_28px_rgba(13,148,136,0.22)]"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "bg-[#00b050] text-white shadow-[0_12px_28px_rgba(0,176,80,0.28)]"
+                    : "bg-white/8 text-white/62 hover:bg-white/14 hover:text-white"
                 }`}
               >
                 <span>{category.label}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-white/16 text-white" : "bg-white text-slate-400"}`}>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-white/16 text-white" : "bg-white/10 text-white/48"}`}>
                   {category.count}
                 </span>
               </button>
@@ -303,5 +288,14 @@ export function TemplateCenter() {
         </section>
       )}
     </LitePageFrame>
+  );
+}
+
+function TemplateMetric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="inline-flex h-10 items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 text-xs font-black text-white/74">
+      <span className="text-white/42">{label}</span>
+      <span className="text-white">{value}</span>
+    </div>
   );
 }

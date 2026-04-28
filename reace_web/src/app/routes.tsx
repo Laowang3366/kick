@@ -71,6 +71,7 @@ export const router = createBrowserRouter([
       pageRoute("practice/history/:id", () => import("./pages/PracticeRecordDetail"), "PracticeRecordDetail", true),
       pageRoute("templates", () => import("./pages/TemplateCenter"), "TemplateCenter", true),
       pageRoute("templates/records", () => import("./pages/TemplatePurchaseRecords"), "TemplatePurchaseRecords", true),
+      pageRoute("tutorials", () => import("./pages/TutorialCenter"), "TutorialCenter", true),
       pageRoute("mall", () => import("./pages/Mall"), "Mall", true),
       pageRoute("mall/props", () => import("./pages/MallProps"), "MallProps", true),
       pageRoute("mall/redemptions", () => import("./pages/MallRedemptions"), "MallRedemptions", true),

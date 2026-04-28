@@ -188,7 +188,6 @@ export function Mall() {
             </div>
           </div>
         }
-        className="bg-[linear-gradient(135deg,#5b2c00_0%,#d97706_36%,#fb7185_100%)]"
       />
 
       <section className="grid gap-5 xl:grid-cols-[0.82fr_1.18fr]">
