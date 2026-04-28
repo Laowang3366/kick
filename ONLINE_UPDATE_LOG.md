@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-28 22:56 Asia/Shanghai
+
+- 范围：前端 `reace_web` 后台首页教程正文编辑器更新，“内容”模式改为可视化编辑区，直接显示标题、段落、代码块等渲染效果，不再显示 `<h2>`、`<p>`、`<pre>` 等源码标签。
+- 验证：`git diff --check -- reace_web/src/app/pages/AdminHomeContent.tsx` 通过；`npx vitest run src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 8 个测试；`npm run build` 通过；Selenium 本地和线上验证教程编辑弹窗中显示“作用 / 语法 / =SUM”等渲染内容，且页面文本不包含原始 `<h2>`、`</p>`、`<pre>` 标签。
+- 部署：本地提交 `4e4d6d3`；GitHub 443 连接超时未能推送远端，改用 Git bundle 传到服务器部署仓并快进 `codex/online-snapshot-20260417`，随后执行 `GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh`。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260428-225109`
+- 备注：服务器部署仓当前提交 `4e4d6d3`；站点首页返回 200；服务器本机健康端点 `http://127.0.0.1:8080/api/public/home-overview` 返回 200。待 GitHub 连接恢复后需推送本地分支，保持远端分支与服务器部署仓一致。
+
 ## 2026-04-28 22:26 Asia/Shanghai
 
 - 范围：前端 `reace_web` 后台更新，移除后台侧边栏“积分经验中心”模块并让 `/admin/mall` 回到后台总览；优化模板中心上传按钮；首页教程条目正文编辑器改为默认渲染预览，增加内容、预览、对照模式和格式工具栏。
