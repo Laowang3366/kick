@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-28 21:52 Asia/Shanghai
+
+- 范围：前端 `reace_web` 更新，积分中心功能卡片统一为深绿/浅绿体系；工具页移除“最近转换记录”卡片；模板中心空状态改为浅绿卡片样式。
+- 验证：`npx vitest run src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 8 个测试；`npm run build` 通过；`git diff --check -- reace_web/src/app/pages/Mall.tsx reace_web/src/app/pages/Tools.tsx reace_web/src/app/pages/TemplateCenter.tsx` 通过；Selenium 验证线上 `/mall`、`/tools`、`/templates`，其中 `/tools` 不再出现“最近转换记录”，模板空状态保留且颜色已调整。
+- 部署：提交 `de2bff8` 推送到 `codex/online-snapshot-20260417` 后，服务器从 `/www/wwwroot/kick-deploy/repo` 拉取该分支并执行 `bash scripts/deploy/production-deploy.sh`。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260428-214848`
+- 备注：服务器部署仓当前分支 `codex/online-snapshot-20260417`，提交 `de2bff8`；后端健康接口和站点 `/templates` 均返回 200。
+
 ## 2026-04-28 19:26 Asia/Shanghai
 
 - 范围：前端 `reace_web` 更新，积分经验中心简化为“积分余额、积分模型、使用记录”三块，移除兑换商城、任务中心、我的道具、个人中心等入口和大卡片样式。
