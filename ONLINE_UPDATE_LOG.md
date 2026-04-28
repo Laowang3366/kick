@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-28 22:26 Asia/Shanghai
+
+- 范围：前端 `reace_web` 后台更新，移除后台侧边栏“积分经验中心”模块并让 `/admin/mall` 回到后台总览；优化模板中心上传按钮；首页教程条目正文编辑器改为默认渲染预览，增加内容、预览、对照模式和格式工具栏。
+- 验证：`git diff --check -- reace_web/src/app/admin/config.ts reace_web/src/app/routes.tsx reace_web/src/app/pages/AdminTemplateCenter.tsx reace_web/src/app/pages/AdminHomeContent.tsx` 通过；`npx vitest run src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 8 个测试；`npm run build` 通过；Selenium 本地和线上验证后台侧边栏不再出现“积分经验中心”、模板弹窗显示“上传预览图 / 上传模板文件”、教程编辑器默认展示渲染内容且不显示原始 `<h2>` 标签、`/admin/mall` 跳转 `/admin/overview`。
+- 部署：提交 `ab95e08` 推送到 `codex/online-snapshot-20260417` 后，服务器从 `/www/wwwroot/kick-deploy/repo` 拉取该分支并执行 `bash scripts/deploy/production-deploy.sh`。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260428-222117`
+- 备注：服务器部署仓当前提交 `ab95e08`；站点首页返回 200；服务器本机健康端点 `http://127.0.0.1:8080/api/public/home-overview` 返回 200。
+
 ## 2026-04-28 21:52 Asia/Shanghai
 
 - 范围：前端 `reace_web` 更新，积分中心功能卡片统一为深绿/浅绿体系；工具页移除“最近转换记录”卡片；模板中心空状态改为浅绿卡片样式。
