@@ -13,13 +13,13 @@
 - 备注：
 ```
 
-## 2026-04-28 19:00 Asia/Shanghai
+## 2026-04-28 19:03 Asia/Shanghai
 
 - 范围：前端 `reace_web` 更新，头像悬浮菜单去除个人信息卡片，只保留功能列表。
 - 验证：`git diff --check -- reace_web/src/app/components/Layout.tsx` 通过；`npx vitest run src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 8 个测试；`npm run build` 通过；Selenium 验证线上 `/templates` 头像菜单包含功能项且不再出现“学习工作台”卡片。
-- 部署：GitHub 443 连接失败，无法推送后让服务器拉取；本次使用本地构建 `reace_web/dist` 上传替换服务器 `/www/wwwroot/kick-web` 的兜底部署。
-- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260428-190029-frontend`
-- 备注：本地提交 `ae1c489` 尚待网络恢复后推送到 `codex/online-snapshot-20260417`；线上前端已更新。
+- 部署：提交 `6f834a4` 推送到 `codex/online-snapshot-20260417` 后，服务器从 `/www/wwwroot/kick-deploy/repo` 拉取该分支并执行 `bash scripts/deploy/production-deploy.sh`。推送前因 GitHub 连接短暂失败曾执行一次本地 `dist` 上传兜底，最终已被标准部署覆盖。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260428-190301`
+- 备注：服务器部署仓当前分支 `codex/online-snapshot-20260417`，提交 `6f834a4`；后端健康检查通过。
 
 ## 2026-04-28 18:32 Asia/Shanghai
 
