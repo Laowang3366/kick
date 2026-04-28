@@ -163,9 +163,9 @@ export function Mall() {
           </div>
         </LitePanel>
 
-        <LitePanel>
+        <LitePanel className="border-emerald-200/80 bg-[linear-gradient(135deg,#f4fff8_0%,#dcfce7_100%)] shadow-[0_24px_60px_rgba(0,92,48,0.12)]">
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-emerald-700">
               <BookOpenCheck size={23} />
             </div>
             <div>
@@ -174,9 +174,9 @@ export function Mall() {
             </div>
           </div>
 
-          <div className="mt-6 divide-y divide-slate-100 overflow-hidden rounded-3xl border border-slate-200/70">
+          <div className="mt-6 divide-y divide-emerald-100/80 overflow-hidden rounded-3xl border border-emerald-200/80 bg-white/70">
             {pointModel.map((item: any) => (
-              <div key={item.id} className="grid gap-3 bg-white px-5 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div key={item.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-lg font-black text-slate-950">{item.name}</h3>
@@ -199,7 +199,7 @@ export function Mall() {
         </LitePanel>
       </section>
 
-      <LitePanel>
+      <LitePanel className="border-emerald-200/80 bg-[#f4fff8] shadow-[0_24px_60px_rgba(0,92,48,0.10)]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-black text-emerald-700">
@@ -212,14 +212,14 @@ export function Mall() {
           <div className="text-sm font-bold text-slate-400">{records.length ? `已加载 ${records.length} 条` : "暂无记录"}</div>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200/80">
-          <div className="hidden grid-cols-[1fr_120px_120px_180px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-black text-slate-400 sm:grid">
+        <div className="mt-6 overflow-hidden rounded-3xl border border-emerald-200/80">
+          <div className="hidden grid-cols-[1fr_120px_120px_180px] border-b border-emerald-100 bg-emerald-50 px-5 py-3 text-xs font-black text-emerald-700/70 sm:grid">
             <span>来源</span>
             <span>变动</span>
             <span>余额</span>
             <span>时间</span>
           </div>
-          <div className="divide-y divide-slate-100 bg-white">
+          <div className="divide-y divide-emerald-100/70 bg-white/82">
             {records.map((record: any) => {
               const change = Number(record.change || 0);
               return (

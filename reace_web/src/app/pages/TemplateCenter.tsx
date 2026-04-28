@@ -160,12 +160,12 @@ export function TemplateCenter() {
       </LitePanel>
 
       {records.length === 0 ? (
-        <LitePanel className="py-16 text-center">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[30px] bg-teal-50 text-teal-600">
+        <LitePanel className="border-emerald-200/80 bg-[linear-gradient(135deg,#f4fff8_0%,#dcfce7_100%)] py-16 text-center shadow-[0_24px_60px_rgba(0,92,48,0.10)]">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-[30px] border border-emerald-100 bg-white text-emerald-700 shadow-sm">
             <FolderKanban size={34} />
           </div>
-          <div className="mt-6 text-2xl font-black text-slate-900">当前分类下还没有模板</div>
-          <div className="mt-2 text-sm text-slate-500">后台新增并启用模板后，这里会自动展示。</div>
+          <div className="mt-6 text-2xl font-black text-emerald-950">当前分类下还没有模板</div>
+          <div className="mt-2 text-sm font-semibold text-emerald-900/58">后台新增并启用模板后，这里会自动展示。</div>
         </LitePanel>
       ) : (
         <section className="grid gap-5 xl:grid-cols-2">
