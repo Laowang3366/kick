@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit3, ImagePlus, UploadCloud, Trash2 } from "lucide-react";
+import { Edit3, ImagePlus, LoaderCircle, Trash2, UploadCloud, type LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
@@ -351,12 +351,14 @@ export function AdminTemplateCenter() {
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="预览图">
             <div className="space-y-3">
-              <div className="flex gap-2">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <input value={form.previewImageUrl} onChange={(e) => setForm((prev: any) => ({ ...prev, previewImageUrl: e.target.value }))} className={inputClassName()} placeholder="/uploads/preview.png" />
-                <button type="button" onClick={() => previewInputRef.current?.click()} className={secondaryButtonClassName()}>
-                  <ImagePlus size={14} />
-                  {uploadingPreview ? "上传中" : "上传"}
-                </button>
+                <UploadActionButton
+                  icon={ImagePlus}
+                  loading={uploadingPreview}
+                  label="上传预览图"
+                  onClick={() => previewInputRef.current?.click()}
+                />
                 <input
                   ref={previewInputRef}
                   type="file"
@@ -379,12 +381,14 @@ export function AdminTemplateCenter() {
 
           <Field label="模板文件">
             <div className="space-y-3">
-              <div className="flex gap-2">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <input value={form.templateFileUrl} onChange={(e) => setForm((prev: any) => ({ ...prev, templateFileUrl: e.target.value }))} className={inputClassName()} placeholder="/uploads/template.xlsx" />
-                <button type="button" onClick={() => fileInputRef.current?.click()} className={secondaryButtonClassName()}>
-                  <UploadCloud size={14} />
-                  {uploadingFile ? "上传中" : "上传"}
-                </button>
+                <UploadActionButton
+                  icon={UploadCloud}
+                  loading={uploadingFile}
+                  label="上传模板文件"
+                  onClick={() => fileInputRef.current?.click()}
+                />
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -413,6 +417,30 @@ export function AdminTemplateCenter() {
         />
       </FormDialog>
     </AdminPageShell>
+  );
+}
+
+function UploadActionButton({
+  icon: Icon,
+  loading,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon;
+  loading: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="inline-flex h-11 min-w-[132px] items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+    >
+      {loading ? <LoaderCircle size={16} className="animate-spin" /> : <Icon size={16} />}
+      {loading ? "上传中..." : label}
+    </button>
   );
 }
 

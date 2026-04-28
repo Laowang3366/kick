@@ -47,7 +47,7 @@ export const router = createBrowserRouter([
       { path: "question-categories", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminQuestionCategories") },
       { path: "templates", lazy: lazyPage(() => import("./pages/AdminTemplateCenter"), "AdminTemplateCenter") },
       { path: "points", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminPoints") },
-      { path: "mall", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminMall") },
+      { path: "mall", Component: AdminRedirect },
       { path: "levels", lazy: lazyPage(() => import("./pages/AdminConsole"), "AdminLevels") },
     ],
   },
