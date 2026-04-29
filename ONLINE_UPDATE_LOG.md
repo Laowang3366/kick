@@ -16,10 +16,10 @@
 ## 2026-04-29 14:43 Asia/Shanghai
 
 - 范围：前端 `reace_web` 后台管理界面修复；窄屏后台新增可打开的侧栏抽屉，侧栏内容保持可滚动；后台顶部头像与用户管理列表头像统一使用同一套头像解析和兜底规则。
-- 验证：本地 `npx vitest run src/app/admin/display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 12 个测试；本地 `npm run build` 通过；服务器部署脚本重新构建前后端并通过健康检查；`http://192.168.1.17/api/public/home-overview` 返回 200；`http://192.168.1.17/admin/users` 返回 200；已确认发布的 `AdminConsole-D5Uik13A.js` 包含移动端后台导航和统一头像解析逻辑。
-- 部署：将本地源码差异同步到 `192.168.1.17:/www/wwwroot/kick-deploy/repo`，以 `GIT_PULL_BEFORE_BUILD=0` 执行 `scripts/deploy/production-deploy.sh` 发布到 `lan.excelcc.cn` / LAN 环境。
-- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260429-064302`
-- 备注：首次以普通用户执行部署时受部署仓 `node_modules` 权限影响，未进入运行目录替换阶段；随后以具备权限的方式重新执行成功。本机 DNS 当前未解析 `lan.excelcc.cn`，已通过 LAN IP 与服务器本机健康检查确认运行目录更新。
+- 验证：本地 `npx vitest run src/app/admin/display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 12 个测试；本地 `npm run build` 通过；服务器最终按当前分支 fast-forward 到提交 `fde0488` 后重新构建前后端并通过健康检查；`http://192.168.1.17/api/public/home-overview` 返回 200；`http://192.168.1.17/admin/users` 返回 200；已确认发布的 `AdminConsole-D5Uik13A.js` 包含移动端后台导航和统一头像解析逻辑。
+- 部署：本地提交 `fde0488`；因本机连接 GitHub 443 超时，未能推送 `origin/codex/online-snapshot-20260417`，改用 Git bundle 将提交导入服务器同名分支，随后通过临时部署环境强制 `GIT_PULL_BEFORE_BUILD=1` 执行 `scripts/deploy/production-deploy.sh`，服务器从 `codex/online-snapshot-20260417` 分支 fast-forward 拉取后发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260429-071107`
+- 备注：首次以普通用户执行部署时受部署仓 `node_modules` 权限影响，未进入运行目录替换阶段；随后以具备权限的方式重新执行成功。按要求已将服务器发布流程调整回“当前分支拉取更新”；待 GitHub 连接恢复后需补推 `codex/online-snapshot-20260417`，保持远端分支与本地、服务器分支一致。
 
 ## 2026-04-29 14:02 Asia/Shanghai
 
