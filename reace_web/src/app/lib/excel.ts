@@ -28,6 +28,15 @@ export type ExcelAnswerSnapshot = {
   formulas: string[][];
 };
 
+export type FormulaAnswerRegion = {
+  sheetName: string;
+  rangeRef: string;
+  anchorCell: string;
+  dynamicSpillRange: string;
+  formulaCount: number;
+  cellCount: number;
+};
+
 export function columnIndexToLabel(index: number) {
   let current = Math.max(1, index);
   let result = "";
@@ -251,6 +260,209 @@ export function resolveSheetBounds(sheet: ExcelSheetSnapshot | null | undefined,
     rowCount: Math.max(sheet?.rowCount || 0, selection?.endRow || 0, maxRowFromCells, 12),
     columnCount: Math.max(sheet?.columnCount || 0, selection?.endCol || 0, maxColFromCells, 8),
   };
+}
+
+type ParsedCellSnapshot = {
+  ref: string;
+  row: number;
+  col: number;
+  cell: ExcelCellSnapshot;
+};
+
+type CellBounds = {
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+};
+
+type FormulaAnswerRegionCandidate = FormulaAnswerRegion & {
+  sheetIndex: number;
+  startRow: number;
+  startCol: number;
+};
+
+function hasFormula(cell: ExcelCellSnapshot | undefined) {
+  return typeof cell?.formula === "string" && cell.formula.trim().length > 0;
+}
+
+function hasCellContent(cell: ExcelCellSnapshot | undefined) {
+  if (!cell) return false;
+  if (hasFormula(cell)) return true;
+  if (cell.display !== null && cell.display !== undefined && String(cell.display).trim().length > 0) return true;
+  if (cell.value === null || cell.value === undefined) return false;
+  return String(cell.value).trim().length > 0;
+}
+
+function toRangeRefFromBounds(bounds: CellBounds) {
+  const start = toCellRef(bounds.startRow, bounds.startCol);
+  const end = toCellRef(bounds.endRow, bounds.endCol);
+  return start === end ? start : `${start}:${end}`;
+}
+
+function getBoundsArea(bounds: CellBounds) {
+  return Math.max(0, bounds.endRow - bounds.startRow + 1) * Math.max(0, bounds.endCol - bounds.startCol + 1);
+}
+
+function parseSheetCells(sheet: ExcelSheetSnapshot | null | undefined) {
+  const cells = new Map<string, ParsedCellSnapshot>();
+  Object.entries(sheet?.cells || {}).forEach(([rawRef, cell]) => {
+    const parsedRef = parseCellRef(rawRef);
+    if (!parsedRef || parsedRef.row < 1 || parsedRef.col < 1) return;
+    const ref = toCellRef(parsedRef.row, parsedRef.col);
+    cells.set(ref, { ref, row: parsedRef.row, col: parsedRef.col, cell });
+  });
+  return cells;
+}
+
+function expandSingleFormulaSpill(
+  cells: Map<string, ParsedCellSnapshot>,
+  anchor: ParsedCellSnapshot,
+  formulaRefs: Set<string>,
+) {
+  const anchorRef = toCellRef(anchor.row, anchor.col);
+  const occupiedRefs = new Set<string>();
+  cells.forEach((item, ref) => {
+    if (item.row < anchor.row || item.col < anchor.col) return;
+    if (!hasCellContent(item.cell)) return;
+    if (formulaRefs.has(ref) && ref !== anchorRef) return;
+    occupiedRefs.add(ref);
+  });
+  if (!occupiedRefs.has(anchorRef)) {
+    return {
+      startRow: anchor.row,
+      startCol: anchor.col,
+      endRow: anchor.row,
+      endCol: anchor.col,
+    };
+  }
+
+  const visited = new Set<string>([anchorRef]);
+  const stack = [anchor];
+  const directions = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ];
+  let endRow = anchor.row;
+  let endCol = anchor.col;
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+    endRow = Math.max(endRow, current.row);
+    endCol = Math.max(endCol, current.col);
+    directions.forEach(([rowOffset, colOffset]) => {
+      const row = current.row + rowOffset;
+      const col = current.col + colOffset;
+      if (row < anchor.row || col < anchor.col) return;
+      const nextRef = toCellRef(row, col);
+      if (visited.has(nextRef) || !occupiedRefs.has(nextRef)) return;
+      const next = cells.get(nextRef);
+      if (!next) return;
+      visited.add(nextRef);
+      stack.push(next);
+    });
+  }
+
+  return {
+    startRow: anchor.row,
+    startCol: anchor.col,
+    endRow,
+    endCol,
+  };
+}
+
+function compareFormulaCandidates(mode: "simple" | "dynamic_array") {
+  return (left: FormulaAnswerRegionCandidate, right: FormulaAnswerRegionCandidate) => {
+    const scoreDiff = mode === "dynamic_array"
+      ? right.cellCount - left.cellCount || right.formulaCount - left.formulaCount
+      : right.formulaCount - left.formulaCount || right.cellCount - left.cellCount;
+    return scoreDiff
+      || left.sheetIndex - right.sheetIndex
+      || left.startRow - right.startRow
+      || left.startCol - right.startCol;
+  };
+}
+
+export function detectFormulaAnswerRegion(
+  workbook: ExcelWorkbookSnapshot | null | undefined,
+  options: { mode?: "simple" | "dynamic_array" } = {},
+): FormulaAnswerRegion | null {
+  const mode = options.mode === "dynamic_array" ? "dynamic_array" : "simple";
+  const candidates: FormulaAnswerRegionCandidate[] = [];
+
+  (workbook?.sheets || []).forEach((sheet, sheetIndex) => {
+    const cells = parseSheetCells(sheet);
+    const formulaCells = Array.from(cells.values())
+      .filter((item) => hasFormula(item.cell))
+      .sort((left, right) => left.row - right.row || left.col - right.col);
+    const formulaRefs = new Set(formulaCells.map((item) => item.ref));
+    const visited = new Set<string>();
+    const directions = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ];
+
+    formulaCells.forEach((formulaCell) => {
+      if (visited.has(formulaCell.ref)) return;
+      const component: ParsedCellSnapshot[] = [];
+      const stack = [formulaCell];
+      visited.add(formulaCell.ref);
+
+      while (stack.length > 0) {
+        const current = stack.pop();
+        if (!current) continue;
+        component.push(current);
+        directions.forEach(([rowOffset, colOffset]) => {
+          const nextRef = toCellRef(current.row + rowOffset, current.col + colOffset);
+          if (!formulaRefs.has(nextRef) || visited.has(nextRef)) return;
+          const next = cells.get(nextRef);
+          if (!next) return;
+          visited.add(nextRef);
+          stack.push(next);
+        });
+      }
+
+      const bounds = component.reduce<CellBounds>((current, item) => ({
+        startRow: Math.min(current.startRow, item.row),
+        startCol: Math.min(current.startCol, item.col),
+        endRow: Math.max(current.endRow, item.row),
+        endCol: Math.max(current.endCol, item.col),
+      }), {
+        startRow: formulaCell.row,
+        startCol: formulaCell.col,
+        endRow: formulaCell.row,
+        endCol: formulaCell.col,
+      });
+      const anchor = component.reduce((current, item) =>
+        item.row < current.row || (item.row === current.row && item.col < current.col) ? item : current,
+      component[0]);
+      const dynamicBounds = component.length === 1
+        ? expandSingleFormulaSpill(cells, anchor, formulaRefs)
+        : bounds;
+
+      candidates.push({
+        sheetName: sheet.name,
+        rangeRef: toRangeRefFromBounds(bounds),
+        anchorCell: toCellRef(anchor.row, anchor.col),
+        dynamicSpillRange: toRangeRefFromBounds(dynamicBounds),
+        formulaCount: component.length,
+        cellCount: getBoundsArea(dynamicBounds),
+        sheetIndex,
+        startRow: bounds.startRow,
+        startCol: bounds.startCol,
+      });
+    });
+  });
+
+  const [best] = candidates.sort(compareFormulaCandidates(mode));
+  if (!best) return null;
+  const { sheetIndex: _sheetIndex, startRow: _startRow, startCol: _startCol, ...result } = best;
+  return result;
 }
 
 export function parseSheetAndRange(a1Notation: string) {

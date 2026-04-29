@@ -36,6 +36,7 @@ import { api, ApiError } from "../lib/api";
 import {
   buildWorkbookWithAnswerSnapshot,
   columnIndexToLabel,
+  detectFormulaAnswerRegion,
   extractRangeAnswerSnapshot,
   ExcelRangeSelection,
   ExcelWorkbookSnapshot,
@@ -2230,6 +2231,7 @@ export function AdminQuestions() {
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const [isTemplateEditMode, setIsTemplateEditMode] = useState(true);
   const [isSelectingAnswerRange, setIsSelectingAnswerRange] = useState(false);
+  const [formulaDetectionNotice, setFormulaDetectionNotice] = useState("");
   const [editorFullscreenVersion, setEditorFullscreenVersion] = useState(0);
   const editorSnapshotGetterRef = useRef<(() => ExcelWorkbookSnapshot | null) | null>(null);
   const size = 10;
@@ -2295,6 +2297,7 @@ export function AdminQuestions() {
     setSelection(null);
     setIsTemplateEditMode(true);
     setIsSelectingAnswerRange(false);
+    setFormulaDetectionNotice("");
   };
 
   const loadTemplateWorkbook = async (
@@ -2310,7 +2313,7 @@ export function AdminQuestions() {
         navigate,
         role,
       );
-      if (!snapshot) return;
+      if (!snapshot) return null;
       const sheetName = answerSheet || snapshot.sheets?.[0]?.name || "";
       const workbookWithAnswer = buildWorkbookWithAnswerSnapshot(snapshot, answerSheet, answerRange, answerSnapshotJson);
       setTemplateWorkbook(snapshot);
@@ -2320,6 +2323,7 @@ export function AdminQuestions() {
       setSelection(parsedRange && sheetName
         ? normalizeSelection(sheetName, parsedRange.startRow, parsedRange.startCol, parsedRange.endRow, parsedRange.endCol)
         : null);
+      return snapshot as ExcelWorkbookSnapshot;
     } finally {
       setTemplateLoading(false);
     }
@@ -2336,6 +2340,7 @@ export function AdminQuestions() {
   const openEdit = async (item: any) => {
     const dynamicArrayRules = parseDynamicArrayRulesFromJson(item.gradingRuleJson, item.answerSheet || "");
     const gradingMode = dynamicArrayRules.some((rule) => rule.anchorCell && rule.spillRange) ? "dynamic_array" : "simple";
+    setFormulaDetectionNotice("");
     setEditing(item);
     setForm({
       title: item.title || "",
@@ -2569,18 +2574,62 @@ export function AdminQuestions() {
       const formData = new FormData();
       formData.append("file", file);
       const uploadResult = await api.post<{ url: string }>("/api/upload", formData);
-      const nextForm = {
+      setIsTemplateEditMode(true);
+      const snapshot = await loadTemplateWorkbook(uploadResult.url);
+      const detectedRegion = detectFormulaAnswerRegion(snapshot, {
+        mode: form.gradingMode === "dynamic_array" ? "dynamic_array" : "simple",
+      });
+      if (!detectedRegion) {
+        setForm({
+          ...form,
+          templateFileUrl: uploadResult.url,
+          answerSheet: "",
+          answerRange: "",
+          answerSnapshotJson: "",
+          dynamicArrayRules: [defaultDynamicArrayRule()],
+          gradingRuleJson: "",
+        });
+        setFormulaDetectionNotice("未识别到含函数公式的答题区域，请在模板编辑器中手动选择。");
+        toast.success("模板上传完成");
+        return;
+      }
+
+      const detectedRange = form.gradingMode === "dynamic_array"
+        ? detectedRegion.dynamicSpillRange
+        : detectedRegion.rangeRef;
+      const detectedRangeBounds = parseRangeRef(detectedRange);
+      const nextDynamicRule = {
+        ...defaultDynamicArrayRule(detectedRegion.sheetName),
+        sheet: detectedRegion.sheetName,
+        anchorCell: detectedRegion.anchorCell,
+        spillRange: detectedRegion.dynamicSpillRange,
+      };
+      setForm({
         ...form,
         templateFileUrl: uploadResult.url,
-        answerSheet: "",
-        answerRange: "",
+        answerSheet: detectedRegion.sheetName,
+        answerRange: detectedRange,
         answerSnapshotJson: "",
-        dynamicArrayRules: [defaultDynamicArrayRule()],
-      };
-      setForm(nextForm);
-      setIsTemplateEditMode(true);
-      await loadTemplateWorkbook(uploadResult.url);
-      toast.success("模板上传完成");
+        checkFormula: true,
+        dynamicArrayRules: [nextDynamicRule],
+        gradingRuleJson: "",
+      });
+      setSelectedSheetName(detectedRegion.sheetName);
+      setSelection(detectedRangeBounds
+        ? normalizeSelection(
+          detectedRegion.sheetName,
+          detectedRangeBounds.startRow,
+          detectedRangeBounds.startCol,
+          detectedRangeBounds.endRow,
+          detectedRangeBounds.endCol,
+        )
+        : null);
+      setFormulaDetectionNotice(
+        form.gradingMode === "dynamic_array"
+          ? `已自动识别动态数组：${detectedRegion.sheetName}!${detectedRegion.dynamicSpillRange}，锚点 ${detectedRegion.anchorCell}。可继续手动修正。`
+          : `已自动识别公式区域：${detectedRegion.sheetName}!${detectedRegion.rangeRef}。动态数组锚点 ${detectedRegion.anchorCell}，溢出区域 ${detectedRegion.dynamicSpillRange} 已同步到动态规则。`,
+      );
+      toast.success("模板上传完成，已自动识别公式区域");
     } finally {
       setUploadingTemplate(false);
     }
@@ -2665,6 +2714,7 @@ export function AdminQuestions() {
         : prev.dynamicArrayRules,
     }));
     setSelectedSheetName(selection.sheetName);
+    setFormulaDetectionNotice("");
     setIsSelectingAnswerRange(false);
     if (document.fullscreenElement) {
       void document.exitFullscreen();
@@ -2921,6 +2971,11 @@ export function AdminQuestions() {
               </label>
             </div>
           </div>
+          {formulaDetectionNotice && (
+            <div className="mb-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-700">
+              {formulaDetectionNotice}
+            </div>
+          )}
           {sheetOptions.length > 0 && (
             <div className="grid gap-4 md:grid-cols-4">
               <Field label={isDynamicArrayMode ? "首条规则工作表" : "答题工作表"}>
