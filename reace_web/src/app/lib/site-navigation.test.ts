@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { mobilePrimaryNavItems, publicNavItems, resolveActiveNavItem } from "./site-navigation";
+import {
+  liteMobileBottomNavItems,
+  liteMobileDrawerNavItems,
+  publicNavItems,
+  resolveActiveNavItem,
+} from "./site-navigation";
 
 describe("resolveActiveNavItem", () => {
   it("keeps tutorial center directly after home in the public navigation", () => {
@@ -29,7 +34,22 @@ describe("resolveActiveNavItem", () => {
     expect(resolveActiveNavItem("/")?.name).toBe("首页");
   });
 
-  it("keeps every public module reachable from compact navigation", () => {
-    expect(mobilePrimaryNavItems.map((item) => item.key)).toEqual(publicNavItems.map((item) => item.key));
+  it("keeps only the primary destinations in the mobile bottom navigation", () => {
+    expect(liteMobileBottomNavItems.map((item) => item.key)).toEqual(["home", "tutorials", "practice", "profile"]);
+  });
+
+  it("keeps secondary destinations in the mobile drawer", () => {
+    expect(liteMobileDrawerNavItems.map((item) => item.key)).toEqual(["mall", "tools", "templates"]);
+  });
+
+  it("keeps every public module reachable across compact navigation surfaces", () => {
+    const reachableKeys = new Set([
+      ...liteMobileBottomNavItems.map((item) => item.key),
+      ...liteMobileDrawerNavItems.map((item) => item.key),
+    ]);
+
+    publicNavItems.forEach((item) => {
+      expect(reachableKeys.has(item.key)).toBe(true);
+    });
   });
 });

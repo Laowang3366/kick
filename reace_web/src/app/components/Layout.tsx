@@ -48,7 +48,12 @@ import {
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { chatKeys, homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
-import { mobilePrimaryNavItems, publicNavItems, resolveActiveNavItem } from "../lib/site-navigation";
+import {
+  liteMobileBottomNavItems,
+  liteMobileDrawerNavItems,
+  publicNavItems,
+  resolveActiveNavItem,
+} from "../lib/site-navigation";
 import { useIsMobile } from "./ui/use-mobile";
 import { ONLINE_LITE_MODE, isLiteAllowedPath } from "../lib/site-mode";
 
@@ -474,6 +479,7 @@ export function Layout() {
     tutorials: <BookOpen size={18} strokeWidth={1.8} />,
     mall: <ShoppingBag size={18} strokeWidth={1.8} />,
     tools: <ArrowRightLeft size={18} strokeWidth={1.8} />,
+    profile: <User size={18} strokeWidth={1.8} />,
   };
   const navItems = publicNavItems.map((item) => ({
     ...item,
@@ -493,7 +499,7 @@ export function Layout() {
       }
     : null;
   const mobileDrawerNavItems: Array<{ name: string; path: string; icon: React.ReactNode }> = ONLINE_LITE_MODE
-    ? mobilePrimaryNavItems.map((item) => ({ ...item, icon: navIconMap[item.key] }))
+    ? liteMobileDrawerNavItems.map((item) => ({ ...item, icon: navIconMap[item.key] }))
     : [];
   const mobileBottomNavItems = forumEnabled
     ? [
@@ -503,10 +509,10 @@ export function Layout() {
         { key: "search", name: "搜索", path: "", icon: <Search size={18} strokeWidth={1.6} /> },
         { key: "profile", name: "我的", path: isAuthenticated ? "/profile" : "/auth", icon: <User size={18} strokeWidth={1.6} /> },
       ]
-    : mobilePrimaryNavItems.map((item) => ({
+    : liteMobileBottomNavItems.map((item) => ({
         key: item.key,
         name: item.shortName,
-        path: item.path,
+        path: item.key === "profile" && !isAuthenticated ? "/auth" : item.path,
         icon: navIconMap[item.key],
       }));
   const openFeedbackDialog = () => {
@@ -1331,7 +1337,7 @@ export function Layout() {
                 damping: 30, 
                 mass: 1 
               }}
-              className={isMobile ? "h-full pb-[96px]" : "h-full"}
+              className={isMobile ? "h-full pb-[calc(104px+env(safe-area-inset-bottom))]" : "h-full"}
             >
               <Outlet />
             </motion.div>
@@ -1508,8 +1514,8 @@ export function Layout() {
                 </>
               ) : null}
             </AnimatePresence>
-            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-            <div className={`grid gap-1 ${forumEnabled ? "grid-cols-5" : "grid-cols-5"}`}>
+            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur md:hidden">
+            <div className={`grid gap-1 ${forumEnabled ? "grid-cols-5" : "grid-cols-4"}`}>
               {mobileBottomNavItems.map((item) => {
                 const isSearch = item.key === "search";
                 const isActive = isSearch

@@ -6,6 +6,15 @@ export type PublicNavItem = {
   description: string;
 };
 
+export type LiteMobileBottomNavItem =
+  | Pick<PublicNavItem, "key" | "name" | "shortName" | "path">
+  | {
+      key: "profile";
+      name: string;
+      shortName: string;
+      path: string;
+    };
+
 export const publicNavItems: PublicNavItem[] = [
   {
     key: "home",
@@ -52,6 +61,24 @@ export const publicNavItems: PublicNavItem[] = [
 ];
 
 export const mobilePrimaryNavItems = publicNavItems;
+
+export const liteMobileBottomNavItems: LiteMobileBottomNavItem[] = [
+  publicNavItems[0],
+  publicNavItems[1],
+  publicNavItems[2],
+  {
+    key: "profile",
+    name: "我的",
+    shortName: "我的",
+    path: "/profile",
+  },
+];
+
+export const liteMobileDrawerNavItems: PublicNavItem[] = [
+  publicNavItems[4],
+  publicNavItems[5],
+  publicNavItems[3],
+];
 
 export function resolveActiveNavItem(pathname: string) {
   const normalizedPathname = normalizePathname(pathname);

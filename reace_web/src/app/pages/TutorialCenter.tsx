@@ -3,11 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, FileText, ListTree, Search } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 import { LitePageFrame } from "../components/LiteSurface";
+import { useIsMobile } from "../components/ui/use-mobile";
 import { api } from "../lib/api";
 import { tutorialKeys } from "../lib/query-keys";
+import {
+  getLiteMobileContentPaddingClassName,
+  shouldRenderTutorialInlineArticle,
+  shouldRenderTutorialReaderOverlay,
+} from "../lib/tutorial-display";
 
 export function TutorialCenter() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [searchParams] = useSearchParams();
   const routeKeyword = searchParams.get("search") || searchParams.get("q") || "";
   const tutorialsQuery = useQuery({
@@ -19,6 +26,8 @@ export function TutorialCenter() {
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const [activeArticleId, setActiveArticleId] = useState<number | null>(null);
   const [searchKeyword, setSearchKeyword] = useState(routeKeyword);
+  const [expandedMobileCategoryId, setExpandedMobileCategoryId] = useState<number | null>(null);
+  const [mobileReaderArticleId, setMobileReaderArticleId] = useState<number | null>(null);
 
   useEffect(() => {
     setSearchKeyword(routeKeyword);
@@ -82,15 +91,121 @@ export function TutorialCenter() {
   const nextArticle = activeArticleIndex >= 0 && activeArticleIndex < activeArticles.length - 1
     ? activeArticles[activeArticleIndex + 1]
     : null;
+  const mobileReaderCategory = mobileReaderArticleId
+    ? visibleCategories.find((category: any) =>
+        (category.articles || []).some((article: any) => article.id === mobileReaderArticleId)
+      ) || null
+    : null;
+  const mobileReaderArticle = mobileReaderCategory?.articles?.find((article: any) => article.id === mobileReaderArticleId) || null;
+  const mobileReaderArticles = mobileReaderCategory?.articles || [];
+  const mobileReaderArticleIndex = mobileReaderArticles.findIndex((article: any) => article.id === mobileReaderArticle?.id);
+  const mobileReaderPreviousArticle = mobileReaderArticleIndex > 0 ? mobileReaderArticles[mobileReaderArticleIndex - 1] : null;
+  const mobileReaderNextArticle = mobileReaderArticleIndex >= 0 && mobileReaderArticleIndex < mobileReaderArticles.length - 1
+    ? mobileReaderArticles[mobileReaderArticleIndex + 1]
+    : null;
   const totalArticles = categories.reduce((sum: number, category: any) => sum + (category.articles?.length || 0), 0);
 
   const selectArticle = (category: any, article: any) => {
     setActiveCategoryId(category.id);
     setActiveArticleId(article.id);
+    if (isMobile) {
+      setMobileReaderArticleId(article.id);
+    }
   };
 
+  useEffect(() => {
+    if (!mobileReaderArticleId) return;
+    const readerArticleStillVisible = visibleCategories.some((category: any) =>
+      (category.articles || []).some((article: any) => article.id === mobileReaderArticleId)
+    );
+    if (!readerArticleStillVisible) {
+      setMobileReaderArticleId(null);
+    }
+  }, [mobileReaderArticleId, visibleCategories]);
+
+  const renderArticleContent = ({
+    article,
+    category,
+    articleIndex,
+    articles,
+    previous,
+    next,
+    onPrevious,
+    onNext,
+    headingClassName,
+  }: {
+    article: any;
+    category: any;
+    articleIndex: number;
+    articles: any[];
+    previous: any | null;
+    next: any | null;
+    onPrevious: () => void;
+    onNext: () => void;
+    headingClassName: string;
+  }) => (
+    <>
+      <h2 className={headingClassName}>{article.title}</h2>
+      {article.summary ? (
+        <p className="mt-4 border-l-4 border-emerald-600 bg-emerald-50 px-4 py-3 text-base leading-7 text-slate-700">
+          {article.summary}
+        </p>
+      ) : null}
+      <div className="mt-5 flex flex-wrap gap-2">
+        {article.audienceTrack ? (
+          <span className="rounded bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+            {trackLabel[article.audienceTrack] || "通用轨道"}
+          </span>
+        ) : null}
+        {article.difficulty ? (
+          <span className="rounded bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-800">
+            {difficultyLabel[article.difficulty] || "基础难度"}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-8 border-t border-slate-200 pt-7">
+        {article.content ? (
+          <div
+            className="home-tutorial-content space-y-5 text-[16px] leading-8 text-slate-700"
+            dangerouslySetInnerHTML={{ __html: article.content }}
+          />
+        ) : (
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-400">
+            当前教程暂无正文内容。
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-2">
+        <button
+          type="button"
+          disabled={!previous}
+          onClick={onPrevious}
+          className="flex min-h-16 items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-600 transition enabled:hover:border-emerald-300 enabled:hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <span>上一篇</span>
+          <span className="truncate">{previous?.title || "无"}</span>
+        </button>
+        <button
+          type="button"
+          disabled={!next}
+          onClick={onNext}
+          className="flex min-h-16 items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-600 transition enabled:hover:border-emerald-300 enabled:hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          <span>下一篇</span>
+          <span className="truncate">{next?.title || "无"}</span>
+        </button>
+      </div>
+
+      <div className="sr-only">
+        {category?.name || "教程分类"} {articleIndex + 1}/{articles.length}
+      </div>
+    </>
+  );
+
   return (
-    <LitePageFrame className="max-w-none bg-[#f5fbf6] px-0 py-0">
+    <LitePageFrame className={`max-w-none bg-[#f5fbf6] px-0 py-0 ${getLiteMobileContentPaddingClassName(isMobile)}`}>
       <section className="border-b border-emerald-100 bg-white">
         <div className="mx-auto max-w-[1320px] px-5 py-7 sm:px-8">
           <button
@@ -128,7 +243,60 @@ export function TutorialCenter() {
       </section>
 
       <section className="mx-auto grid max-w-[1320px] gap-5 px-5 py-6 sm:px-8 lg:grid-cols-[230px_minmax(0,1fr)_250px]">
-        <aside className="lg:sticky lg:top-28 lg:self-start">
+        <div className="lg:hidden">
+          <div className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+            <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-700 px-4 py-3 text-sm font-black text-white">
+              <ListTree size={16} />
+              教程目录
+            </div>
+            <div className="divide-y divide-slate-100">
+              {visibleCategories.map((category: any) => {
+                const isExpanded = category.id === expandedMobileCategoryId;
+                return (
+                  <div key={`mobile-category-${category.id}`}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedMobileCategoryId(isExpanded ? null : category.id);
+                        setActiveCategoryId(category.id);
+                        setActiveArticleId(category.articles?.[0]?.id || null);
+                      }}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left text-sm font-black text-slate-800 transition hover:bg-emerald-50"
+                    >
+                      <span>{category.name}</span>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
+                        {category.articles?.length || 0}
+                      </span>
+                    </button>
+                    {isExpanded ? (
+                      <div className="bg-slate-50 px-3 pb-3">
+                        {(category.articles || []).map((article: any) => (
+                          <button
+                            key={`mobile-article-${article.id}`}
+                            type="button"
+                            onClick={() => selectArticle(category, article)}
+                            className="mt-2 flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                          >
+                            <FileText size={16} className="shrink-0 text-emerald-600" />
+                            <span className="min-w-0 flex-1 truncate">{article.title}</span>
+                            <ArrowRight size={15} className="shrink-0 text-slate-400" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              {!visibleCategories.length ? (
+                <div className="px-4 py-6 text-sm text-slate-400">
+                  {tutorialsQuery.isLoading ? "教程加载中..." : "暂无匹配教程"}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <aside className="hidden lg:sticky lg:top-28 lg:block lg:self-start">
           <div className="overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
             <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-700 px-4 py-3 text-sm font-black text-white">
               <ListTree size={16} />
@@ -187,87 +355,46 @@ export function TutorialCenter() {
           </div>
         </aside>
 
-        <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-slate-50 px-5 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-              <div className="flex items-center gap-2 font-bold text-slate-500">
-                <span>Excel 教程</span>
-                <span>/</span>
-                <span>{activeCategory?.name || "请选择分类"}</span>
-              </div>
-              {activeArticle ? (
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
-                  {activeArticleIndex + 1}/{activeArticles.length}
-                </span>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="px-5 py-7 sm:px-8">
-            {activeArticle ? (
-              <>
-                <h2 className="text-4xl font-black tracking-tight text-slate-950">{activeArticle.title}</h2>
-                {activeArticle.summary ? (
-                  <p className="mt-4 border-l-4 border-emerald-600 bg-emerald-50 px-4 py-3 text-base leading-7 text-slate-700">
-                    {activeArticle.summary}
-                  </p>
+        {shouldRenderTutorialInlineArticle(isMobile) ? (
+          <article className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 bg-slate-50 px-5 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <div className="flex items-center gap-2 font-bold text-slate-500">
+                  <span>Excel 教程</span>
+                  <span>/</span>
+                  <span>{activeCategory?.name || "请选择分类"}</span>
+                </div>
+                {activeArticle ? (
+                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
+                    {activeArticleIndex + 1}/{activeArticles.length}
+                  </span>
                 ) : null}
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {activeArticle.audienceTrack ? (
-                    <span className="rounded bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
-                      {trackLabel[activeArticle.audienceTrack] || "通用轨道"}
-                    </span>
-                  ) : null}
-                  {activeArticle.difficulty ? (
-                    <span className="rounded bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-800">
-                      {difficultyLabel[activeArticle.difficulty] || "基础难度"}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="mt-8 border-t border-slate-200 pt-7">
-                  {activeArticle.content ? (
-                    <div
-                      className="home-tutorial-content space-y-5 text-[16px] leading-8 text-slate-700"
-                      dangerouslySetInnerHTML={{ __html: activeArticle.content }}
-                    />
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-400">
-                      当前教程暂无正文内容。
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-8 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    disabled={!previousArticle}
-                    onClick={() => previousArticle && setActiveArticleId(previousArticle.id)}
-                    className="flex min-h-16 items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-600 transition enabled:hover:border-emerald-300 enabled:hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    <span>上一篇</span>
-                    <span className="truncate">{previousArticle?.title || "无"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!nextArticle}
-                    onClick={() => nextArticle && setActiveArticleId(nextArticle.id)}
-                    className="flex min-h-16 items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm font-bold text-slate-600 transition enabled:hover:border-emerald-300 enabled:hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    <span>下一篇</span>
-                    <span className="truncate">{nextArticle?.title || "无"}</span>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-16 text-center text-sm text-slate-400">
-                {tutorialsQuery.isLoading ? "教程内容加载中..." : "暂无匹配教程内容"}
               </div>
-            )}
-          </div>
-        </article>
+            </div>
 
-        <aside className="space-y-5 lg:sticky lg:top-28 lg:self-start">
+            <div className="px-5 py-7 sm:px-8">
+              {activeArticle ? (
+                renderArticleContent({
+                  article: activeArticle,
+                  category: activeCategory,
+                  articleIndex: activeArticleIndex,
+                  articles: activeArticles,
+                  previous: previousArticle,
+                  next: nextArticle,
+                  onPrevious: () => previousArticle && setActiveArticleId(previousArticle.id),
+                  onNext: () => nextArticle && setActiveArticleId(nextArticle.id),
+                  headingClassName: "text-4xl font-black tracking-tight text-slate-950",
+                })
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-16 text-center text-sm text-slate-400">
+                  {tutorialsQuery.isLoading ? "教程内容加载中..." : "暂无匹配教程内容"}
+                </div>
+              )}
+            </div>
+          </article>
+        ) : null}
+
+        <aside className="hidden space-y-5 lg:sticky lg:top-28 lg:block lg:self-start">
           <div className="rounded-lg border border-emerald-200 bg-white shadow-sm">
             <div className="border-b border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-900">
               学习入口
@@ -346,6 +473,57 @@ export function TutorialCenter() {
           </div>
         </aside>
       </section>
+
+      {shouldRenderTutorialReaderOverlay({ isMobile, selectedArticle: mobileReaderArticle }) ? (
+        <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#f5fbf6] pb-[calc(104px+env(safe-area-inset-bottom))]">
+          <div className="sticky top-0 z-10 border-b border-emerald-100 bg-white/95 px-4 py-3 backdrop-blur">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMobileReaderArticleId(null)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700"
+                aria-label="返回教程目录"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-black text-emerald-700">教程阅读</div>
+                <div className="truncate text-sm font-bold text-slate-900">
+                  {mobileReaderCategory?.name || "教程中心"}
+                </div>
+              </div>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
+                {mobileReaderArticleIndex + 1}/{mobileReaderArticles.length}
+              </span>
+            </div>
+          </div>
+          <article className="mx-4 my-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="px-4 py-6">
+              {renderArticleContent({
+                article: mobileReaderArticle,
+                category: mobileReaderCategory,
+                articleIndex: mobileReaderArticleIndex,
+                articles: mobileReaderArticles,
+                previous: mobileReaderPreviousArticle,
+                next: mobileReaderNextArticle,
+                onPrevious: () => {
+                  if (!mobileReaderPreviousArticle || !mobileReaderCategory) return;
+                  setActiveCategoryId(mobileReaderCategory.id);
+                  setActiveArticleId(mobileReaderPreviousArticle.id);
+                  setMobileReaderArticleId(mobileReaderPreviousArticle.id);
+                },
+                onNext: () => {
+                  if (!mobileReaderNextArticle || !mobileReaderCategory) return;
+                  setActiveCategoryId(mobileReaderCategory.id);
+                  setActiveArticleId(mobileReaderNextArticle.id);
+                  setMobileReaderArticleId(mobileReaderNextArticle.id);
+                },
+                headingClassName: "text-3xl font-black leading-tight tracking-tight text-slate-950",
+              })}
+            </div>
+          </article>
+        </div>
+      ) : null}
     </LitePageFrame>
   );
 }
