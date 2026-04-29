@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit3, Globe, LoaderCircle, Mail, MapPin, Shield, Sparkles, TrendingUp, UploadCloud } from "lucide-react";
+import { ArrowRight, Edit3, Globe, LoaderCircle, Mail, MapPin, Shield, Sparkles, TrendingUp, UploadCloud } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { LitePageFrame, LitePanel, LiteSectionTitle } from "../components/LiteSurface";
+import { LitePageFrame, LitePanel } from "../components/LiteSurface";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { api } from "../lib/api";
 import { formatNumber } from "../lib/format";
 import { normalizeAvatarUrl } from "../lib/mappers";
+import {
+  getProfileEntryCards,
+  getProfileIdentityLayoutClassName,
+  shouldRenderProfileHeaderDescription,
+} from "../lib/profile-display";
 import { pointsKeys, practiceKeys, profileKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
 
@@ -35,6 +40,8 @@ export function ProfileCenter() {
   const { isAuthenticated, refreshUser, logout } = useSession();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isGrowthOpen, setIsGrowthOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [form, setForm] = useState({
     id: null as number | null,
@@ -166,6 +173,7 @@ export function ProfileCenter() {
     Number(expProgress.totalInLevel || 0)
   );
   const campaignProgressPercent = totalLevels > 0 ? Math.round((clearedLevels / totalLevels) * 100) : 0;
+  const profileEntryCards = getProfileEntryCards();
 
   const handleAvatarUpload = async (files: FileList | null) => {
     const file = files?.[0];
@@ -205,7 +213,9 @@ export function ProfileCenter() {
               <div>
                 <div className="text-[12px] font-black uppercase tracking-[0.2em] text-teal-600/90">个人资料</div>
                 <h1 className="mt-2 text-[30px] font-black tracking-tight text-slate-900">头像资料信息</h1>
-                <p className="mt-2 text-sm leading-6 text-slate-500">保留个人头像、身份信息和资料编辑，账户操作独立收口。</p>
+                {shouldRenderProfileHeaderDescription() ? (
+                  <p className="mt-2 text-sm leading-6 text-slate-500">保留个人头像、身份信息和资料编辑，账户操作独立收口。</p>
+                ) : null}
               </div>
               <div className="flex flex-wrap gap-3">
                 <button
@@ -228,202 +238,52 @@ export function ProfileCenter() {
             </div>
           </div>
 
-          <div className="grid gap-5 px-6 py-6 lg:grid-cols-[auto_minmax(0,1fr)]">
-            <img
-              src={normalizeAvatarUrl(user.avatar, user.username)}
-              alt={user.username || "用户头像"}
-              className="h-28 w-28 rounded-[30px] border border-slate-200 bg-white object-cover shadow-[0_12px_30px_rgba(15,23,42,0.08)]"
-            />
+          <div className="space-y-5 px-6 py-6">
+            <div className={`${getProfileIdentityLayoutClassName()} min-w-0`}>
+              <img
+                src={normalizeAvatarUrl(user.avatar, user.username)}
+                alt={user.username || "用户头像"}
+                className="h-24 w-24 shrink-0 rounded-[28px] border border-slate-200 bg-white object-cover shadow-[0_12px_30px_rgba(15,23,42,0.08)] sm:h-28 sm:w-28 sm:rounded-[30px]"
+              />
 
-            <div className="space-y-5">
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="truncate text-3xl font-black tracking-tight text-slate-900">{user.username || "未命名用户"}</div>
-                  <div className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-teal-700">
-                    Lv.{expProgress.level || user.level || 1} {expProgress.levelName || "新手"}
-                  </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-3xl font-black tracking-tight text-slate-900">{user.username || "未命名用户"}</div>
+                <div className="mt-2 inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-teal-700">
+                  Lv.{expProgress.level || user.level || 1} {expProgress.levelName || "新手"}
                 </div>
-                <div className="mt-3 text-sm leading-7 text-slate-500">{user.bio || "这个用户还没有填写个人简介。"}</div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
-                  <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
-                    <Mail size={15} />
-                    注册邮箱
-                  </div>
-                  <div className="mt-3 break-all text-base font-black text-slate-900">{user.email || "未填写"}</div>
-                </div>
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
-                  <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
-                    <Edit3 size={15} />
-                    职位信息
-                  </div>
-                  <div className="mt-3 text-base font-black text-slate-900">{user.jobTitle || "未填写"}</div>
-                </div>
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
-                  <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
-                    <MapPin size={15} />
-                    所在地
-                  </div>
-                  <div className="mt-3 text-base font-black text-slate-900">{user.location || "未填写"}</div>
-                </div>
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
-                  <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
-                    <Globe size={15} />
-                    个人网站
-                  </div>
-                  <div className="mt-3 break-all text-base font-black text-slate-900">{user.website || "未填写"}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </LitePanel>
-
-        <LitePanel>
-          <LiteSectionTitle
-            eyebrow="成长进度"
-            title="成长进度"
-            description="通关后同时累积积分与经验值，成长数据集中在这一块。"
-          />
-
-          <div className="mt-6 grid gap-5 xl:grid-cols-2">
-            <div className="rounded-[26px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
-                    <TrendingUp size={20} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-black text-slate-900">等级进度条</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      当前等级：Lv.{expProgress.level || user.level || 1} {expProgress.levelName || "新手"}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-black text-slate-900">{levelProgressPercent}%</div>
-                  <div className="text-xs text-slate-400">
-                    {Number(expProgress.currentInLevel || 0)} / {Number(expProgress.totalInLevel || 0)}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6_0%,#22c55e_100%)]"
-                  style={{ width: `${levelProgressPercent}%` }}
-                />
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">当前积分</div>
-                  <div className="mt-2 text-2xl font-black text-slate-900">{formatNumber(Number(user.points || 0))}</div>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">当前经验</div>
-                  <div className="mt-2 text-2xl font-black text-slate-900">{formatNumber(Number(user.exp || 0))}</div>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">剩余经验</div>
-                  <div className="mt-2 text-2xl font-black text-slate-900">{formatNumber(Number(expProgress.remainingExp || 0))}</div>
-                </div>
+                <div className="mt-3 line-clamp-2 text-sm leading-6 text-slate-500">{user.bio || "这个用户还没有填写个人简介。"}</div>
               </div>
             </div>
 
-            <div className="rounded-[26px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fffaf2_100%)] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
-                    <Sparkles size={20} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-black text-slate-900">闯关进度</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      已完成章节 {completedChapters} / {totalChapters || 0}
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-black text-slate-900">{campaignProgressPercent}%</div>
-                  <div className="text-xs text-slate-400">
-                    {clearedLevels} / {totalLevels || 0} 关
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,#f59e0b_0%,#fb7185_100%)]"
-                  style={{ width: `${campaignProgressPercent}%` }}
-                />
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl bg-white/80 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">已通关卡</div>
-                  <div className="mt-2 text-2xl font-black text-slate-900">{clearedLevels}</div>
-                </div>
-                <div className="rounded-2xl bg-white/80 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">总星数</div>
-                  <div className="mt-2 text-2xl font-black text-slate-900">{totalStars}</div>
-                </div>
-                <div className="rounded-2xl bg-white/80 px-4 py-3">
-                  <div className="text-[11px] font-bold text-slate-400">连续推进</div>
-                  <div className="mt-2 text-2xl font-black text-slate-900">{Number(campaignSummary.currentStreak || 0)}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </LitePanel>
-
-        <LitePanel>
-          <LiteSectionTitle
-            eyebrow="账号管理"
-            title="账号管理入口"
-            description="邮箱与密码独立管理，避免和资料编辑混在一起。"
-            action={
-              <button
-                type="button"
-                onClick={() => setIsAccountOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2.5 text-sm font-black text-white"
-              >
-                <Shield size={16} />
-                打开账号管理
-              </button>
-            }
-          />
-
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-5 py-5">
-              <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-                <Mail size={16} className="text-teal-600" />
-                邮箱管理
-              </div>
-              <div className="mt-3 text-sm leading-7 text-slate-500">当前邮箱：{user.email || "未绑定"}</div>
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsAccountOpen(true)}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
-                >
-                  修改邮箱
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-5 py-5">
-              <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-                <Shield size={16} className="text-amber-500" />
-                密码管理
-              </div>
-              <div className="mt-3 text-sm leading-7 text-slate-500">修改密码后会立即使当前登录态失效，并要求重新登录。</div>
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsAccountOpen(true)}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-teal-200 hover:text-teal-700"
-                >
-                  修改密码
-                </button>
-              </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {profileEntryCards.map((item) => {
+                const isGrowth = item.key === "growth";
+                const Icon = isGrowth ? TrendingUp : Mail;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      if (isGrowth) {
+                        setIsGrowthOpen(true);
+                        return;
+                      }
+                      setIsDetailsOpen(true);
+                    }}
+                    className="group flex items-center gap-4 rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4 text-left transition hover:border-teal-200 hover:bg-white"
+                  >
+                    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${isGrowth ? "bg-amber-50 text-amber-600" : "bg-teal-50 text-teal-600"}`}>
+                      <Icon size={20} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">{item.eyebrow}</span>
+                      <span className="mt-1 block text-base font-black text-slate-900">{item.title}</span>
+                      <span className="mt-1 line-clamp-2 block text-xs leading-5 text-slate-500">{item.description}</span>
+                    </span>
+                    <ArrowRight size={18} className="shrink-0 text-slate-300 transition group-hover:text-teal-600" />
+                  </button>
+                );
+              })}
             </div>
           </div>
         </LitePanel>
@@ -521,6 +381,141 @@ export function ProfileCenter() {
               {saveMutation.isPending ? <LoaderCircle size={16} className="animate-spin" /> : <Edit3 size={16} />}
               保存资料
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="max-h-[calc(100vh-32px)] max-w-2xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-0 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+          <DialogHeader className="border-b border-slate-100 px-6 py-5">
+            <DialogTitle className="text-2xl font-black text-slate-900">查看个人资料</DialogTitle>
+            <DialogDescription>注册邮箱、职位、所在地和个人网站集中在这里查看。</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 px-6 py-6 sm:grid-cols-2">
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
+              <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
+                <Mail size={15} />
+                注册邮箱
+              </div>
+              <div className="mt-3 break-all text-base font-black text-slate-900">{user.email || "未填写"}</div>
+            </div>
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
+              <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
+                <Edit3 size={15} />
+                职位信息
+              </div>
+              <div className="mt-3 text-base font-black text-slate-900">{user.jobTitle || "未填写"}</div>
+            </div>
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
+              <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
+                <MapPin size={15} />
+                所在地
+              </div>
+              <div className="mt-3 text-base font-black text-slate-900">{user.location || "未填写"}</div>
+            </div>
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50/80 px-4 py-4">
+              <div className="flex items-center gap-2 text-[12px] font-black text-slate-400">
+                <Globe size={15} />
+                个人网站
+              </div>
+              <div className="mt-3 break-all text-base font-black text-slate-900">{user.website || "未填写"}</div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isGrowthOpen} onOpenChange={setIsGrowthOpen}>
+        <DialogContent className="max-h-[calc(100vh-32px)] max-w-4xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-0 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+          <DialogHeader className="border-b border-slate-100 px-6 py-5">
+            <DialogTitle className="text-2xl font-black text-slate-900">成长进度</DialogTitle>
+            <DialogDescription>等级、积分、经验和闯关进度集中在这里查看。</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-5 px-6 py-6 xl:grid-cols-2">
+            <div className="rounded-[26px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+                    <TrendingUp size={20} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-slate-900">等级进度条</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      当前等级：Lv.{expProgress.level || user.level || 1} {expProgress.levelName || "新手"}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-black text-slate-900">{levelProgressPercent}%</div>
+                  <div className="text-xs text-slate-400">
+                    {Number(expProgress.currentInLevel || 0)} / {Number(expProgress.totalInLevel || 0)}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,#14b8a6_0%,#22c55e_100%)]"
+                  style={{ width: `${levelProgressPercent}%` }}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <div className="text-[11px] font-bold text-slate-400">当前积分</div>
+                  <div className="mt-2 text-2xl font-black text-slate-900">{formatNumber(Number(user.points || 0))}</div>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <div className="text-[11px] font-bold text-slate-400">当前经验</div>
+                  <div className="mt-2 text-2xl font-black text-slate-900">{formatNumber(Number(user.exp || 0))}</div>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <div className="text-[11px] font-bold text-slate-400">剩余经验</div>
+                  <div className="mt-2 text-2xl font-black text-slate-900">{formatNumber(Number(expProgress.remainingExp || 0))}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[26px] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fffaf2_100%)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-slate-900">闯关进度</div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      已完成章节 {completedChapters} / {totalChapters || 0}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-black text-slate-900">{campaignProgressPercent}%</div>
+                  <div className="text-xs text-slate-400">
+                    {clearedLevels} / {totalLevels || 0} 关
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-[linear-gradient(90deg,#f59e0b_0%,#fb7185_100%)]"
+                  style={{ width: `${campaignProgressPercent}%` }}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl bg-white/80 px-4 py-3">
+                  <div className="text-[11px] font-bold text-slate-400">已通关卡</div>
+                  <div className="mt-2 text-2xl font-black text-slate-900">{clearedLevels}</div>
+                </div>
+                <div className="rounded-2xl bg-white/80 px-4 py-3">
+                  <div className="text-[11px] font-bold text-slate-400">总星数</div>
+                  <div className="mt-2 text-2xl font-black text-slate-900">{totalStars}</div>
+                </div>
+                <div className="rounded-2xl bg-white/80 px-4 py-3">
+                  <div className="text-[11px] font-bold text-slate-400">连续推进</div>
+                  <div className="mt-2 text-2xl font-black text-slate-900">{Number(campaignSummary.currentStreak || 0)}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
