@@ -41,6 +41,10 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
 import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
+import {
+  getCompactHeaderAccountButtonClassName,
+  shouldRenderCompactHeaderAccountAction,
+} from "../lib/layout-display";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { chatKeys, homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
@@ -99,6 +103,10 @@ export function Layout() {
   const [categorySearchKeyword, setCategorySearchKeyword] = useState("");
   const categorySearchRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
+  const showCompactHeaderAccountAction = shouldRenderCompactHeaderAccountAction({
+    onlineLiteMode: ONLINE_LITE_MODE,
+    isMobile,
+  });
   const { user, isAuthenticated, logout } = useSession();
   const canAccessAdmin = hasAdminConsoleAccess(user?.role);
   const forumEnabled = !ONLINE_LITE_MODE;
@@ -1132,10 +1140,10 @@ export function Layout() {
 
             <div
               className={`${
-                isMobile ? "" : ONLINE_LITE_MODE ? "pl-4 border-l border-white/10" : "pl-4 border-l border-gray-200"
+                showCompactHeaderAccountAction ? "shrink-0" : isMobile ? "" : ONLINE_LITE_MODE ? "pl-4 border-l border-white/10" : "pl-4 border-l border-gray-200"
               } flex items-center gap-2`}
             >
-              {isAuthenticated && !isMobile ? (
+              {isAuthenticated && !showCompactHeaderAccountAction ? (
                 <HoverCard openDelay={120} closeDelay={80}>
                   <HoverCardTrigger asChild>
                     <button type="button" className="flex items-center gap-2 cursor-pointer group">
@@ -1200,14 +1208,14 @@ export function Layout() {
                     </button>
                   </HoverCardContent>
                 </HoverCard>
-              ) : isAuthenticated && isMobile ? (
+              ) : isAuthenticated && showCompactHeaderAccountAction ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className="flex items-center gap-2 cursor-pointer group rounded-full p-1">
+                    <button type="button" className={getCompactHeaderAccountButtonClassName()}>
                       <img 
                         src={normalizeAvatarUrl(user?.avatar, user?.username)} 
                         alt="Profile" 
-                        className="w-8 h-8 rounded-full border border-gray-200 group-hover:border-teal-400 transition-colors object-cover"
+                        className="h-8 w-8 rounded-full object-cover"
                       />
                     </button>
                   </DropdownMenuTrigger>
@@ -1238,6 +1246,18 @@ export function Layout() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              ) : showCompactHeaderAccountAction ? (
+                <Link
+                  to="/auth"
+                  className={getCompactHeaderAccountButtonClassName()}
+                  aria-label="登录或注册"
+                >
+                  <img
+                    src={normalizeAvatarUrl("", "登录")}
+                    alt="登录或注册"
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                </Link>
               ) : (
                 ONLINE_LITE_MODE ? (
                   <div className="hidden items-center gap-2 sm:flex">
