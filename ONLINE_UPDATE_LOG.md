@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-29 21:35 Asia/Shanghai
+
+- 范围：前端 `reace_web` 移动端 Lite 导航与教程页优化；底部导航收敛为“首页 / 教程 / 练习 / 我的”；移动端侧边栏仅保留“积分经验中心 / 实用功能 / 模板中心”；教程页手机端默认只展示折叠目录，展开分类后选择教程，并以独立覆盖式阅读页查看正文；移动端内容区与阅读页补充底部安全距离，避免被底栏遮挡。
+- 验证：本地 `npx vitest run src/app/lib/site-navigation.test.ts src/app/lib/tutorial-display.test.ts` 通过 11 个测试；本地 `npx vitest run src/app/lib/layout-display.test.ts src/app/lib/tutorial-display.test.ts src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 24 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；服务器从 `codex/online-snapshot-20260417` fast-forward 到提交 `e00d8c1` 后重新构建前后端并通过部署脚本健康检查；`https://lan.excelcc.cn/api/public/home-overview` 返回 200；`https://lan.excelcc.cn/practice` 返回 200；`https://lan.excelcc.cn/tutorials` 返回 200；Selenium 以 446x854 手机视口验证底部导航为 4 项、侧边栏仅包含 3 个辅助入口、教程列表默认不展开、展开后点击 `SUM` 可打开“教程阅读”覆盖页。
+- 部署：本地提交 `e00d8c1` 推送到 `origin/codex/online-snapshot-20260417`，随后在 `/www/wwwroot/kick-deploy/repo` 执行 `bash scripts/deploy/production-deploy.sh`，服务器按 `GIT_PULL_BEFORE_BUILD=1` 从当前分支拉取并发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260429-132848`
+- 备注：服务器前端构建仍提示既有大 chunk 警告；服务器 `npm install` 仍报告既有依赖审计风险，本次未调整依赖树。
+
 ## 2026-04-29 21:08 Asia/Shanghai
 
 - 范围：前端 `reace_web` 移动端 Lite 头部账户入口修复；未登录手机宽度显示可点击的圆形登录头像入口；已登录手机头像按钮增加不可收缩布局，避免在小米浏览器等窄视口下被品牌区挤出。
