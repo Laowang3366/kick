@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-29 22:19 Asia/Shanghai
+
+- 范围：前端 `reace_web` 个人中心移动端布局优化；移除页面内独立账号管理功能卡片；移除头像资料标题下描述；头像与昵称改为横向排列，等级显示在昵称下方；资料详情与成长进度改为两个独立入口，分别在“查看个人资料”和“成长进度”弹窗内查看。
+- 验证：本地 `npx vitest run src/app/lib/profile-display.test.ts` 通过 3 个测试；本地 `npx vitest run src/app/lib/profile-display.test.ts src/app/lib/layout-display.test.ts src/app/lib/tutorial-display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 27 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；服务器从当前分支提交 `77de97b` 重新构建前后端并通过部署脚本健康检查；`https://lan.excelcc.cn/profile` 返回 200；`https://lan.excelcc.cn/api/public/home-overview` 返回 200；已确认发布的 `ProfileCenter-DFRb7ilu.js` 包含“查看个人资料”“成长进度”入口且不再包含“账号管理入口”卡片文本。
+- 部署：本地提交 `77de97b`；因本机与服务器访问 GitHub 443 均超时或连接重置，未能推送 `origin/codex/online-snapshot-20260417`，改用 Git bundle 将提交导入服务器同名分支，随后通过临时部署环境设置 `GIT_PULL_BEFORE_BUILD=0` 执行 `scripts/deploy/production-deploy.sh`，服务器从当前分支提交发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260429-141758`
+- 备注：服务器前端构建仍提示既有大 chunk 警告；服务器 `npm install` 仍报告既有依赖审计风险，本次未调整依赖树。待 GitHub 连接恢复后需补推 `8f03aed` 与 `77de97b` 后续提交，保持远端分支与本地、服务器分支一致。
+
 ## 2026-04-29 21:35 Asia/Shanghai
 
 - 范围：前端 `reace_web` 移动端 Lite 导航与教程页优化；底部导航收敛为“首页 / 教程 / 练习 / 我的”；移动端侧边栏仅保留“积分经验中心 / 实用功能 / 模板中心”；教程页手机端默认只展示折叠目录，展开分类后选择教程，并以独立覆盖式阅读页查看正文；移动端内容区与阅读页补充底部安全距离，避免被底栏遮挡。
