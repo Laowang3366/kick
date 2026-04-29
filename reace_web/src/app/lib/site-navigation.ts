@@ -51,9 +51,7 @@ export const publicNavItems: PublicNavItem[] = [
   },
 ];
 
-export const mobilePrimaryNavItems = publicNavItems.filter((item) =>
-  ["home", "practice", "tutorials", "templates", "tools"].includes(item.key)
-);
+export const mobilePrimaryNavItems = publicNavItems;
 
 export function resolveActiveNavItem(pathname: string) {
   const normalizedPathname = normalizePathname(pathname);

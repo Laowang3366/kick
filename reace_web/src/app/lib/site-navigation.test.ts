@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publicNavItems, resolveActiveNavItem } from "./site-navigation";
+import { mobilePrimaryNavItems, publicNavItems, resolveActiveNavItem } from "./site-navigation";
 
 describe("resolveActiveNavItem", () => {
   it("keeps tutorial center directly after home in the public navigation", () => {
@@ -27,5 +27,9 @@ describe("resolveActiveNavItem", () => {
 
   it("resolves the root page to the home nav item", () => {
     expect(resolveActiveNavItem("/")?.name).toBe("首页");
+  });
+
+  it("keeps every public module reachable from compact navigation", () => {
+    expect(mobilePrimaryNavItems.map((item) => item.key)).toEqual(publicNavItems.map((item) => item.key));
   });
 });

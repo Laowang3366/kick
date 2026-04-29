@@ -671,12 +671,16 @@ export function Layout() {
         <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b border-white/10 bg-[#00140d]/86 px-4 text-white backdrop-blur-2xl md:h-20 md:px-8">
           
           <div className="flex min-w-0 flex-1 items-center gap-4">
-            {isMobile ? (
+            {ONLINE_LITE_MODE || isMobile ? (
               <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                 <SheetTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900 md:hidden"
+                    className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition ${
+                      ONLINE_LITE_MODE
+                        ? "border-white/12 bg-white/8 text-white hover:border-white/24 hover:bg-white/14 lg:hidden"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 md:hidden"
+                    }`}
                     aria-label="打开导航菜单"
                   >
                     <Menu size={18} />
