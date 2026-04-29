@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-29 20:41 Asia/Shanghai
+
+- 范围：前端 `reace_web` 首页顶部导航修复；在 `lg` 以下宽度显示紧凑菜单入口，避免 768-1023px 区间导航模块消失；紧凑菜单补齐全部公开模块。
+- 验证：本地 `npx vitest run src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 17 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；服务器从 `codex/online-snapshot-20260417` fast-forward 到提交 `bec72f9` 后重新构建前后端并通过部署脚本健康检查；`http://192.168.1.17/api/public/home-overview` 返回 200；`http://192.168.1.17/` 返回 200；`https://lan.excelcc.cn/` 返回 200；Selenium 以 878x854 视口验证顶部菜单按钮可见，菜单内包含全部 6 个公开模块。
+- 部署：本地提交 `bec72f9` 推送到 `origin/codex/online-snapshot-20260417`，随后在 `/www/wwwroot/kick-deploy/repo` 执行 `bash scripts/deploy/production-deploy.sh`，服务器按 `GIT_PULL_BEFORE_BUILD=1` 从当前分支拉取并发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260429-123653`
+- 备注：服务器前端构建仍提示既有大 chunk 警告；服务器 `npm install` 仍报告既有依赖审计风险，本次未调整依赖树。
+
 ## 2026-04-29 16:02 Asia/Shanghai
 
 - 范围：前端 `reace_web` 后台题库管理更新；新增 Excel 模板公式区域自动识别，上传模板后自动填写普通答题区域，并同步动态数组锚点与溢出区域，识别结果仍可手动修正。
