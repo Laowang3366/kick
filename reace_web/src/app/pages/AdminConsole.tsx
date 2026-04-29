@@ -12,6 +12,7 @@ import {
   FileSpreadsheet,
   LoaderCircle,
   Lock,
+  Menu,
   MessageSquare,
   Plus,
   RefreshCcw,
@@ -24,6 +25,7 @@ import {
   UploadCloud,
   UserCog,
   Users,
+  X,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -52,6 +54,11 @@ import {
   hasAdminConsoleAccess,
   type AdminRole,
 } from "../admin/config";
+import {
+  getAdminAvatarSrc,
+  getAdminSidebarClassName,
+  getAdminSidebarOverlayClassName,
+} from "../admin/display";
 import {
   AddButton,
   AdminEmptyState,
@@ -152,6 +159,7 @@ export function AdminLayout() {
   const { user, isAuthenticated, loading } = useSession();
   const role = hasAdminConsoleAccess(user?.role) ? (user?.role as AdminRole) : null;
   const modules = useMemo(() => getAdminModulesForRole(role), [role]);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -168,22 +176,40 @@ export function AdminLayout() {
     }
   }, [isAuthenticated, loading, location.pathname, navigate, user?.role]);
 
+  useEffect(() => {
+    setIsMobileNavOpen(false);
+  }, [location.pathname]);
+
   if (loading || !isAuthenticated || !role) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] lg:grid lg:grid-cols-[208px_1fr]">
-      <aside className="hidden bg-[#001529] text-white shadow-[2px_0_8px_rgba(0,0,0,0.08)] lg:flex lg:min-h-screen lg:flex-col">
+    <div className="min-h-screen bg-[#f0f2f5] lg:grid lg:grid-cols-[208px_minmax(0,1fr)]">
+      <button
+        type="button"
+        aria-label="关闭后台导航"
+        onClick={() => setIsMobileNavOpen(false)}
+        className={getAdminSidebarOverlayClassName(isMobileNavOpen)}
+      />
+      <aside className={getAdminSidebarClassName(isMobileNavOpen)}>
         <div className="h-16 border-b border-white/10 px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-[4px] bg-[#1677ff] text-white">
               A
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="truncate text-[15px] font-semibold text-white">Excel社区</div>
               <div className="text-xs text-white/45">Admin Console</div>
             </div>
+            <button
+              type="button"
+              aria-label="关闭后台导航"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-[2px] text-white/70 transition hover:bg-white/10 hover:text-white lg:hidden"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
 
@@ -197,7 +223,10 @@ export function AdminLayout() {
                   <button
                     key={module.key}
                     type="button"
-                    onClick={() => navigate(module.path)}
+                    onClick={() => {
+                      navigate(module.path);
+                      setIsMobileNavOpen(false);
+                    }}
                     className={`group relative flex h-10 w-full items-center gap-3 px-5 text-left transition ${
                       isActive
                         ? "bg-[#1677ff] font-medium text-white"
@@ -216,12 +245,22 @@ export function AdminLayout() {
 
       <div className="min-w-0">
         <header className="sticky top-0 z-20 border-b border-[#f0f0f0] bg-white shadow-[0_1px_4px_rgba(0,21,41,0.08)]">
-          <div className="flex min-h-14 items-center justify-between gap-4 px-5 md:px-6">
-            <div className="min-w-0 truncate text-[18px] font-medium text-[#262626]">站点管理后台</div>
-            <div className="flex items-center gap-4">
+          <div className="flex min-h-14 items-center justify-between gap-3 px-4 md:px-6">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                aria-label="打开后台导航"
+                onClick={() => setIsMobileNavOpen(true)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[2px] border border-[#d9d9d9] bg-white text-[#595959] transition hover:border-[#4096ff] hover:text-[#1677ff] lg:hidden"
+              >
+                <Menu size={18} />
+              </button>
+              <div className="min-w-0 truncate text-[18px] font-medium text-[#262626]">站点管理后台</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
               <div className="flex items-center gap-2">
                 <img
-                  src={normalizeImageUrl(user?.avatar) || "https://i.pravatar.cc/120?img=52"}
+                  src={getAdminAvatarSrc(user)}
                   alt={user?.username || "admin"}
                   className="h-8 w-8 rounded-full border border-[#f0f0f0] object-cover"
                 />
@@ -1170,7 +1209,7 @@ export function AdminUsers() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <img src={normalizeImageUrl(item.avatar) || "https://i.pravatar.cc/80?img=45"} alt={item.username} className="h-10 w-10 rounded-xl object-cover" />
+                      <img src={getAdminAvatarSrc(item)} alt={item.username} className="h-10 w-10 rounded-xl object-cover" />
                       <div>
                         <div className="font-bold text-slate-800">{item.username}</div>
                         <div className="text-xs text-slate-400">{item.email}</div>

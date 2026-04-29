@@ -13,6 +13,30 @@
 - 备注：
 ```
 
+## 2026-04-29 14:43 Asia/Shanghai
+
+- 范围：前端 `reace_web` 后台管理界面修复；窄屏后台新增可打开的侧栏抽屉，侧栏内容保持可滚动；后台顶部头像与用户管理列表头像统一使用同一套头像解析和兜底规则。
+- 验证：本地 `npx vitest run src/app/admin/display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 12 个测试；本地 `npm run build` 通过；服务器部署脚本重新构建前后端并通过健康检查；`http://192.168.1.17/api/public/home-overview` 返回 200；`http://192.168.1.17/admin/users` 返回 200；已确认发布的 `AdminConsole-D5Uik13A.js` 包含移动端后台导航和统一头像解析逻辑。
+- 部署：将本地源码差异同步到 `192.168.1.17:/www/wwwroot/kick-deploy/repo`，以 `GIT_PULL_BEFORE_BUILD=0` 执行 `scripts/deploy/production-deploy.sh` 发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260429-064302`
+- 备注：首次以普通用户执行部署时受部署仓 `node_modules` 权限影响，未进入运行目录替换阶段；随后以具备权限的方式重新执行成功。本机 DNS 当前未解析 `lan.excelcc.cn`，已通过 LAN IP 与服务器本机健康检查确认运行目录更新。
+
+## 2026-04-29 14:02 Asia/Shanghai
+
+- 范围：内网服务器 `192.168.1.17` 经 Cloudflare Tunnel 暴露的 `lan.excelcc.cn` 环境初始化管理员账户；临时启用后端 `ADMIN_BOOTSTRAP_*` 引导变量创建管理员，随后移除明文引导密码并恢复 `ADMIN_BOOTSTRAP_ENABLED=false`；补充 `ALLOWED_ORIGINS` 中的 `https://lan.excelcc.cn` 和 `http://lan.excelcc.cn`。
+- 验证：服务器数据库查询确认存在 1 个启用状态的 `admin` 角色账户；本机 `http://127.0.0.1:8080/api/auth/login` 登录返回 token；经 Cloudflare Tunnel 的 `https://lan.excelcc.cn/api/auth/login` 登录返回 `role=admin`；`http://192.168.1.17/api/public/home-overview` 返回 200；`kick-backend.service`、`nginx`、`cloudflared.service`、`redis-server` 均为 active。
+- 部署：未重新构建应用代码；更新 `/www/wwwroot/kick-backend/.env.production` 并两次重启 `kick-backend.service`，第二次重启后环境文件不再包含 `ADMIN_BOOTSTRAP_PASSWORD`。
+- 服务器备份：`/www/wwwroot/kick-backend/.env.production.bak-20260429-060011`；`/www/wwwroot/kick-backend/.env.production.bak-20260429-060129`
+- 备注：管理员账号用于 `lan.excelcc.cn` 新数据库环境，创建后应首次登录立即修改初始密码。
+
+## 2026-04-29 10:13 Asia/Shanghai
+
+- 范围：线上服务器 `198.44.178.219` Nginx 站点加载修复；将实际加载的 `/etc/nginx/sites-available/default` 指向 `/www/wwwroot/kick-web`，并恢复 `/api`、`/uploads`、`/ws` 到 `127.0.0.1:8080` 的反向代理；启用 `www.excelcc.cn` 的 443 监听配置。
+- 验证：公网 `http://198.44.178.219/` 返回 200 且标题为 `Excel社区`；公网 `http://198.44.178.219/api/public/home-overview` 返回 200；服务器本机 `curl http://127.0.0.1/api/public/home-overview` 返回 200；`nginx -t` 通过；`nginx`、`kick-backend.service`、`mysql`、`redis-server` 均为 active。
+- 部署：未重新构建应用代码；仅更新服务器 Nginx 实际加载配置并执行 `systemctl reload nginx`。
+- 服务器备份：`/etc/nginx/sites-available/default.bak-20260429-101215`
+- 备注：故障原因是系统 Nginx 只加载 Ubuntu 默认站点 `/var/www/html`，未加载项目站点配置，导致 IP 访问显示默认 Nginx 页且 `/api` 返回 404；后端与数据库本身正常。直接用 IP 访问请使用 `http://198.44.178.219/`，`https://198.44.178.219/` 会存在证书域名不匹配问题。
+
 ## 2026-04-28 22:56 Asia/Shanghai
 
 - 范围：前端 `reace_web` 后台首页教程正文编辑器更新，“内容”模式改为可视化编辑区，直接显示标题、段落、代码块等渲染效果，不再显示 `<h2>`、`<p>`、`<pre>` 等源码标签。
