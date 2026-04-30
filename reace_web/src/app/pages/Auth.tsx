@@ -120,65 +120,11 @@ export function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4fff8] flex flex-col md:flex-row font-sans">
-      
-      {/* Left Column: Branding / Illustration */}
-      <div className="hidden md:flex flex-col justify-between w-1/2 bg-[#00140d] text-white p-12 relative overflow-hidden">
-        {/* Abstract Background Decoration */}
-        <div className="absolute inset-0 z-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_12%,rgba(124,255,178,0.24),transparent_28%),radial-gradient(circle_at_88%_18%,rgba(0,176,80,0.2),transparent_30%),linear-gradient(135deg,#00351f_0%,#00140d_58%,#000805_100%)]" />
-          <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(124,255,178,0.12)_1px,transparent_1px)] [background-size:100%_8px]" />
-          <div className="absolute -right-28 top-10 h-[28rem] w-[28rem] rounded-full bg-[#00b050]/20 blur-3xl" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#00140d] via-[#00140d]/80 to-[#00351f]/20" />
-        </div>
-
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="bg-[#00b050] p-2 rounded-xl shadow-[0_0_30px_rgba(0,176,80,0.3)]">
-            <Activity size={28} className="text-white" strokeWidth={2.5} />
-          </div>
-          <span className="font-bold text-2xl tracking-tight">Excel社区</span>
-        </div>
-
-        <div className="relative z-10 mb-20 max-w-md">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h1 className="text-4xl lg:text-5xl font-bold leading-tight mb-6">
-              提升技能，<br/>连接<span className="text-[#7cffb2]">数据</span>专家。
-            </h1>
-            <p className="text-[#bdd8c9] text-lg leading-relaxed mb-8">
-              加入最活跃的 Excel 爱好者社区。交流公式技巧、分享实战经验，结识志同道合的数据达人。
-            </p>
-            
-            {/* Stats/Social Proof */}
-            <div className="flex items-center gap-4">
-              <div className="flex -space-x-3">
-                {[1,2,3,4].map(i => (
-                  <img 
-                    key={i}
-                    src={`https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80&sig=${i}`} 
-                    alt="User" 
-                    className="w-10 h-10 rounded-full border-2 border-[#00140d] object-cover"
-                  />
-                ))}
-              </div>
-              <div className="text-sm font-medium text-[#ccf7df]">
-                超过 <span className="text-white">10,000+</span> 成员已加入
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Right Column: Auth Form */}
-      <div className="flex-1 flex flex-col justify-center p-6 md:p-12 lg:p-20 relative">
-        
-        {/* Mobile Header */}
-        <div className="md:hidden flex items-center gap-2 mb-10 text-[#00b050]">
+    <div className="flex min-h-screen flex-col bg-[#f4fff8] font-sans">
+      <div className="flex flex-1 flex-col justify-center px-6 py-10 md:px-12 lg:px-20">
+        <div className="mx-auto mb-10 flex w-full max-w-md items-center gap-2 text-[#00b050]">
           <Activity size={28} strokeWidth={2.5} />
-          <span className="font-bold text-xl tracking-tight text-[#00140d]">Excel社区</span>
+          <span className="text-xl font-bold tracking-tight text-[#00140d]">Excel练习网</span>
         </div>
 
         <div className="w-full max-w-md mx-auto">
@@ -189,7 +135,7 @@ export function Auth() {
               {isLogin ? "欢迎回来" : "创建账号"}
             </h2>
             <p className="text-slate-500">
-              {isLogin ? "登录您的账号以继续访问社区" : "填写信息，开启您的 Excel 进阶之旅"}
+              {isLogin ? "登录您的账号以继续访问练习网" : "填写信息，开启您的 Excel 进阶之旅"}
             </p>
           </div>
 
