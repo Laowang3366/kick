@@ -42,8 +42,11 @@ import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
 import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
 import {
+  getLiteCategorySearchClassName,
+  getLitePublicNavigationClassName,
   getCompactHeaderAccountButtonClassName,
   getCompactHeaderNotificationButtonClassName,
+  shouldRenderHeaderDrawerTrigger,
   shouldRenderCompactHeaderAccountAction,
   shouldRenderCompactHeaderNotificationAction,
 } from "../lib/layout-display";
@@ -115,6 +118,10 @@ export function Layout() {
     isMobile,
   });
   const showCompactHeaderNotificationAction = shouldRenderCompactHeaderNotificationAction({
+    onlineLiteMode: ONLINE_LITE_MODE,
+    isMobile,
+  });
+  const showHeaderDrawerTrigger = shouldRenderHeaderDrawerTrigger({
     onlineLiteMode: ONLINE_LITE_MODE,
     isMobile,
   });
@@ -679,10 +686,10 @@ export function Layout() {
       {/* Main Content */}
       <div className="relative z-10 flex w-full flex-1 flex-col overflow-hidden">
         {/* Header */}
-        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-2 border-b border-white/10 bg-[#00140d]/86 px-3 text-white backdrop-blur-2xl sm:gap-4 sm:px-4 md:h-20 md:px-8">
+        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-2 border-b border-white/10 bg-[#00140d]/86 px-3 text-white backdrop-blur-2xl sm:gap-4 sm:px-4 md:h-20 md:px-4 xl:px-8">
           
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
-            {ONLINE_LITE_MODE || isMobile ? (
+            {showHeaderDrawerTrigger ? (
               <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                 <SheetTrigger asChild>
                   <button
@@ -734,7 +741,7 @@ export function Layout() {
               </Sheet>
             ) : null}
             {ONLINE_LITE_MODE ? (
-              <div className="flex min-w-0 flex-1 items-center gap-4 xl:gap-7">
+              <div className="flex min-w-0 flex-1 items-center gap-3 xl:gap-7">
                 <button
                   type="button"
                   onClick={() => navigate("/")}
@@ -750,7 +757,7 @@ export function Layout() {
                     <div className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-white/46 min-[360px]:block">Skill Cloud</div>
                   </div>
                 </button>
-                <nav className="hidden min-w-0 items-center gap-1 lg:flex">
+                <nav className={getLitePublicNavigationClassName()}>
                   {primaryLiteNavItems.map((item) => {
                     const isActive = activePublicNav?.key === item.key;
                     return (
@@ -758,14 +765,15 @@ export function Layout() {
                         key={item.path}
                         type="button"
                         onClick={() => navigate(item.path)}
-                        className={`relative inline-flex h-11 items-center gap-2 rounded-full px-2.5 text-sm font-bold transition xl:px-3 ${
+                        className={`relative inline-flex h-10 items-center gap-1.5 rounded-full px-2 text-xs font-bold transition xl:h-11 xl:gap-2 xl:px-3 xl:text-sm ${
                           isActive
                             ? "bg-white text-[#00140d] shadow-[0_14px_32px_rgba(255,255,255,0.16)]"
                             : "text-white/78 hover:bg-white/10 hover:text-white"
                         }`}
                       >
                         <span className={isActive ? "text-[#00b050]" : "text-white/58"}>{item.icon}</span>
-                        <span className="whitespace-nowrap">{item.name}</span>
+                        <span className="whitespace-nowrap xl:hidden">{item.shortName}</span>
+                        <span className="hidden whitespace-nowrap xl:inline">{item.name}</span>
                       </button>
                     );
                   })}
@@ -773,7 +781,7 @@ export function Layout() {
                     <HoverCardTrigger asChild>
                       <button
                         type="button"
-                        className={`relative inline-flex h-11 items-center gap-2 rounded-full px-2.5 text-sm font-bold transition xl:px-3 ${
+                        className={`relative inline-flex h-10 items-center gap-1.5 rounded-full px-2 text-xs font-bold transition xl:h-11 xl:gap-2 xl:px-3 xl:text-sm ${
                           moreLiteActive
                             ? "bg-white text-[#00140d] shadow-[0_14px_32px_rgba(255,255,255,0.16)]"
                             : "text-white/78 hover:bg-white/10 hover:text-white"
@@ -819,7 +827,7 @@ export function Layout() {
                     </HoverCardContent>
                   </HoverCard>
                 </nav>
-                <div className="relative hidden lg:block" ref={categorySearchRef}>
+                <div className={getLiteCategorySearchClassName()} ref={categorySearchRef}>
                   <button
                     type="button"
                     onClick={() => setCategorySearchOpen((open) => !open)}
@@ -1004,7 +1012,7 @@ export function Layout() {
             ) : null}
           </div>
 
-          <div className={`flex items-center ${isMobile ? "gap-1.5 ml-2" : "gap-2 md:gap-4 ml-3 md:ml-6"}`}>
+          <div className={`flex items-center ${isMobile ? "gap-1.5 ml-2" : "gap-2 ml-2 xl:gap-4 xl:ml-6"}`}>
             
             {!isMobile && forumEnabled ? (
               <Link 
