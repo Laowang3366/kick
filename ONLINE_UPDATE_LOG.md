@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-30 19:17 Asia/Shanghai
+
+- 范围：前端 `reace_web` 移动端 Lite 头部通知入口修复；在移动端头部固定显示通知按钮，未登录时点击进入登录页，已登录时打开通知浮层；同步压缩极窄屏头部间距并隐藏品牌副标题，确保 319px 宽度下菜单、品牌、通知、账户入口同时可见。
+- 验证：本地 `npx vitest run src/app/lib/layout-display.test.ts` 通过 4 个测试；本地 `npx vitest run src/app/lib/query-client.test.ts src/app/lib/vite-performance.test.ts src/app/lib/profile-display.test.ts src/app/lib/layout-display.test.ts src/app/lib/tutorial-display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 33 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误，仅有既有 Windows 行尾提示；服务器从当前分支提交 `fc775eb` 重新构建前后端并通过部署脚本健康检查；`https://lan.excelcc.cn/` 返回 200；`https://lan.excelcc.cn/api/public/home-overview` 返回 200；Selenium 以 319x866 移动视口验证头部菜单、品牌、通知、账户入口均可见且无横向溢出。
+- 部署：本地提交 `fc775eb` 已推送到 `origin/codex/online-snapshot-20260417`，随后在 `/www/wwwroot/kick-deploy/repo` 执行 `bash scripts/deploy/production-deploy.sh`，服务器按当前分支拉取并发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260430-111439`
+- 备注：服务器前端构建仍提示既有大 chunk 警告；服务器 `npm ci` 仍报告既有依赖审计风险，本次未调整依赖树；内置浏览器插件可读取当前标签页信息，但本次对 `lan.excelcc.cn` 的 DOM/截图访问被插件 allowed 校验阻止，故使用 Selenium 做移动视口复验。
+
 ## 2026-04-30 19:04 Asia/Shanghai
 
 - 范围：前端 `reace_web` 教程中心移动端布局修复；移动端打开教程阅读状态时隐藏教程目录与页面头部搜索区，阅读器作为单独内容页展示；切换文章时将主内容滚动容器重置到顶部，避免从目录底部进入详情后停留在中下部。
