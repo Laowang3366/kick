@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-30 19:38 Asia/Shanghai
+
+- 范围：前端 `reace_web` 登录页布局调整；移除桌面端左侧宣传海报区域，将登录/注册表单改为单列居中展示；登录页品牌文案由“Excel社区”改为“Excel练习网”，并同步登录提示文案。
+- 验证：本地 `npx vitest run src/app/lib/query-client.test.ts src/app/lib/vite-performance.test.ts src/app/lib/profile-display.test.ts src/app/lib/layout-display.test.ts src/app/lib/tutorial-display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 33 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误，仅有既有 Windows 行尾提示；服务器从当前分支提交 `c52bd51` 重新构建前后端并通过部署脚本健康检查；`https://lan.excelcc.cn/auth` 返回 200；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；Selenium 以 1246x866 桌面视口验证登录页已显示“Excel练习网”，且不再包含旧海报文案与“Excel社区”正文。
+- 部署：本地提交 `c52bd51` 已推送到 `origin/codex/online-snapshot-20260417`，随后在 `/www/wwwroot/kick-deploy/repo` 执行 `bash scripts/deploy/production-deploy.sh`，服务器按当前分支拉取并发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260430-113647`
+- 备注：服务器前端构建仍提示既有大 chunk 警告；本地部署命令输出采集时遇到 Windows 控制台 Unicode 打印问题，已通过服务器 HEAD、服务状态、健康接口、最新备份和线上页面复验确认部署结果。
+
 ## 2026-04-30 19:17 Asia/Shanghai
 
 - 范围：前端 `reace_web` 移动端 Lite 头部通知入口修复；在移动端头部固定显示通知按钮，未登录时点击进入登录页，已登录时打开通知浮层；同步压缩极窄屏头部间距并隐藏品牌副标题，确保 319px 宽度下菜单、品牌、通知、账户入口同时可见。
