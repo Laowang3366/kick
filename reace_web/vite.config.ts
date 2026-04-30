@@ -27,6 +27,9 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (id.includes('vite/preload-helper')) {
+            return 'vite-helper';
+          }
           if (!id.includes('node_modules')) return;
           if (id.includes('@univerjs/preset-sheets-core/locales')) {
             return 'univer-locales';
