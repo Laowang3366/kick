@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-30 23:55 Asia/Shanghai
+
+- 范围：前端 `reace_web` 通知中心分类展示调整；移除通知列表上方的大分类快捷卡片；从通知筛选中删除“帖子互动”分类；旧链接 `?tab=posts` 自动按“全部通知”展示；移动端改为直接展示通知列表，不再通过分类卡片弹出列表。
+- 验证：本地新增 `src/app/lib/notification-display.test.ts`，先验证缺失 helper 失败，再实现后通过；本地 `npx vitest run src/app/lib/notification-display.test.ts` 通过 3 个测试；本地 `npx vitest run src/app/lib/query-client.test.ts src/app/lib/vite-performance.test.ts src/app/lib/profile-display.test.ts src/app/lib/layout-display.test.ts src/app/lib/tutorial-display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/notification-display.test.ts src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 38 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误，仅有既有 Windows 行尾提示；构建产物与通知页源码均不再包含“帖子互动”和“点击查看该分类通知”；服务器发布提交 `d91853b` 后 `kick-backend.service` 为 `active`，本机 `http://127.0.0.1:8080/api/public/home-overview` 返回 200；`https://lan.excelcc.cn/notifications?tab=posts` 返回 200；`https://lan.excelcc.cn/api/public/home-overview` 返回 200；Selenium 以 1250x870 视口验证线上通知页不含“帖子互动”和“点击查看该分类通知”，无横向溢出。
+- 部署：本地提交 `d91853b` 已推送到 `origin/codex/online-snapshot-20260417`；服务器直接从 GitHub 拉取时出现 `GnuTLS recv error (-110)`，改用 Git bundle 将当前分支导入服务器仓库并通过 `GIT_PULL_BEFORE_BUILD=0` 执行 `scripts/deploy/production-deploy.sh`，发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260430-155313`
+- 备注：本地和服务器前端构建仍提示既有大 chunk 警告；服务器 `npm install` 仍报告既有依赖审计风险，本次未调整依赖树；因部署命令输出含 Windows 控制台不可编码字符，部署结果通过服务器 HEAD、服务状态、健康接口、最新备份和线上页面复验确认。
+
 ## 2026-04-30 20:23 Asia/Shanghai
 
 - 范围：前端 `reace_web` Lite 头部中间断点导航修复；在大于移动端、小于桌面端的宽度下隐藏移动抽屉入口，改为显示顶部公共导航；收紧头部间距、使用短导航文案，并将分类搜索延后到 `xl` 断点显示，避免导航模块被挤没。
