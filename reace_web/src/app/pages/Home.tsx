@@ -56,7 +56,7 @@ export function Home() {
             transition={{ delay: 0.06 }}
             className="mt-8 max-w-[1120px] text-[44px] font-black leading-[0.98] tracking-tight text-white sm:text-[76px] lg:text-[92px]"
           >
-            Excel社区 - 从函数到实战
+            Excel学习平台 - 从函数到实战
           </motion.h1>
           <p className="mt-6 max-w-3xl text-lg font-semibold leading-8 text-white/58 sm:text-2xl">
             学函数、做练习、查模板、用工具，围绕 Excel 日常工作形成完整学习路径。

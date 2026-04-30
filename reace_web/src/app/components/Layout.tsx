@@ -609,7 +609,7 @@ export function Layout() {
           <div className="flex items-center gap-3 text-teal-600">
             <Activity size={24} strokeWidth={2.5} />
             <div>
-              <div className="font-black text-lg tracking-tight text-slate-900">Excel社区</div>
+              <div className="font-black text-lg tracking-tight text-slate-900">Excel学习平台</div>
               <div className="text-[11px] font-bold tracking-[0.18em] text-slate-400">LITE WORKSPACE</div>
             </div>
           </div>
@@ -678,15 +678,6 @@ export function Layout() {
 
       {/* Main Content */}
       <div className="relative z-10 flex w-full flex-1 flex-col overflow-hidden">
-        <div className="hidden h-10 items-center justify-center bg-[#ccfff1] px-4 text-sm font-semibold text-slate-950 md:flex">
-          <span>Excel 学习路径升级完成</span>
-          <span className="mx-4 h-4 w-px bg-slate-950/24" />
-          <span>模板中心与练习闯关全新改版</span>
-          <span className="mx-4 h-4 w-px bg-slate-950/24" />
-          <button type="button" onClick={() => navigate("/practice")} className="text-[#008d72] underline-offset-4 hover:underline">
-            立即体验
-          </button>
-        </div>
         {/* Header */}
         <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-2 border-b border-white/10 bg-[#00140d]/86 px-3 text-white backdrop-blur-2xl sm:gap-4 sm:px-4 md:h-20 md:px-8">
           
@@ -710,7 +701,7 @@ export function Layout() {
                   <SheetHeader className="border-b border-slate-100 px-5 py-5 text-left">
                     <SheetTitle className="flex items-center gap-2 text-teal-600">
                       <Activity size={20} strokeWidth={2.5} />
-                      <span className="text-base font-black tracking-tight text-slate-900">Excel社区</span>
+                      <span className="text-base font-black tracking-tight text-slate-900">Excel学习平台</span>
                     </SheetTitle>
                     <SheetDescription>移动端快捷导航</SheetDescription>
                   </SheetHeader>
@@ -755,7 +746,7 @@ export function Layout() {
                     <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-[#7cffb2] ring-2 ring-[#00140d]" />
                   </div>
                   <div className="text-left">
-                    <div className="text-base font-black leading-tight tracking-tight text-white sm:text-lg">Excel社区</div>
+                    <div className="text-base font-black leading-tight tracking-tight text-white sm:text-lg">Excel学习平台</div>
                     <div className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-white/46 min-[360px]:block">Skill Cloud</div>
                   </div>
                 </button>
