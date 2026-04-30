@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-30 18:50 Asia/Shanghai
+
+- 范围：前端 `reace_web` 性能调优；修复 Vite preload helper 被打入 Univer 编辑器大包导致首页提前预加载 `univer-sheets-core` 的问题；将默认 React Query 缓存新鲜期从 15 秒调整为 60 秒，并关闭普通页面数据的默认窗口聚焦重拉，减少切回页面时的批量请求抖动。
+- 验证：本地 `npx vitest run src/app/lib/query-client.test.ts src/app/lib/vite-performance.test.ts src/app/lib/profile-display.test.ts src/app/lib/layout-display.test.ts src/app/lib/tutorial-display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 29 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；本地构建后的 `dist/index.html` 不再包含 `univer` 相关预加载，只保留 `react-vendor`、`motion-vendor`、`ui-vendor` 和 `vite-helper`；服务器从提交 `bc6cd05` 重新构建前后端并通过部署脚本健康检查；`https://lan.excelcc.cn/` 返回 200；`https://lan.excelcc.cn/practice` 返回 200；`https://lan.excelcc.cn/api/public/home-overview` 返回 200；已确认发布后的首页 HTML 不再包含 `univer` 相关预加载。
+- 部署：本地提交 `bc6cd05` 已推送到 `origin/codex/online-snapshot-20260417`；服务器访问 GitHub 443 仍超时，改用 Git bundle 将当前提交导入服务器同名分支，随后通过临时部署环境设置 `GIT_PULL_BEFORE_BUILD=0` 执行 `scripts/deploy/production-deploy.sh`，服务器从当前分支提交发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260430-104908`
+- 备注：Univer 编辑器大包仍按需存在，用于 Excel 模板编辑场景，但不再参与首页首屏预加载；服务器前端构建仍提示既有大 chunk 警告；服务器 `npm install` 仍报告既有依赖审计风险，本次未调整依赖树。
+
 ## 2026-04-29 22:19 Asia/Shanghai
 
 - 范围：前端 `reace_web` 个人中心移动端布局优化；移除页面内独立账号管理功能卡片；移除头像资料标题下描述；头像与昵称改为横向排列，等级显示在昵称下方；资料详情与成长进度改为两个独立入口，分别在“查看个人资料”和“成长进度”弹窗内查看。
