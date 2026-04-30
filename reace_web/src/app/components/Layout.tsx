@@ -43,7 +43,9 @@ import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
 import {
   getCompactHeaderAccountButtonClassName,
+  getCompactHeaderNotificationButtonClassName,
   shouldRenderCompactHeaderAccountAction,
+  shouldRenderCompactHeaderNotificationAction,
 } from "../lib/layout-display";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { chatKeys, homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
@@ -109,6 +111,10 @@ export function Layout() {
   const categorySearchRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const showCompactHeaderAccountAction = shouldRenderCompactHeaderAccountAction({
+    onlineLiteMode: ONLINE_LITE_MODE,
+    isMobile,
+  });
+  const showCompactHeaderNotificationAction = shouldRenderCompactHeaderNotificationAction({
     onlineLiteMode: ONLINE_LITE_MODE,
     isMobile,
   });
@@ -682,9 +688,9 @@ export function Layout() {
           </button>
         </div>
         {/* Header */}
-        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-4 border-b border-white/10 bg-[#00140d]/86 px-4 text-white backdrop-blur-2xl md:h-20 md:px-8">
+        <header className="sticky top-0 z-50 flex h-16 items-center justify-between gap-2 border-b border-white/10 bg-[#00140d]/86 px-3 text-white backdrop-blur-2xl sm:gap-4 sm:px-4 md:h-20 md:px-8">
           
-          <div className="flex min-w-0 flex-1 items-center gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
             {ONLINE_LITE_MODE || isMobile ? (
               <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                 <SheetTrigger asChild>
@@ -741,7 +747,7 @@ export function Layout() {
                 <button
                   type="button"
                   onClick={() => navigate("/")}
-                  className="group flex shrink-0 items-center gap-3"
+                  className="group flex shrink-0 items-center gap-2 sm:gap-3"
                   aria-label="返回首页"
                 >
                   <div className="relative flex h-10 w-10 items-center justify-center rounded-[14px] bg-[#00b050] text-white shadow-[0_12px_28px_rgba(0,176,80,0.38)]">
@@ -749,8 +755,8 @@ export function Layout() {
                     <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-[#7cffb2] ring-2 ring-[#00140d]" />
                   </div>
                   <div className="text-left">
-                    <div className="text-lg font-black leading-tight tracking-tight text-white">Excel社区</div>
-                    <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-white/46">Skill Cloud</div>
+                    <div className="text-base font-black leading-tight tracking-tight text-white sm:text-lg">Excel社区</div>
+                    <div className="hidden text-[10px] font-bold uppercase tracking-[0.24em] text-white/46 min-[360px]:block">Skill Cloud</div>
                   </div>
                 </button>
                 <nav className="hidden min-w-0 items-center gap-1 lg:flex">
@@ -1036,7 +1042,108 @@ export function Layout() {
               </button>
             ) : null}
 
-            {isAuthenticated ? (
+            {showCompactHeaderNotificationAction ? (
+              <div className="relative shrink-0" ref={notificationRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      navigate("/auth");
+                      return;
+                    }
+                    setShowNotifications(!showNotifications);
+                  }}
+                  className={getCompactHeaderNotificationButtonClassName()}
+                  title={isAuthenticated ? "通知" : "登录后查看通知"}
+                  aria-label={isAuthenticated ? "打开通知" : "登录后查看通知"}
+                >
+                  <Bell size={18} strokeWidth={1.8} />
+                  {isAuthenticated ? renderCountBadge(unreadNotificationCount, "rose") : null}
+                </button>
+
+                <AnimatePresence>
+                  {isAuthenticated && showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 15, scale: 0.95, filter: "blur(4px)" }}
+                      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95, filter: "blur(2px)" }}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                      className="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-gray-100 bg-white/95 text-slate-900 shadow-[0_18px_50px_rgba(15,23,42,0.20)] backdrop-blur-xl"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between border-b border-gray-50 p-4">
+                        <h3 className="font-semibold text-slate-800">通知</h3>
+                        <button
+                          onClick={async () => {
+                            await markAllNotificationsReadMutation.mutateAsync();
+                          }}
+                          className="text-xs text-teal-600 hover:text-teal-700"
+                        >
+                          全部已读
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 border-b border-gray-50 bg-slate-50/70 px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotifications(false);
+                            navigate("/notifications?tab=points");
+                          }}
+                          className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-50"
+                        >
+                          积分通知
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNotifications(false);
+                            navigate("/notifications?tab=announcements");
+                          }}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+                        >
+                          网站公告
+                        </button>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notificationItems.map((item) => (
+                          <div
+                            key={item.id}
+                            onClick={async () => {
+                              if (!item.isRead) {
+                                await markNotificationReadMutation.mutateAsync(item.id);
+                              }
+                              setShowNotifications(false);
+                              navigate(resolveNotificationLink(item));
+                            }}
+                            className="flex cursor-pointer gap-3 border-b border-gray-50/50 p-4 hover:bg-gray-50"
+                          >
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-100 text-teal-600">
+                              <MessageSquare size={18} />
+                            </div>
+                            <div>
+                              <p className="text-sm text-slate-700">{item.content}</p>
+                              <p className="mt-1 text-xs text-slate-400">{formatRelativeTime(item.createTime)}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {notificationItems.length === 0 && (
+                          <div className="p-6 text-center text-sm text-slate-400">暂无通知</div>
+                        )}
+                      </div>
+                      <div className="border-t border-gray-50 bg-slate-50 p-3 text-center">
+                        <Link
+                          to="/notifications"
+                          onClick={() => setShowNotifications(false)}
+                          className="text-[13px] font-bold text-slate-600 transition-colors hover:text-slate-900"
+                        >
+                          查看全部通知
+                        </Link>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : isAuthenticated ? (
               <>
                 {forumEnabled ? (
                 <Link 
