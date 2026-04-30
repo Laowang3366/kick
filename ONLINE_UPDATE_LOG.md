@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-04-30 19:04 Asia/Shanghai
+
+- 范围：前端 `reace_web` 教程中心移动端布局修复；移动端打开教程阅读状态时隐藏教程目录与页面头部搜索区，阅读器作为单独内容页展示；切换文章时将主内容滚动容器重置到顶部，避免从目录底部进入详情后停留在中下部。
+- 验证：本地 `npx vitest run src/app/lib/tutorial-display.test.ts` 通过 5 个测试；本地 `npx vitest run src/app/lib/query-client.test.ts src/app/lib/vite-performance.test.ts src/app/lib/profile-display.test.ts src/app/lib/layout-display.test.ts src/app/lib/tutorial-display.test.ts src/app/lib/site-navigation.test.ts src/app/lib/excel-formula-detection.test.ts src/app/admin/display.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 31 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误，仅有既有 Windows 行尾提示；服务器从当前分支提交 `1e2949f` 重新构建前后端并通过部署脚本健康检查；`https://lan.excelcc.cn/tutorials` 返回 200；`https://lan.excelcc.cn/api/public/home-overview` 返回 200；服务器本机 `http://127.0.0.1:8080/api/public/home-overview` 返回 200。
+- 部署：本地提交 `1e2949f` 已推送到 `origin/codex/online-snapshot-20260417`，随后在 `/www/wwwroot/kick-deploy/repo` 执行 `bash scripts/deploy/production-deploy.sh`，服务器按当前分支拉取并发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260430-110309`
+- 备注：服务器前端构建仍提示既有大 chunk 警告；服务器 `npm ci` 仍报告既有依赖审计风险，本次未调整依赖树。
+
 ## 2026-04-30 18:50 Asia/Shanghai
 
 - 范围：前端 `reace_web` 性能调优；修复 Vite preload helper 被打入 Univer 编辑器大包导致首页提前预加载 `univer-sheets-core` 的问题；将默认 React Query 缓存新鲜期从 15 秒调整为 60 秒，并关闭普通页面数据的默认窗口聚焦重拉，减少切回页面时的批量请求抖动。
