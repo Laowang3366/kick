@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-01 03:24 Asia/Shanghai
+
+- 范围：前端 `reace_web` 移动端底部导航遮挡修复；应用根布局由 `h-screen` 改为 `h-dvh`，适配手机浏览器动态底部工具栏；移动端主内容底部预留从 `104px` 提升到 `176px + env(safe-area-inset-bottom)`，教程页复用同一预留规则，避免固定底部导航压住页面底部内容。
+- 验证：本地先新增 `getAppShellClassName` 断言并确认 `npx vitest run src/app/lib/layout-display.test.ts` 因 helper 缺失失败；实现后 `npx vitest run src/app/lib/layout-display.test.ts` 通过 8 个测试；本地 `npx vitest run` 通过 10 个测试文件、40 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误，仅有既有 Windows 行尾提示；本地构建 CSS 包含 `100dvh` 和 `176px + env(safe-area-inset-bottom)`；服务器当前提交为 `d15ada6`，`kick-backend.service` 为 `active`，服务器本机 `http://127.0.0.1:8080/api/public/home-overview` 返回 200；`https://lan.excelcc.cn/practice` 返回 200；`https://lan.excelcc.cn/api/public/home-overview` 返回 200；线上 CSS `/assets/index-RleXVVql.css` 包含 `100dvh` 和 `pb-[calc(176px+env(safe-area-inset-bottom))]` 对应规则。
+- 部署：本地提交 `d15ada6` 已推送到 `origin/codex/online-snapshot-20260417`；内网部署机直接从 GitHub 拉取时出现 `curl 28 Failed to connect to github.com port 443`，改用 Git bundle 将当前分支导入服务器部署仓并通过 `GIT_PULL_BEFORE_BUILD=0` 执行 `scripts/deploy/production-deploy.sh`，发布到 `lan.excelcc.cn` / LAN 环境。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260430-192209`
+- 备注：本地和服务器前端构建仍提示既有大 chunk 警告；服务器到 GitHub 443 连接仍不稳定，本次未调整依赖树和部署拓扑。
+
 ## 2026-04-30 23:55 Asia/Shanghai
 
 - 范围：前端 `reace_web` 通知中心分类展示调整；移除通知列表上方的大分类快捷卡片；从通知筛选中删除“帖子互动”分类；旧链接 `?tab=posts` 自动按“全部通知”展示；移动端改为直接展示通知列表，不再通过分类卡片弹出列表。
