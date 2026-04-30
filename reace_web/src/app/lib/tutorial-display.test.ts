@@ -31,6 +31,6 @@ describe("tutorial mobile display helpers", () => {
   });
 
   it("reserves bottom navigation space on lite mobile pages", () => {
-    expect(getLiteMobileContentPaddingClassName(true)).toContain("pb-[calc(104px+env(safe-area-inset-bottom))]");
+    expect(getLiteMobileContentPaddingClassName(true)).toContain("pb-[calc(176px+env(safe-area-inset-bottom))]");
   });
 });

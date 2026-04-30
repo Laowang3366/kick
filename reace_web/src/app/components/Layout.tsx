@@ -42,8 +42,10 @@ import { getDefaultAdminPath, hasAdminConsoleAccess } from "../admin/config";
 import { api } from "../lib/api";
 import { formatRelativeTime } from "../lib/format";
 import {
+  getAppShellClassName,
   getLiteCategorySearchClassName,
   getLitePublicNavigationClassName,
+  getMobileBottomNavigationContentClassName,
   getCompactHeaderAccountButtonClassName,
   getCompactHeaderNotificationButtonClassName,
   shouldRenderHeaderDrawerTrigger,
@@ -606,7 +608,7 @@ export function Layout() {
   };
 
   return (
-    <div className="relative flex h-screen overflow-hidden bg-[#00140d] text-slate-900 font-sans">
+    <div className={getAppShellClassName()}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(0,176,80,0.38),transparent_32%),radial-gradient(circle_at_72%_8%,rgba(34,197,94,0.22),transparent_28%),linear-gradient(180deg,#00140d_0%,#001b12_44%,#f4fff8_44%,#f4fff8_100%)]" />
       {/* Sidebar */}
       <aside
@@ -1443,7 +1445,7 @@ export function Layout() {
                 damping: 30, 
                 mass: 1 
               }}
-              className={isMobile ? "h-full pb-[calc(104px+env(safe-area-inset-bottom))]" : "h-full"}
+              className={getMobileBottomNavigationContentClassName(isMobile)}
             >
               <Outlet />
             </motion.div>

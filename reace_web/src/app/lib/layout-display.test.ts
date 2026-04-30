@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  getAppShellClassName,
   getLiteCategorySearchClassName,
   getLitePublicNavigationClassName,
+  getMobileBottomNavigationContentClassName,
+  getMobileBottomNavigationReserveClassName,
   getCompactHeaderAccountButtonClassName,
   getCompactHeaderNotificationButtonClassName,
   shouldRenderHeaderDrawerTrigger,
@@ -10,6 +13,11 @@ import {
 } from "./layout-display";
 
 describe("layout display helpers", () => {
+  it("uses the dynamic viewport height for the app shell", () => {
+    expect(getAppShellClassName()).toContain("h-dvh");
+    expect(getAppShellClassName()).not.toContain("h-screen");
+  });
+
   it("keeps the account entry visible on mobile lite headers", () => {
     expect(shouldRenderCompactHeaderAccountAction({ onlineLiteMode: true, isMobile: true })).toBe(true);
   });
@@ -42,5 +50,11 @@ describe("layout display helpers", () => {
     expect(getLitePublicNavigationClassName()).not.toContain("lg:flex");
     expect(getLiteCategorySearchClassName()).toContain("xl:block");
     expect(getLiteCategorySearchClassName()).not.toContain("lg:block");
+  });
+
+  it("reserves enough mobile content space for app and browser bottom bars", () => {
+    expect(getMobileBottomNavigationReserveClassName()).toBe("pb-[calc(176px+env(safe-area-inset-bottom))]");
+    expect(getMobileBottomNavigationContentClassName(true)).toContain(getMobileBottomNavigationReserveClassName());
+    expect(getMobileBottomNavigationContentClassName(false)).toBe("h-full");
   });
 });

@@ -1,3 +1,7 @@
+export function getAppShellClassName() {
+  return "relative flex h-dvh overflow-hidden bg-[#00140d] text-slate-900 font-sans";
+}
+
 export function shouldRenderCompactHeaderAccountAction({
   onlineLiteMode,
   isMobile,
@@ -33,6 +37,14 @@ export function getLitePublicNavigationClassName() {
 
 export function getLiteCategorySearchClassName() {
   return "relative hidden xl:block";
+}
+
+export function getMobileBottomNavigationReserveClassName() {
+  return "pb-[calc(176px+env(safe-area-inset-bottom))]";
+}
+
+export function getMobileBottomNavigationContentClassName(isMobile: boolean) {
+  return isMobile ? `h-full ${getMobileBottomNavigationReserveClassName()}` : "h-full";
 }
 
 export function getCompactHeaderAccountButtonClassName() {

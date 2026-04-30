@@ -1,3 +1,5 @@
+import { getMobileBottomNavigationReserveClassName } from "./layout-display";
+
 export function shouldRenderTutorialInlineArticle(isMobile: boolean) {
   return !isMobile;
 }
@@ -27,5 +29,5 @@ export function getTutorialReaderScrollTargetSelector(readerOpen: boolean) {
 }
 
 export function getLiteMobileContentPaddingClassName(isMobile: boolean) {
-  return isMobile ? "pb-[calc(104px+env(safe-area-inset-bottom))]" : "";
+  return isMobile ? getMobileBottomNavigationReserveClassName() : "";
 }
