@@ -13,13 +13,13 @@
 - 备注：
 ```
 
-## 2026-05-04 05:20 Asia/Shanghai
+## 2026-05-04 05:37 Asia/Shanghai
 
 - 范围：后端 `excel-forum-backend` 补充函数运营内容与题库种子内容；新增 `SUMIF`、`DAYS` 教程并完善 `SUM`、`AVERAGE`、`COUNTIF`、`IF`、`VLOOKUP`、`LEFT` 教程正文；新增 8 道函数训练 Excel 模板题、8 个模板文件生成逻辑、配套题库分类、教程关联和闯关关卡；固化 GitHub 拉取失败时的 Git bundle 导出/导入发布脚本与部署文档；`production-deploy.sh` 后端打包改为 `mvn -q clean -DskipTests package`，避免服务器 stale migration class 进入发布 JAR。
-- 验证：本地 `mvn -q clean -Dtest=SeedPracticeWorkbookInitializerTest test` 通过；本地临时库 Flyway 启动验证通过，`V44/V45/V46` 顺序正确且种子计数为 8 道题、8 个模板、8 篇教程、8 个关卡；本地 `mvn -q test` 通过；本地 `mvn -q clean -DskipTests package` 通过；Git Bash `bash -n` 通过 `scripts/deploy/export-git-bundle.sh`、`scripts/deploy/deploy-from-git-bundle.sh`、`scripts/deploy/production-deploy.sh`；线上部署后服务器仓库为 `c08d386` 且 worktree clean，`kick-backend.service` 为 `active`，服务器本机 `http://127.0.0.1:8080/api/public/home-overview` 返回 200；`https://www.excelcc.cn/api/public/home-overview`、`https://www.excelcc.cn/api/tutorials/home`、`https://www.excelcc.cn/api/practice/categories` 均返回 200；教程首页响应包含 `SUMIF` 与 `DAYS`；生产库 `flyway_v46=1`、`seed_questions=8`、`seed_templates=8`、`tutorial_rows=8`、`practice_levels=8`。
-- 部署：本地提交 `c08d386` 已推送到 `origin/codex/online-snapshot-20260417`；生产服务器 GitHub 访问不稳定，使用 `scripts/deploy/export-git-bundle.sh` 导出 `content-c08d386.bundle`，上传到 `/www/wwwroot/kick-deploy/bundles/content-c08d386.bundle`，再在 `/www/wwwroot/kick-deploy/repo` 执行 `bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/content-c08d386.bundle`，由导入脚本以 `GIT_PULL_BEFORE_BUILD=0` 复用现有 `production-deploy.sh` 完成发布到 `https://www.excelcc.cn/`。
-- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260504-051557`
-- 备注：本次先前一次 `899f4ec` 回退发布因服务器 `target/classes` 残留旧版 V44 migration 导致发布脚本回滚，服务已自动恢复；`c08d386` 增加 clean package 后重新发布成功。服务器前端构建仍提示既有大 chunk 警告，本次未调整依赖拆包。
+- 验证：本地 `mvn -q clean -Dtest=SeedPracticeWorkbookInitializerTest test` 通过；本地临时库 Flyway 启动验证通过，`V44/V45/V46` 顺序正确且种子计数为 8 道题、8 个模板、8 篇教程、8 个关卡；本地 `mvn -q test` 通过；本地 `mvn -q clean -DskipTests package` 通过；Git Bash `bash -n` 通过 `scripts/deploy/export-git-bundle.sh`、`scripts/deploy/deploy-from-git-bundle.sh`、`scripts/deploy/production-deploy.sh`；LAN 部署机 `homeserver` 仓库为 `78aae1d` 且 worktree clean，`kick-backend.service` 为 `active`，服务器本机 `http://127.0.0.1:8080/api/public/home-overview` 返回 200；`https://lan.excelcc.cn/`、`https://lan.excelcc.cn/practice`、`https://lan.excelcc.cn/api/public/home-overview`、`https://lan.excelcc.cn/api/tutorials/home`、`https://lan.excelcc.cn/api/practice/categories` 均返回 200；教程首页响应包含 `SUMIF` 与 `DAYS`；LAN 数据库 `flyway_v46=1`、`seed_questions=8`、`seed_templates=8`、`tutorial_rows=8`、`practice_levels=8`。
+- 部署：本地提交 `78aae1d` 已推送到 `origin/codex/online-snapshot-20260417`；LAN 部署机访问 GitHub 443 超时，使用 `scripts/deploy/export-git-bundle.sh` 导出 `content-78aae1d.bundle`，上传到 `/www/wwwroot/kick-deploy/bundles/content-78aae1d.bundle`，将 `/www/wwwroot/kick-deploy/repo` 快进到当前分支后，以 `GIT_PULL_BEFORE_BUILD=0` 复用现有 `production-deploy.sh` 完成发布到 `https://lan.excelcc.cn/`。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260503-213349`
+- 备注：本次先前一次 `899f4ec` 回退发布因服务器 `target/classes` 残留旧版 V44 migration 导致发布脚本回滚，服务已自动恢复；`c08d386` 增加 clean package 后重新发布成功。LAN 仓库原本没有新导入脚本，先用等价 bootstrap 脚本完成 bundle fast-forward，导入后仓库已包含正式 `deploy-from-git-bundle.sh`；服务器前端构建仍提示既有大 chunk 警告，本次未调整依赖拆包。
 
 ## 2026-05-01 03:24 Asia/Shanghai
 
