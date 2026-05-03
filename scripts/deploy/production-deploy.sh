@@ -182,7 +182,7 @@ log "building frontend"
 (cd "$REPO_DIR/reace_web" && npm ci && npm run build)
 
 log "building backend"
-(cd "$REPO_DIR/excel-forum-backend" && mvn -q -DskipTests package)
+(cd "$REPO_DIR/excel-forum-backend" && mvn -q clean -DskipTests package)
 
 validate_directory "$REPO_DIR/reace_web/dist"
 validate_file "$REPO_DIR/excel-forum-backend/target/forum-1.0.0.jar"
