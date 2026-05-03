@@ -44,7 +44,7 @@
 - 当前操作目录为 `/www/wwwroot/kick-deploy/repo`
 - 运行服务为 `kick-backend.service`
 - 本次发布目标是“服务器从 Git 拉取代码后构建发布”，不是临时在其他目录手工替换文件
-- 本地变更已经提交并推送到 `deploy.env` 配置的 `BRANCH`，否则服务器无法拉取到本次更新
+- 本地变更已经提交并推送到 `deploy.env` 配置的 `BRANCH`，否则服务器无法按标准流程拉取到本次更新。GitHub 拉取失败时，使用下方 Git bundle 回退部署流程。
 
 部署环境文件 `/www/wwwroot/kick-deploy/deploy.env` 需要包含 Git 拉取配置：
 
@@ -83,11 +83,72 @@ bash scripts/deploy/production-deploy.sh
 9. 通过 HTTP 接口进行健康检查
 10. 如失败则自动回滚
 
-如果需要临时跳过拉取，仅构建服务器当前代码，可以在执行时覆盖配置：
+如果需要跳过拉取，仅构建服务器当前代码，可以在执行时覆盖配置：
 
 ```bash
 GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh
 ```
+
+这个命令只适用于服务器部署仓已经处在目标提交的情况。GitHub 拉取失败时，不要临时手工执行 `git fetch <bundle>`、`git checkout`、`git merge` 等零散命令，改用仓库内的 bundle 脚本。
+
+## Git Bundle 回退部署
+
+适用场景：
+
+- 目标代码已经在本地提交
+- 服务器访问 GitHub 失败，`production-deploy.sh` 无法完成 `git fetch` / `git pull`
+- 仍然要从 `/www/wwwroot/kick-deploy/repo` 构建发布，并保留现有备份、健康检查和自动回滚能力
+
+本地导出 bundle：
+
+```bash
+cd <local-repo>
+bash scripts/deploy/export-git-bundle.sh
+```
+
+如需明确指定发布分支或输出路径：
+
+```bash
+BRANCH=codex/online-snapshot-20260417 bash scripts/deploy/export-git-bundle.sh /tmp/kick-release.bundle
+```
+
+导出脚本只打包已提交的 Git 历史，不包含未提交文件。执行前应确认本次发布变更已经提交到目标分支。如果使用默认输出路径，以上传脚本打印的 `bundle written` 路径为准。
+
+上传 bundle 到服务器固定目录：
+
+```bash
+ssh <server> "mkdir -p /www/wwwroot/kick-deploy/bundles"
+scp /tmp/kick-release.bundle <server>:/www/wwwroot/kick-deploy/bundles/
+```
+
+服务器导入并发布：
+
+```bash
+cd /www/wwwroot/kick-deploy/repo
+bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/kick-release.bundle
+```
+
+`deploy-from-git-bundle.sh` 会执行：
+
+1. 读取 `/www/wwwroot/kick-deploy/deploy.env`
+2. 校验 bundle 中包含 `BRANCH` / `GIT_BRANCH` 对应的 `refs/heads/<branch>`
+3. 要求部署仓工作树干净
+4. 将服务器同名分支快进到 bundle 提供的提交，拒绝非快进导入
+5. 使用 `GIT_PULL_BEFORE_BUILD=0` 调用 `scripts/deploy/production-deploy.sh`
+
+如只想导入 bundle、不立即发布，可以执行：
+
+```bash
+DEPLOY_AFTER_IMPORT=0 bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/kick-release.bundle
+```
+
+导入后再发布时仍使用固定命令：
+
+```bash
+GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh
+```
+
+部署完成后，在 `ONLINE_UPDATE_LOG.md` 顶部记录 bundle 文件名、发布提交、验证结果和服务器备份目录。
 
 ## 健康检查
 
