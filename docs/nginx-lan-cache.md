@@ -40,6 +40,13 @@ The default mode is dry-run. It prints the target path, shows a diff when `diff`
 nginx -t
 ```
 
+On hosts where `nginx -t` requires root to read the runtime pid file, run the
+same dry-run with `sudo` for full validation:
+
+```bash
+sudo bash scripts/deploy/nginx/install-kick-lan-nginx.sh --dry-run
+```
+
 ## Apply
 
 Apply requires root:

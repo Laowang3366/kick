@@ -77,6 +77,11 @@ if [[ "$APPLY" != "1" ]]; then
   else
     log "target file missing or diff unavailable; showing planned install only"
   fi
+  if [[ "$(id -u)" -ne 0 ]]; then
+    log "skipping nginx -t because this host requires root to validate nginx"
+    log "run with sudo for full validation: sudo bash $0 --dry-run"
+    exit 0
+  fi
   nginx -t
   exit 0
 fi
