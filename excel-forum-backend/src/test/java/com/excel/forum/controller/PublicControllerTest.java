@@ -20,6 +20,9 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -85,5 +88,28 @@ class PublicControllerTest {
                 .andExpect(jsonPath("$.stats.postCount").value(2))
                 .andExpect(jsonPath("$.stats.userCount").value(1))
                 .andExpect(jsonPath("$.topUsers").isArray());
+    }
+
+    @Test
+    void homeOverviewCountsPracticeStatsWithoutLoadingWholeTables() throws Exception {
+        when(categoryService.count()).thenReturn(8L);
+        when(postService.count(any())).thenReturn(2L);
+        when(userService.count(any())).thenReturn(1L);
+        when(questionService.count(any())).thenReturn(5L);
+        when(practiceAnswerMapper.selectCount(any())).thenReturn(10L, 7L);
+        when(practiceRecordMapper.selectObjs(any())).thenReturn(List.of(11L, 12L, 13L));
+        when(userService.list(org.mockito.ArgumentMatchers.<com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.excel.forum.entity.User>>any()))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/public/home-overview"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.practiceStats.questionCount").value(5))
+                .andExpect(jsonPath("$.practiceStats.passRate").value(70))
+                .andExpect(jsonPath("$.practiceStats.activeUserCount").value(3));
+
+        verify(practiceAnswerMapper, times(2)).selectCount(any());
+        verify(practiceAnswerMapper, never()).selectList(any());
+        verify(practiceRecordMapper).selectObjs(any());
+        verify(practiceRecordMapper, never()).selectList(any());
     }
 }

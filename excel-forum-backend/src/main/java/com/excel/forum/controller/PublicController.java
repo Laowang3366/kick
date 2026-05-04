@@ -68,24 +68,23 @@ public class PublicController {
         QueryWrapper<Question> enabledQuestionQuery = new QueryWrapper<>();
         enabledQuestionQuery.eq("enabled", true).eq("type", "excel_template");
 
-        QueryWrapper<PracticeAnswer> practiceAnswerQuery = new QueryWrapper<>();
-        practiceAnswerQuery.select("id", "is_correct");
+        QueryWrapper<PracticeAnswer> practiceAnswerCountQuery = new QueryWrapper<>();
+        practiceAnswerCountQuery.select("id");
+
+        QueryWrapper<PracticeAnswer> passedAnswerCountQuery = new QueryWrapper<>();
+        passedAnswerCountQuery.eq("is_correct", true).select("id");
 
         QueryWrapper<PracticeRecord> recentPracticeQuery = new QueryWrapper<>();
         recentPracticeQuery.eq("status", "submitted")
                 .ge("submit_time", LocalDateTime.now().minusMinutes(30))
-                .select("user_id");
+                .isNotNull("user_id")
+                .select("DISTINCT user_id");
 
         long questionCount = questionService.count(enabledQuestionQuery);
-        List<PracticeAnswer> practiceAnswers = practiceAnswerMapper.selectList(practiceAnswerQuery);
-        int totalPracticeAnswers = practiceAnswers.size();
-        long passedAnswerCount = practiceAnswers.stream().filter(answer -> Boolean.TRUE.equals(answer.getIsCorrect())).count();
+        long totalPracticeAnswers = practiceAnswerMapper.selectCount(practiceAnswerCountQuery);
+        long passedAnswerCount = practiceAnswerMapper.selectCount(passedAnswerCountQuery);
         int passRate = totalPracticeAnswers == 0 ? 0 : Math.round((passedAnswerCount * 100f) / totalPracticeAnswers);
-        long activePracticeUserCount = practiceRecordMapper.selectList(recentPracticeQuery).stream()
-                .map(PracticeRecord::getUserId)
-                .filter(userId -> userId != null)
-                .distinct()
-                .count();
+        long activePracticeUserCount = practiceRecordMapper.selectObjs(recentPracticeQuery).size();
 
         List<User> topUsers = userService.list(topUserQuery);
         return ResponseEntity.ok(Map.of(
