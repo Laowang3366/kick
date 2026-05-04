@@ -1,0 +1,125 @@
+# LAN Nginx site template for kick.
+# Install target: /etc/nginx/sites-available/kick-lan.conf
+# Compatible with the default Ubuntu Nginx layout where sites-enabled files are
+# included from the http context.
+
+# Optional conservative shared limits. Keep commented until access patterns have
+# been observed in LAN traffic.
+#
+# limit_req_zone $binary_remote_addr zone=kick_lan_auth:10m rate=5r/m;
+# limit_req_zone $binary_remote_addr zone=kick_lan_write:10m rate=2r/s;
+# limit_conn_zone $binary_remote_addr zone=kick_lan_conn:10m;
+
+server {
+    listen 80 default_server;
+    server_name _ lan.excelcc.cn;
+
+    root /www/wwwroot/kick-web;
+    index index.html;
+    client_max_body_size 20m;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_comp_level 5;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        application/json
+        application/javascript
+        application/xml
+        image/svg+xml;
+
+    location = /index.html {
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        try_files /index.html =404;
+    }
+
+    location /assets/ {
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    location = /favicon.ico {
+        access_log off;
+        expires 1d;
+        add_header Cache-Control "public, max-age=86400" always;
+        try_files /favicon.ico =404;
+    }
+
+    # Optional auth throttling. Enable only after the shared auth zone above is
+    # enabled and normal login/register/forgot-password traffic is validated.
+    #
+    # location ~ ^/api/auth/(login|register|forgot-password)(/|$) {
+    #     limit_req zone=kick_lan_auth burst=10 nodelay;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    #     proxy_set_header Connection "";
+    #     proxy_pass http://127.0.0.1:8080;
+    # }
+
+    location /api/ {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_pass http://127.0.0.1:8080;
+    }
+
+    # Optional narrower write throttling. Enable only after the shared zones
+    # above are enabled.
+    #
+    # location ~ ^/api/(auth|posts|replies|drafts|feedback|reports|upload|practice|tools|admin)(/|$) {
+    #     limit_req zone=kick_lan_write burst=20 nodelay;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $scheme;
+    #     proxy_set_header Connection "";
+    #     proxy_pass http://127.0.0.1:8080;
+    # }
+
+    location /uploads/ {
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_pass http://127.0.0.1:8080;
+    }
+
+    location /ws/ {
+        # Optional connection cap. Enable the shared conn zone above first:
+        # limit_conn kick_lan_conn 20;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_pass http://127.0.0.1:8080;
+    }
+
+    location / {
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        try_files $uri $uri/ /index.html;
+    }
+}

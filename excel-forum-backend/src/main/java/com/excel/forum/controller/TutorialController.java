@@ -1,6 +1,7 @@
 package com.excel.forum.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.excel.forum.config.PublicCacheHeaders;
 import com.excel.forum.entity.PracticeChapter;
 import com.excel.forum.entity.Question;
 import com.excel.forum.entity.TutorialArticle;
@@ -88,7 +89,9 @@ public class TutorialController {
                     return result;
                 })
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(Map.of("categories", records));
+        return ResponseEntity.ok()
+                .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
+                .body(Map.of("categories", records));
     }
 
     private Map<String, Object> toArticleMap(

@@ -10,6 +10,16 @@ const securityHeaders = {
   "X-Frame-Options": "DENY",
 };
 
+function getNodeModulePackageName(id: string) {
+  const normalized = id.replace(/\\/g, '/');
+  const [, modulePath] = normalized.split('/node_modules/');
+  if (!modulePath) return null;
+
+  const [first, second] = modulePath.split('/');
+  if (!first) return null;
+  return first.startsWith('@') && second ? `${first}/${second}` : first;
+}
+
 export default defineConfig({
   plugins: [
     // The React and Tailwind plugins are both required for Make, even if
@@ -27,41 +37,58 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          const normalized = id.replace(/\\/g, '/');
           if (id.includes('vite/preload-helper')) {
             return 'vite-helper';
           }
-          if (!id.includes('node_modules')) return;
-          if (id.includes('@univerjs/preset-sheets-core/locales')) {
+          if (!normalized.includes('/node_modules/')) return;
+
+          const packageName = getNodeModulePackageName(normalized);
+          if (!packageName) return;
+
+          if (normalized.includes('/@univerjs/preset-sheets-core/') && normalized.includes('/locales/')) {
             return 'univer-locales';
           }
-          if (id.includes('@univerjs/preset-sheets-core')) {
+          if (packageName === '@univerjs/preset-sheets-core') {
             return 'univer-sheets-core';
           }
-          if (id.includes('@univerjs/presets')) {
+          if (packageName === '@univerjs/presets') {
             return 'univer-presets';
           }
-          if (id.includes('react-router') || id.includes('react-dom') || id.includes(`${path.sep}react${path.sep}`)) {
+          if (packageName === 'react-router' || packageName === 'react-dom' || packageName === 'react') {
             return 'react-vendor';
           }
-          if (id.includes('motion')) {
+          if (packageName === 'motion' || packageName === 'framer-motion') {
             return 'motion-vendor';
           }
-          if (id.includes('recharts')) {
+          if (packageName === 'recharts') {
             return 'chart-vendor';
           }
-          if (id.includes('react-dnd')) {
+          if (packageName === 'react-dnd' || packageName === 'react-dnd-html5-backend') {
             return 'dnd-vendor';
           }
+          if (packageName === 'lucide-react') {
+            return 'icon-vendor';
+          }
+          if (packageName === 'sonner') {
+            return 'toast-vendor';
+          }
           if (
-            id.includes('@radix-ui') ||
-            id.includes('@mui') ||
-            id.includes('lucide-react') ||
-            id.includes('sonner') ||
-            id.includes('@emotion') ||
-            id.includes('class-variance-authority') ||
-            id.includes('clsx') ||
-            id.includes('tailwind-merge') ||
-            id.includes('vaul')
+            packageName.startsWith('@radix-ui/') ||
+            packageName === 'vaul'
+          ) {
+            return 'radix-vendor';
+          }
+          if (
+            packageName.startsWith('@mui/') ||
+            packageName.startsWith('@emotion/')
+          ) {
+            return 'mui-vendor';
+          }
+          if (
+            packageName === 'class-variance-authority' ||
+            packageName === 'clsx' ||
+            packageName === 'tailwind-merge'
           ) {
             return 'ui-vendor';
           }

@@ -1,5 +1,6 @@
 package com.excel.forum.controller;
 
+import com.excel.forum.config.PublicCacheHeaders;
 import com.excel.forum.entity.dto.PracticeSubmitRequest;
 import com.excel.forum.entity.dto.PracticeQuestionSubmissionRequest;
 import com.excel.forum.service.ExcelTemplateGradingService;
@@ -26,7 +27,9 @@ public class PracticeController {
 
     @GetMapping("/categories")
     public ResponseEntity<?> getCategories() {
-        return ResponseEntity.ok(practiceService.getPracticeCategories());
+        return ResponseEntity.ok()
+                .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
+                .body(practiceService.getPracticeCategories());
     }
 
     @GetMapping("/question-list")

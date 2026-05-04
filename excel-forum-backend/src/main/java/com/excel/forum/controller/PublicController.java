@@ -2,6 +2,7 @@ package com.excel.forum.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.excel.forum.config.ExperienceProperties;
+import com.excel.forum.config.PublicCacheHeaders;
 import com.excel.forum.entity.ExperienceLevelRule;
 import com.excel.forum.entity.Post;
 import com.excel.forum.entity.PracticeAnswer;
@@ -87,7 +88,9 @@ public class PublicController {
         long activePracticeUserCount = practiceRecordMapper.selectObjs(recentPracticeQuery).size();
 
         List<User> topUsers = userService.list(topUserQuery);
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok()
+                .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
+                .body(Map.of(
                 "stats", Map.of(
                         "categoryCount", categoryService.count(),
                         "postCount", postService.count(postQuery),
@@ -120,7 +123,9 @@ public class PublicController {
                             .thenComparingInt(rule -> safeInt(rule.getLevel())))
                     .forEach(rule -> rules.add(buildLevelRuleItem(rule.getLevel(), rule.getName(), rule.getThreshold())));
         }
-        return ResponseEntity.ok(Map.of("rules", rules));
+        return ResponseEntity.ok()
+                .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
+                .body(Map.of("rules", rules));
     }
 
     private Map<String, Object> buildLevelRuleItem(Integer level, String name, Integer threshold) {

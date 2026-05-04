@@ -14,17 +14,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -103,6 +107,10 @@ class PublicControllerTest {
 
         mockMvc.perform(get("/api/public/home-overview"))
                 .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, allOf(
+                        containsString("public"),
+                        containsString("max-age=30")
+                )))
                 .andExpect(jsonPath("$.practiceStats.questionCount").value(5))
                 .andExpect(jsonPath("$.practiceStats.passRate").value(70))
                 .andExpect(jsonPath("$.practiceStats.activeUserCount").value(3));
@@ -111,5 +119,23 @@ class PublicControllerTest {
         verify(practiceAnswerMapper, never()).selectList(any());
         verify(practiceRecordMapper).selectObjs(any());
         verify(practiceRecordMapper, never()).selectList(any());
+    }
+
+    @Test
+    void levelRulesReturnsShortPublicCacheHeader() throws Exception {
+        ExperienceProperties.LevelRule levelRule = new ExperienceProperties.LevelRule();
+        levelRule.setLevel(1);
+        levelRule.setName("入门");
+        levelRule.setThreshold(0);
+        when(experienceLevelRuleService.listEnabledRules()).thenReturn(List.of());
+        when(experienceProperties.getLevels()).thenReturn(List.of(levelRule));
+
+        mockMvc.perform(get("/api/public/level-rules"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, allOf(
+                        containsString("public"),
+                        containsString("max-age=30")
+                )))
+                .andExpect(jsonPath("$.rules[0].level").value(1));
     }
 }
