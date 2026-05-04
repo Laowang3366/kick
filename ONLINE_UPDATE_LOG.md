@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 00:20 Asia/Shanghai
+
+- 范围：后端 `excel-forum-backend` 高并发稳定性修复与性能优化；生产默认关闭 MyBatis SQL stdout，避免高并发下 journald/stdout I/O 放大；首页 `home-overview` 练习统计改为数据库计数与 distinct 用户查询，避免全表拉取 `practice_answer`、`practice_record`；新增 V47 索引优化练习统计与题库查询；Tomcat backlog/连接/线程与 Hikari 连接池增加生产可覆盖默认值；修复 `production-deploy.sh` 中 `GIT_PULL_BEFORE_BUILD=0` 被 `deploy.env` 覆盖的问题，保证 bundle 回退发布不再误拉 GitHub。
+- 验证：本地 `mvn -q -Dtest=PublicControllerTest,ProductionConfigurationTest test` 通过；本地 `mvn -q test` 通过；本地 `mvn -q -DskipTests package` 通过；本地 `npm run build` 通过（仍有既有大 chunk 警告）；Git Bash `bash -n scripts/deploy/production-deploy.sh scripts/deploy/deploy-from-git-bundle.sh` 通过；部署前 800 并发混合读压测 42,204 请求全 200、P99 约 754ms，但 3 分钟内应用 journal 产生 75,356 行、SQL `Preparing` 6,667 行；部署后 `kick-backend.service` 为 `active`，服务器仓库 `fc173a7` 且 worktree clean，`http://127.0.0.1:8080/api/public/home-overview`、`http://192.168.1.17/api/public/home-overview`、`/practice`、`/api/tutorials/home`、`/api/practice/categories` 均返回 200；8080 listen backlog 为 1000；LAN 数据库 `flyway_v47=1` 且 `idx_practice_answer_correct`、`idx_practice_record_status_submit_user`、`idx_question_enabled_type_category` 均存在；部署后同组 800 并发混合读压测 41,813 请求全 200、P99 约 797ms；压测后 3 分钟内应用 journal 54 行，SQL `Preparing=0`、`SqlSession=0`，MySQL `Connection_errors_max_connections=0`、`Slow_queries=0`。
+- 部署：本地提交 `84e849a` 与 `fc173a7` 因本机 GitHub push 出现 `Recv failure: Connection was reset`，使用 `scripts/deploy/export-git-bundle.sh` 导出 `codex-online-snapshot-20260417-20260505-001500-fc173a7.bundle`，上传到 `/www/wwwroot/kick-deploy/bundles/codex-online-snapshot-20260417-20260505-001500-fc173a7.bundle`，将 LAN 部署机 `/www/wwwroot/kick-deploy/repo` 快进到 `fc173a7` 后，以 `GIT_PULL_BEFORE_BUILD=0` 复用现有 `production-deploy.sh` 发布到 `http://192.168.1.17` / `lan.excelcc.cn` LAN 环境；未更新公共生产目标 `https://www.excelcc.cn/`。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260504-161708`
+- 备注：首次 bundle 发布暴露两处运维问题：部署仓 `.git/FETCH_HEAD` 和部分 `node_modules` 为 root 属主导致导入失败，已限定在 `/www/wwwroot/kick-deploy/repo` 内恢复为 `server:server`；`server` 用户无非交互式 `systemctl restart kick-backend.service` 权限，普通用户发布触发脚本回滚，最终使用 sudo 执行同一发布脚本并在发布后恢复部署仓属主。前一次失败发布产生的 `/www/wwwroot/kick-deploy/backups/20260504-161621` 为回滚过程遗留，不作为本次成功备份记录。
+
 ## 2026-05-04 05:37 Asia/Shanghai
 
 - 范围：后端 `excel-forum-backend` 补充函数运营内容与题库种子内容；新增 `SUMIF`、`DAYS` 教程并完善 `SUM`、`AVERAGE`、`COUNTIF`、`IF`、`VLOOKUP`、`LEFT` 教程正文；新增 8 道函数训练 Excel 模板题、8 个模板文件生成逻辑、配套题库分类、教程关联和闯关关卡；固化 GitHub 拉取失败时的 Git bundle 导出/导入发布脚本与部署文档；`production-deploy.sh` 后端打包改为 `mvn -q clean -DskipTests package`，避免服务器 stale migration class 进入发布 JAR。
