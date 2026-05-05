@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 15:50 Asia/Shanghai
+
+- 范围：将最新 `codex/online-snapshot-20260417` 分支代码同步上线到公共生产目标 `https://www.excelcc.cn/`；本次从生产旧提交 `c08d386` 快进到 `e92efa4`，包含近期后端高并发读写路径优化、公开接口短缓存、V47/V48 数据库索引迁移、Vite vendor chunk 拆分、Lite 顶部导航预加载与轻量切换动画，以及相关压测/监控/部署文档脚本。
+- 验证：生产机 `/www/wwwroot/kick-deploy/repo` 快进到 `e92efa4` 后 worktree clean；`GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh` 成功，脚本完成 `npm ci && npm run build`、`mvn -q clean -DskipTests package`、前后端发布、服务重启与健康检查；部署后 `kick-backend.service`、`nginx` 均为 `active`；服务器本机 `http://127.0.0.1:8080/api/public/home-overview` 与 Nginx 本机 `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/tutorials`、`/practice`、`/templates`、`/api/public/home-overview`、`/api/tutorials/home`、`/api/practice/categories` 均返回 200；公网首页 `index.html` 为 no-store/no-cache，静态 `assets/index-CNyb34YB.js` 返回 immutable 缓存，公开 API 返回 `Cache-Control: max-age=30, public`；headless Chrome 以 1366x900 视口验证顶部导航“教程 / 练习 / 模板” hover 后均提前加载对应页面 chunk，点击后分别到达 `/tutorials`、`/practice`、`/templates`。
+- 部署：本地最新提交 `e92efa4` 已推送到 `origin/codex/online-snapshot-20260417`；公共生产机 `198.44.178.219` 的 `/www/wwwroot/kick-deploy/repo` 先从 GitHub 快进到 `e92efa4`，再以 `GIT_PULL_BEFORE_BUILD=0` 复用现有 `production-deploy.sh` 发布到 `https://www.excelcc.cn/`；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260505-154757`
+- 备注：发布脚本重启后端后健康检查前 3 次短暂出现 `127.0.0.1:8080 Connection refused`，第 4 次通过，服务最终 active 且公网复验正常；构建仍提示既有 Univer/语言包大 chunk 警告，本次保留 lazy loading 和现有 chunk 拆分策略。
+
 ## 2026-05-05 10:08 Asia/Shanghai
 
 - 范围：前端 `reace_web` Lite 顶部导航模块切换卡顿优化；新增公共模块 route chunk 预加载 helper；顶部导航、更多菜单、移动抽屉和底部导航在 hover/focus/touch 时提前预加载目标页面 lazy chunk；点击导航时使用 React transition 降低同步切换压力；主内容切换动画移除整页 `AnimatePresence mode="wait"` 与 `filter: blur()`，改为短时透明度/位移动画，减少大页面切换时的重绘成本。
