@@ -76,8 +76,14 @@ public class PracticeCampaignController {
         try {
             return ResponseEntity.ok(practiceCampaignService.getCampaignWrongQuestions(userId));
         } catch (IllegalArgumentException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (IllegalStateException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         }
     }
@@ -89,8 +95,14 @@ public class PracticeCampaignController {
         try {
             return ResponseEntity.ok(practiceCampaignService.resolveWrongQuestion(userId, wrongQuestionId));
         } catch (IllegalArgumentException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (IllegalStateException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         }
     }
@@ -112,7 +124,15 @@ public class PracticeCampaignController {
         try {
             return ResponseEntity.ok(practiceCampaignService.startCampaignLevel(levelId, userId, request));
         } catch (IllegalArgumentException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (IllegalStateException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
+            return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         }
     }
 
@@ -124,9 +144,20 @@ public class PracticeCampaignController {
         try {
             return ResponseEntity.ok(practiceCampaignService.submitCampaignLevel(levelId, userId, request));
         } catch (IllegalArgumentException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (IllegalStateException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         }
+    }
+
+    private boolean isLoginRequired(RuntimeException e) {
+        String message = e.getMessage();
+        return "未登录".equals(message) || "请先登录".equals(message);
     }
 }

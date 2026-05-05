@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, Clock3, FileSpreadsheet, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { handleLoginRequiredError } from "../lib/auth-required";
 import { ExcelWorkbookSnapshot, normalizeSelection, parseRangeRef } from "../lib/excel";
 import { formatDuration } from "../lib/format";
 import { practiceKeys } from "../lib/query-keys";
@@ -81,7 +82,7 @@ export function PracticeDetail() {
             attemptId: campaignAttemptId,
             usedSeconds: elapsedSeconds,
             userAnswer: latestWorkbook,
-          })
+          }, { silent: true })
         : await api.post<any>("/api/practice/submit", {
             questionCategoryId: question.questionCategoryId || question.categoryId || null,
             categoryId: question.questionCategoryId || question.categoryId || null,
@@ -93,7 +94,7 @@ export function PracticeDetail() {
                 userAnswer: latestWorkbook,
               },
             ],
-          });
+          }, { silent: true });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: practiceKeys.history() }),
         queryClient.invalidateQueries({ queryKey: practiceKeys.leaderboard() }),
@@ -123,6 +124,10 @@ export function PracticeDetail() {
         return;
       }
       navigate(`/practice/history/${result.recordId}`);
+    } catch (error) {
+      if (!handleLoginRequiredError(error, "请先登录后再提交答卷")) {
+        toast.error((error as any)?.message || "提交答卷失败");
+      }
     } finally {
       setSubmitting(false);
     }

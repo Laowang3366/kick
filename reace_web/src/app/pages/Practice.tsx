@@ -1,11 +1,12 @@
 import { Suspense, lazy, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Award, CheckCircle2, Clock, FileSpreadsheet, LoaderCircle, Play, Target, UploadCloud, ClipboardList, History } from "lucide-react";
+import { Award, CheckCircle2, Clock, FileSpreadsheet, LoaderCircle, Play, Target, UploadCloud, ClipboardList, History, MousePointer2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
 import { api } from "../lib/api";
+import { handleLoginRequiredError, showLoginRequiredToast } from "../lib/auth-required";
 import {
   buildWorkbookWithAnswerSnapshot,
   columnIndexToLabel,
@@ -145,7 +146,7 @@ export function Practice() {
         checkFormula: Boolean(submissionForm.checkFormula),
         sheetCountLimit: 5,
         version: 1,
-      });
+      }, { silent: true });
     },
     onSuccess: async () => {
       toast.success("试题投稿已提交，等待管理员审核");
@@ -156,11 +157,16 @@ export function Practice() {
         queryClient.invalidateQueries({ queryKey: practiceKeys.submissions({ page: submissionProgressPage, size: 8 }) }),
       ]);
     },
+    onError: (error) => {
+      if (!handleLoginRequiredError(error, "请先登录后再投稿试题")) {
+        toast.error((error as any)?.message || "试题投稿提交失败");
+      }
+    },
   });
 
   const handleOpenSubmission = () => {
     if (!isAuthenticated) {
-      navigate("/auth");
+      showLoginRequiredToast("请先登录后再上传试题");
       return;
     }
     resetSubmissionState();
@@ -169,7 +175,7 @@ export function Practice() {
 
   const handleOpenSubmissionProgress = () => {
     if (!isAuthenticated) {
-      navigate("/auth");
+      showLoginRequiredToast("请先登录后查看投稿进度");
       return;
     }
     setSubmissionProgressPage(1);
@@ -179,7 +185,7 @@ export function Practice() {
   const handleUploadTemplate = async (file: File | null) => {
     if (!file) return;
     if (!isAuthenticated) {
-      navigate("/auth");
+      showLoginRequiredToast("请先登录后再上传模板");
       return;
     }
     if (!/\.(xlsx|xls)$/i.test(file.name)) {
@@ -190,7 +196,7 @@ export function Practice() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const uploadResult = await api.post<{ url: string }>("/api/upload", formData);
+      const uploadResult = await api.post<{ url: string }>("/api/upload", formData, { silent: true });
       setSubmissionForm((prev) => ({
         ...prev,
         templateFileUrl: uploadResult.url,
@@ -200,6 +206,10 @@ export function Practice() {
       }));
       await loadTemplateWorkbook(uploadResult.url);
       toast.success("模板上传完成");
+    } catch (error) {
+      if (!handleLoginRequiredError(error, "请先登录后再上传模板")) {
+        toast.error((error as any)?.message || "模板上传失败");
+      }
     } finally {
       setIsUploadingTemplate(false);
     }
@@ -267,7 +277,7 @@ export function Practice() {
       toast.error("标准答案存在空白单元格，请补全答题区域内的值");
       return;
     }
-    void submitQuestionMutation.mutateAsync();
+    submitQuestionMutation.mutate();
   };
 
   const currentSelectionText = selectionToRangeRef(selection) || submissionForm.answerRange || "未选择";
@@ -562,7 +572,8 @@ export function Practice() {
                       <div className="mb-2 text-sm font-bold text-slate-700">答题区域</div>
                       <div className="flex gap-2">
                         <input value={currentSelectionText} readOnly className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none" />
-                        <button type="button" onClick={openAnswerRangeEditor} className="inline-flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50">
+                        <button type="button" onClick={openAnswerRangeEditor} className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-teal-500 bg-teal-500 px-4 text-sm font-bold text-white shadow-sm transition hover:border-teal-600 hover:bg-teal-600">
+                          <MousePointer2 size={15} />
                           选择区域
                         </button>
                       </div>

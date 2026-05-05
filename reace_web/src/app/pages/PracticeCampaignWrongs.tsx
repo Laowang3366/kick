@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { handleLoginRequiredError } from "../lib/auth-required";
 import { formatDateTime } from "../lib/format";
 import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
@@ -16,10 +17,15 @@ export function PracticeCampaignWrongs() {
     queryFn: () => api.get<any>("/api/practice/campaign/wrongs", { silent: true }),
   });
   const resolveMutation = useMutation({
-    mutationFn: (id: number) => api.put(`/api/practice/campaign/wrongs/${id}/resolve`, {}),
+    mutationFn: (id: number) => api.put(`/api/practice/campaign/wrongs/${id}/resolve`, {}, { silent: true }),
     onSuccess: async () => {
       toast.success("已标记为已掌握");
       await queryClient.invalidateQueries({ queryKey: practiceKeys.campaignWrongs() });
+    },
+    onError: (error) => {
+      if (!handleLoginRequiredError(error, "请先登录后再管理错题")) {
+        toast.error((error as any)?.message || "错题状态更新失败");
+      }
     },
   });
 
@@ -43,7 +49,9 @@ export function PracticeCampaignWrongs() {
         },
       });
     } catch (error: any) {
-      toast.error(error?.message || "开始答题失败");
+      if (!handleLoginRequiredError(error, "请先登录后再开始答题")) {
+        toast.error(error?.message || "开始答题失败");
+      }
     }
   };
 
@@ -95,7 +103,7 @@ export function PracticeCampaignWrongs() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void resolveMutation.mutateAsync(item.id)}
+                    onClick={() => resolveMutation.mutate(item.id)}
                     className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600"
                   >
                     <CheckCircle2 size={15} />

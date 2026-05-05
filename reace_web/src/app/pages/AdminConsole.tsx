@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import {
@@ -14,6 +14,7 @@ import {
   Lock,
   Menu,
   MessageSquare,
+  MousePointer2,
   Plus,
   RefreshCcw,
   Send,
@@ -90,6 +91,7 @@ import {
   POINTS_RULE_TYPE_OPTIONS,
   POINTS_TASK_KEY_OPTIONS,
   ROLE_OPTIONS,
+  answerRangeButtonClassName,
   primaryButtonClassName,
   secondaryButtonClassName,
   statusBadgeClassName,
@@ -2228,6 +2230,7 @@ export function AdminQuestions() {
   const [selectedSheetName, setSelectedSheetName] = useState("");
   const [selection, setSelection] = useState<ExcelRangeSelection | null>(null);
   const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateLoadError, setTemplateLoadError] = useState("");
   const [uploadingTemplate, setUploadingTemplate] = useState(false);
   const [isTemplateEditMode, setIsTemplateEditMode] = useState(true);
   const [isSelectingAnswerRange, setIsSelectingAnswerRange] = useState(false);
@@ -2295,6 +2298,7 @@ export function AdminQuestions() {
     setEditorWorkbook({ sheets: [] });
     setSelectedSheetName("");
     setSelection(null);
+    setTemplateLoadError("");
     setIsTemplateEditMode(true);
     setIsSelectingAnswerRange(false);
     setFormulaDetectionNotice("");
@@ -2307,13 +2311,21 @@ export function AdminQuestions() {
     answerSnapshotJson?: string | null,
   ) => {
     setTemplateLoading(true);
+    setTemplateLoadError("");
     try {
       const snapshot = await adminRequest<any>(
         api.get(`/api/admin/questions/template-snapshot?fileUrl=${encodeURIComponent(fileUrl)}`, { silent: true }),
         navigate,
         role,
       );
-      if (!snapshot) return null;
+      if (!snapshot?.sheets?.length) {
+        setTemplateWorkbook({ sheets: [] });
+        setEditorWorkbook({ sheets: [] });
+        setSelectedSheetName("");
+        setSelection(null);
+        setTemplateLoadError("模板加载失败，请稍后重试或重新上传模板。");
+        return null;
+      }
       const sheetName = answerSheet || snapshot.sheets?.[0]?.name || "";
       const workbookWithAnswer = buildWorkbookWithAnswerSnapshot(snapshot, answerSheet, answerRange, answerSnapshotJson);
       setTemplateWorkbook(snapshot);
@@ -2324,6 +2336,15 @@ export function AdminQuestions() {
         ? normalizeSelection(sheetName, parsedRange.startRow, parsedRange.startCol, parsedRange.endRow, parsedRange.endCol)
         : null);
       return snapshot as ExcelWorkbookSnapshot;
+    } catch (error) {
+      const message = error instanceof Error && error.message ? error.message : "模板解析失败";
+      setTemplateWorkbook({ sheets: [] });
+      setEditorWorkbook({ sheets: [] });
+      setSelectedSheetName("");
+      setSelection(null);
+      setTemplateLoadError(`模板加载失败：${message}`);
+      showAdminError(`模板加载失败：${message}`);
+      return null;
     } finally {
       setTemplateLoading(false);
     }
@@ -2649,6 +2670,7 @@ export function AdminQuestions() {
     ? (selectionToRangeRef(selection) || primaryRangeRef || "未选择")
     : (primaryRangeRef || "未选择");
   const sheetOptions = templateWorkbook.sheets || [];
+  const templateEditorResetKey = `${form.templateFileUrl || "empty"}:${selectedSheetName || "none"}:${sheetOptions.length}:${templateLoadError || "ok"}`;
   const currentPreviewWorkbook = editorSnapshotGetterRef.current?.() || editorWorkbook;
   const answerPreview = extractRangeAnswerSnapshot(
     currentPreviewWorkbook,
@@ -2976,6 +2998,20 @@ export function AdminQuestions() {
               {formulaDetectionNotice}
             </div>
           )}
+          {templateLoadError && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+              <span>{templateLoadError}</span>
+              {form.templateFileUrl ? (
+                <button
+                  type="button"
+                  onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson)}
+                  className="inline-flex h-8 items-center justify-center rounded-[2px] border border-amber-300 bg-white px-3 text-xs font-bold text-amber-800 transition hover:border-amber-400 hover:bg-amber-100"
+                >
+                  重新加载
+                </button>
+              ) : null}
+            </div>
+          )}
           {sheetOptions.length > 0 && (
             <div className="grid gap-4 md:grid-cols-4">
               <Field label={isDynamicArrayMode ? "首条规则工作表" : "答题工作表"}>
@@ -3008,8 +3044,9 @@ export function AdminQuestions() {
                     type="button"
                     onClick={openAnswerRangeEditor}
                     disabled={!isTemplateEditMode}
-                    className={secondaryButtonClassName()}
+                    className={answerRangeButtonClassName()}
                   >
+                    <MousePointer2 size={14} />
                     选择区域
                   </button>
                 </div>
@@ -3286,35 +3323,64 @@ export function AdminQuestions() {
           </div>
           {templateLoading ? (
             <div className="flex h-48 items-center justify-center text-sm text-slate-400">正在加载模板...</div>
+          ) : templateLoadError ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-5 text-center text-sm text-amber-800">
+              <div>{templateLoadError}</div>
+              {form.templateFileUrl ? (
+                <button
+                  type="button"
+                  onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson)}
+                  className={secondaryButtonClassName()}
+                >
+                  重新加载模板
+                </button>
+              ) : null}
+            </div>
           ) : sheetOptions.length > 0 ? (
-            <Suspense fallback={<div className="flex h-[460px] items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
-              <ExcelWorkbookEditor
-                workbook={editorWorkbook}
-                onWorkbookChange={isTemplateEditMode ? setEditorWorkbook : undefined}
-                selectedSheetName={selectedSheetName}
-                onSelectedSheetNameChange={(sheetName) => {
-                  setSelectedSheetName(sheetName);
-                  if (isTemplateEditMode) {
-                    setForm((prev: any) => ({ ...prev, answerSheet: sheetName }));
-                  }
-                }}
-                selection={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
-                onSelectionChange={isTemplateEditMode && isSelectingAnswerRange ? ((nextSelection) => {
-                  setSelection(nextSelection);
-                }) : undefined}
-                editableRange={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
-                selectionEnabled={isTemplateEditMode && isSelectingAnswerRange}
-                focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
-                focusRequestVersion={editorFullscreenVersion}
-                requestFullscreenVersion={editorFullscreenVersion}
-                showConfirmSelectionButton={isSelectingAnswerRange}
-                confirmSelectionLabel="确认区域"
-                onConfirmSelection={confirmAnswerRange}
-                onSnapshotCaptureReady={(capture) => {
-                  editorSnapshotGetterRef.current = capture;
-                }}
-              />
-            </Suspense>
+            <ExcelEditorErrorBoundary
+              resetKey={templateEditorResetKey}
+              fallback={(
+                <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-rose-200 bg-rose-50 px-5 text-center text-sm text-rose-700">
+                  <div>模板编辑器加载失败，请重新加载模板后再修改答案。</div>
+                  <button
+                    type="button"
+                    onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson)}
+                    className={secondaryButtonClassName()}
+                  >
+                    重新加载模板
+                  </button>
+                </div>
+              )}
+            >
+              <Suspense fallback={<div className="flex h-[460px] items-center justify-center text-sm text-slate-400">正在加载编辑器...</div>}>
+                <ExcelWorkbookEditor
+                  workbook={editorWorkbook}
+                  onWorkbookChange={isTemplateEditMode ? setEditorWorkbook : undefined}
+                  selectedSheetName={selectedSheetName}
+                  onSelectedSheetNameChange={(sheetName) => {
+                    setSelectedSheetName(sheetName);
+                    if (isTemplateEditMode) {
+                      setForm((prev: any) => ({ ...prev, answerSheet: sheetName }));
+                    }
+                  }}
+                  selection={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
+                  onSelectionChange={isTemplateEditMode && isSelectingAnswerRange ? ((nextSelection) => {
+                    setSelection(nextSelection);
+                  }) : undefined}
+                  editableRange={isTemplateEditMode && isSelectingAnswerRange ? selection : undefined}
+                  selectionEnabled={isTemplateEditMode && isSelectingAnswerRange}
+                  focusRange={isSelectingAnswerRange ? selection : persistedFocusRange}
+                  focusRequestVersion={editorFullscreenVersion}
+                  requestFullscreenVersion={editorFullscreenVersion}
+                  showConfirmSelectionButton={isSelectingAnswerRange}
+                  confirmSelectionLabel="确认区域"
+                  onConfirmSelection={confirmAnswerRange}
+                  onSnapshotCaptureReady={(capture) => {
+                    editorSnapshotGetterRef.current = capture;
+                  }}
+                />
+              </Suspense>
+            </ExcelEditorErrorBoundary>
           ) : (
             <div className="flex h-48 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-400">
               上传 Excel 模板后即可开始配置
@@ -5123,6 +5189,30 @@ async function adminRequest<T>(
     }
     showAdminError(actionLabel ? `${actionLabel}失败：系统异常，请稍后重试` : "系统异常，请稍后重试");
     return null;
+  }
+}
+
+type ExcelEditorErrorBoundaryProps = {
+  resetKey: string;
+  fallback: React.ReactNode;
+  children: React.ReactNode;
+};
+
+class ExcelEditorErrorBoundary extends Component<ExcelEditorErrorBoundaryProps, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidUpdate(previousProps: ExcelEditorErrorBoundaryProps) {
+    if (previousProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
   }
 }
 

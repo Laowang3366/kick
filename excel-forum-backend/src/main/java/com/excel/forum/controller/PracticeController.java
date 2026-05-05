@@ -88,8 +88,14 @@ public class PracticeController {
         try {
             return ResponseEntity.ok(practiceService.submitPractice(userId, request));
         } catch (IllegalArgumentException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (IllegalStateException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.status(403).body(Map.of("message", e.getMessage()));
         }
     }
@@ -101,6 +107,9 @@ public class PracticeController {
         try {
             return ResponseEntity.ok(practiceService.submitPracticeQuestion(userId, request));
         } catch (IllegalArgumentException e) {
+            if (isLoginRequired(e)) {
+                return ResponseEntity.status(401).body(Map.of("message", "未登录"));
+            }
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
@@ -128,5 +137,10 @@ public class PracticeController {
             return ResponseEntity.status(404).body(Map.of("message", "练习记录不存在"));
         }
         return ResponseEntity.ok(detail);
+    }
+
+    private boolean isLoginRequired(RuntimeException e) {
+        String message = e.getMessage();
+        return "未登录".equals(message) || "请先登录".equals(message);
     }
 }

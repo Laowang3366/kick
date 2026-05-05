@@ -142,6 +142,10 @@ export function secondaryButtonClassName() {
   return "inline-flex h-8 items-center justify-center gap-1.5 rounded-[2px] border border-[#d9d9d9] bg-white px-3 text-sm font-normal text-[#595959] transition hover:border-[#4096ff] hover:text-[#1677ff]";
 }
 
+export function answerRangeButtonClassName() {
+  return "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[2px] border border-[#1677ff] bg-[#1677ff] px-3 text-sm font-normal text-white shadow-sm transition hover:border-[#4096ff] hover:bg-[#4096ff] disabled:cursor-not-allowed disabled:border-[#d9d9d9] disabled:bg-[#f5f5f5] disabled:text-[#bfbfbf] disabled:shadow-none";
+}
+
 export function AddButton({
   children = "新建",
   onClick,

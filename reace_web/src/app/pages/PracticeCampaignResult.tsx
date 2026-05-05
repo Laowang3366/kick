@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { handleLoginRequiredError } from "../lib/auth-required";
 import { formatDateTime, formatDuration } from "../lib/format";
 import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
@@ -50,7 +51,9 @@ export function PracticeCampaignResult() {
         },
       });
     } catch (error: any) {
-      toast.error(error?.message || "开始答题失败");
+      if (!handleLoginRequiredError(error, "请先登录后再开始答题")) {
+        toast.error(error?.message || "开始答题失败");
+      }
     }
   };
 

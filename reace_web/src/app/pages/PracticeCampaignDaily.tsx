@@ -3,6 +3,7 @@ import { ArrowLeft, Award, CheckCircle2, Clock3, Gift, Play, Sparkles } from "lu
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { handleLoginRequiredError, showLoginRequiredToast } from "../lib/auth-required";
 import { startCampaignLevel } from "../lib/practice-campaign";
 import { practiceKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
@@ -19,7 +20,7 @@ export function PracticeCampaignDaily() {
 
   const handleStartDaily = async () => {
     if (!isAuthenticated) {
-      navigate("/auth");
+      showLoginRequiredToast("请先登录后再开始每日挑战");
       return;
     }
     if (!challenge?.levelId) {
@@ -39,7 +40,9 @@ export function PracticeCampaignDaily() {
         },
       });
     } catch (error: any) {
-      toast.error(error?.message || "开始答题失败");
+      if (!handleLoginRequiredError(error, "请先登录后再开始每日挑战")) {
+        toast.error(error?.message || "开始答题失败");
+      }
     }
   };
 

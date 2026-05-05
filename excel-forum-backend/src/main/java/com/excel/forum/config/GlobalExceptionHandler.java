@@ -29,6 +29,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalStateException(IllegalStateException e) {
+        log.warn("状态异常: {}", e.getMessage());
+        if (isLoginRequired(e.getMessage())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "未登录"));
+        }
+        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<Map<String, String>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
         return ResponseEntity.badRequest().body(Map.of("message", "文件大小超过限制"));
@@ -72,5 +81,9 @@ public class GlobalExceptionHandler {
         log.error("未处理异常类型: {}", e.getClass().getName());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("message", "服务器内部错误，请稍后重试"));
+    }
+
+    private boolean isLoginRequired(String message) {
+        return "未登录".equals(message) || "请先登录".equals(message);
     }
 }

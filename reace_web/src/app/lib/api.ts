@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { isLoginRequiredResponse } from "./auth-errors";
 import { clearStoredSession, getStoredToken } from "./session-store";
 
 const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -69,12 +70,24 @@ async function apiRequestInternal<T>(path: string, options: RequestOptions, retr
       await delay(300 * (retryCount + 1));
       return apiRequestInternal<T>(path, options, retryCount + 1);
     }
-    if (response.status === 401) {
+    const message = normalizeErrorMessage(data, `请求失败(${response.status})`);
+    const loginRequired = isLoginRequiredResponse(response.status, message, data);
+    if (loginRequired) {
       clearStoredSession();
     }
-    const message = normalizeErrorMessage(data, `请求失败(${response.status})`);
     if (!silent) {
-      toast.error(message);
+      if (loginRequired) {
+        toast.info("请先登录后继续操作", {
+          action: {
+            label: "去登录",
+            onClick: () => {
+              window.location.assign("/auth");
+            },
+          },
+        });
+      } else {
+        toast.error(message);
+      }
     }
     throw new ApiError(message, response.status, data);
   }

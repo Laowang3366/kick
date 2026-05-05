@@ -16,7 +16,7 @@ export async function startCampaignLevel(levelId: number | string, questionId?: 
     throw new Error("当前关卡未绑定题目");
   }
 
-  const result = await api.post<any>(`/api/practice/campaign/levels/${normalizedLevelId}/start`, { attemptType: "campaign" });
+  const result = await api.post<any>(`/api/practice/campaign/levels/${normalizedLevelId}/start`, { attemptType: "campaign" }, { silent: true });
   return {
     questionId: resolvedQuestionId,
     attemptId: result?.attemptId,

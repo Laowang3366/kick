@@ -19,6 +19,7 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { LitePageFrame } from "../components/LiteSurface";
 import { api } from "../lib/api";
+import { handleLoginRequiredError } from "../lib/auth-required";
 import {
   canExpandChapterQuestions,
   getCampaignLevelStatusLabel,
@@ -68,7 +69,9 @@ export function PracticeCampaignHub() {
         },
       });
     } catch (error: any) {
-      toast.error(error?.message || "开始答题失败");
+      if (!handleLoginRequiredError(error, "请先登录后再开始答题")) {
+        toast.error(error?.message || "开始答题失败");
+      }
     } finally {
       setStartingLevelId(null);
     }

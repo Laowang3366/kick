@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -20,10 +21,13 @@ import java.util.Map;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -91,5 +95,33 @@ class PracticeControllerTest {
         mockMvc.perform(get("/api/practice/question-list").requestAttr("userId", 7L))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist(HttpHeaders.CACHE_CONTROL));
+    }
+
+    @Test
+    void submitPracticeReturnsUnauthorizedWhenServiceReportsNotLoggedIn() throws Exception {
+        when(practiceService.submitPractice(eq(7L), any())).thenThrow(new IllegalStateException("未登录"));
+
+        mockMvc.perform(post("/api/practice/submit")
+                        .requestAttr("userId", 7L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"answers":[]}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("未登录"));
+    }
+
+    @Test
+    void submitPracticeQuestionReturnsUnauthorizedWhenServiceReportsNotLoggedIn() throws Exception {
+        when(practiceService.submitPracticeQuestion(eq(7L), any())).thenThrow(new IllegalArgumentException("未登录"));
+
+        mockMvc.perform(post("/api/practice/submissions")
+                        .requestAttr("userId", 7L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"投稿题"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("未登录"));
     }
 }
