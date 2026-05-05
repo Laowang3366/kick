@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 21:48 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 后台 Excel 模板题答案预览与前台闯关结果解析修复；普通公式题开启“检测函数公式”时，后台答案预览会标出非公式单元格并阻止保存，避免标准答案混入数值单元格；前台闯关结果页新增答案解析区，展示正确答案、判题明细和题目解析，失败后也能看到原因。
+- 验证：本地先新增 `excel-answer-preview` 与 `practice-campaign-result-ui` 回归测试并确认缺失 helper 时失败；实现后 `npx vitest run src/app/lib/excel-answer-preview.test.ts src/app/lib/practice-campaign-result-ui.test.ts src/app/admin/shared.test.ts` 通过 6 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；生产部署后服务器仓库 `6767f31` 且 worktree clean，`kick-backend.service` 与 `nginx` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/admin/questions`、`/practice`、`/practice/result/1` 均返回 200；线上 `PracticeCampaignResult` asset 包含“答案解析”，`AdminConsole` asset 包含“缺少公式”提示。
+- 部署：本地提交 `6767f31` 已推送到 `origin/codex/online-snapshot-20260417`；公共生产机 `/www/wwwroot/kick-deploy/repo` 通过标准 `bash scripts/deploy/production-deploy.sh` 从 GitHub 快进并发布到 `https://www.excelcc.cn/`；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260505-214538`
+- 备注：发布脚本重启后端后健康检查前 3 次短暂出现 `127.0.0.1:8080 Connection refused`，第 4 次通过，服务最终 active 且公网复验正常；前端构建仍提示既有 Univer/语言包大 chunk 警告，本次未调整依赖拆包。
+
 ## 2026-05-05 21:28 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 后台 Excel 模板题编辑弹窗布局回归修复；上一版去除空白后，弹窗内容区因 `flex-1 basis-0` 在无固定高度、仅有 `max-height` 的容器内被压扁，本次将后台表单弹窗 body 改为按内容自然展开、超过弹窗高度后滚动，避免只露出“题目标题”和底部按钮。
