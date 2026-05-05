@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Award, CheckCircle2, ChevronRight, Clock3, RotateCcw, Sparkles, Target, XCircle } from "lucide-react";
+import { ArrowLeft, Award, CheckCircle2, ChevronRight, Clock3, FileCode2, Lightbulb, RotateCcw, Sparkles, Target, XCircle } from "lucide-react";
 import { motion } from "motion/react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { handleLoginRequiredError } from "../lib/auth-required";
 import { formatDateTime, formatDuration } from "../lib/format";
 import { startCampaignLevel } from "../lib/practice-campaign";
+import { getCampaignResultAnswerReviews } from "../lib/practice-campaign-result-ui";
 import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignResult() {
@@ -32,6 +33,7 @@ export function PracticeCampaignResult() {
   const record = recordQuery.data;
   const passed = record ? (record.correctCount || 0) > 0 : passedFromState;
   const stars = record ? Math.max(((record.correctCount || 0) > 0 ? 1 : 0), starsFromState) : starsFromState;
+  const answerReviews = getCampaignResultAnswerReviews(record);
 
   const handleStartLevel = async (levelId?: number | null) => {
     if (!levelId) {
@@ -131,6 +133,96 @@ export function PracticeCampaignResult() {
             </div>
           </div>
 
+          <div className="mt-8 rounded-[28px] border border-slate-200 bg-white px-5 py-5 text-left shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+                <Lightbulb size={17} />
+              </div>
+              <div>
+                <div className="text-lg font-black text-slate-900">答案解析</div>
+                <div className="text-xs font-bold text-slate-400">查看标准答案、判题明细和题目解析</div>
+              </div>
+            </div>
+
+            {recordQuery.isLoading ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
+                正在加载答案解析...
+              </div>
+            ) : answerReviews.length > 0 ? (
+              <div className="space-y-4">
+                {answerReviews.map((answer, index) => (
+                  <div key={answer.id} className={`rounded-2xl border p-4 ${answer.isCorrect ? "border-emerald-100 bg-emerald-50/40" : "border-rose-100 bg-rose-50/40"}`}>
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-black ${answer.isCorrect ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                            {index + 1}
+                          </span>
+                          <div className="text-sm font-black text-slate-900">{answer.title}</div>
+                        </div>
+                        <div className="mt-2 text-xs font-bold text-slate-400">{answer.questionType || "excel_template"}</div>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${answer.isCorrect ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                        {answer.isCorrect ? "正确" : "错误"}
+                      </span>
+                    </div>
+
+                    {answer.correctAnswer !== undefined && answer.correctAnswer !== null ? (
+                      <div className="rounded-xl border border-white/80 bg-white/80 p-3">
+                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-600">
+                          <CheckCircle2 size={13} />
+                          正确答案
+                        </div>
+                        {renderCorrectAnswerSummary(answer.correctAnswer)}
+                      </div>
+                    ) : null}
+
+                    {answer.hasGradingRules ? (
+                      <div className="mt-3 rounded-xl border border-white/80 bg-white/80 p-3">
+                        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
+                          <FileCode2 size={13} />
+                          判题明细
+                        </div>
+                        <div className="space-y-2">
+                          {answer.gradingDetail.ruleResults.map((rule: any, ruleIndex: number) => (
+                            <div key={`${answer.id}-rule-${ruleIndex}`} className={`rounded-lg border px-3 py-2 text-sm ${rule.passed ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-rose-100 bg-rose-50 text-rose-700"}`}>
+                              <div className="font-bold">{rule.label || rule.target || `规则 ${ruleIndex + 1}`}</div>
+                              <div className="mt-1 text-xs opacity-80">{rule.message || (rule.passed ? "校验通过" : "未通过")}</div>
+                              {(rule.expected !== undefined || rule.actual !== undefined) && (
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                  <div className="rounded-lg border border-white/60 bg-white/80 p-3">
+                                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] opacity-70">预期</div>
+                                    {renderRuleValue(rule.expected, rule.passed ? "emerald" : "rose")}
+                                  </div>
+                                  <div className="rounded-lg border border-white/60 bg-white/80 p-3">
+                                    <div className="mb-2 text-[11px] font-black uppercase tracking-[0.16em] opacity-70">实际</div>
+                                    {renderRuleValue(rule.actual, rule.passed ? "emerald" : "rose")}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3 rounded-xl border border-teal-100 bg-teal-50/70 p-3">
+                      <div className="mb-1 flex items-center gap-1.5 text-xs font-black text-teal-800">
+                        <Lightbulb size={14} />
+                        解析
+                      </div>
+                      <div className="text-sm leading-7 text-teal-900/80">{answer.explanation || "暂无解析"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-400">
+                暂无答案解析，请稍后刷新结果页。
+              </div>
+            )}
+          </div>
+
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             {nextLevelId ? (
               <button
@@ -162,6 +254,94 @@ export function PracticeCampaignResult() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatReviewValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function renderReviewMatrix(matrix: unknown[][] | undefined, tone: "emerald" | "slate" | "rose" = "slate") {
+  if (!Array.isArray(matrix) || matrix.length === 0) {
+    return <div className="text-xs text-slate-400">暂无数据</div>;
+  }
+
+  const toneClassName = {
+    emerald: "border-emerald-200 bg-emerald-50/70 text-emerald-900",
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    rose: "border-rose-200 bg-rose-50/70 text-rose-900",
+  }[tone];
+
+  return (
+    <div className="space-y-2">
+      {matrix.map((row, rowIndex) => (
+        <div key={`review-row-${rowIndex}`} className="flex flex-wrap gap-2">
+          {row.map((cell, cellIndex) => (
+            <div
+              key={`review-cell-${rowIndex}-${cellIndex}`}
+              className={`min-w-[72px] rounded-lg border px-2.5 py-2 text-xs font-mono shadow-sm ${toneClassName}`}
+            >
+              {formatReviewValue(cell) || <span className="text-slate-300">空</span>}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function renderRuleValue(value: unknown, tone: "emerald" | "slate" | "rose" = "slate") {
+  if (Array.isArray(value)) {
+    return renderReviewMatrix(value as unknown[][], tone);
+  }
+  return <div className="break-all text-xs font-mono">{formatReviewValue(value) || "空"}</div>;
+}
+
+function hasAnyFormula(formulas: string[][] | undefined) {
+  return Boolean(
+    formulas?.some((row) => row.some((cell) => typeof cell === "string" && cell.trim().length > 0)),
+  );
+}
+
+function renderCorrectAnswerSummary(correctAnswer: any) {
+  const rangeValues = Object.entries(correctAnswer?.rangeValues || {});
+  const rangeFormulas = correctAnswer?.rangeFormulas || {};
+
+  if (!rangeValues.length) {
+    return <div className="text-sm text-emerald-700">按后台答案区域规则校验</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {rangeValues.map(([target, values]) => {
+        const formulas = rangeFormulas[target] as string[][] | undefined;
+        return (
+          <div key={target} className="rounded-xl border border-emerald-100 bg-white/80 p-3">
+            <div className="mb-3 w-fit rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-black text-emerald-700">
+              {target}
+            </div>
+            <div className="space-y-3">
+              {renderReviewMatrix(values as unknown[][], "emerald")}
+              {hasAnyFormula(formulas) ? (
+                <div>
+                  <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                    标准公式
+                  </div>
+                  {renderReviewMatrix((formulas || []).map((row) => row.map((cell) => cell ? `=${cell}` : "")), "slate")}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

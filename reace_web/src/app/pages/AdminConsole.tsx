@@ -39,11 +39,14 @@ import {
   columnIndexToLabel,
   detectFormulaAnswerRegion,
   extractRangeAnswerSnapshot,
+  findMissingFormulaCellRefs,
+  formatAnswerPreviewCellDisplay,
   ExcelRangeSelection,
   ExcelWorkbookSnapshot,
   normalizeSelection,
   parseRangeRef,
   selectionToRangeRef,
+  toCellRef,
 } from "../lib/excel";
 import { normalizeImageUrl } from "../lib/mappers";
 import { adminKeys, practiceKeys } from "../lib/query-keys";
@@ -2447,6 +2450,15 @@ export function AdminQuestions() {
       toast.error("标准答案存在空白单元格，请补全答题区域内的值");
       return;
     }
+    const missingFormulaCells = !isDynamicArrayMode && Boolean(form.checkFormula)
+      ? findMissingFormulaCellRefs(answerSnapshot, resolvedRange)
+      : [];
+    if (missingFormulaCells.length > 0) {
+      const visibleCells = missingFormulaCells.slice(0, 6).join("、");
+      const suffix = missingFormulaCells.length > 6 ? ` 等 ${missingFormulaCells.length} 个单元格` : "";
+      toast.error(`检测函数公式已开启，${visibleCells}${suffix} 必须填写公式`);
+      return;
+    }
     const payload = {
       title: form.title,
       type: "excel_template",
@@ -2693,12 +2705,16 @@ export function AdminQuestions() {
   const answerPreviewText = answerPreview.values.flatMap((valueRow, rowIndex) =>
     valueRow.map((value, colIndex) => {
       const formula = answerPreview.formulas?.[rowIndex]?.[colIndex];
-      return formula ? `=${formula}` : String(value ?? "");
+      return formatAnswerPreviewCellDisplay(value, formula);
     }),
   ).filter((item) => item.trim().length > 0).join(" | ");
   const answerPreviewHasEmptyCell = answerPreview.values.some((row) =>
     row.some((value) => String(value ?? "").trim().length === 0),
   );
+  const missingFormulaCellRefs = !isDynamicArrayMode && Boolean(form.checkFormula)
+    ? findMissingFormulaCellRefs(answerPreview, previewRangeRef)
+    : [];
+  const missingFormulaCellRefSet = new Set(missingFormulaCellRefs);
   const previewColumnLabels = previewRange
     ? Array.from({ length: previewRange.endCol - previewRange.startCol + 1 }, (_, index) => columnIndexToLabel(previewRange.startCol + index))
     : [];
@@ -3063,6 +3079,11 @@ export function AdminQuestions() {
                   {answerPreviewHasEmptyCell && (
                     <div className="text-xs font-medium text-amber-600">答题区域中存在空白单元格，保存前请补全标准答案。</div>
                   )}
+                  {missingFormulaCellRefs.length > 0 && (
+                    <div className="text-xs font-medium text-rose-600">
+                      检测函数公式已开启，{missingFormulaCellRefs.slice(0, 6).join("、")}{missingFormulaCellRefs.length > 6 ? ` 等 ${missingFormulaCellRefs.length} 个单元格` : ""} 不是公式。
+                    </div>
+                  )}
                 </div>
               </Field>
               {isDynamicArrayMode ? (
@@ -3291,11 +3312,13 @@ export function AdminQuestions() {
                         </th>
                         {row.map((value, colIndex) => {
                           const formula = answerPreview.formulas?.[rowIndex]?.[colIndex];
-                          const displayValue = formula ? `=${formula}` : String(value ?? "");
+                          const cellRef = previewRange ? toCellRef(previewRange.startRow + rowIndex, previewRange.startCol + colIndex) : "";
+                          const missingFormula = missingFormulaCellRefSet.has(cellRef);
+                          const displayValue = formatAnswerPreviewCellDisplay(value, formula);
                           return (
                             <td
                               key={`preview-cell-${rowIndex}-${colIndex}`}
-                              className={`border-b border-r border-slate-200 px-3 py-2 align-top ${!displayValue.trim() ? "bg-amber-50/70" : "bg-white"}`}
+                              className={`border-b border-r border-slate-200 px-3 py-2 align-top ${!displayValue.trim() ? "bg-amber-50/70" : missingFormula ? "bg-rose-50/70" : "bg-white"}`}
                             >
                               <div className="flex flex-col gap-1">
                                 {formula && (
@@ -3303,7 +3326,12 @@ export function AdminQuestions() {
                                     fx
                                   </span>
                                 )}
-                                <span className={`break-all font-medium ${formula ? "text-cyan-700" : "text-slate-700"} ${!displayValue.trim() ? "text-amber-700" : ""}`}>
+                                {missingFormula && (
+                                  <span className="inline-flex w-fit rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-black text-white">
+                                    缺少公式
+                                  </span>
+                                )}
+                                <span className={`break-all font-medium ${formula ? "text-cyan-700" : missingFormula ? "text-rose-700" : "text-slate-700"} ${!displayValue.trim() ? "text-amber-700" : ""}`}>
                                   {displayValue || "空"}
                                 </span>
                               </div>

@@ -234,6 +234,35 @@ export function extractRangeAnswerSnapshot(
   return { values, formulas };
 }
 
+export function formatAnswerPreviewCellDisplay(value: unknown, formula: string | null | undefined) {
+  const normalizedFormula = typeof formula === "string" ? formula.trim() : "";
+  if (normalizedFormula) return `=${normalizedFormula}`;
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+export function findMissingFormulaCellRefs(
+  answerSnapshot: ExcelAnswerSnapshot | null | undefined,
+  rangeRef: string | null | undefined,
+) {
+  const range = rangeRef ? parseRangeRef(rangeRef) : null;
+  if (!answerSnapshot || !range) return [];
+
+  const missingRefs: string[] = [];
+  for (let rowOffset = 0; rowOffset <= range.endRow - range.startRow; rowOffset += 1) {
+    for (let colOffset = 0; colOffset <= range.endCol - range.startCol; colOffset += 1) {
+      const value = answerSnapshot.values?.[rowOffset]?.[colOffset];
+      const formula = answerSnapshot.formulas?.[rowOffset]?.[colOffset];
+      const hasValue = value !== null && value !== undefined && String(value).trim().length > 0;
+      const hasFormulaValue = typeof formula === "string" && formula.trim().length > 0;
+      if (hasValue && !hasFormulaValue) {
+        missingRefs.push(toCellRef(range.startRow + rowOffset, range.startCol + colOffset));
+      }
+    }
+  }
+  return missingRefs;
+}
+
 export function isCellInSelection(row: number, col: number, selection: ExcelRangeSelection | null | undefined) {
   return !!selection
     && row >= selection.startRow
