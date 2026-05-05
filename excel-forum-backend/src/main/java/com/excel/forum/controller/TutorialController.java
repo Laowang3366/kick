@@ -2,6 +2,7 @@ package com.excel.forum.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.excel.forum.config.PublicCacheHeaders;
+import com.excel.forum.config.PublicReadCache;
 import com.excel.forum.entity.PracticeChapter;
 import com.excel.forum.entity.Question;
 import com.excel.forum.entity.TutorialArticle;
@@ -37,10 +38,21 @@ public class TutorialController {
     private final TutorialArticleQuestionRelService tutorialArticleQuestionRelService;
     private final PracticeChapterMapper practiceChapterMapper;
     private final QuestionService questionService;
+    private final PublicReadCache publicReadCache;
 
     @GetMapping("/home")
     public ResponseEntity<?> getHomeTutorials() {
-        List<TutorialCategory> categories = tutorialCategoryService.listWithArticleCount(true);
+        return ResponseEntity.ok()
+                .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
+                .body(publicReadCache.get("tutorials:home", this::buildHomeTutorialsPayload));
+    }
+
+    private Map<String, Object> buildHomeTutorialsPayload() {
+        QueryWrapper<TutorialCategory> categoryQuery = new QueryWrapper<>();
+        categoryQuery.eq("enabled", true)
+                .orderByAsc("sort_order")
+                .orderByAsc("id");
+        List<TutorialCategory> categories = tutorialCategoryService.list(categoryQuery);
         Map<Long, List<TutorialArticle>> articlesByCategoryId = tutorialArticleService.groupByCategoryIds(
                 categories.stream().map(TutorialCategory::getId).filter(Objects::nonNull).toList(),
                 true
@@ -89,9 +101,7 @@ public class TutorialController {
                     return result;
                 })
                 .collect(Collectors.toList());
-        return ResponseEntity.ok()
-                .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
-                .body(Map.of("categories", records));
+        return Map.of("categories", records);
     }
 
     private Map<String, Object> toArticleMap(

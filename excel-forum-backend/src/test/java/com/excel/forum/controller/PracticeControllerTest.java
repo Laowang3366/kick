@@ -1,5 +1,6 @@
 package com.excel.forum.controller;
 
+import com.excel.forum.config.PublicReadCache;
 import com.excel.forum.service.ExcelTemplateGradingService;
 import com.excel.forum.service.PracticeService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,6 +17,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -35,7 +38,11 @@ class PracticeControllerTest {
 
     @BeforeEach
     void setUp() {
-        PracticeController controller = new PracticeController(practiceService, excelTemplateGradingService);
+        PracticeController controller = new PracticeController(
+                practiceService,
+                excelTemplateGradingService,
+                new PublicReadCache()
+        );
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
 
@@ -52,6 +59,22 @@ class PracticeControllerTest {
                         containsString("max-age=30")
                 )))
                 .andExpect(jsonPath("$.categories[0].id").value(1));
+    }
+
+    @Test
+    void categoriesReusesShortLivedServerCache() throws Exception {
+        when(practiceService.getPracticeCategories()).thenReturn(Map.of(
+                "categories", List.of(Map.of("id", 1L, "name", "函数基础"))
+        ));
+
+        mockMvc.perform(get("/api/practice/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[0].id").value(1));
+        mockMvc.perform(get("/api/practice/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[0].id").value(1));
+
+        verify(practiceService, times(1)).getPracticeCategories();
     }
 
     @Test

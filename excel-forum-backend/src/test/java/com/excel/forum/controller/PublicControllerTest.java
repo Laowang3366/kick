@@ -1,7 +1,10 @@
 package com.excel.forum.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.excel.forum.config.GlobalExceptionHandler;
 import com.excel.forum.config.ExperienceProperties;
+import com.excel.forum.config.PublicReadCache;
+import com.excel.forum.entity.User;
 import com.excel.forum.mapper.PracticeAnswerMapper;
 import com.excel.forum.mapper.PracticeRecordMapper;
 import com.excel.forum.service.CategoryService;
@@ -71,7 +74,8 @@ class PublicControllerTest {
                 practiceRecordMapper,
                 practiceAnswerMapper,
                 experienceLevelRuleService,
-                experienceProperties
+                experienceProperties,
+                new PublicReadCache()
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
@@ -119,6 +123,33 @@ class PublicControllerTest {
         verify(practiceAnswerMapper, never()).selectList(any());
         verify(practiceRecordMapper).selectObjs(any());
         verify(practiceRecordMapper, never()).selectList(any());
+    }
+
+    @Test
+    void homeOverviewReusesShortLivedServerCache() throws Exception {
+        when(categoryService.count()).thenReturn(8L);
+        when(postService.count(any())).thenReturn(2L);
+        when(userService.count(any())).thenReturn(1L);
+        when(questionService.count(any())).thenReturn(5L);
+        when(practiceAnswerMapper.selectCount(any())).thenReturn(10L, 7L);
+        when(practiceRecordMapper.selectObjs(any())).thenReturn(List.of(11L, 12L, 13L));
+        when(userService.list(org.mockito.ArgumentMatchers.<com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.excel.forum.entity.User>>any()))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/public/home-overview"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.practiceStats.passRate").value(70));
+        mockMvc.perform(get("/api/public/home-overview"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.practiceStats.passRate").value(70));
+
+        verify(categoryService, times(1)).count();
+        verify(postService, times(1)).count(any());
+        verify(userService, times(2)).count(any());
+        verify(questionService, times(1)).count(any());
+        verify(practiceAnswerMapper, times(2)).selectCount(any());
+        verify(practiceRecordMapper, times(1)).selectObjs(any());
+        verify(userService, times(1)).list(org.mockito.ArgumentMatchers.<QueryWrapper<User>>any());
     }
 
     @Test
