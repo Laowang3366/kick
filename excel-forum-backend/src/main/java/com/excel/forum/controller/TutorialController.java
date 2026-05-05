@@ -16,11 +16,14 @@ import com.excel.forum.service.TutorialArticleChapterRelService;
 import com.excel.forum.service.TutorialArticleQuestionRelService;
 import com.excel.forum.service.TutorialCategoryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +50,14 @@ public class TutorialController {
                 .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
                 .body(publicJsonCache.get("tutorials:home", this::buildHomeTutorialsPayload));
+    }
+
+    @GetMapping("/articles/{id}")
+    public ResponseEntity<String> getArticle(@PathVariable Long id) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
+                .body(publicJsonCache.get("tutorials:article:" + id, () -> buildArticlePayload(id)));
     }
 
     private Map<String, Object> buildHomeTutorialsPayload() {
@@ -90,7 +101,8 @@ public class TutorialController {
                                     chapterRelMap.getOrDefault(article.getId(), List.of()),
                                     chapterMap,
                                     questionRelMap.getOrDefault(article.getId(), List.of()),
-                                    questionMap
+                                    questionMap,
+                                    false
                             ))
                             .collect(Collectors.toList());
                     Map<String, Object> result = new HashMap<>();
@@ -106,12 +118,39 @@ public class TutorialController {
         return Map.of("categories", records);
     }
 
+    private Map<String, Object> buildArticlePayload(Long id) {
+        TutorialArticle article = tutorialArticleService.getOne(new QueryWrapper<TutorialArticle>()
+                .eq("id", id)
+                .eq("enabled", true), false);
+        if (article == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Tutorial article not found");
+        }
+        List<TutorialArticleChapterRel> chapterRelations = tutorialArticleChapterRelService.listByArticleIds(List.of(id));
+        List<TutorialArticleQuestionRel> questionRelations = tutorialArticleQuestionRelService.listByArticleIds(List.of(id));
+        Map<Long, PracticeChapter> chapterMap = practiceChapterMapper.selectList(new QueryWrapper<PracticeChapter>()
+                        .eq("enabled", true)
+                        .orderByAsc("sort_order")
+                        .orderByAsc("id"))
+                .stream()
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(PracticeChapter::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
+        Map<Long, Question> questionMap = questionService.list(new QueryWrapper<Question>()
+                        .eq("enabled", true)
+                        .eq("type", "excel_template")
+                        .orderByAsc("id"))
+                .stream()
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(Question::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
+        return Map.of("article", toArticleMap(article, chapterRelations, chapterMap, questionRelations, questionMap, true));
+    }
+
     private Map<String, Object> toArticleMap(
             TutorialArticle article,
             List<TutorialArticleChapterRel> chapterRelations,
             Map<Long, PracticeChapter> chapterMap,
             List<TutorialArticleQuestionRel> questionRelations,
-            Map<Long, Question> questionMap
+            Map<Long, Question> questionMap,
+            boolean includeContent
     ) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", article.getId());
@@ -119,7 +158,9 @@ public class TutorialController {
         result.put("title", article.getTitle());
         result.put("summary", article.getSummary() == null ? "" : article.getSummary());
         result.put("oneLineUsage", defaultText(article.getOneLineUsage(), article.getSummary()));
-        result.put("content", article.getContent() == null ? "" : article.getContent());
+        if (includeContent) {
+            result.put("content", article.getContent() == null ? "" : article.getContent());
+        }
         result.put("sortOrder", article.getSortOrder() == null ? 0 : article.getSortOrder());
         result.put("audienceTrack", defaultText(article.getAudienceTrack(), "general"));
         result.put("difficulty", defaultText(article.getDifficulty(), "basic"));

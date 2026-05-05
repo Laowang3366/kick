@@ -81,6 +81,7 @@ export const homeKeys = {
 
 export const tutorialKeys = {
   home: () => ["tutorials", "home"] as const,
+  article: (id: number | string) => ["tutorials", "article", id] as const,
 };
 
 export const templateKeys = {

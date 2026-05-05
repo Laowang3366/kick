@@ -46,11 +46,12 @@ export function TutorialCenter() {
         const categoryMatched = [category.name, category.description]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(keyword));
-        const articles = (category.articles || []).filter((article: any) =>
-          [article.title, article.summary, article.content]
+        const articles = (category.articles || []).filter((article: any) => {
+          const tags = Array.isArray(article.functionTags) ? article.functionTags : [article.functionTags];
+          return [article.title, article.summary, article.oneLineUsage, ...tags]
             .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(keyword))
-        );
+            .some((value) => String(value).toLowerCase().includes(keyword));
+        });
         if (categoryMatched) {
           return category;
         }
@@ -105,6 +106,27 @@ export function TutorialCenter() {
   const mobileReaderNextArticle = mobileReaderArticleIndex >= 0 && mobileReaderArticleIndex < mobileReaderArticles.length - 1
     ? mobileReaderArticles[mobileReaderArticleIndex + 1]
     : null;
+  const requestedArticleId = mobileReaderArticle?.id || activeArticle?.id || null;
+  const articleDetailQuery = useQuery({
+    queryKey: tutorialKeys.article(requestedArticleId || "none"),
+    queryFn: () => api.get<any>(`/api/tutorials/articles/${requestedArticleId}`, { silent: true }),
+    enabled: Boolean(requestedArticleId),
+  });
+  const articleDetail = articleDetailQuery.data?.article || null;
+  const activeArticleWithContent = useMemo(() => {
+    if (!activeArticle) return null;
+    if (articleDetail?.id === activeArticle.id) {
+      return { ...activeArticle, ...articleDetail };
+    }
+    return { ...activeArticle, contentLoading: articleDetailQuery.isFetching };
+  }, [activeArticle, articleDetail, articleDetailQuery.isFetching]);
+  const mobileReaderArticleWithContent = useMemo(() => {
+    if (!mobileReaderArticle) return null;
+    if (articleDetail?.id === mobileReaderArticle.id) {
+      return { ...mobileReaderArticle, ...articleDetail };
+    }
+    return { ...mobileReaderArticle, contentLoading: articleDetailQuery.isFetching };
+  }, [mobileReaderArticle, articleDetail, articleDetailQuery.isFetching]);
   const totalArticles = categories.reduce((sum: number, category: any) => sum + (category.articles?.length || 0), 0);
   const mobileReaderOpen = shouldRenderTutorialReaderOverlay({ isMobile, selectedArticle: mobileReaderArticle });
   const shouldShowTutorialCatalog = shouldRenderTutorialCatalog({ isMobile, readerOpen: mobileReaderOpen });
@@ -183,6 +205,10 @@ export function TutorialCenter() {
             className="home-tutorial-content space-y-5 text-[16px] leading-8 text-slate-700"
             dangerouslySetInnerHTML={{ __html: article.content }}
           />
+        ) : article.contentLoading ? (
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-400">
+            教程内容加载中...
+          </div>
         ) : (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm text-slate-400">
             当前教程暂无正文内容。
@@ -388,9 +414,9 @@ export function TutorialCenter() {
                 </div>
 
                 <div className="px-5 py-7 sm:px-8">
-                  {activeArticle ? (
+                  {activeArticleWithContent ? (
                     renderArticleContent({
-                      article: activeArticle,
+                      article: activeArticleWithContent,
                       category: activeCategory,
                       articleIndex: activeArticleIndex,
                       articles: activeArticles,
@@ -517,7 +543,7 @@ export function TutorialCenter() {
           <article className="my-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="px-4 py-6">
               {renderArticleContent({
-                article: mobileReaderArticle,
+                article: mobileReaderArticleWithContent,
                 category: mobileReaderCategory,
                 articleIndex: mobileReaderArticleIndex,
                 articles: mobileReaderArticles,

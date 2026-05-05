@@ -85,6 +85,7 @@ class TutorialControllerTest {
         article.setId(10L);
         article.setCategoryId(1L);
         article.setTitle("SUMIF");
+        article.setContent("<p>large tutorial body</p>");
 
         when(tutorialCategoryService.list(org.mockito.ArgumentMatchers.<QueryWrapper<TutorialCategory>>any())).thenReturn(List.of(category));
         when(tutorialArticleService.groupByCategoryIds(any(), eq(true))).thenReturn(Map.of(1L, List.of(article)));
@@ -101,6 +102,7 @@ class TutorialControllerTest {
                 )))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(startsWith("{\"categories\"")))
+                .andExpect(jsonPath("$.categories[0].articles[0].content").doesNotExist())
                 .andExpect(jsonPath("$.categories[0].articles[0].title").value("SUMIF"));
         mockMvc.perform(get("/api/tutorials/home"))
                 .andExpect(status().isOk())
@@ -109,6 +111,42 @@ class TutorialControllerTest {
         verify(tutorialCategoryService, times(1)).list(org.mockito.ArgumentMatchers.<QueryWrapper<TutorialCategory>>any());
         verify(tutorialCategoryService, never()).listWithArticleCount(true);
         verify(tutorialArticleService, times(1)).groupByCategoryIds(any(), eq(true));
+        verify(tutorialArticleChapterRelService, times(1)).listByArticleIds(any());
+        verify(tutorialArticleQuestionRelService, times(1)).listByArticleIds(any());
+        verify(practiceChapterMapper, times(1)).selectList(any());
+        verify(questionService, times(1)).list(org.mockito.ArgumentMatchers.<QueryWrapper<Question>>any());
+    }
+
+    @Test
+    void articleDetailReturnsContentWithShortLivedCache() throws Exception {
+        TutorialArticle article = new TutorialArticle();
+        article.setId(10L);
+        article.setCategoryId(1L);
+        article.setTitle("SUMIF");
+        article.setContent("<p>large tutorial body</p>");
+
+        when(tutorialArticleService.getOne(org.mockito.ArgumentMatchers.<QueryWrapper<TutorialArticle>>any(), eq(false)))
+                .thenReturn(article);
+        when(tutorialArticleChapterRelService.listByArticleIds(any())).thenReturn(List.of());
+        when(tutorialArticleQuestionRelService.listByArticleIds(any())).thenReturn(List.of());
+        when(practiceChapterMapper.selectList(any())).thenReturn(List.of());
+        when(questionService.list(org.mockito.ArgumentMatchers.<QueryWrapper<Question>>any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/tutorials/articles/10"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, allOf(
+                        containsString("public"),
+                        containsString("max-age=30")
+                )))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(startsWith("{\"article\"")))
+                .andExpect(jsonPath("$.article.content").value("<p>large tutorial body</p>"));
+        mockMvc.perform(get("/api/tutorials/articles/10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.article.content").value("<p>large tutorial body</p>"));
+
+        verify(tutorialArticleService, times(1))
+                .getOne(org.mockito.ArgumentMatchers.<QueryWrapper<TutorialArticle>>any(), eq(false));
         verify(tutorialArticleChapterRelService, times(1)).listByArticleIds(any());
         verify(tutorialArticleQuestionRelService, times(1)).listByArticleIds(any());
         verify(practiceChapterMapper, times(1)).selectList(any());
