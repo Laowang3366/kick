@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Award, ChevronDown, ChevronRight, Clock3, FileSpreadsheet, Lock, Map, Play, Search } from "lucide-react";
+import { ArrowLeft, Award, ChevronDown, ChevronRight, Clock3, FileSpreadsheet, Lock, Play, Search } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -23,12 +23,14 @@ export function PracticeCampaignChapters() {
   const chaptersQuery = useQuery({
     queryKey: practiceKeys.campaignChapters(),
     queryFn: () => api.get<any>("/api/practice/campaign/chapters", { silent: true }),
+    refetchOnMount: "always",
   });
 
   const chapterDetailQuery = useQuery({
     queryKey: practiceKeys.campaignChapter(activeChapterId || "none"),
     enabled: Boolean(activeChapterId),
     queryFn: () => api.get<any>(`/api/practice/campaign/chapters/${activeChapterId}`, { silent: true }),
+    refetchOnMount: "always",
   });
 
   const chapters = chaptersQuery.data?.chapters || [];
@@ -128,16 +130,18 @@ export function PracticeCampaignChapters() {
 
   return (
     <LitePageFrame className="max-w-[1460px]">
+      {initialChapterId ? (
       <div className="mb-2">
         <button
           type="button"
-          onClick={() => navigate("/practice")}
+          onClick={() => navigate("/practice/chapters")}
           className="inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-slate-900"
         >
           <ArrowLeft size={16} />
-          返回练习大厅
+          返回题目列表
         </button>
       </div>
+      ) : null}
 
       <section className="overflow-hidden rounded-[34px] border border-slate-200/80 bg-white/88 shadow-[0_18px_48px_rgba(15,23,42,0.05)] backdrop-blur-xl">
         <div className="grid gap-0 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -178,7 +182,7 @@ export function PracticeCampaignChapters() {
                         }`}
                       >
                         <span className={isActive ? "text-white" : chapter.unlocked ? "text-slate-400" : "text-slate-300"}>
-                          {chapter.unlocked ? <Map size={16} strokeWidth={1.6} /> : <Lock size={16} strokeWidth={1.6} />}
+                          {chapter.unlocked ? <FileSpreadsheet size={16} strokeWidth={1.6} /> : <Lock size={16} strokeWidth={1.6} />}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{chapter.name}</span>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black tracking-[0.14em] ${
@@ -342,13 +346,6 @@ export function PracticeCampaignChapters() {
                   >
                     {activeLevel.status === "locked" ? <Lock size={15} /> : <Play size={15} />}
                     {activeLevel.status === "locked" ? "等待解锁" : "开始答题"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/practice/chapter/${activeChapter.id}`)}
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700"
-                  >
-                    查看章节详情
                   </button>
                 </div>
               </div>

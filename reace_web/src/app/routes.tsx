@@ -1,6 +1,7 @@
-import { createBrowserRouter, Navigate } from "react-router";
+import { createBrowserRouter, Navigate, useParams } from "react-router";
 import { Layout } from "./components/Layout";
 import { ONLINE_LITE_MODE } from "./lib/site-mode";
+import { getCampaignQuestionListPath } from "./lib/practice-campaign-ui";
 
 function lazyPage(importer: () => Promise<any>, exportName: string) {
   return async () => {
@@ -15,6 +16,11 @@ function LiteRedirect() {
 
 function AdminRedirect() {
   return <Navigate to="/admin/overview" replace />;
+}
+
+function PracticeChapterRedirect() {
+  const { id } = useParams();
+  return <Navigate to={getCampaignQuestionListPath(id)} replace />;
 }
 
 function pageRoute(path: string, importer: () => Promise<any>, exportName: string, allowedInLite = false) {
@@ -57,10 +63,10 @@ export const router = createBrowserRouter([
     children: [
       { index: true, lazy: lazyPage(() => import("./pages/Home"), "Home") },
       { path: "chat", Component: LiteRedirect },
-      pageRoute("practice", () => import("./pages/PracticeCampaignHub"), "PracticeCampaignHub", true),
+      pageRoute("practice", () => import("./pages/PracticeCampaignChapters"), "PracticeCampaignChapters", true),
       pageRoute("practice/chapters", () => import("./pages/PracticeCampaignChapters"), "PracticeCampaignChapters", true),
       pageRoute("practice/classic", () => import("./pages/Practice"), "Practice", true),
-      pageRoute("practice/chapter/:id", () => import("./pages/PracticeCampaignChapter"), "PracticeCampaignChapter", true),
+      { path: "practice/chapter/:id", Component: PracticeChapterRedirect },
       pageRoute("practice/result/:id", () => import("./pages/PracticeCampaignResult"), "PracticeCampaignResult", true),
       pageRoute("practice/daily", () => import("./pages/PracticeCampaignDaily"), "PracticeCampaignDaily", true),
       pageRoute("practice/wrongs", () => import("./pages/PracticeCampaignWrongs"), "PracticeCampaignWrongs", true),

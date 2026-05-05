@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { handleLoginRequiredError } from "../lib/auth-required";
 import { ExcelWorkbookSnapshot, normalizeSelection, parseRangeRef } from "../lib/excel";
 import { formatDuration } from "../lib/format";
+import { getPracticeDetailEditorKey } from "../lib/practice-campaign-ui";
 import { practiceKeys } from "../lib/query-keys";
 
 const ExcelWorkbookEditor = lazy(() =>
@@ -48,7 +49,7 @@ export function PracticeDetail() {
     : null;
   const currentWorkbook = workbook.sheets.length > 0 ? workbook : (question?.templateWorkbook || { sheets: [] });
   const currentSheetName = selectedSheetName || question?.answerSheet || question?.templateWorkbook?.sheets?.[0]?.name || "";
-  const editorKey = `${question?.id || "unknown"}-${currentWorkbook.sheets.length}-${currentSheetName}-${Object.keys(currentWorkbook.sheets?.[0]?.cells || {}).length}`;
+  const editorKey = getPracticeDetailEditorKey(question?.id);
 
   useEffect(() => {
     if (!question?.templateWorkbook?.sheets?.length) return;
@@ -99,6 +100,9 @@ export function PracticeDetail() {
         queryClient.invalidateQueries({ queryKey: practiceKeys.history() }),
         queryClient.invalidateQueries({ queryKey: practiceKeys.leaderboard() }),
         queryClient.invalidateQueries({ queryKey: practiceKeys.questionList() }),
+        campaignLevel?.id
+          ? queryClient.invalidateQueries({ queryKey: ["practice", "campaign"], refetchType: "all" })
+          : Promise.resolve(),
       ]);
       if (campaignLevel?.id) {
         toast.success(buildCampaignSubmitMessage(result));

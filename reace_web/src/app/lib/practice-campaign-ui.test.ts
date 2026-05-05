@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   canExpandChapterQuestions,
+  getCampaignQuestionListPath,
   getCampaignLevelStatusLabel,
   getChapterQuestionToggleLabel,
+  getPracticeDetailEditorKey,
 } from "./practice-campaign-ui";
 
 describe("practice campaign UI helpers", () => {
@@ -21,5 +23,17 @@ describe("practice campaign UI helpers", () => {
     expect(getCampaignLevelStatusLabel("perfect")).toBe("满星");
     expect(getCampaignLevelStatusLabel("cleared")).toBe("已通关");
     expect(getCampaignLevelStatusLabel("ready")).toBe("可挑战");
+  });
+
+  it("routes campaign returns to the question list instead of the map page", () => {
+    expect(getCampaignQuestionListPath()).toBe("/practice/chapters");
+    expect(getCampaignQuestionListPath(8)).toBe("/practice/chapters?chapter=8");
+    expect(getCampaignQuestionListPath("chapter 1")).toBe("/practice/chapters?chapter=chapter%201");
+  });
+
+  it("keeps the workbook editor mounted while answers change", () => {
+    expect(getPracticeDetailEditorKey(18)).toBe("practice-question-18");
+    expect(getPracticeDetailEditorKey("random")).toBe("practice-question-random");
+    expect(getPracticeDetailEditorKey(null)).toBe("practice-question-unknown");
   });
 });

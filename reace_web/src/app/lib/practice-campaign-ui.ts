@@ -31,3 +31,16 @@ export function getCampaignLevelStatusLabel(status?: string | null) {
   }
   return "可挑战";
 }
+
+export function getCampaignQuestionListPath(chapterId?: number | string | null) {
+  const normalizedChapterId = chapterId === null || chapterId === undefined ? "" : String(chapterId).trim();
+  if (!normalizedChapterId) {
+    return "/practice/chapters";
+  }
+  return `/practice/chapters?chapter=${encodeURIComponent(normalizedChapterId)}`;
+}
+
+export function getPracticeDetailEditorKey(questionId?: number | string | null) {
+  const normalizedQuestionId = questionId === null || questionId === undefined ? "" : String(questionId).trim();
+  return `practice-question-${normalizedQuestionId || "unknown"}`;
+}

@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { handleLoginRequiredError } from "../lib/auth-required";
+import { getCampaignQuestionListPath } from "../lib/practice-campaign-ui";
 import { formatDateTime, formatDuration } from "../lib/format";
 import { startCampaignLevel } from "../lib/practice-campaign";
 import { getCampaignResultAnswerReviews } from "../lib/practice-campaign-result-ui";
@@ -34,6 +35,7 @@ export function PracticeCampaignResult() {
   const passed = record ? (record.correctCount || 0) > 0 : passedFromState;
   const stars = record ? Math.max(((record.correctCount || 0) > 0 ? 1 : 0), starsFromState) : starsFromState;
   const answerReviews = getCampaignResultAnswerReviews(record);
+  const questionListPath = getCampaignQuestionListPath(campaignChapter?.id);
 
   const handleStartLevel = async (levelId?: number | null) => {
     if (!levelId) {
@@ -63,11 +65,11 @@ export function PracticeCampaignResult() {
     <div className="mx-auto max-w-[960px] px-4 py-5 sm:px-6 sm:py-6">
       <button
         type="button"
-        onClick={() => navigate(campaignChapter?.id ? `/practice/chapter/${campaignChapter.id}` : "/practice")}
+        onClick={() => navigate(questionListPath)}
         className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-slate-900"
       >
         <ArrowLeft size={16} />
-        返回地图
+        返回题目列表
       </button>
 
       <div className={`overflow-hidden rounded-[36px] border shadow-sm ${passed ? "border-emerald-200 bg-[linear-gradient(180deg,#ecfdf5_0%,#ffffff_28%)]" : "border-rose-200 bg-[linear-gradient(180deg,#fff1f2_0%,#ffffff_28%)]"}`}>
@@ -83,7 +85,7 @@ export function PracticeCampaignResult() {
             {passed ? "通关成功" : "挑战失败"}
           </h1>
           <p className="mt-3 text-[15px] leading-7 text-slate-500">
-            {campaignLevel?.title || record?.questionTitle || "当前关卡"} 已完成结算。你可以继续前往下一关，或返回地图调整挑战路线。
+            {campaignLevel?.title || record?.questionTitle || "当前关卡"} 已完成结算。你可以继续前往下一关，或返回题目列表查看最新进度。
           </p>
 
           <div className="mt-7 flex items-center justify-center gap-2 text-amber-500">
@@ -246,10 +248,10 @@ export function PracticeCampaignResult() {
             ) : null}
             <button
               type="button"
-              onClick={() => navigate(campaignChapter?.id ? `/practice/chapter/${campaignChapter.id}` : "/practice")}
+              onClick={() => navigate(questionListPath)}
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700"
             >
-              返回地图
+              返回题目列表
             </button>
           </div>
         </div>

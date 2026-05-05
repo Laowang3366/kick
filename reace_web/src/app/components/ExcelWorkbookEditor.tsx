@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createUniver, LocaleType, mergeLocales } from "@univerjs/presets";
 import { UniverSheetsCorePreset } from "@univerjs/preset-sheets-core";
-import UniverPresetSheetsCoreZhCN from "@univerjs/preset-sheets-core/locales/zh-CN";
 import type { FWorkbook, IWorkbookData } from "@univerjs/preset-sheets-core";
 import "@univerjs/preset-sheets-core/lib/index.css";
 import { Expand, Minimize2 } from "lucide-react";
@@ -186,112 +185,129 @@ export function ExcelWorkbookEditor({
   }, [onWorkbookChange]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const { univerAPI } = createUniver({
-      locale: LocaleType.ZH_CN,
-      locales: {
-        [LocaleType.ZH_CN]: mergeLocales(UniverPresetSheetsCoreZhCN),
-      },
-      presets: [
-        UniverSheetsCorePreset({
-          container: containerRef.current,
-        }),
-      ],
-    });
+    let disposed = false;
+    let disposeBinding: (() => void) | null = null;
 
-    const univerWorkbook = univerAPI.createWorkbook(workbookSnapshotToUniverData(workbook));
-    hydratingRef.current = true;
-    applyWorkbookSnapshotToUniver(univerWorkbook, workbook);
-    hydratingRef.current = false;
-    lastAppliedExternalRef.current = workbookKey;
-    lastInternalSnapshotRef.current = workbookKey;
-    const formulaEngine = univerAPI.getFormula?.();
-    const snapshotOptions: UniverWorkbookSnapshotOptions = {
-      moveFormulaRefOffset: formulaEngine?.moveFormulaRefOffset?.bind(formulaEngine),
-    };
-    const captureSnapshot = () => univerDataToWorkbookSnapshot(univerWorkbook.save(), snapshotOptions);
-    onSnapshotCaptureReady?.(captureSnapshot);
+    const mountEditor = async () => {
+      const { default: UniverPresetSheetsCoreZhCN } = await import("@univerjs/preset-sheets-core/locales/zh-CN");
+      if (disposed || !containerRef.current) return;
 
-    const syncWorkbookSnapshot = () => {
-      if (hydratingRef.current) return;
-      const saved = univerWorkbook.save();
-      const nextSnapshot = univerDataToWorkbookSnapshot(saved, snapshotOptions);
-      const nextKey = JSON.stringify(nextSnapshot);
-      lastInternalSnapshotRef.current = nextKey;
-      latestOnWorkbookChangeRef.current?.(nextSnapshot);
-    };
+      const { univerAPI } = createUniver({
+        locale: LocaleType.ZH_CN,
+        locales: {
+          [LocaleType.ZH_CN]: mergeLocales(UniverPresetSheetsCoreZhCN),
+        },
+        presets: [
+          UniverSheetsCorePreset({
+            container,
+          }),
+        ],
+      });
 
-    const syncSelectionState = () => {
-      if (hydratingRef.current) return;
-      const activeSheet = univerWorkbook.getActiveSheet();
-      if (activeSheet && activeSheet.getSheetName() !== latestSelectedSheetNameRef.current) {
-        latestOnSelectedSheetNameChangeRef.current?.(activeSheet.getSheetName());
-      }
-      const activeRange = univerWorkbook.getActiveRange();
-      if (activeRange && latestOnSelectionChangeRef.current && latestSelectionEnabledRef.current) {
-        const parsed = parseSheetAndRange(activeRange.getA1Notation(true));
-        const range = parseRangeRef(parsed.rangeRef);
-        if (range) {
-          const nextSelection = normalizeSelection(
-            parsed.sheetName || activeSheet?.getSheetName() || "",
-            range.startRow,
-            range.startCol,
-            range.endRow,
-            range.endCol,
-          );
-          if (!isSameSelection(latestSelectionRef.current, nextSelection)) {
-            latestOnSelectionChangeRef.current(nextSelection);
+      const univerWorkbook = univerAPI.createWorkbook(workbookSnapshotToUniverData(workbook));
+      hydratingRef.current = true;
+      applyWorkbookSnapshotToUniver(univerWorkbook, workbook);
+      hydratingRef.current = false;
+      lastAppliedExternalRef.current = workbookKey;
+      lastInternalSnapshotRef.current = workbookKey;
+      const formulaEngine = univerAPI.getFormula?.();
+      const snapshotOptions: UniverWorkbookSnapshotOptions = {
+        moveFormulaRefOffset: formulaEngine?.moveFormulaRefOffset?.bind(formulaEngine),
+      };
+      const captureSnapshot = () => univerDataToWorkbookSnapshot(univerWorkbook.save(), snapshotOptions);
+      onSnapshotCaptureReady?.(captureSnapshot);
+
+      const syncWorkbookSnapshot = () => {
+        if (hydratingRef.current) return;
+        const saved = univerWorkbook.save();
+        const nextSnapshot = univerDataToWorkbookSnapshot(saved, snapshotOptions);
+        const nextKey = JSON.stringify(nextSnapshot);
+        lastInternalSnapshotRef.current = nextKey;
+        latestOnWorkbookChangeRef.current?.(nextSnapshot);
+      };
+
+      const syncSelectionState = () => {
+        if (hydratingRef.current) return;
+        const activeSheet = univerWorkbook.getActiveSheet();
+        if (activeSheet && activeSheet.getSheetName() !== latestSelectedSheetNameRef.current) {
+          latestOnSelectedSheetNameChangeRef.current?.(activeSheet.getSheetName());
+        }
+        const activeRange = univerWorkbook.getActiveRange();
+        if (activeRange && latestOnSelectionChangeRef.current && latestSelectionEnabledRef.current) {
+          const parsed = parseSheetAndRange(activeRange.getA1Notation(true));
+          const range = parseRangeRef(parsed.rangeRef);
+          if (range) {
+            const nextSelection = normalizeSelection(
+              parsed.sheetName || activeSheet?.getSheetName() || "",
+              range.startRow,
+              range.startCol,
+              range.endRow,
+              range.endCol,
+            );
+            if (!isSameSelection(latestSelectionRef.current, nextSelection)) {
+              latestOnSelectionChangeRef.current(nextSelection);
+            }
           }
         }
-      }
-    };
+      };
 
-    const disposables: Array<{ dispose: () => void }> = [
-      univerWorkbook.onCommandExecuted(() => {
-        syncWorkbookSnapshot();
-        syncSelectionState();
-      }),
-      univerWorkbook.onSelectionChange(() => {
-        syncSelectionState();
-      }),
-    ];
+      const disposables: Array<{ dispose: () => void }> = [
+        univerWorkbook.onCommandExecuted(() => {
+          syncWorkbookSnapshot();
+          syncSelectionState();
+        }),
+        univerWorkbook.onSelectionChange(() => {
+          syncSelectionState();
+        }),
+      ];
 
-    bindingRef.current = { univerAPI, workbook: univerWorkbook, disposables };
+      bindingRef.current = { univerAPI, workbook: univerWorkbook, disposables };
 
-    const applyPermissions = async () => {
-      if (!restrictEditingToRange || !editableRange) return;
-      const currentUser = getStoredUser();
-      if (!currentUser?.id) {
-        return;
-      }
-      const sheets = univerWorkbook.getSheets();
-      for (const item of sheets) {
-        await item.getWorksheetPermission().setReadOnly();
-      }
-      const targetSheet = univerWorkbook.getSheetByName(editableRange.sheetName);
-      if (!targetSheet) return;
-      const rangeRef = selectionToRangeRef(editableRange);
-      await targetSheet.getWorksheetPermission().protectRanges([
-        {
-          ranges: [targetSheet.getRange(rangeRef)],
-          options: {
-            name: "editable-answer-range",
-            allowEdit: true,
-            allowedUsers: [String(currentUser.id)],
-            allowViewByOthers: true,
+      const applyPermissions = async () => {
+        if (!restrictEditingToRange || !editableRange) return;
+        const currentUser = getStoredUser();
+        if (!currentUser?.id) {
+          return;
+        }
+        const sheets = univerWorkbook.getSheets();
+        for (const item of sheets) {
+          await item.getWorksheetPermission().setReadOnly();
+        }
+        const targetSheet = univerWorkbook.getSheetByName(editableRange.sheetName);
+        if (!targetSheet) return;
+        const rangeRef = selectionToRangeRef(editableRange);
+        await targetSheet.getWorksheetPermission().protectRanges([
+          {
+            ranges: [targetSheet.getRange(rangeRef)],
+            options: {
+              name: "editable-answer-range",
+              allowEdit: true,
+              allowedUsers: [String(currentUser.id)],
+              allowViewByOthers: true,
+            },
           },
-        },
-      ]);
-      targetSheet.getRange(rangeRef).activate();
+        ]);
+        targetSheet.getRange(rangeRef).activate();
+      };
+
+      void applyPermissions();
+      disposeBinding = () => {
+        onSnapshotCaptureReady?.(null);
+        disposables.forEach((item) => item.dispose());
+        univerAPI.dispose();
+        bindingRef.current = null;
+      };
     };
 
-    void applyPermissions();
+    void mountEditor();
 
     return () => {
+      disposed = true;
+      disposeBinding?.();
       onSnapshotCaptureReady?.(null);
-      disposables.forEach((item) => item.dispose());
-      univerAPI.dispose();
       bindingRef.current = null;
     };
   }, [instanceVersion]);
