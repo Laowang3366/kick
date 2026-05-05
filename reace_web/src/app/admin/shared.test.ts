@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerRangeButtonClassName, formDialogContentClassName } from "./shared";
+import { answerRangeButtonClassName, formDialogBodyClassName, formDialogContentClassName } from "./shared";
 
 describe("admin shared controls", () => {
   it("uses a stronger visual style for answer range picking", () => {
@@ -19,5 +19,15 @@ describe("admin shared controls", () => {
     expect(className).toContain("!gap-0");
     expect(className).toContain("max-h-[92vh]");
     expect(className).toContain("w-[min(1120px,calc(100vw-2rem))]");
+  });
+
+  it("lets admin form dialog bodies size from their content before scrolling", () => {
+    const className = formDialogBodyClassName("px-6 py-5");
+
+    expect(className).toContain("grow");
+    expect(className).toContain("overflow-y-auto");
+    expect(className).not.toContain("flex-1");
+    expect(className).not.toContain("basis-0");
+    expect(className).toContain("px-6 py-5");
   });
 });

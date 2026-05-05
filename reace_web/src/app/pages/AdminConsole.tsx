@@ -92,6 +92,7 @@ import {
   POINTS_TASK_KEY_OPTIONS,
   ROLE_OPTIONS,
   answerRangeButtonClassName,
+  formDialogBodyClassName,
   formDialogContentClassName,
   primaryButtonClassName,
   secondaryButtonClassName,
@@ -5487,7 +5488,7 @@ function FormDialog({
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <div className={`min-h-0 flex-1 basis-0 overflow-y-auto px-5 py-4 ${bodyClassName || ""}`}>
+        <div className={formDialogBodyClassName(bodyClassName)}>
           <div className="space-y-4">{children}</div>
         </div>
         <DialogFooter className="shrink-0 border-t border-slate-200 px-6 py-4 bg-white">

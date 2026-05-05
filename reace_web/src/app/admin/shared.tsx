@@ -150,6 +150,10 @@ export function formDialogContentClassName(contentClassName = "") {
   return `!flex max-h-[92vh] w-[min(760px,calc(100vw-2rem))] !flex-col !gap-0 overflow-hidden p-0 sm:max-w-none ${contentClassName}`;
 }
 
+export function formDialogBodyClassName(bodyClassName = "") {
+  return `min-h-0 grow overflow-y-auto px-5 py-4 ${bodyClassName}`;
+}
+
 export function AddButton({
   children = "新建",
   onClick,
