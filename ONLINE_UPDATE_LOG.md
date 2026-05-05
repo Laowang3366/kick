@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 20:38 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀未登录态修复；统一后端认证失败 JSON 响应，练习提交、闯关开始/提交、错题重练与投稿入口将“未登录”映射为 401；前端统一识别 401 及“403 + 未登录/请先登录”，弹出“请先登录”并提供“去登录”快捷动作；后台 Excel 模板题编辑增加模板加载失败兜底与重试，避免修改答案时空白加载；优化后台与投稿表单“选择区域”按钮样式。
+- 验证：本地 `npx vitest run src/app/lib/auth-errors.test.ts src/app/admin/shared.test.ts src/app/lib/practice-campaign-ui.test.ts`、`mvn -q "-Dtest=PracticeControllerTest,PracticeCampaignControllerTest" test`、`mvn -q test`、`npm run build`、`git diff --check` 均通过；生产部署后服务器仓库 `a3e61e0` 且 worktree clean，`kick-backend.service` 与 `nginx` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/practice`、`/api/public/home-overview`、`/api/practice/categories` 均返回 200；公网未登录 POST `/api/practice/submit` 与 GET `/api/practice/campaign/wrongs` 均返回 `401 {"message":"未登录"}`；部署完成稳定后后端 journal 无新增 error-like 行。
+- 部署：本地提交 `a3e61e0` 已推送到 `origin/codex/online-snapshot-20260417`；公共生产机 `/www/wwwroot/kick-deploy/repo` 先通过标准 `bash scripts/deploy/production-deploy.sh` 从 GitHub 快进到 `a3e61e0`，因本地 SSH 输出采集遇到 Windows GBK 编码中断，确认仓库 clean 后以 `GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh` 复用同一标准发布脚本完成发布；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260505-203554`
+- 备注：发布脚本重启后端后健康检查前 3 次短暂出现 `127.0.0.1:8080 Connection refused`，第 4 次通过，服务最终 active 且公网复验正常；前端构建仍提示既有 Univer/语言包大 chunk 警告，本次未调整依赖拆包。
+
 ## 2026-05-05 19:43 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 高并发稳定性优化；后端公开读接口增加短 TTL 防击穿缓存与序列化 JSON 缓存；修复缓存 JSON 直接返回类型；`/api/tutorials/home` 改为教程目录摘要，正文拆到 `/api/tutorials/articles/{id}` 按需读取；生产 Nginx 开启 JSON/静态资源 gzip，提升 worker 连接与文件句柄上限，增加后端 upstream keepalive，并提高 HTTP/2 并发流上限。
