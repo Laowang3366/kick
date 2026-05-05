@@ -13,6 +13,7 @@ import {
   parseSheetAndRange,
   selectionToRangeRef,
 } from "../lib/excel";
+import { univerDataToWorkbookSnapshot, type UniverWorkbookSnapshotOptions } from "../lib/univer-workbook";
 import { getStoredUser } from "../lib/session-store";
 
 type ExcelWorkbookEditorProps = {
@@ -39,6 +40,9 @@ type ExcelWorkbookEditorProps = {
 type UniverBinding = {
   univerAPI: {
     createWorkbook: (data: Partial<IWorkbookData>) => FWorkbook;
+    getFormula?: () => {
+      moveFormulaRefOffset?: (formula: string, colOffset: number, rowOffset: number) => string;
+    };
     dispose: () => void;
   };
   workbook: FWorkbook;
@@ -117,45 +121,6 @@ function applyWorkbookSnapshotToUniver(workbookFacade: FWorkbook, snapshot: Exce
   });
 
   workbookFacade.setActiveSheet(workbookFacade.getSheets()[0]);
-}
-
-function univerDataToWorkbookSnapshot(data: IWorkbookData): ExcelWorkbookSnapshot {
-  return {
-    sheets: (data.sheetOrder || []).map((sheetId) => {
-      const sheet = data.sheets?.[sheetId];
-      const cells: Record<string, { value?: unknown; formula?: string | null; display?: string | null }> = {};
-      const matrix = sheet?.cellData || {};
-      Object.entries(matrix).forEach(([rowIndex, cols]) => {
-        Object.entries(cols || {}).forEach(([colIndex, cellData]) => {
-          const row = Number(rowIndex) + 1;
-          const col = Number(colIndex) + 1;
-          const cellRef = toCellRef(row, col);
-          cells[cellRef] = {
-            value: (cellData as any)?.v ?? "",
-            formula: (cellData as any)?.f ? String((cellData as any).f).replace(/^=/, "") : null,
-            display: (cellData as any)?.v !== undefined && (cellData as any)?.v !== null ? String((cellData as any).v) : "",
-          };
-        });
-      });
-      return {
-        name: sheet?.name || sheetId,
-        rowCount: sheet?.rowCount || 200,
-        columnCount: sheet?.columnCount || 40,
-        cells,
-      };
-    }),
-  };
-}
-
-function toCellRef(row: number, col: number) {
-  let current = col;
-  let label = "";
-  while (current > 0) {
-    const remainder = (current - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    current = Math.floor((current - 1) / 26);
-  }
-  return `${label}${row}`;
 }
 
 export function ExcelWorkbookEditor({
@@ -241,13 +206,17 @@ export function ExcelWorkbookEditor({
     hydratingRef.current = false;
     lastAppliedExternalRef.current = workbookKey;
     lastInternalSnapshotRef.current = workbookKey;
-    const captureSnapshot = () => univerDataToWorkbookSnapshot(univerWorkbook.save());
+    const formulaEngine = univerAPI.getFormula?.();
+    const snapshotOptions: UniverWorkbookSnapshotOptions = {
+      moveFormulaRefOffset: formulaEngine?.moveFormulaRefOffset?.bind(formulaEngine),
+    };
+    const captureSnapshot = () => univerDataToWorkbookSnapshot(univerWorkbook.save(), snapshotOptions);
     onSnapshotCaptureReady?.(captureSnapshot);
 
     const syncWorkbookSnapshot = () => {
       if (hydratingRef.current) return;
       const saved = univerWorkbook.save();
-      const nextSnapshot = univerDataToWorkbookSnapshot(saved);
+      const nextSnapshot = univerDataToWorkbookSnapshot(saved, snapshotOptions);
       const nextKey = JSON.stringify(nextSnapshot);
       lastInternalSnapshotRef.current = nextKey;
       latestOnWorkbookChangeRef.current?.(nextSnapshot);
