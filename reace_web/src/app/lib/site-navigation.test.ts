@@ -5,6 +5,10 @@ import {
   publicNavItems,
   resolveActiveNavItem,
 } from "./site-navigation";
+import {
+  getPublicRoutePreloadTargets,
+  resolvePublicRoutePreloadPath,
+} from "./route-preload";
 
 describe("resolveActiveNavItem", () => {
   it("keeps tutorial center directly after home in the public navigation", () => {
@@ -51,5 +55,23 @@ describe("resolveActiveNavItem", () => {
     publicNavItems.forEach((item) => {
       expect(reachableKeys.has(item.key)).toBe(true);
     });
+  });
+
+  it("keeps public navigation destinations prefetchable", () => {
+    const preloadTargets = getPublicRoutePreloadTargets();
+
+    publicNavItems.forEach((item) => {
+      expect(resolvePublicRoutePreloadPath(item.path)).toBe(item.path);
+      expect(preloadTargets).toContain(item.path);
+    });
+  });
+
+  it("normalizes searchable module urls before prefetching their route chunk", () => {
+    expect(resolvePublicRoutePreloadPath("/tutorials?search=SUM")).toBe("/tutorials");
+    expect(resolvePublicRoutePreloadPath("/practice/chapters?search=SUM")).toBe("/practice/chapters");
+  });
+
+  it("ignores action-only navigation entries without a route path", () => {
+    expect(resolvePublicRoutePreloadPath("")).toBeNull();
   });
 });

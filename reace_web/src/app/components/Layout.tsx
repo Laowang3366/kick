@@ -31,7 +31,7 @@ import {
   CalendarCheck,
   Flame
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { startTransition, useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/dropdown-menu";
@@ -54,6 +54,7 @@ import {
 } from "../lib/layout-display";
 import { normalizeAvatarUrl, normalizeImageUrl } from "../lib/mappers";
 import { chatKeys, homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys, profileKeys } from "../lib/query-keys";
+import { preloadPublicRoute } from "../lib/route-preload";
 import { useSession } from "../lib/session";
 import {
   liteMobileBottomNavItems,
@@ -130,6 +131,17 @@ export function Layout() {
   const { user, isAuthenticated, logout } = useSession();
   const canAccessAdmin = hasAdminConsoleAccess(user?.role);
   const forumEnabled = !ONLINE_LITE_MODE;
+  const preloadNavigationTarget = (path: string) => {
+    if (!path) return;
+    void preloadPublicRoute(path);
+  };
+  const navigateToPrefetchedRoute = (path: string) => {
+    if (!path) return;
+    void preloadPublicRoute(path);
+    startTransition(() => {
+      navigate(path);
+    });
+  };
 
   useEffect(() => {
     if (!ONLINE_LITE_MODE) return;
@@ -481,10 +493,10 @@ export function Layout() {
     const query = keyword ? `?search=${encodeURIComponent(keyword)}` : "";
     setCategorySearchOpen(false);
     if (categorySearchScope === "tutorial") {
-      navigate(`/tutorials${query}`);
+      navigateToPrefetchedRoute(`/tutorials${query}`);
       return;
     }
-    navigate(`/practice/chapters${query}`);
+    navigateToPrefetchedRoute(`/practice/chapters${query}`);
   };
 
   const navIconMap: Record<string, React.ReactNode> = {
@@ -556,7 +568,7 @@ export function Layout() {
   const moreLiteNavItems = [
     ...accountLiteNavItems.map((item) => ({
       ...item,
-      action: () => navigate(item.path),
+      action: () => navigateToPrefetchedRoute(item.path),
       active: activePublicNav?.key === item.key,
     })),
     {
@@ -636,7 +648,10 @@ export function Layout() {
                       <button
                         key={`lite-module-${item.path}`}
                         type="button"
-                        onClick={() => navigate(item.path)}
+                        onPointerEnter={() => preloadNavigationTarget(item.path)}
+                        onFocus={() => preloadNavigationTarget(item.path)}
+                        onTouchStart={() => preloadNavigationTarget(item.path)}
+                        onClick={() => navigateToPrefetchedRoute(item.path)}
                         className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
                           isActive
                             ? "bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_100%)] text-white shadow-[0_12px_30px_rgba(15,23,42,0.12)]"
@@ -722,9 +737,12 @@ export function Layout() {
                           <button
                             key={item.path}
                             type="button"
+                            onPointerEnter={() => preloadNavigationTarget(item.path)}
+                            onFocus={() => preloadNavigationTarget(item.path)}
+                            onTouchStart={() => preloadNavigationTarget(item.path)}
                             onClick={() => {
-                              navigate(item.path);
                               setMobileNavOpen(false);
+                              navigateToPrefetchedRoute(item.path);
                             }}
                             className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition ${
                               isActive
@@ -746,7 +764,10 @@ export function Layout() {
               <div className="flex min-w-0 flex-1 items-center gap-3 xl:gap-7">
                 <button
                   type="button"
-                  onClick={() => navigate("/")}
+                  onPointerEnter={() => preloadNavigationTarget("/")}
+                  onFocus={() => preloadNavigationTarget("/")}
+                  onTouchStart={() => preloadNavigationTarget("/")}
+                  onClick={() => navigateToPrefetchedRoute("/")}
                   className="group flex shrink-0 items-center gap-2 sm:gap-3"
                   aria-label="返回首页"
                 >
@@ -766,7 +787,10 @@ export function Layout() {
                       <button
                         key={item.path}
                         type="button"
-                        onClick={() => navigate(item.path)}
+                        onPointerEnter={() => preloadNavigationTarget(item.path)}
+                        onFocus={() => preloadNavigationTarget(item.path)}
+                        onTouchStart={() => preloadNavigationTarget(item.path)}
+                        onClick={() => navigateToPrefetchedRoute(item.path)}
                         className={`relative inline-flex h-10 items-center gap-1.5 rounded-full px-2 text-xs font-bold transition xl:h-11 xl:gap-2 xl:px-3 xl:text-sm ${
                           isActive
                             ? "bg-white text-[#00140d] shadow-[0_14px_32px_rgba(255,255,255,0.16)]"
@@ -783,6 +807,12 @@ export function Layout() {
                     <HoverCardTrigger asChild>
                       <button
                         type="button"
+                        onPointerEnter={() => {
+                          accountLiteNavItems.forEach((item) => preloadNavigationTarget(item.path));
+                        }}
+                        onFocus={() => {
+                          accountLiteNavItems.forEach((item) => preloadNavigationTarget(item.path));
+                        }}
                         className={`relative inline-flex h-10 items-center gap-1.5 rounded-full px-2 text-xs font-bold transition xl:h-11 xl:gap-2 xl:px-3 xl:text-sm ${
                           moreLiteActive
                             ? "bg-white text-[#00140d] shadow-[0_14px_32px_rgba(255,255,255,0.16)]"
@@ -803,6 +833,9 @@ export function Layout() {
                           <button
                             key={`more-${item.key}`}
                             type="button"
+                            onPointerEnter={() => preloadNavigationTarget(item.path)}
+                            onFocus={() => preloadNavigationTarget(item.path)}
+                            onTouchStart={() => preloadNavigationTarget(item.path)}
                             onClick={item.action}
                             className={`group rounded-[18px] border px-3 py-3 text-left transition ${
                               item.active
@@ -1341,7 +1374,7 @@ export function Layout() {
                           {checkinStatus?.hasCheckedInToday ? "今日已签到" : "每日签到"}
                         </DropdownMenuItem>
                         {accountLiteNavItems.map((item) => (
-                          <DropdownMenuItem key={`mobile-account-${item.key}`} onClick={() => navigate(item.path)}>
+                          <DropdownMenuItem key={`mobile-account-${item.key}`} onClick={() => navigateToPrefetchedRoute(item.path)}>
                             {item.name}
                           </DropdownMenuItem>
                         ))}
@@ -1433,23 +1466,15 @@ export function Layout() {
 
         {/* Page Content */}
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 15, filter: "blur(4px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -15, filter: "blur(4px)" }}
-              transition={{ 
-                type: "spring", 
-                stiffness: 300, 
-                damping: 30, 
-                mass: 1 
-              }}
-              className={getMobileBottomNavigationContentClassName(isMobile)}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.14, ease: "easeOut" }}
+            className={getMobileBottomNavigationContentClassName(isMobile)}
+          >
+            <Outlet />
+          </motion.div>
         </main>
 
         {isMobile ? (
@@ -1638,7 +1663,7 @@ export function Layout() {
                         setMobileSearchOpen((prev) => !prev);
                         return;
                       }
-                      navigate(item.path);
+                      navigateToPrefetchedRoute(item.path);
                     }}
                     className={`relative flex min-h-[58px] min-w-[64px] flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${
                       isActive
