@@ -1,8 +1,10 @@
 package com.excel.forum.controller;
 
+import com.excel.forum.config.PublicJsonCache;
 import com.excel.forum.config.PublicReadCache;
 import com.excel.forum.service.ExcelTemplateGradingService;
 import com.excel.forum.service.PracticeService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +43,7 @@ class PracticeControllerTest {
         PracticeController controller = new PracticeController(
                 practiceService,
                 excelTemplateGradingService,
-                new PublicReadCache()
+                new PublicJsonCache(new PublicReadCache(), new ObjectMapper())
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }

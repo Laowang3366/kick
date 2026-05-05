@@ -1,6 +1,7 @@
 package com.excel.forum.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.excel.forum.config.PublicJsonCache;
 import com.excel.forum.config.PublicReadCache;
 import com.excel.forum.entity.Question;
 import com.excel.forum.entity.TutorialArticle;
@@ -11,6 +12,7 @@ import com.excel.forum.service.TutorialArticleChapterRelService;
 import com.excel.forum.service.TutorialArticleQuestionRelService;
 import com.excel.forum.service.TutorialArticleService;
 import com.excel.forum.service.TutorialCategoryService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,7 +70,7 @@ class TutorialControllerTest {
                 tutorialArticleQuestionRelService,
                 practiceChapterMapper,
                 questionService,
-                new PublicReadCache()
+                new PublicJsonCache(new PublicReadCache(), new ObjectMapper())
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
     }

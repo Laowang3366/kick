@@ -1,12 +1,13 @@
 package com.excel.forum.controller;
 
 import com.excel.forum.config.PublicCacheHeaders;
-import com.excel.forum.config.PublicReadCache;
+import com.excel.forum.config.PublicJsonCache;
 import com.excel.forum.entity.dto.PracticeSubmitRequest;
 import com.excel.forum.entity.dto.PracticeQuestionSubmissionRequest;
 import com.excel.forum.service.ExcelTemplateGradingService;
 import com.excel.forum.service.PracticeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,13 +26,14 @@ import java.util.Map;
 public class PracticeController {
     private final PracticeService practiceService;
     private final ExcelTemplateGradingService excelTemplateGradingService;
-    private final PublicReadCache publicReadCache;
+    private final PublicJsonCache publicJsonCache;
 
     @GetMapping("/categories")
     public ResponseEntity<?> getCategories() {
         return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
-                .body(publicReadCache.get("practice:categories", practiceService::getPracticeCategories));
+                .body(publicJsonCache.get("practice:categories", practiceService::getPracticeCategories));
     }
 
     @GetMapping("/question-list")

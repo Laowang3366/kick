@@ -3,7 +3,7 @@ package com.excel.forum.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.excel.forum.config.ExperienceProperties;
 import com.excel.forum.config.PublicCacheHeaders;
-import com.excel.forum.config.PublicReadCache;
+import com.excel.forum.config.PublicJsonCache;
 import com.excel.forum.entity.ExperienceLevelRule;
 import com.excel.forum.entity.Post;
 import com.excel.forum.entity.PracticeAnswer;
@@ -18,6 +18,7 @@ import com.excel.forum.service.PostService;
 import com.excel.forum.service.QuestionService;
 import com.excel.forum.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,7 +44,7 @@ public class PublicController {
     private final PracticeAnswerMapper practiceAnswerMapper;
     private final ExperienceLevelRuleService experienceLevelRuleService;
     private final ExperienceProperties experienceProperties;
-    private final PublicReadCache publicReadCache;
+    private final PublicJsonCache publicJsonCache;
 
     @GetMapping
     public ResponseEntity<?> getPublicOverview() {
@@ -53,8 +54,9 @@ public class PublicController {
     @GetMapping("/home-overview")
     public ResponseEntity<?> getHomeOverview() {
         return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
-                .body(publicReadCache.get("public:home-overview", this::buildHomeOverviewPayload));
+                .body(publicJsonCache.get("public:home-overview", this::buildHomeOverviewPayload));
     }
 
     private Map<String, Object> buildHomeOverviewPayload() {
@@ -115,8 +117,9 @@ public class PublicController {
     @GetMapping("/level-rules")
     public ResponseEntity<?> getLevelRules() {
         return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
-                .body(publicReadCache.get("public:level-rules", this::buildLevelRulesPayload));
+                .body(publicJsonCache.get("public:level-rules", this::buildLevelRulesPayload));
     }
 
     private Map<String, Object> buildLevelRulesPayload() {

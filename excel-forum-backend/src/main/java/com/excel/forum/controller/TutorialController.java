@@ -2,7 +2,7 @@ package com.excel.forum.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.excel.forum.config.PublicCacheHeaders;
-import com.excel.forum.config.PublicReadCache;
+import com.excel.forum.config.PublicJsonCache;
 import com.excel.forum.entity.PracticeChapter;
 import com.excel.forum.entity.Question;
 import com.excel.forum.entity.TutorialArticle;
@@ -16,6 +16,7 @@ import com.excel.forum.service.TutorialArticleChapterRelService;
 import com.excel.forum.service.TutorialArticleQuestionRelService;
 import com.excel.forum.service.TutorialCategoryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,13 +39,14 @@ public class TutorialController {
     private final TutorialArticleQuestionRelService tutorialArticleQuestionRelService;
     private final PracticeChapterMapper practiceChapterMapper;
     private final QuestionService questionService;
-    private final PublicReadCache publicReadCache;
+    private final PublicJsonCache publicJsonCache;
 
     @GetMapping("/home")
     public ResponseEntity<?> getHomeTutorials() {
         return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
-                .body(publicReadCache.get("tutorials:home", this::buildHomeTutorialsPayload));
+                .body(publicJsonCache.get("tutorials:home", this::buildHomeTutorialsPayload));
     }
 
     private Map<String, Object> buildHomeTutorialsPayload() {

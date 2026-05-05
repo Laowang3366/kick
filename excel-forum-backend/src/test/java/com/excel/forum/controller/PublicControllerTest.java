@@ -3,8 +3,10 @@ package com.excel.forum.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.excel.forum.config.GlobalExceptionHandler;
 import com.excel.forum.config.ExperienceProperties;
+import com.excel.forum.config.PublicJsonCache;
 import com.excel.forum.config.PublicReadCache;
 import com.excel.forum.entity.User;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.excel.forum.mapper.PracticeAnswerMapper;
 import com.excel.forum.mapper.PracticeRecordMapper;
 import com.excel.forum.service.CategoryService;
@@ -75,7 +77,7 @@ class PublicControllerTest {
                 practiceAnswerMapper,
                 experienceLevelRuleService,
                 experienceProperties,
-                new PublicReadCache()
+                new PublicJsonCache(new PublicReadCache(), new ObjectMapper())
         );
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
