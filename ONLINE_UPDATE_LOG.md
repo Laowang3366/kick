@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 22:37 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 表格编辑器填充公式识别修复；定位到 Univer 填充公式保存时会将首格写为 `f + si`，后续同组单元格只保留共享公式 `si`，原转换逻辑只读取 `cellData.f`，导致填充下拉后的部分公式被保存为普通数值；本次抽出 `univerDataToWorkbookSnapshot` 转换 helper，按共享公式 id 找到锚点并通过 Univer `moveFormulaRefOffset` 恢复每个填充单元格的公式，保留本地兜底偏移逻辑。
+- 验证：本地先新增 `univer-workbook` 回归测试并确认缺少 helper 时失败；实现后 `npx vitest run src/app/lib/univer-workbook.test.ts src/app/lib/excel-answer-preview.test.ts src/app/lib/excel-formula-detection.test.ts` 通过 7 个测试；本地 `npx vitest run` 通过 15 个测试文件、53 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；生产部署后服务器仓库 `5c5cf1a` 且 worktree clean，`kick-backend.service` 与 `nginx` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/admin/questions`、`/practice` 均返回 200；线上 `ExcelWorkbookEditor-H8Cj6Dbu.js` asset 包含 `moveFormulaRefOffset` 公式偏移路径；精确错误过滤最近日志为 0。
+- 部署：本地提交 `5c5cf1a` 因 GitHub HTTPS 推送连接被重置，使用 `scripts/deploy/export-git-bundle.sh` 导出 `kick-release-5c5cf1a.bundle`，上传到公共生产机 `/www/wwwroot/kick-deploy/bundles/kick-release-5c5cf1a.bundle`；服务器 `/www/wwwroot/kick-deploy/repo` 通过 `bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/kick-release-5c5cf1a.bundle` 快进到本次提交，随后因本机输出采集被 Vite 特殊字符中断，确认服务器无残留发布进程、仓库 clean、服务 active 后，以 `GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh` 复用标准发布脚本完成发布到 `https://www.excelcc.cn/`；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260505-223437`
+- 备注：发布脚本重启后端后健康检查前 3 次短暂出现 `127.0.0.1:8080 Connection refused`，第 4 次通过，服务最终 active 且公网复验正常；日志中 `ExceptionTranslationFilter` 是 Spring Security 启动类名，不是异常堆栈；前端构建仍提示既有 Univer/语言包大 chunk 警告，本次未调整依赖拆包。
+
 ## 2026-05-05 21:48 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 后台 Excel 模板题答案预览与前台闯关结果解析修复；普通公式题开启“检测函数公式”时，后台答案预览会标出非公式单元格并阻止保存，避免标准答案混入数值单元格；前台闯关结果页新增答案解析区，展示正确答案、判题明细和题目解析，失败后也能看到原因。
