@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 10:08 Asia/Shanghai
+
+- 范围：前端 `reace_web` Lite 顶部导航模块切换卡顿优化；新增公共模块 route chunk 预加载 helper；顶部导航、更多菜单、移动抽屉和底部导航在 hover/focus/touch 时提前预加载目标页面 lazy chunk；点击导航时使用 React transition 降低同步切换压力；主内容切换动画移除整页 `AnimatePresence mode="wait"` 与 `filter: blur()`，改为短时透明度/位移动画，减少大页面切换时的重绘成本。
+- 验证：本地先新增导航预加载断言并确认缺失 helper 时 `npx vitest run src/app/lib/site-navigation.test.ts` 失败；实现后 `npx vitest run src/app/lib/site-navigation.test.ts src/app/lib/vite-performance.test.ts` 通过 12 个测试；本地 `npx vitest run` 通过 10 个测试文件、43 个测试；本地 `npm run build` 通过（仍有既有 Univer/语言包大 chunk 警告）；本地 `git diff --check` 无空白错误，仅有既有 Windows 行尾提示；部署后服务器仓库 `dd1047a8` 且 worktree clean，`kick-backend.service`、`nginx` 均为 `active`；`http://192.168.1.17/`、`/tutorials`、`/practice`、`/templates`、`/mall`、`/tools`、`/api/public/home-overview`、`/api/tutorials/home`、`/api/practice/categories` 均返回 200；静态入口资产返回长期缓存；headless Chrome 以 1366x900 视口验证顶部导航“教程 / 练习 / 模板” hover 后均提前加载对应页面 chunk，点击后分别到达 `/tutorials`、`/practice`、`/templates`。
+- 部署：本地提交 `dd1047a` 已推送到 `origin/codex/online-snapshot-20260417`；LAN 部署机 `/www/wwwroot/kick-deploy/repo` 以普通 `server` 用户从 GitHub 快进到 `dd1047a8`，随后以 `GIT_PULL_BEFORE_BUILD=0` 复用现有 `production-deploy.sh` 发布到 `http://192.168.1.17` / `lan.excelcc.cn` LAN 环境；未更新公共生产目标 `https://www.excelcc.cn/`。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260505-020654`
+- 备注：本次卡顿根因是导航点击后才触发 lazy 页面 chunk 下载，同时整页退出等待动画与 `filter: blur()` 会放大大页面切换重绘；优化后保留路由懒加载，不把页面模块并入首屏包。部署输出采集阶段仍遇到 Windows 控制台无法打印 Vite 特殊字符的问题，发布结果已通过服务器 HEAD、服务状态、路由状态码和 headless Chrome 复验确认。
+
 ## 2026-05-05 00:51 Asia/Shanghai
 
 - 范围：继续完善 `lan.excelcc.cn` / `http://192.168.1.17` LAN 环境高并发稳定性与性能；新增公开低频接口 `Cache-Control: public, max-age=30`；新增 V48 写路径索引覆盖练习提交、闯关、错题、消息和通知查询；补充 k6 公开/认证/混合写路径压测脚本与 MySQL 诊断脚本；优化 Vite vendor chunk 拆分，降低普通 UI vendor 包体；新增 LAN Nginx 静态资源长期缓存模板与安装脚本；新增后端运行时参数模板、只读检查脚本、LAN 服务器监控脚本和 Telegram 查询脚本；生产运行时启用 `JAVA_OPTS` systemd drop-in 与 Tomcat/Hikari/Redis env 参数。
