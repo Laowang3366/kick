@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -98,6 +99,8 @@ class TutorialControllerTest {
                         containsString("public"),
                         containsString("max-age=30")
                 )))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(startsWith("{\"categories\"")))
                 .andExpect(jsonPath("$.categories[0].articles[0].title").value("SUMIF"));
         mockMvc.perform(get("/api/tutorials/home"))
                 .andExpect(status().isOk())

@@ -29,7 +29,7 @@ public class PracticeController {
     private final PublicJsonCache publicJsonCache;
 
     @GetMapping("/categories")
-    public ResponseEntity<?> getCategories() {
+    public ResponseEntity<String> getCategories() {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)

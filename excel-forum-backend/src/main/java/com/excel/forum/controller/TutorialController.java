@@ -42,7 +42,7 @@ public class TutorialController {
     private final PublicJsonCache publicJsonCache;
 
     @GetMapping("/home")
-    public ResponseEntity<?> getHomeTutorials() {
+    public ResponseEntity<String> getHomeTutorials() {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)

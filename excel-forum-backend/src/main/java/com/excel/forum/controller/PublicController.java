@@ -47,12 +47,12 @@ public class PublicController {
     private final PublicJsonCache publicJsonCache;
 
     @GetMapping
-    public ResponseEntity<?> getPublicOverview() {
+    public ResponseEntity<String> getPublicOverview() {
         return getHomeOverview();
     }
 
     @GetMapping("/home-overview")
-    public ResponseEntity<?> getHomeOverview() {
+    public ResponseEntity<String> getHomeOverview() {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)
@@ -115,7 +115,7 @@ public class PublicController {
     }
 
     @GetMapping("/level-rules")
-    public ResponseEntity<?> getLevelRules() {
+    public ResponseEntity<String> getLevelRules() {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(PublicCacheHeaders.SHORT_PUBLIC_CACHE)

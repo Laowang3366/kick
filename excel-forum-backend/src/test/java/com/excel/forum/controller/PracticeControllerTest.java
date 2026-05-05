@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,6 +72,8 @@ class PracticeControllerTest {
 
         mockMvc.perform(get("/api/practice/categories"))
                 .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(startsWith("{\"categories\"")))
                 .andExpect(jsonPath("$.categories[0].id").value(1));
         mockMvc.perform(get("/api/practice/categories"))
                 .andExpect(status().isOk())

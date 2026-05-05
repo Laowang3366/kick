@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -140,6 +141,8 @@ class PublicControllerTest {
 
         mockMvc.perform(get("/api/public/home-overview"))
                 .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(startsWith("{")))
                 .andExpect(jsonPath("$.practiceStats.passRate").value(70));
         mockMvc.perform(get("/api/public/home-overview"))
                 .andExpect(status().isOk())
