@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 21:28 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 后台 Excel 模板题编辑弹窗布局回归修复；上一版去除空白后，弹窗内容区因 `flex-1 basis-0` 在无固定高度、仅有 `max-height` 的容器内被压扁，本次将后台表单弹窗 body 改为按内容自然展开、超过弹窗高度后滚动，避免只露出“题目标题”和底部按钮。
+- 验证：本地先新增回归断言并确认 `npx vitest run src/app/admin/shared.test.ts` 因缺少 `formDialogBodyClassName` 失败；实现后同命令 3 个测试通过；本地 `npm run build` 通过；生产部署后服务器仓库 `a50e19e` 且 worktree clean，`kick-backend.service` 与 `nginx` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/admin/questions`、`/practice` 均返回 200；线上 assets 中不再包含 `basis-0`，并包含 `min-h-0 grow overflow-y-auto` 的弹窗 body 布局。
+- 部署：本地提交 `a50e19e` 通过 `scripts/deploy/export-git-bundle.sh` 导出 `/www/wwwroot/kick-deploy/bundles/admin-dialog-a50e19e.bundle`，公共生产机 `/www/wwwroot/kick-deploy/repo` 通过 `bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/admin-dialog-a50e19e.bundle` 快进并复用标准 `production-deploy.sh` 发布到 `https://www.excelcc.cn/`；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260505-212500`
+- 备注：本机到 GitHub 443 连接仍失败，本次使用已固化的 Git bundle 回退发布；发布脚本重启后端后健康检查前 3 次短暂出现 `127.0.0.1:8080 Connection refused`，第 4 次通过，服务最终 active 且公网复验正常；前端构建仍提示既有 Univer/语言包大 chunk 警告，本次未调整依赖拆包。
+
 ## 2026-05-05 20:58 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 后台题目编辑弹窗空白修复；定位到通用 `DialogContent` 默认 `grid` 布局覆盖后台表单弹窗的纵向滚动布局，导致编辑题目时内容区不可见但底部按钮仍显示；后台 `FormDialog` 统一使用强制 flex 布局、固定弹窗头尾并让内容区独立滚动，保留“小试牛刀”未登录态提示与“选择区域”按钮样式优化。
