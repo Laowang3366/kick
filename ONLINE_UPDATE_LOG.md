@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 19:43 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 高并发稳定性优化；后端公开读接口增加短 TTL 防击穿缓存与序列化 JSON 缓存；修复缓存 JSON 直接返回类型；`/api/tutorials/home` 改为教程目录摘要，正文拆到 `/api/tutorials/articles/{id}` 按需读取；生产 Nginx 开启 JSON/静态资源 gzip，提升 worker 连接与文件句柄上限，增加后端 upstream keepalive，并提高 HTTP/2 并发流上限。
+- 验证：本地 `mvn -q -Dtest=TutorialControllerTest test`、`mvn -q test`、`mvn -q -DskipTests package`、`npm run build`、`git diff --check` 均通过；生产部署后 `/www/wwwroot/kick-deploy/repo` 为 `e08b2b1` 且 worktree clean，`kick-backend.service` 与 `nginx` 均为 `active`；公网 `/api/tutorials/home` 从 171703B 降至 28151B 且不再包含正文，`/api/tutorials/articles/1` 返回正文详情 3226B；`Accept-Encoding: gzip` 下公开 JSON 返回 `Content-Encoding: gzip`；800 VU / 15 分钟只读混合路径压测完成 376236 请求，约 404.55 req/s，`http_req_failed=0.35%`、检查通过率 99.64%、`p95=4.52s`，三项阈值 `failed<2%`、`checks>98%`、`p95<5s` 均通过；同窗口 Nginx access log 主要为 `200 376216`、`301 1`，无 5xx，Nginx error log 无新增错误，后端 journal 无异常条目。
+- 部署：本地提交 `e08b2b1` 已推送到 `origin/codex/online-snapshot-20260417`；公共生产机 `/www/wwwroot/kick-deploy/repo` 通过标准 `bash scripts/deploy/production-deploy.sh` 从 GitHub 快进并发布到 `https://www.excelcc.cn/`；本轮中间提交 `43439d1` 曾因本机 GitHub 连接失败使用 `/www/wwwroot/kick-deploy/bundles/kick-release-43439d1.bundle` 回退导入后发布，最终发布已回到标准 GitHub 拉取流程；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：应用发布备份 `/www/wwwroot/kick-deploy/backups/20260505-190158`、`/www/wwwroot/kick-deploy/backups/20260505-191633`；Nginx 配置备份 `/etc/nginx/nginx.conf.codex-20260505-190516.bak`、`/etc/nginx/nginx.conf.codex-concurrency-20260505-190857.bak`、`/www/server/panel/vhost/nginx/kick.conf.codex-concurrency-20260505-190857.bak`、`/etc/nginx/nginx.conf.codex-http2-20260505-191102.bak`
+- 备注：压测失败根因从数据库/后端 5xx 转移为公开读路径放大和传输/HTTP2 队列压力；应用侧负载始终较低，剩余 0.35% 失败为 k6 客户端侧 request timeout，服务器同窗口未见 5xx。服务器前端构建仍提示既有 Univer/语言资源大 chunk 警告，本次未调整依赖版本。
+
 ## 2026-05-05 15:50 Asia/Shanghai
 
 - 范围：将最新 `codex/online-snapshot-20260417` 分支代码同步上线到公共生产目标 `https://www.excelcc.cn/`；本次从生产旧提交 `c08d386` 快进到 `e92efa4`，包含近期后端高并发读写路径优化、公开接口短缓存、V47/V48 数据库索引迁移、Vite vendor chunk 拆分、Lite 顶部导航预加载与轻量切换动画，以及相关压测/监控/部署文档脚本。
