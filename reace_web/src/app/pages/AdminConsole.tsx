@@ -92,6 +92,7 @@ import {
   POINTS_TASK_KEY_OPTIONS,
   ROLE_OPTIONS,
   answerRangeButtonClassName,
+  formDialogContentClassName,
   primaryButtonClassName,
   secondaryButtonClassName,
   statusBadgeClassName,
@@ -5481,12 +5482,12 @@ function FormDialog({
 }: FormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`flex max-h-[92vh] w-[min(760px,calc(100vw-2rem))] flex-col overflow-hidden p-0 sm:max-w-none ${contentClassName || ""}`}>
+      <DialogContent className={formDialogContentClassName(contentClassName)}>
         <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-5">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
-        <div className={`min-h-0 flex-1 overflow-y-auto px-5 py-4 ${bodyClassName || ""}`}>
+        <div className={`min-h-0 flex-1 basis-0 overflow-y-auto px-5 py-4 ${bodyClassName || ""}`}>
           <div className="space-y-4">{children}</div>
         </div>
         <DialogFooter className="shrink-0 border-t border-slate-200 px-6 py-4 bg-white">

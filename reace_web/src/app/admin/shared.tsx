@@ -146,6 +146,10 @@ export function answerRangeButtonClassName() {
   return "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[2px] border border-[#1677ff] bg-[#1677ff] px-3 text-sm font-normal text-white shadow-sm transition hover:border-[#4096ff] hover:bg-[#4096ff] disabled:cursor-not-allowed disabled:border-[#d9d9d9] disabled:bg-[#f5f5f5] disabled:text-[#bfbfbf] disabled:shadow-none";
 }
 
+export function formDialogContentClassName(contentClassName = "") {
+  return `!flex max-h-[92vh] w-[min(760px,calc(100vw-2rem))] !flex-col !gap-0 overflow-hidden p-0 sm:max-w-none ${contentClassName}`;
+}
+
 export function AddButton({
   children = "新建",
   onClick,
