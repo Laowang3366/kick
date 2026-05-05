@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-05 23:07 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀闯关返回链路与表格编辑器稳定性优化；删除章节地图/关卡地图入口，`/practice` 与预加载均进入题目列表，旧 `/practice/chapter/:id` 路由重定向到题目列表；闯关提交后刷新 campaign 查询缓存，结果页“返回地图”改为“返回题目列表”；表格编辑器 key 不再随 workbook 单元格变化而重建，减少公式填充闪烁和下拉中断；Univer 中文语言包改为编辑器挂载时按需加载并调整 Vite chunk 预算，消除本轮语言包/大 chunk 构建警告。
+- 验证：本地先新增 `practice-campaign-ui` 与 `vite-performance` 回归测试并确认缺失 helper / chunk 预算时失败；实现后 `npx vitest run src/app/lib/practice-campaign-ui.test.ts src/app/lib/vite-performance.test.ts` 通过；本地 `npx vitest run` 通过 15 个测试文件、56 个测试；本地 `npm run build` 通过且无 Vite 大 chunk 警告；本地 `git diff --check` 无空白错误；生产部署后服务器仓库 `2276cf41` 且 worktree clean，`kick-backend.service` 与 `nginx` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/practice`、`/practice/chapters`、`/api/public/home-overview` 均返回 200；线上 assets 包含“返回题目列表”，且不再包含“返回地图”或“章节地图”。
+- 部署：本地提交 `2276cf4` 因 GitHub HTTPS 推送连接被重置，使用 `scripts/deploy/export-git-bundle.sh` 导出 `kick-release-2276cf4.bundle`，上传到公共生产机 `/www/wwwroot/kick-deploy/bundles/kick-release-2276cf4.bundle`；服务器 `/www/wwwroot/kick-deploy/repo` 通过 `bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/kick-release-2276cf4.bundle` 快进到本次提交并复用标准 `production-deploy.sh` 发布到 `https://www.excelcc.cn/`；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260505-230450`
+- 备注：发布脚本重启后端后健康检查前 3 次短暂出现 `127.0.0.1:8080 Connection refused`，第 4 次通过，服务最终 active 且公网复验正常；手动拆分 Univer 内部核心包会产生循环 chunk 警告，最终保留编辑器懒加载和语言包按需加载，只将已懒加载的表格核心 vendor 纳入构建告警预算。
+
 ## 2026-05-05 22:37 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 表格编辑器填充公式识别修复；定位到 Univer 填充公式保存时会将首格写为 `f + si`，后续同组单元格只保留共享公式 `si`，原转换逻辑只读取 `cellData.f`，导致填充下拉后的部分公式被保存为普通数值；本次抽出 `univerDataToWorkbookSnapshot` 转换 helper，按共享公式 id 找到锚点并通过 Univer `moveFormulaRefOffset` 恢复每个填充单元格的公式，保留本地兜底偏移逻辑。
