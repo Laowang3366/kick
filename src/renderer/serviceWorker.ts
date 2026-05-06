@@ -1,0 +1,28 @@
+const APP_CACHE_PREFIX = 'quick-translate-';
+
+export async function prepareServiceWorkerForCurrentMode(isDevelopment: boolean): Promise<void> {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  if (isDevelopment) {
+    await unregisterServiceWorkersAndClearCaches();
+    return;
+  }
+
+  await navigator.serviceWorker.register('/sw.js');
+}
+
+export async function unregisterServiceWorkersAndClearCaches(): Promise<void> {
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(registrations.map((registration) => registration.unregister()));
+
+  if ('caches' in window) {
+    const cacheKeys = await caches.keys();
+    await Promise.all(
+      cacheKeys
+        .filter((cacheKey) => cacheKey.startsWith(APP_CACHE_PREFIX))
+        .map((cacheKey) => caches.delete(cacheKey))
+    );
+  }
+}
