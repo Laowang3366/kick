@@ -80,7 +80,7 @@ export function PracticeCampaignHub() {
   };
 
   return (
-    <LitePageFrame className="max-w-[1320px]">
+    <LitePageFrame className="max-w-[1600px]">
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-[#00140d] text-white shadow-[0_28px_72px_rgba(0,20,13,0.22)]">
         <div className="border-b border-white/10 px-5 py-6 sm:px-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
