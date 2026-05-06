@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-06 11:13 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 服务器迁移；将运行环境从原生产机 `198.44.178.219` 迁移到新生产机 `64.90.12.101`，保留原服务器数据与服务运行状态作为迁移失败时的备用回退目标。
+- 验证：新服务器完成 Java 17、Maven、Node/npm、MySQL、Redis、Nginx 等运行依赖安装；目标仓库 `/www/wwwroot/kick-deploy/repo` 为 `2f632a3` 且 worktree clean；`kick-backend.service`、`nginx`、`mysql`、`redis-server` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/practice`、`/practice/chapters`、`/api/practice/categories` 均返回 200；原服务器通过 `--resolve www.excelcc.cn:443:198.44.178.219` 强制回源验证首页与公开 API 均返回 200；源库与目标库表数量均为 56，关键表行数摘要 hash 一致；上传目录恢复后大小为 56M；新服务器近 10 分钟后端 error 日志无新增错误。
+- 部署：原服务器只读取配置、数据库与上传文件并生成迁移备份，未停止原有服务；本地通过 `scripts/deploy/export-git-bundle.sh` 导出 `kick-migration-2f632a3.bundle`，上传到新服务器 `/www/wwwroot/kick-deploy/bundles/kick-migration-2f632a3.bundle`；新服务器从迁移包恢复数据库、上传文件、运行环境配置与证书后，以 `GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh` 复用标准发布脚本完成上线；本次不是 LAN `lan.excelcc.cn` 迁移。
+- 服务器备份：原服务器迁移归档 `/www/wwwroot/kick-deploy/migration-20260506-105744.tar.gz`；新服务器发布备份 `/www/wwwroot/kick-deploy/backups/20260506-030655`。
+- 备注：迁移开始前 DNS 已解析到新服务器 `64.90.12.101`，原服务器 `198.44.178.219` 保持可用，回退边界为将 DNS 解析回原服务器；新服务器使用系统 MySQL 承载迁移后的同名数据库；前端构建存在 `react-router` 对 Node >=20 的 engine 警告，当前 Node 18 下构建和部署均已通过，后续可在维护窗口升级 Node 20+。
+
 ## 2026-05-05 23:07 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀闯关返回链路与表格编辑器稳定性优化；删除章节地图/关卡地图入口，`/practice` 与预加载均进入题目列表，旧 `/practice/chapter/:id` 路由重定向到题目列表；闯关提交后刷新 campaign 查询缓存，结果页“返回地图”改为“返回题目列表”；表格编辑器 key 不再随 workbook 单元格变化而重建，减少公式填充闪烁和下拉中断；Univer 中文语言包改为编辑器挂载时按需加载并调整 Vite chunk 预算，消除本轮语言包/大 chunk 构建警告。
