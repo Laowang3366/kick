@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-06 11:40 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀入口样式恢复；将顶部导航“小试牛刀”对应的 `/practice` 从浅色章节详情卡片页恢复为深色章节表格入口，保留 `/practice/chapters` 作为章节题目列表入口，`/practice/chapter/:id` 仍重定向到题目列表；按要求不默认展开任何章节题目列表。
+- 验证：本地 `npx vitest run src/app/lib/site-navigation.test.ts src/app/lib/practice-campaign-ui.test.ts` 通过 17 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；新生产机 `/www/wwwroot/kick-deploy/repo` 为 `b26d9f6` 且 worktree clean，`kick-backend.service`、`nginx`、`mysql`、`redis-server` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/practice`、`/practice/chapters`、`/api/public/home-overview`、`/api/practice/campaign/chapters` 均返回 200；线上 asset 为 `PracticeCampaignHub-CkDIq7Bt.js`；Selenium 以 1804x1015 截图验证 `/practice` 包含“章节地图”“查看所有章节列表”和章节表头，未出现默认展开题目行或浅色详情页“目标时间/奖励经验/奖励积分”组合。
+- 部署：本地提交 `d7ade44` 恢复 `PracticeCampaignHub` 并将 `/practice` 路由/预加载指回深色入口，随后提交 `b26d9f6` 调整入口面板宽度；通过 `scripts/deploy/export-git-bundle.sh` 导出 `kick-practice-hub-b26d9f6.bundle`，上传到新生产机 `/www/wwwroot/kick-deploy/bundles/kick-practice-hub-b26d9f6.bundle`，服务器使用 `bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/kick-practice-hub-b26d9f6.bundle` 快进并复用标准 `production-deploy.sh` 发布；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260506-033737`；过程备份 `/www/wwwroot/kick-deploy/backups/20260506-032852`。
+- 备注：发布脚本重启后端后健康检查前 3 次短暂出现 `127.0.0.1:8080 Connection refused`，第 4 次通过；新服务器仍存在 `react-router` 要求 Node >=20 的 npm engine 警告，当前 Node 18 下构建、发布和线上复验均通过。
+
 ## 2026-05-06 11:13 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 服务器迁移；将运行环境从原生产机 `198.44.178.219` 迁移到新生产机 `64.90.12.101`，保留原服务器数据与服务运行状态作为迁移失败时的备用回退目标。
