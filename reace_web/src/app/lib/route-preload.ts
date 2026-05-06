@@ -3,7 +3,7 @@ type RoutePreloader = () => Promise<unknown>;
 const publicRoutePreloaders: Record<string, RoutePreloader> = {
   "/": () => import("../pages/Home"),
   "/tutorials": () => import("../pages/TutorialCenter"),
-  "/practice": () => import("../pages/PracticeCampaignChapters"),
+  "/practice": () => import("../pages/PracticeCampaignHub"),
   "/practice/chapters": () => import("../pages/PracticeCampaignChapters"),
   "/templates": () => import("../pages/TemplateCenter"),
   "/mall": () => import("../pages/Mall"),

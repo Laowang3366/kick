@@ -63,7 +63,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, lazy: lazyPage(() => import("./pages/Home"), "Home") },
       { path: "chat", Component: LiteRedirect },
-      pageRoute("practice", () => import("./pages/PracticeCampaignChapters"), "PracticeCampaignChapters", true),
+      pageRoute("practice", () => import("./pages/PracticeCampaignHub"), "PracticeCampaignHub", true),
       pageRoute("practice/chapters", () => import("./pages/PracticeCampaignChapters"), "PracticeCampaignChapters", true),
       pageRoute("practice/classic", () => import("./pages/Practice"), "Practice", true),
       { path: "practice/chapter/:id", Component: PracticeChapterRedirect },
