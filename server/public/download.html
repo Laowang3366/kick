@@ -184,6 +184,63 @@
         font-size: 14px;
       }
 
+      .platform-downloads {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .platform-card {
+        min-width: 0;
+        display: grid;
+        gap: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        padding: 16px;
+        background: rgba(4, 17, 36, 0.36);
+      }
+
+      .platform-card h3 {
+        color: #ffffff;
+        font-size: 17px;
+      }
+
+      .platform-card p {
+        min-height: 44px;
+        color: rgba(255, 255, 255, 0.68);
+        font-size: 13px;
+        line-height: 1.65;
+      }
+
+      .platform-card small {
+        overflow: hidden;
+        color: rgba(255, 255, 255, 0.56);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .platform-card a,
+      .platform-card button {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 8px;
+        padding: 0 12px;
+        color: #ffffff;
+        background: rgba(13, 102, 216, 0.92);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 900;
+      }
+
+      .platform-card.unavailable a,
+      .platform-card.unavailable button {
+        background: rgba(255, 255, 255, 0.14);
+        cursor: not-allowed;
+      }
+
       .showcase {
         min-height: calc(100vh - 68px);
         color: #ffffff;
@@ -369,7 +426,8 @@
         }
 
         .showcase-heading,
-        .carousel-stage {
+        .carousel-stage,
+        .platform-downloads {
           grid-template-columns: 1fr;
         }
       }
@@ -406,6 +464,7 @@
           <div class="meta-chip"><span>大小</span><strong id="latest-size">--</strong></div>
           <div class="meta-chip"><span>发布时间</span><strong id="latest-date">--</strong></div>
         </div>
+        <div id="platform-downloads" class="platform-downloads" aria-label="多端下载"></div>
       </div>
     </section>
 
@@ -602,6 +661,97 @@
         return Number.isNaN(date.getTime()) ? '未知时间' : formatter.format(date);
       }
 
+      function platformOf(release) {
+        const explicitPlatform = String(release.platform || release.os || '').toLowerCase();
+        if (explicitPlatform) {
+          return explicitPlatform;
+        }
+
+        const fileName = String(release.fileName || '').toLowerCase();
+        if (fileName.endsWith('.dmg') || fileName.endsWith('.pkg') || fileName.endsWith('.zip')) {
+          return fileName.includes('mac') || fileName.includes('darwin') ? 'macos' : 'windows';
+        }
+        if (fileName.endsWith('.apk') || fileName.endsWith('.aab')) {
+          return 'android';
+        }
+        if (fileName.endsWith('.ipa')) {
+          return 'ios';
+        }
+        return 'windows';
+      }
+
+      function renderPlatformDownloads(releases) {
+        const appUrl = `${backendBase}/app/`;
+        const newestByPlatform = new Map();
+        releases.forEach((release) => {
+          const platform = platformOf(release);
+          if (!newestByPlatform.has(platform)) {
+            newestByPlatform.set(platform, release);
+          }
+        });
+
+        const platforms = [
+          {
+            key: 'windows',
+            title: 'Windows 桌面端',
+            description: '完整桌面安装包，支持托盘、鼠标下侧键和悬浮窗。',
+            action: '下载 EXE'
+          },
+          {
+            key: 'macos',
+            title: 'Mac 端',
+            description: '已接入 Mac 桌面构建配置；发布 DMG/ZIP 后会在这里显示。',
+            action: '下载 Mac 包',
+            fallbackHref: appUrl,
+            fallbackAction: '打开 Web 版'
+          },
+          {
+            key: 'android',
+            title: 'Android 移动端',
+            description: '移动端以可安装 Web App 适配，打开后可添加到主屏幕。',
+            action: '打开安装入口',
+            fallbackHref: appUrl
+          },
+          {
+            key: 'ios',
+            title: 'iPhone / iPad',
+            description: 'iOS 端以 Safari 添加到主屏幕使用，历史和设置可登录同步。',
+            action: '打开安装入口',
+            fallbackHref: appUrl
+          }
+        ];
+
+        const container = document.querySelector('#platform-downloads');
+        container.innerHTML = '';
+        platforms.forEach((platform) => {
+          const release = newestByPlatform.get(platform.key);
+          const href = release?.url || platform.fallbackHref || '';
+          const card = document.createElement('article');
+          card.className = `platform-card${href ? '' : ' unavailable'}`;
+          const title = document.createElement('h3');
+          title.textContent = platform.title;
+          const description = document.createElement('p');
+          description.textContent = platform.description;
+          const meta = document.createElement('small');
+          meta.textContent = release
+            ? `${release.version} · ${formatSize(release.size)}`
+            : platform.key === 'macos'
+              ? '原生安装包待 macOS 构建生成'
+              : '使用移动端 Web App';
+          const link = document.createElement(href ? 'a' : 'button');
+          link.textContent = release ? platform.action : platform.fallbackAction || platform.action;
+          if (href) {
+            link.href = href;
+          } else {
+            link.type = 'button';
+            link.disabled = true;
+          }
+          card.append(title, description, meta);
+          card.appendChild(link);
+          container.appendChild(card);
+        });
+      }
+
       fetch(apiUrl('/api/downloads'))
         .then((response) => response.json())
         .then((manifest) => {
@@ -616,6 +766,7 @@
           if (!latest) {
             latestTitle.textContent = '暂无版本';
             latestLink.hidden = true;
+            renderPlatformDownloads([]);
             return;
           }
 
@@ -624,10 +775,12 @@
           latestSize.textContent = formatSize(latest.size);
           latestDate.textContent = formatDate(latest.releaseDate);
           latestLink.href = latest.url;
+          renderPlatformDownloads(releases);
         })
         .catch(() => {
           document.querySelector('#latest-title').textContent = '版本信息读取失败';
           document.querySelector('#latest-link').hidden = true;
+          renderPlatformDownloads([]);
         });
     </script>
   </body>

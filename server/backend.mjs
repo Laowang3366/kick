@@ -434,6 +434,7 @@ export function createJsonStore({ dataDir, defaultProvider }) {
 function createJsonFile(filePath, fallback) {
   let hasLoaded = false;
   let cachedValue;
+  let loadPromise;
   let queue = Promise.resolve();
 
   async function load() {
@@ -441,21 +442,27 @@ function createJsonFile(filePath, fallback) {
       return cachedValue;
     }
 
-    await mkdir(path.dirname(filePath), { recursive: true });
-    if (!existsSync(filePath)) {
-      cachedValue = cloneJson(fallback);
-      hasLoaded = true;
-      return cachedValue;
+    if (!loadPromise) {
+      loadPromise = (async () => {
+        await mkdir(path.dirname(filePath), { recursive: true });
+        if (!existsSync(filePath)) {
+          cachedValue = cloneJson(fallback);
+          hasLoaded = true;
+          return cachedValue;
+        }
+
+        try {
+          cachedValue = JSON.parse(await readFile(filePath, 'utf8'));
+        } catch {
+          cachedValue = cloneJson(fallback);
+        }
+
+        hasLoaded = true;
+        return cachedValue;
+      })();
     }
 
-    try {
-      cachedValue = JSON.parse(await readFile(filePath, 'utf8'));
-    } catch {
-      cachedValue = cloneJson(fallback);
-    }
-
-    hasLoaded = true;
-    return cachedValue;
+    return loadPromise;
   }
 
   function enqueue(task) {
@@ -797,6 +804,7 @@ function normalizeDownloadManifest(value) {
         .filter(isRecord)
         .map((release) => ({
           version: stringOrEmpty(release.version),
+          platform: normalizeReleasePlatform(release.platform || release.os || release.fileName),
           fileName: stringOrEmpty(release.fileName),
           url: stringOrEmpty(release.url),
           size: Number.isFinite(release.size) ? release.size : 0,
@@ -810,4 +818,18 @@ function normalizeDownloadManifest(value) {
     latestVersion: stringOrEmpty(record.latestVersion) || releases[0]?.version || '',
     releases
   };
+}
+
+function normalizeReleasePlatform(value) {
+  const normalized = stringOrEmpty(value).toLowerCase();
+  if (normalized.includes('mac') || normalized.includes('darwin') || normalized.endsWith('.dmg')) {
+    return 'macos';
+  }
+  if (normalized.includes('android') || normalized.endsWith('.apk') || normalized.endsWith('.aab')) {
+    return 'android';
+  }
+  if (normalized.includes('ios') || normalized.endsWith('.ipa')) {
+    return 'ios';
+  }
+  return 'windows';
 }

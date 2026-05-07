@@ -3,6 +3,7 @@
   "releases": [
     {
       "version": "0.1.18",
+      "platform": "windows",
       "fileName": "快捷翻译 Setup 0.1.18.exe",
       "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.18.exe",
       "size": 99983015,
@@ -11,6 +12,7 @@
     },
     {
       "version": "0.1.17",
+      "platform": "windows",
       "fileName": "快捷翻译 Setup 0.1.17.exe",
       "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.17.exe",
       "size": 99748115,
@@ -19,6 +21,7 @@
     },
     {
       "version": "0.1.16",
+      "platform": "windows",
       "fileName": "快捷翻译 Setup 0.1.16.exe",
       "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.16.exe",
       "size": 99746892,
@@ -27,6 +30,7 @@
     },
     {
       "version": "0.1.15",
+      "platform": "windows",
       "fileName": "快捷翻译 Setup 0.1.15.exe",
       "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.15.exe",
       "size": 99747152,
@@ -35,6 +39,7 @@
     },
     {
       "version": "0.1.14",
+      "platform": "windows",
       "fileName": "快捷翻译 Setup 0.1.14.exe",
       "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.14.exe",
       "size": 99745751,

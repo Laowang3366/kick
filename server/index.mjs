@@ -63,6 +63,11 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (pathname === '/app' || pathname === '/app/' || pathname.startsWith('/app/')) {
+    await serveAppAsset(response, pathname);
+    return;
+  }
+
   if (pathname.startsWith('/assets/')) {
     await servePublicAsset(response, pathname);
     return;
@@ -129,6 +134,27 @@ async function servePublicAsset(response, pathname) {
   await serveStaticFile(response, filePath, contentTypeForPath(filePath));
 }
 
+async function serveAppAsset(response, pathname) {
+  const appRoot = path.join(projectRoot, 'dist');
+  const normalizedPath = pathname === '/app' || pathname === '/app/' ? 'index.html' : decodeURIComponent(pathname.slice('/app/'.length));
+  const requestedPath = normalizedPath || 'index.html';
+  const filePath = path.resolve(appRoot, requestedPath);
+  const resolvedAppRoot = path.resolve(appRoot);
+
+  if (!filePath.startsWith(`${resolvedAppRoot}${path.sep}`) && filePath !== resolvedAppRoot) {
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end('资源不存在');
+    return;
+  }
+
+  if (!path.extname(filePath)) {
+    await serveStaticFile(response, path.join(appRoot, 'index.html'), 'text/html; charset=utf-8');
+    return;
+  }
+
+  await serveStaticFile(response, filePath, contentTypeForPath(filePath));
+}
+
 function contentTypeForPath(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
     case '.png':
@@ -140,6 +166,8 @@ function contentTypeForPath(filePath) {
       return 'image/webp';
     case '.svg':
       return 'image/svg+xml; charset=utf-8';
+    case '.webmanifest':
+      return 'application/manifest+json; charset=utf-8';
     case '.css':
       return 'text/css; charset=utf-8';
     case '.js':

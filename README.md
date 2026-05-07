@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5173/` 使用网页和移动端 PWA 版本。
+打开 `http://127.0.0.1:5173/` 使用网页和移动端 PWA 版本。线上 Web App 入口是 `http://sg.lwvpscc.top/quick-translate/backend/app/`。
 
 ```powershell
 npm run desktop:dev
@@ -43,7 +43,7 @@ npm run desktop:dev
 }
 ```
 
-环境变量优先级高于 `provider-settings.json`。安装版内置一个默认兼容接口通道，也可以通过环境变量或用户数据目录里的 `provider-settings.json` 覆盖；任何兼容 `/chat/completions` 的接口都可以接入。网页/PWA 版本未连接 Electron 后台时使用离线示例翻译流程。
+环境变量优先级高于 `provider-settings.json`。安装版默认走服务器后台 `/api/translate` 通道，不在客户端包内携带接口密钥；只有显式设置环境变量或用户数据目录里的 `provider-settings.json` 时，才会启用本机直连兼容接口兜底。任何兼容 `/chat/completions` 的接口都可以接入。
 
 ## 账号同步与后台
 
@@ -72,7 +72,7 @@ npm run server:start
 - 用户下载页：`http://sg.lwvpscc.top/quick-translate/backend/download`
 - 管理后台：`http://sg.lwvpscc.top/quick-translate/backend/admin`
 
-软件未登录时继续使用本地历史、收藏和设置；登录后会把历史、收藏和设置同步到后台。翻译请求在 Electron 安装版里优先走本机隐藏通道，Web/PWA 登录后可走服务器翻译代理；接口不可用时保留本地兜底。
+软件未登录时继续使用本地历史、收藏和设置；登录后会把历史、收藏和设置同步到后台。翻译请求在 Electron 安装版和 Web/PWA 中都优先走服务器翻译代理；接口不可用时，桌面端仅在本机配置了直连通道时兜底。
 
 ## 移动端 PWA
 
@@ -83,6 +83,12 @@ npm run server:start
 - 移动端系统分享入口
 
 在支持 PWA 的移动浏览器中安装到桌面即可使用。通过系统分享进入时，文本会自动填入翻译框。
+
+后台服务会把 `dist/` 暴露到 `/app/`，用于 Android、iOS 和桌面浏览器安装 Web App：
+
+```text
+http://sg.lwvpscc.top/quick-translate/backend/app/
+```
 
 ## 验证
 
@@ -109,6 +115,12 @@ npm run smoke:api
 npm run desktop:smoke
 ```
 
+500 并发压力测试：
+
+```powershell
+npm run stress:backend
+```
+
 ## 桌面打包
 
 生成本地未安装目录包：
@@ -121,6 +133,12 @@ npm run package:dir
 
 ```powershell
 npm run dist:win
+```
+
+生成 Mac DMG/ZIP 安装包需要在 macOS 环境运行：
+
+```powershell
+npm run dist:mac
 ```
 
 安装后的桌面快捷方式图标来自 `build/icons/desktop-icon.ico`，安装包自身图标来自 `build/icons/installer-icon.ico`。

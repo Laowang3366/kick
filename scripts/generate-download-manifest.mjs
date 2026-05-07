@@ -25,6 +25,7 @@ const filePath = path.join(releaseDir, fileName);
 const fileStat = await stat(filePath);
 const release = {
   version,
+  platform: inferPlatform(fileName),
   fileName,
   url: `${publicUpdateBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(fileName)}`,
   size: fileStat.size,
@@ -61,6 +62,20 @@ function readYamlValue(text, key) {
   }
 
   return match[1].trim();
+}
+
+function inferPlatform(fileName) {
+  const normalized = fileName.toLowerCase();
+  if (normalized.endsWith('.dmg') || normalized.includes('mac')) {
+    return 'macos';
+  }
+  if (normalized.endsWith('.apk') || normalized.endsWith('.aab') || normalized.includes('android')) {
+    return 'android';
+  }
+  if (normalized.endsWith('.ipa') || normalized.includes('ios')) {
+    return 'ios';
+  }
+  return 'windows';
 }
 
 async function readExistingManifest(filePath) {

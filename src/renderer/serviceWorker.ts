@@ -10,7 +10,7 @@ export async function prepareServiceWorkerForCurrentMode(isDevelopment: boolean)
     return;
   }
 
-  await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.register(new URL('sw.js', window.location.href));
 }
 
 export async function unregisterServiceWorkersAndClearCaches(): Promise<void> {

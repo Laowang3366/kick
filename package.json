@@ -11,13 +11,16 @@
     "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && electron .\"",
     "server:start": "node server/index.mjs",
     "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.electron.json",
+    "build:webapp": "npm run build",
     "desktop:smoke": "node scripts/smoke-electron.mjs",
     "download:manifest": "node scripts/generate-download-manifest.mjs",
+    "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never && npm run download:manifest",
     "dist:win": "npm run build && electron-builder --dir && node scripts/apply-win-icon.mjs && electron-builder --win nsis --prepackaged release/win-unpacked --publish never && npm run smoke:update-channel && npm run download:manifest",
     "package:dir": "npm run build && electron-builder --dir && node scripts/apply-win-icon.mjs",
     "smoke:api": "node scripts/smoke-api.mjs",
     "smoke:packaged-html": "node scripts/assert-packaged-html.mjs",
     "smoke:update-channel": "node scripts/assert-update-channel.mjs",
+    "stress:backend": "node scripts/stress-backend.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "node scripts/verify.mjs",
@@ -69,6 +72,13 @@
       "signAndEditExecutable": false,
       "target": [
         "nsis"
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
       ]
     },
     "nsis": {

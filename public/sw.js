@@ -1,6 +1,6 @@
-const CACHE_NAME = 'quick-translate-v4';
+const CACHE_NAME = 'quick-translate-v5';
 const CACHE_PREFIX = 'quick-translate-';
-const CORE_ASSETS = ['/', '/manifest.webmanifest', '/app-icon.svg'];
+const CORE_ASSETS = ['./', './manifest.webmanifest', './app-icon.svg'];
 const IS_LOCAL_DEV =
   self.location.hostname === 'localhost' ||
   self.location.hostname === '127.0.0.1' ||

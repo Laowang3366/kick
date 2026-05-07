@@ -76,6 +76,26 @@ describe('backend app', () => {
     expect(stateResponse.body.state.settings.defaultTargetLanguage).toBe('zh-CN');
   });
 
+  it('preserves user records during concurrent registrations', async () => {
+    const responses = await Promise.all(
+      Array.from({ length: 40 }, (_value, index) =>
+        request('POST', '/api/auth/register', {
+          email: `concurrent-${index}@example.com`,
+          password: 'secret123',
+          displayName: `并发用户 ${index}`
+        })
+      )
+    );
+    const adminLoginResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'admin-pass'
+    });
+    const usersResponse = await request('GET', '/api/admin/users', undefined, adminLoginResponse.body.token);
+
+    expect(responses.every((response) => response.status === 201)).toBe(true);
+    expect(usersResponse.body.total).toBe(40);
+  });
+
   it('rejects protected sync requests without a token', async () => {
     const response = await request('GET', '/api/sync/state');
 
@@ -310,6 +330,7 @@ describe('backend app', () => {
     expect(response.status).toBe(200);
     expect(response.body.latestVersion).toBe('0.1.14');
     expect(response.body.releases[0].fileName).toContain('快捷翻译');
+    expect(response.body.releases[0].platform).toBe('windows');
   });
 
   it('accepts the nginx backend prefix in API paths', async () => {

@@ -40,7 +40,7 @@ describe('serviceWorker', () => {
   it('registers the production service worker outside development', async () => {
     await prepareServiceWorkerForCurrentMode(false);
 
-    expect(register).toHaveBeenCalledWith('/sw.js');
+    expect(register).toHaveBeenCalledWith(new URL('sw.js', window.location.href));
   });
 
   it('can run explicit cleanup for a stale development page', async () => {

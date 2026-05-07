@@ -2,7 +2,8 @@
   "name": "快捷翻译",
   "short_name": "翻译",
   "description": "适用于桌面端和移动端的便捷翻译工具。",
-  "start_url": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#eef2f7",
   "theme_color": "#111827",
@@ -17,7 +18,7 @@
   },
   "icons": [
     {
-      "src": "/app-icon.svg",
+      "src": "app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
