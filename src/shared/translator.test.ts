@@ -39,7 +39,20 @@ describe('translateText', () => {
         provider: { type: 'mock' }
       })
     ).resolves.toMatchObject({
-      translatedText: '离线示例引擎没有这段文本的示例译文，请切换到兼容接口并填写接口配置。'
+      translatedText: '离线示例引擎没有这段文本的示例译文，请配置后台翻译通道。'
+    });
+  });
+
+  it('formats mock translations as Java lower camel case when requested', async () => {
+    await expect(
+      translateText({
+        text: 'user display name',
+        targetLanguage: 'en-US',
+        translationFormat: 'java-camel-case',
+        provider: { type: 'mock' }
+      })
+    ).resolves.toMatchObject({
+      translatedText: 'userDisplayName'
     });
   });
 
@@ -69,11 +82,36 @@ describe('translateText', () => {
       messages: [
         {
           role: 'system',
-          content: 'Translate the user text into fr-FR. Return only the translated text.'
+          content: 'Translate the user text into 法语 (fr-FR). Return only the translated text.'
         },
         { role: 'user', content: 'Good morning' }
       ]
     });
+  });
+
+  it('adds the selected translation format to the OpenAI-compatible system prompt', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'userName' } }]
+      })
+    });
+
+    await translateText({
+      text: '用户名称',
+      targetLanguage: 'en-US',
+      translationFormat: 'java-camel-case',
+      provider: {
+        type: 'openai-compatible',
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'secret',
+        model: 'gpt-4.1-mini'
+      },
+      fetcher
+    });
+
+    const [, init] = fetcher.mock.calls[0];
+    expect(JSON.parse(String(init.body)).messages[0].content).toContain('Java-style lowerCamelCase identifier');
   });
 
   it('rejects empty source text before calling a provider', async () => {
@@ -88,5 +126,120 @@ describe('translateText', () => {
       })
     ).rejects.toThrow('原文不能为空');
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('aborts OpenAI-compatible requests after the configured timeout', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const fetcher = vi.fn((_url: string, init?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          });
+        });
+      });
+
+      const translation = translateText({
+        text: 'hello',
+        targetLanguage: 'zh-CN',
+        provider: {
+          type: 'openai-compatible',
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'secret',
+          model: 'gpt-4.1-mini'
+        },
+        fetcher,
+        timeoutMs: 50,
+        maxRetries: 0
+      });
+
+      const assertion = expect(translation).rejects.toThrow('翻译接口请求超时，请稍后重试');
+      await vi.advanceTimersByTimeAsync(50);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries 5xx OpenAI-compatible responses and succeeds later', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        json: async () => ({ message: 'bad gateway' })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: '你好' } }]
+        })
+      });
+
+    await expect(
+      translateText({
+        text: 'hello',
+        targetLanguage: 'zh-CN',
+        provider: {
+          type: 'openai-compatible',
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'secret',
+          model: 'gpt-4.1-mini'
+        },
+        fetcher,
+        maxRetries: 1
+      })
+    ).resolves.toMatchObject({
+      translatedText: '你好'
+    });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry 4xx OpenAI-compatible errors and includes the API message', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: { message: 'invalid api key' } })
+    });
+
+    await expect(
+      translateText({
+        text: 'hello',
+        targetLanguage: 'zh-CN',
+        provider: {
+          type: 'openai-compatible',
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'secret',
+          model: 'gpt-4.1-mini'
+        },
+        fetcher,
+        maxRetries: 3
+      })
+    ).rejects.toThrow('翻译接口请求失败，状态码 401：invalid api key');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects empty OpenAI-compatible translation results with a Chinese error', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '   ' } }]
+      })
+    });
+
+    await expect(
+      translateText({
+        text: 'hello',
+        targetLanguage: 'zh-CN',
+        provider: {
+          type: 'openai-compatible',
+          baseUrl: 'https://api.example.com/v1',
+          apiKey: 'secret',
+          model: 'gpt-4.1-mini'
+        },
+        fetcher
+      })
+    ).rejects.toThrow('翻译接口返回了空结果');
   });
 });

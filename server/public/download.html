@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>快捷翻译下载</title>
+    <style>
+      :root {
+        --blue: #0d66d8;
+        --blue-dark: #0052b3;
+        --ink: #111827;
+        --muted: #667085;
+        --line: rgba(255, 255, 255, 0.16);
+        color: var(--ink);
+        background: #06182c;
+        font-family:
+          "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", Inter, system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        background: linear-gradient(90deg, #06182c 0%, #10253d 47%, #21344b 100%);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      button,
+      a {
+        font: inherit;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .site-header {
+        height: 68px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 max(24px, calc((100vw - 1180px) / 2));
+        border-bottom: 1px solid var(--line);
+        color: #ffffff;
+        background: rgba(6, 24, 44, 0.72);
+        backdrop-filter: blur(12px);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        background: var(--blue);
+      }
+
+      .hero {
+        min-height: calc(100vh - 68px);
+        display: grid;
+        align-items: center;
+        color: #ffffff;
+      }
+
+      .hero-inner {
+        width: min(1180px, calc(100% - 48px));
+        display: grid;
+        gap: 26px;
+        margin: 0 auto;
+        padding: 64px 0;
+      }
+
+      .eyebrow {
+        width: fit-content;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 999px;
+        padding: 8px 14px;
+        color: #d7eaff;
+        background: rgba(255, 255, 255, 0.12);
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      h1 {
+        max-width: 720px;
+        font-size: clamp(44px, 8vw, 78px);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .hero-copy {
+        max-width: 700px;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 18px;
+        line-height: 1.8;
+      }
+
+      .hero-actions,
+      .showcase-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .primary-download,
+      .secondary-button {
+        min-height: 52px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        padding: 0 22px;
+        color: #ffffff;
+        text-decoration: none;
+        font-size: 17px;
+        font-weight: 900;
+      }
+
+      .primary-download {
+        background: var(--blue);
+        box-shadow: 0 18px 36px rgba(0, 82, 179, 0.36);
+      }
+
+      .primary-download:hover {
+        background: var(--blue-dark);
+      }
+
+      .secondary-button {
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        background: rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+      }
+
+      .hero-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .meta-chip {
+        display: grid;
+        gap: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        padding: 10px 13px;
+        background: rgba(4, 17, 36, 0.46);
+      }
+
+      .meta-chip span {
+        color: rgba(255, 255, 255, 0.62);
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .meta-chip strong {
+        max-width: 230px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+
+      .showcase {
+        min-height: calc(100vh - 68px);
+        color: #ffffff;
+      }
+
+      .showcase-inner {
+        width: min(1180px, calc(100% - 48px));
+        display: grid;
+        gap: 24px;
+        margin: 0 auto;
+        padding: 44px 0 56px;
+      }
+
+      .showcase-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 20px;
+        align-items: end;
+      }
+
+      .showcase-heading h2 {
+        font-size: clamp(34px, 5vw, 54px);
+        line-height: 1.08;
+      }
+
+      .showcase-heading p {
+        max-width: 720px;
+        margin-top: 12px;
+        color: rgba(255, 255, 255, 0.76);
+        font-size: 17px;
+        line-height: 1.75;
+      }
+
+      .carousel-shell {
+        display: grid;
+        gap: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        padding: 18px;
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 20px 42px rgba(0, 0, 0, 0.16);
+        backdrop-filter: blur(12px);
+      }
+
+      .carousel-stage {
+        display: grid;
+        grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .carousel-image-card {
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .carousel-image-card img {
+        width: 100%;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+        object-position: top left;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .carousel-copy {
+        min-height: 100%;
+        display: grid;
+        align-content: start;
+        gap: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        padding: 24px;
+        background: rgba(4, 17, 36, 0.32);
+      }
+
+      .carousel-kicker {
+        width: fit-content;
+        border-radius: 999px;
+        padding: 6px 10px;
+        color: #cfe5ff;
+        background: rgba(13, 102, 216, 0.26);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .carousel-copy h3 {
+        font-size: clamp(26px, 3vw, 38px);
+        line-height: 1.12;
+      }
+
+      .carousel-copy p {
+        color: rgba(255, 255, 255, 0.76);
+        font-size: 16px;
+        line-height: 1.78;
+      }
+
+      .feature-points {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .feature-points li {
+        display: grid;
+        grid-template-columns: 26px minmax(0, 1fr);
+        align-items: start;
+        gap: 10px;
+        color: rgba(255, 255, 255, 0.82);
+        line-height: 1.65;
+      }
+
+      .feature-points li::before {
+        content: attr(data-index);
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        border-radius: 7px;
+        color: #ffffff;
+        background: var(--blue);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .carousel-controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .carousel-arrows {
+        display: inline-flex;
+        gap: 10px;
+      }
+
+      .carousel-arrow,
+      .carousel-dot {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+      }
+
+      .carousel-arrow {
+        min-width: 44px;
+        min-height: 40px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: 900;
+      }
+
+      .carousel-dots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .carousel-dot {
+        min-height: 34px;
+        border-radius: 999px;
+        padding: 0 12px;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .carousel-dot.active {
+        border-color: var(--blue);
+        background: var(--blue);
+      }
+
+      @media (max-width: 860px) {
+        .site-header,
+        .hero-inner,
+        .showcase-inner {
+          width: auto;
+          padding-left: 20px;
+          padding-right: 20px;
+        }
+
+        .showcase-heading,
+        .carousel-stage {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .hero-actions,
+        .primary-download,
+        .secondary-button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">译</span>
+        <span>快捷翻译</span>
+      </div>
+    </header>
+
+    <section id="download-view" class="hero">
+      <div class="hero-inner">
+        <span class="eyebrow">Windows 桌面端 · 鼠标下侧键快速翻译</span>
+        <h1>快捷翻译</h1>
+        <p class="hero-copy">面向日常阅读、跨语言沟通和代码命名整理的轻量翻译工具。安装后可使用主窗口、悬浮翻译、历史收藏、本地设置和云端备份。</p>
+        <div class="hero-actions">
+          <a id="latest-link" class="primary-download" href="#">下载最新版</a>
+          <button id="show-interface-button" class="secondary-button" type="button">查看界面</button>
+        </div>
+        <div class="hero-meta" aria-label="最新版本信息">
+          <div class="meta-chip"><span>版本</span><strong id="latest-title">正在读取</strong></div>
+          <div class="meta-chip"><span>安装包</span><strong id="latest-file">--</strong></div>
+          <div class="meta-chip"><span>大小</span><strong id="latest-size">--</strong></div>
+          <div class="meta-chip"><span>发布时间</span><strong id="latest-date">--</strong></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="interface-view" class="showcase hidden" aria-label="软件功能界面">
+      <div class="showcase-inner">
+        <div class="showcase-heading">
+          <div>
+            <span class="eyebrow">软件功能界面</span>
+            <h2>核心功能轮播</h2>
+            <p>按功能逐项查看主窗口、默认目标语言、鼠标下侧键、悬浮窗口和历史备份的使用方式。</p>
+          </div>
+          <div class="showcase-actions">
+            <button id="back-download-button" class="secondary-button" type="button">返回下载页</button>
+          </div>
+        </div>
+
+        <div class="carousel-shell" aria-label="核心功能轮播">
+          <div class="carousel-stage">
+            <article class="carousel-image-card">
+              <img id="carousel-image" alt="快捷翻译功能界面" />
+            </article>
+            <article class="carousel-copy">
+              <span id="carousel-kicker" class="carousel-kicker"></span>
+              <h3 id="carousel-title"></h3>
+              <p id="carousel-description"></p>
+              <ul id="carousel-points" class="feature-points"></ul>
+            </article>
+          </div>
+          <div class="carousel-controls" aria-label="轮播控制">
+            <div id="carousel-dots" class="carousel-dots"></div>
+            <div class="carousel-arrows">
+              <button id="carousel-prev" class="carousel-arrow" type="button" aria-label="上一项">‹</button>
+              <button id="carousel-next" class="carousel-arrow" type="button" aria-label="下一项">›</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <script>
+      const backendBase = location.pathname.replace(/\/download\/?$/, '') || '';
+      const assetBase = `${backendBase}/assets/`;
+      document.querySelectorAll('img[data-asset]').forEach((image) => {
+        image.src = `${assetBase}${image.dataset.asset}`;
+      });
+
+      const formatter = new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const slides = [
+        {
+          tab: '主窗口',
+          image: 'app-translate.png',
+          kicker: '实时翻译',
+          title: '主窗口输入后自动翻译',
+          description: '主窗口用于日常输入、粘贴和校对译文。原文区域会显示自动检测到的语言，译文区域集中放置目标语言和翻译格式。',
+          points: [
+            '在原文框输入或粘贴文本后会自动翻译，也可以用 Ctrl + Enter 立即触发。',
+            '右侧目标语言只影响当前翻译场景，不会覆盖系统默认偏好。',
+            '目标语言为英语时，可选择 Java 驼峰、PascalCase、snake_case 等代码命名格式。'
+          ]
+        },
+        {
+          tab: '默认语言',
+          image: 'app-settings.png',
+          kicker: '翻译偏好',
+          title: '默认目标语言决定常用翻译方向',
+          description: '默认目标语言是软件的长期偏好，适合设置成最常翻译到的语言。主窗口、快捷键翻译和悬浮窗都会优先读取这个偏好。',
+          points: [
+            '在设置中的“翻译偏好”里选择默认目标语言，设置会保存到本地。',
+            '临时在翻译界面切换目标语言，只影响当前使用场景，不会改写默认目标语言。',
+            '登录账号后，默认目标语言会和历史、收藏一起同步，重装后可以恢复。'
+          ]
+        },
+        {
+          tab: '鼠标下侧键',
+          image: 'app-translate.png',
+          kicker: '快捷触发',
+          title: '选中文字后按鼠标下侧键快速翻译',
+          description: '鼠标下侧键是侧键快捷翻译入口，适合在浏览器、文档、聊天窗口或代码编辑器中直接翻译选中的文本。',
+          points: [
+            '先在任意软件里选中文字，再按下并释放鼠标下侧键。',
+            '主窗口打开时，选中文本会直接进入主窗口并快速翻译。',
+            '主窗口最小化时，会在鼠标附近打开悬浮窗口显示译文。'
+          ]
+        },
+        {
+          tab: '悬浮窗',
+          image: 'app-floating.png',
+          kicker: '最小化场景',
+          title: '悬浮窗口承接最小化时的翻译结果',
+          description: '悬浮窗口用于不打断当前工作的快速查看。它会围绕鼠标位置出现，适合边阅读边翻译。',
+          points: [
+            '软件最小化后，按鼠标下侧键会关闭旧悬浮窗并打开新的悬浮窗。',
+            '悬浮窗可以拖动位置，也可以置顶、最小化、关闭或返回主窗口。',
+            '本次软件未关闭前，悬浮窗会记住你第一次选择的目标语言和翻译格式。'
+          ]
+        },
+        {
+          tab: '历史备份',
+          image: 'app-history.png',
+          kicker: '记录与同步',
+          title: '历史、收藏和账号同步用于长期保存',
+          description: '翻译记录会优先保存在本地，常用结果可以收藏。登录后会把历史、收藏和设置同步到云端。',
+          points: [
+            '历史记录会按时间保存，点击条目可以回到翻译界面继续使用。',
+            '收藏用于保存常用译文，便于后续快速查找。',
+            '账号登录后提供云端兜底，重装或更新软件后可以恢复历史和设置。'
+          ]
+        }
+      ];
+      let activeSlide = 0;
+      let carouselTimer = 0;
+
+      function renderSlide(index) {
+        activeSlide = (index + slides.length) % slides.length;
+        const slide = slides[activeSlide];
+        const image = document.querySelector('#carousel-image');
+        image.src = `${assetBase}${slide.image}`;
+        image.alt = slide.title;
+        document.querySelector('#carousel-kicker').textContent = slide.kicker;
+        document.querySelector('#carousel-title').textContent = slide.title;
+        document.querySelector('#carousel-description').textContent = slide.description;
+        const points = document.querySelector('#carousel-points');
+        points.innerHTML = '';
+        slide.points.forEach((point, pointIndex) => {
+          const item = document.createElement('li');
+          item.dataset.index = String(pointIndex + 1);
+          item.textContent = point;
+          points.appendChild(item);
+        });
+        document.querySelectorAll('.carousel-dot').forEach((dot, dotIndex) => {
+          dot.classList.toggle('active', dotIndex === activeSlide);
+          dot.setAttribute('aria-pressed', String(dotIndex === activeSlide));
+        });
+      }
+
+      function resetCarouselTimer() {
+        window.clearInterval(carouselTimer);
+        carouselTimer = window.setInterval(() => renderSlide(activeSlide + 1), 7000);
+      }
+
+      document.querySelector('#carousel-dots').append(
+        ...slides.map((slide, index) => {
+          const button = document.createElement('button');
+          button.className = 'carousel-dot';
+          button.type = 'button';
+          button.textContent = slide.tab;
+          button.setAttribute('aria-label', `查看${slide.tab}`);
+          button.addEventListener('click', () => {
+            renderSlide(index);
+            resetCarouselTimer();
+          });
+          return button;
+        })
+      );
+      document.querySelector('#carousel-prev').addEventListener('click', () => {
+        renderSlide(activeSlide - 1);
+        resetCarouselTimer();
+      });
+      document.querySelector('#carousel-next').addEventListener('click', () => {
+        renderSlide(activeSlide + 1);
+        resetCarouselTimer();
+      });
+      renderSlide(0);
+      resetCarouselTimer();
+
+      document.querySelector('#show-interface-button').addEventListener('click', () => {
+        document.querySelector('#download-view').classList.add('hidden');
+        document.querySelector('#interface-view').classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      });
+
+      document.querySelector('#back-download-button').addEventListener('click', () => {
+        document.querySelector('#interface-view').classList.add('hidden');
+        document.querySelector('#download-view').classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      });
+
+      function apiUrl(pathname) {
+        return `${backendBase}${pathname}`;
+      }
+
+      function formatSize(size) {
+        return Number.isFinite(size) && size > 0 ? `${(size / 1024 / 1024).toFixed(1)} MB` : '未知大小';
+      }
+
+      function formatDate(value) {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? '未知时间' : formatter.format(date);
+      }
+
+      fetch(apiUrl('/api/downloads'))
+        .then((response) => response.json())
+        .then((manifest) => {
+          const releases = Array.isArray(manifest.releases) ? manifest.releases : [];
+          const latest = releases[0];
+          const latestTitle = document.querySelector('#latest-title');
+          const latestFile = document.querySelector('#latest-file');
+          const latestSize = document.querySelector('#latest-size');
+          const latestDate = document.querySelector('#latest-date');
+          const latestLink = document.querySelector('#latest-link');
+
+          if (!latest) {
+            latestTitle.textContent = '暂无版本';
+            latestLink.hidden = true;
+            return;
+          }
+
+          latestTitle.textContent = latest.version;
+          latestFile.textContent = latest.fileName;
+          latestSize.textContent = formatSize(latest.size);
+          latestDate.textContent = formatDate(latest.releaseDate);
+          latestLink.href = latest.url;
+        })
+        .catch(() => {
+          document.querySelector('#latest-title').textContent = '版本信息读取失败';
+          document.querySelector('#latest-link').hidden = true;
+        });
+    </script>
+  </body>
+</html>

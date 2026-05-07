@@ -1,0 +1,1787 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>快捷翻译后台管理</title>
+    <style>
+      :root {
+        --sidebar-width: 256px;
+        --blue: #1890ff;
+        --blue-dark: #0067c8;
+        --sidebar: #001b2f;
+        --text: #111827;
+        --muted: #667085;
+        --line: #d9dee7;
+        --surface: #ffffff;
+        --page: #f0f2f5;
+        color: var(--text);
+        background: var(--page);
+        font-family:
+          "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", Inter, system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 1040px;
+        margin: 0;
+        background: var(--page);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .login-screen {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px;
+        background:
+          linear-gradient(135deg, rgba(0, 27, 47, 0.94), rgba(0, 93, 170, 0.86)),
+          #001b2f;
+      }
+
+      .login-card {
+        width: min(420px, 100%);
+        display: grid;
+        gap: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        padding: 28px;
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 24px 72px rgba(0, 0, 0, 0.25);
+        backdrop-filter: blur(12px);
+      }
+
+      .login-card h1 {
+        font-size: 28px;
+      }
+
+      .login-card p {
+        color: rgba(255, 255, 255, 0.72);
+        line-height: 1.6;
+      }
+
+      .login-field {
+        display: grid;
+        gap: 8px;
+        color: rgba(255, 255, 255, 0.86);
+        font-weight: 700;
+      }
+
+      .login-field input {
+        min-height: 46px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 8px;
+        padding: 0 13px;
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.12);
+        outline: none;
+      }
+
+      .login-field input:focus {
+        border-color: rgba(255, 255, 255, 0.72);
+        box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.22);
+      }
+
+      .login-button,
+      .primary-button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 8px;
+        padding: 0 18px;
+        color: #ffffff;
+        background: var(--blue);
+        font-weight: 800;
+      }
+
+      .login-button:hover,
+      .primary-button:hover {
+        background: var(--blue-dark);
+      }
+
+      .status {
+        min-height: 22px;
+        color: #087a4b;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .login-card .status {
+        color: #dff7ff;
+      }
+
+      .admin-shell {
+        min-height: 100vh;
+      }
+
+      .sidebar {
+        width: var(--sidebar-width);
+        height: 100vh;
+        position: fixed;
+        inset: 0 auto 0 0;
+        display: flex;
+        flex-direction: column;
+        padding: 30px 20px;
+        color: #d7dee8;
+        background: var(--sidebar);
+      }
+
+      .brand {
+        display: grid;
+        gap: 4px;
+        margin-bottom: 42px;
+      }
+
+      .brand strong {
+        color: #ffffff;
+        font-size: 24px;
+        line-height: 1;
+      }
+
+      .brand span {
+        color: rgba(255, 255, 255, 0.56);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .sidebar-kicker {
+        margin: 0 10px 12px;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+      }
+
+      .nav-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .nav-button {
+        min-height: 52px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        border: 0;
+        border-radius: 6px;
+        padding: 0 16px;
+        color: #d7dee8;
+        background: transparent;
+        font-size: 16px;
+        font-weight: 760;
+        text-align: left;
+      }
+
+      .nav-button:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .nav-button.active {
+        color: #ffffff;
+        background: var(--blue);
+      }
+
+      .nav-icon {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+      }
+
+      .sidebar-footer {
+        margin-top: auto;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .logout-button {
+        width: 100%;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 0;
+        border-radius: 6px;
+        padding: 0 12px;
+        color: #d7dee8;
+        background: transparent;
+        font-weight: 760;
+      }
+
+      .logout-button:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .top-header {
+        height: 64px;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        margin-left: var(--sidebar-width);
+        border-bottom: 1px solid var(--line);
+        padding: 0 30px;
+        background: rgba(255, 255, 255, 0.96);
+      }
+
+      .header-title {
+        min-width: 220px;
+        color: #111827;
+        font-size: 28px;
+        line-height: 1;
+        font-weight: 800;
+      }
+
+      .header-search {
+        width: min(420px, 38vw);
+        min-height: 40px;
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        border: 1px solid #bfc8d8;
+        border-radius: 6px;
+        padding: 0 14px;
+        color: #667085;
+        background: #ffffff;
+      }
+
+      .header-search input {
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        color: var(--text);
+        background: transparent;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-left: auto;
+      }
+
+      .header-icon {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        border: 0;
+        border-radius: 6px;
+        color: #1f2937;
+        background: transparent;
+      }
+
+      .avatar {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: #ffffff;
+        background: linear-gradient(145deg, #111827, #526070);
+        font-weight: 900;
+      }
+
+      .admin-name {
+        display: grid;
+        gap: 2px;
+      }
+
+      .admin-name strong {
+        font-size: 14px;
+      }
+
+      .admin-name span {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .main-content {
+        margin-left: var(--sidebar-width);
+        padding: 30px;
+      }
+
+      .view-panel {
+        display: grid;
+        gap: 24px;
+      }
+
+      .page-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: start;
+      }
+
+      .breadcrumb {
+        margin-bottom: 14px;
+        color: #7a8496;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .page-heading h1 {
+        font-size: 34px;
+        line-height: 1.16;
+      }
+
+      .page-heading p {
+        margin-top: 6px;
+        color: #4b5565;
+        line-height: 1.6;
+      }
+
+      .outline-button {
+        min-height: 44px;
+        border: 1px solid #b8c5d8;
+        border-radius: 6px;
+        padding: 0 16px;
+        color: #005daa;
+        background: transparent;
+        font-weight: 800;
+      }
+
+      .outline-button:hover {
+        border-color: var(--blue);
+        color: var(--blue-dark);
+        background: #eef6ff;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 20px;
+      }
+
+      .stats-grid.four {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .stat-card,
+      .panel-card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .stat-card {
+        min-height: 112px;
+        display: grid;
+        grid-template-columns: 56px minmax(0, 1fr);
+        align-items: center;
+        gap: 18px;
+        padding: 22px 26px;
+      }
+
+      .stat-icon {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        border-radius: 6px;
+        color: var(--blue-dark);
+        background: #e6f2ff;
+      }
+
+      .stat-icon.green {
+        color: #087a22;
+        background: #e8f6e2;
+      }
+
+      .stat-icon.red {
+        color: #c40000;
+        background: #fff0f0;
+      }
+
+      .stat-card span {
+        color: #596579;
+        font-size: 14px;
+        font-weight: 780;
+      }
+
+      .stat-card strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 32px;
+        line-height: 1;
+      }
+
+      .panel-card {
+        overflow: hidden;
+      }
+
+      .panel-head {
+        min-height: 74px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid var(--line);
+        padding: 18px 24px;
+      }
+
+      .panel-title {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .panel-title-mark {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 6px;
+        color: var(--blue-dark);
+        background: #e6f2ff;
+      }
+
+      .panel-title h2,
+      .panel-title h3 {
+        font-size: 22px;
+        line-height: 1.2;
+      }
+
+      .panel-title p {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .table-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 22px 24px;
+      }
+
+      .search-box {
+        width: 420px;
+        min-height: 44px;
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        border: 1px solid #bfc8d8;
+        border-radius: 6px;
+        padding: 0 14px;
+        color: #667085;
+        background: #ffffff;
+      }
+
+      .search-box input {
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+      }
+
+      .select-filter {
+        min-height: 44px;
+        border: 1px solid #bfc8d8;
+        border-radius: 6px;
+        padding: 0 14px;
+        color: #344054;
+        background: #ffffff;
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 1120px;
+      }
+
+      th,
+      td {
+        border-top: 1px solid #e4e7ec;
+        padding: 15px 24px;
+        text-align: left;
+        vertical-align: middle;
+      }
+
+      th {
+        color: #596579;
+        background: #fbfcfe;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      td {
+        color: #1f2937;
+        font-size: 14px;
+      }
+
+      .user-cell {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .user-avatar {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        color: #ffffff;
+        background: linear-gradient(145deg, #0d66d8, #72b7ff);
+        font-weight: 900;
+      }
+
+      .user-cell strong {
+        display: block;
+        font-size: 15px;
+      }
+
+      .user-cell small,
+      .muted {
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 5px 10px;
+        color: var(--blue-dark);
+        background: #e8f3ff;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        display: inline-block;
+        border-radius: 50%;
+        margin-right: 7px;
+        background: #0b7a10;
+      }
+
+      .status-dot.idle {
+        background: #8a93a3;
+      }
+
+      .pagination {
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid var(--line);
+        padding: 0 24px;
+        color: #596579;
+        font-size: 13px;
+      }
+
+      .pager-buttons {
+        display: flex;
+        gap: 8px;
+      }
+
+      .pager-buttons span {
+        min-width: 34px;
+        min-height: 34px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #bfc8d8;
+        border-radius: 6px;
+        color: #334155;
+        background: #ffffff;
+        font-weight: 800;
+      }
+
+      .pager-buttons .active {
+        color: #ffffff;
+        border-color: var(--blue);
+        background: var(--blue);
+      }
+
+      .data-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+        gap: 20px;
+      }
+
+      .chart-card,
+      .distribution-card {
+        min-height: 420px;
+        display: grid;
+        gap: 18px;
+        align-content: start;
+        padding: 28px 30px;
+      }
+
+      .chart-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .segmented {
+        display: inline-flex;
+        gap: 4px;
+        border-radius: 6px;
+        padding: 4px;
+        background: #f0f0f0;
+      }
+
+      .segmented span {
+        min-width: 64px;
+        min-height: 32px;
+        display: grid;
+        place-items: center;
+        border-radius: 6px;
+        color: #111827;
+        background: #ffffff;
+        font-weight: 800;
+      }
+
+      .trend-bars {
+        height: 270px;
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        align-items: end;
+        gap: 14px;
+        border: 1px solid #c8d3e5;
+        border-radius: 8px;
+        padding: 22px 22px 38px;
+        background: linear-gradient(180deg, #eef7ff, #ffffff);
+      }
+
+      .trend-bar {
+        min-height: 8px;
+        position: relative;
+        border-radius: 999px 999px 0 0;
+        background: var(--blue-dark);
+      }
+
+      .trend-bar span {
+        position: absolute;
+        left: 50%;
+        bottom: -28px;
+        transform: translateX(-50%);
+        color: #596579;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .distribution-list {
+        display: grid;
+        gap: 18px;
+        margin-top: 8px;
+      }
+
+      .distribution-row {
+        display: grid;
+        grid-template-columns: 12px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        font-weight: 760;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--blue-dark);
+      }
+
+      .dot.green {
+        background: #0b7a10;
+      }
+
+      .dot.gray {
+        background: #526070;
+      }
+
+      .provider-form {
+        display: grid;
+        gap: 16px;
+        padding: 24px;
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: minmax(0, 170px) minmax(0, 1fr);
+        align-items: center;
+        gap: 18px;
+      }
+
+      .form-row span {
+        color: #344054;
+        font-weight: 800;
+      }
+
+      .form-row input,
+      .form-row select {
+        min-height: 44px;
+        border: 1px solid #bfc8d8;
+        border-radius: 6px;
+        padding: 0 13px;
+        color: var(--text);
+        background: #ffffff;
+        outline: none;
+      }
+
+      .form-row input:focus,
+      .form-row select:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.14);
+      }
+
+      .field-hint {
+        grid-column: 2;
+        margin-top: -10px;
+        color: #667085;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .secret-field,
+      .model-field {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+      }
+
+      .secret-field input:disabled {
+        color: #667085;
+        background: #eef2f7;
+      }
+
+      .api-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+      }
+
+      .mini-card {
+        min-height: 160px;
+        display: grid;
+        gap: 12px;
+        align-content: start;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 22px 24px;
+        background: #ffffff;
+      }
+
+      .mini-card h3 {
+        font-size: 20px;
+      }
+
+      .mini-card p {
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .secure-note {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 24px 24px;
+        color: #087a4b;
+        font-weight: 800;
+      }
+
+      .provider-list {
+        display: grid;
+        gap: 12px;
+        padding: 22px 24px 0;
+      }
+
+      .provider-row {
+        display: grid;
+        grid-template-columns: minmax(190px, 0.85fr) minmax(220px, 1fr) minmax(130px, 0.6fr) minmax(120px, 0.55fr) auto;
+        align-items: center;
+        gap: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+      }
+
+      .provider-row.active {
+        border-color: rgba(24, 144, 255, 0.44);
+        background: #eef6ff;
+      }
+
+      .provider-main,
+      .provider-meta {
+        min-width: 0;
+        display: grid;
+        gap: 5px;
+      }
+
+      .provider-main strong,
+      .provider-meta strong,
+      .provider-meta span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .provider-main small,
+      .provider-meta span {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 820;
+      }
+
+      .provider-meta strong {
+        color: #1f2937;
+        font-size: 14px;
+      }
+
+      .provider-actions,
+      .table-actions,
+      .form-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .table-actions {
+        justify-content: flex-start;
+      }
+
+      .text-button {
+        min-height: 34px;
+        border: 1px solid #b8c5d8;
+        border-radius: 6px;
+        padding: 0 11px;
+        color: #005daa;
+        background: #ffffff;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .text-button:hover {
+        border-color: var(--blue);
+        color: #ffffff;
+        background: var(--blue);
+      }
+
+      .text-button.danger:hover {
+        border-color: #c40000;
+        background: #c40000;
+      }
+
+      .form-actions {
+        justify-content: stretch;
+      }
+
+      .form-actions button {
+        flex: 1;
+      }
+
+      @media (max-width: 1180px) {
+        body {
+          min-width: 900px;
+        }
+
+        .stats-grid.four {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .data-layout,
+        .api-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <section id="login-screen" class="login-screen">
+      <form id="login-card" class="login-card">
+        <div>
+          <h1>快捷翻译后台</h1>
+          <p>管理员登录后可以查看注册用户、同步数据概况，并配置翻译引擎通道。</p>
+        </div>
+        <label class="login-field">
+          管理员账号
+          <input id="admin-username" autocomplete="username" />
+        </label>
+        <label class="login-field">
+          管理员密码
+          <input id="admin-password" type="password" autocomplete="current-password" />
+        </label>
+        <button class="login-button" type="submit">登录后台</button>
+        <p id="login-status" class="status"></p>
+      </form>
+    </section>
+
+    <section id="admin-shell" class="admin-shell hidden">
+      <aside class="sidebar" aria-label="后台导航">
+        <div class="brand">
+          <strong>管理后台</strong>
+          <span>Enterprise Console</span>
+        </div>
+        <p class="sidebar-kicker">MANAGEMENT</p>
+        <nav class="nav-list">
+          <button class="nav-button active" type="button" data-view="users" aria-pressed="true">
+            <span class="nav-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M22 20v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" stroke-width="2"/></svg>
+            </span>
+            用户管理
+          </button>
+          <button class="nav-button" type="button" data-view="data" aria-pressed="false">
+            <span class="nav-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 17V9M12 17v-5M16 17V7" stroke="currentColor" stroke-width="2"/></svg>
+            </span>
+            用户数据
+          </button>
+          <button class="nav-button" type="button" data-view="api" aria-pressed="false">
+            <span class="nav-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06A2 2 0 1 1 7.03 3.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.17.38.46.7.83.9.29.16.62.24.95.24H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z" stroke="currentColor" stroke-width="1.8"/></svg>
+            </span>
+            接口设置
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="logout-button" class="logout-button" type="button">
+            <span class="nav-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2"/></svg>
+            </span>
+            退出后台
+          </button>
+        </div>
+      </aside>
+
+      <header class="top-header">
+        <strong id="header-title" class="header-title">Dashboard</strong>
+        <label class="header-search" aria-label="搜索用户或数据">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2"/></svg>
+          <input id="global-search" placeholder="搜索用户或邮箱..." />
+        </label>
+        <div class="header-actions">
+          <button class="header-icon" type="button" aria-label="通知">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
+          <button class="header-icon" type="button" aria-label="帮助">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4M12 17h.01" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
+          <span class="avatar" aria-hidden="true">A</span>
+          <span class="admin-name"><strong>Admin User</strong><span>SUPER ADMIN</span></span>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <section id="users-view" class="view-panel">
+          <div class="page-heading">
+            <div>
+              <p class="breadcrumb">控制台 / 用户管理</p>
+              <h1>用户管理</h1>
+              <p>查看所有注册用户、同步状态和翻译偏好。</p>
+            </div>
+            <button id="refresh-users-button" class="primary-button" type="button">刷新用户</button>
+          </div>
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span class="stat-icon" aria-hidden="true">用</span>
+              <div><span>总用户数</span><strong id="stat-users-total">0</strong></div>
+            </article>
+            <article class="stat-card">
+              <span class="stat-icon green" aria-hidden="true">活</span>
+              <div><span>活跃用户</span><strong id="stat-active-users">0</strong></div>
+            </article>
+            <article class="stat-card">
+              <span class="stat-icon red" aria-hidden="true">同</span>
+              <div><span>同步记录</span><strong id="stat-sync-total">0</strong></div>
+            </article>
+          </div>
+
+          <section class="panel-card">
+            <div class="table-toolbar">
+              <label class="search-box" aria-label="搜索用户名或邮箱">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2"/></svg>
+                <input id="user-search" placeholder="搜索用户名或邮箱..." />
+              </label>
+              <select class="select-filter" aria-label="用户角色筛选">
+                <option>全部角色</option>
+              </select>
+              <select class="select-filter" aria-label="用户状态筛选">
+                <option>全部状态</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>用户信息</th>
+                    <th>邮箱</th>
+                    <th>翻译偏好</th>
+                    <th>同步数据</th>
+                    <th>创建时间</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="user-table-body">
+                  <tr><td colspan="7" class="muted">正在读取用户数据</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="pagination">
+              <span id="pagination-summary">显示 0 条记录</span>
+              <div class="pager-buttons" aria-hidden="true"><span class="active">1</span></div>
+            </div>
+          </section>
+        </section>
+
+        <section id="data-view" class="view-panel hidden">
+          <div class="page-heading">
+            <div>
+              <p class="breadcrumb">控制台 / 用户数据</p>
+              <h1>用户数据概览</h1>
+              <p>统计注册增长、活跃用户、历史记录和收藏使用情况。</p>
+            </div>
+            <button id="refresh-data-button" class="outline-button" type="button">刷新数据</button>
+          </div>
+          <div class="stats-grid four">
+            <article class="stat-card"><span class="stat-icon" aria-hidden="true">总</span><div><span>总用户数</span><strong id="data-total-users">0</strong></div></article>
+            <article class="stat-card"><span class="stat-icon green" aria-hidden="true">今</span><div><span>今日新增</span><strong id="data-today-users">0</strong></div></article>
+            <article class="stat-card"><span class="stat-icon" aria-hidden="true">历</span><div><span>历史记录</span><strong id="data-history-total">0</strong></div></article>
+            <article class="stat-card"><span class="stat-icon red" aria-hidden="true">藏</span><div><span>收藏记录</span><strong id="data-favorite-total">0</strong></div></article>
+          </div>
+          <div class="data-layout">
+            <section class="panel-card chart-card">
+              <div class="chart-head">
+                <h2>过去 7 天用户增长趋势</h2>
+                <div class="segmented" aria-hidden="true"><span>新增</span></div>
+              </div>
+              <div id="trend-bars" class="trend-bars"></div>
+            </section>
+            <section class="panel-card distribution-card">
+              <h2>用户使用分布</h2>
+              <div class="distribution-list" id="distribution-list"></div>
+            </section>
+          </div>
+          <section class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title"><div><h2>近期活跃用户</h2><p>按注册时间排序展示最近用户。</p></div></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>用户信息</th><th>同步数据</th><th>默认语言</th><th>最后状态</th></tr></thead>
+                <tbody id="active-user-table"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+
+        <section id="api-view" class="view-panel hidden">
+          <div class="page-heading">
+            <div>
+              <p class="breadcrumb">控制台 / 接口设置</p>
+              <h1>接口与安全设置</h1>
+              <p>配置翻译引擎访问凭证、接口地址和模型通道。</p>
+            </div>
+            <button class="outline-button" type="button">查看文档</button>
+          </div>
+          <section class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <span class="panel-title-mark" aria-hidden="true">钥</span>
+                <div>
+                  <h2>翻译引擎通道</h2>
+                  <p>当前启用的引擎会用于客户端翻译，新增引擎会进入下方列表。</p>
+                </div>
+              </div>
+              <span id="provider-state" class="pill">未读取</span>
+            </div>
+            <div id="provider-list" class="provider-list" aria-label="翻译引擎列表"></div>
+            <div class="provider-form">
+              <label class="form-row">
+                <span>引擎名称</span>
+                <input id="provider-name" placeholder="默认翻译引擎" />
+              </label>
+              <label class="form-row">
+                <span>引擎类型</span>
+                <select id="provider-type">
+                  <option value="openai-compatible">OpenAI 兼容接口</option>
+                  <option value="mock">离线示例</option>
+                </select>
+              </label>
+              <label class="form-row">
+                <span>接口地址</span>
+                <input id="base-url" placeholder="https://api.example.com/v1" />
+              </label>
+              <label class="form-row">
+                <span>接口密钥</span>
+                <div class="secret-field">
+                  <input id="api-key" type="password" placeholder="已加密保存，点击更换密钥后输入新密钥" disabled />
+                  <button id="change-key-button" class="text-button" type="button">更换密钥</button>
+                </div>
+                <small id="masked-key" class="field-hint">未保存密钥</small>
+              </label>
+              <label class="form-row">
+                <span>模型名称</span>
+                <div class="model-field">
+                  <select id="model" aria-label="模型名称">
+                    <option value="gpt-5.4-mini">gpt-5.4-mini</option>
+                  </select>
+                  <button id="load-models-button" class="text-button" type="button">获取模型</button>
+                </div>
+              </label>
+              <div class="form-actions">
+                <button id="save-button" class="primary-button" type="button">保存当前引擎</button>
+                <button id="create-provider-button" class="outline-button" type="button">添加为新引擎</button>
+              </div>
+              <p id="status" class="status"></p>
+            </div>
+            <div class="secure-note">
+              <span aria-hidden="true">✓</span>
+              <span>所有配置更改都会写入服务器本地配置文件，前端用户不会看到引擎密钥。</span>
+            </div>
+          </section>
+          <div class="api-grid">
+            <article class="mini-card">
+              <h3>API 密钥管理</h3>
+              <p>后台仅保存服务端通道密钥，桌面客户端通过服务器翻译接口调用，不向普通用户展示密钥。</p>
+            </article>
+            <article class="mini-card">
+              <h3>回调与同步</h3>
+              <p>注册、登录、历史记录、收藏记录和默认设置会通过同步接口保存，重装后仍可恢复。</p>
+            </article>
+            <article class="mini-card">
+              <h3>限流策略</h3>
+              <p>建议在反向代理或网关层配置 QPS 限制，避免异常请求消耗翻译额度。</p>
+            </article>
+            <article class="mini-card">
+              <h3>安全扫描</h3>
+              <p>管理员页面使用令牌鉴权，退出后台会清除本地登录令牌。</p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <script>
+      const backendBase = location.pathname.replace(/\/admin\/?$/, '') || '';
+      let token = localStorage.getItem('quick-translate-admin-token') || '';
+      const state = {
+        view: 'users',
+        users: [],
+        search: '',
+        providers: [],
+        activeProviderId: '',
+        editingProviderId: '',
+        keyEditing: false,
+        modelOptions: []
+      };
+      const languageLabels = {
+        'zh-CN': '简体中文',
+        'zh-TW': '繁体中文',
+        'en-US': '英语',
+        'ja-JP': '日语',
+        'ko-KR': '韩语',
+        'fr-FR': '法语',
+        'de-DE': '德语',
+        'es-ES': '西班牙语',
+        'ru-RU': '俄语'
+      };
+      const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const loginScreen = document.querySelector('#login-screen');
+      const adminShell = document.querySelector('#admin-shell');
+      const loginStatus = document.querySelector('#login-status');
+      const statusText = document.querySelector('#status');
+
+      document.querySelector('#login-card').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        loginStatus.textContent = '正在登录...';
+        const response = await fetch(apiUrl('/api/admin/login'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            username: document.querySelector('#admin-username').value,
+            password: document.querySelector('#admin-password').value
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          loginStatus.textContent = payload.error || '登录失败';
+          return;
+        }
+        token = payload.token;
+        localStorage.setItem('quick-translate-admin-token', token);
+        await loadDashboard();
+      });
+
+      document.querySelector('#logout-button').addEventListener('click', logout);
+      document.querySelector('#refresh-users-button').addEventListener('click', loadUsers);
+      document.querySelector('#refresh-data-button').addEventListener('click', loadUsers);
+      document.querySelector('#save-button').addEventListener('click', saveProvider);
+      document.querySelector('#create-provider-button').addEventListener('click', createProvider);
+      document.querySelector('#change-key-button').addEventListener('click', enableKeyEditing);
+      document.querySelector('#load-models-button').addEventListener('click', loadModels);
+      document.querySelector('#base-url').addEventListener('blur', () => {
+        if (document.querySelector('#base-url').value.trim()) {
+          loadModels().catch(() => undefined);
+        }
+      });
+      document.querySelector('#provider-list').addEventListener('click', handleProviderAction);
+      document.querySelector('#user-table-body').addEventListener('click', handleUserAction);
+
+      document.querySelectorAll('.nav-button').forEach((button) => {
+        button.addEventListener('click', () => setView(button.dataset.view));
+      });
+
+      document.querySelector('#global-search').addEventListener('input', (event) => {
+        state.search = event.target.value;
+        document.querySelector('#user-search').value = state.search;
+        setView('users');
+        renderUsers();
+      });
+
+      document.querySelector('#user-search').addEventListener('input', (event) => {
+        state.search = event.target.value;
+        document.querySelector('#global-search').value = state.search;
+        renderUsers();
+      });
+
+      async function loadDashboard() {
+        loginScreen.classList.add('hidden');
+        adminShell.classList.remove('hidden');
+        await Promise.all([loadProviders(), loadUsers()]);
+        setView(state.view);
+      }
+
+      async function loadProviders() {
+        const payload = await authorizedRequest('/api/admin/providers');
+        state.providers = Array.isArray(payload.providers) ? payload.providers : [];
+        state.activeProviderId = payload.activeProviderId || state.providers[0]?.id || '';
+        state.editingProviderId = state.editingProviderId || state.activeProviderId;
+        const editingProvider = state.providers.find((provider) => provider.id === state.editingProviderId) || state.providers[0];
+        if (editingProvider) {
+          fillProviderForm(editingProvider);
+        }
+        renderProviders();
+      }
+
+      async function saveProvider() {
+        const providerId = state.editingProviderId || state.activeProviderId;
+        if (!providerId) {
+          statusText.textContent = '请先添加引擎';
+          return;
+        }
+        statusText.textContent = '正在保存...';
+        const response = await fetch(apiUrl(`/api/admin/providers/${encodeURIComponent(providerId)}`), {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(readProviderForm())
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          statusText.textContent = payload.error || '保存失败';
+          return;
+        }
+        document.querySelector('#api-key').value = '';
+        state.keyEditing = false;
+        statusText.textContent = '引擎配置已保存';
+        await loadProviders();
+      }
+
+      async function createProvider() {
+        statusText.textContent = '正在添加新引擎...';
+        const response = await fetch(apiUrl('/api/admin/providers'), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ ...readProviderForm(), active: false })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          statusText.textContent = payload.error || '添加失败';
+          return;
+        }
+        state.editingProviderId = payload.provider.id;
+        document.querySelector('#api-key').value = '';
+        state.keyEditing = false;
+        statusText.textContent = '新引擎已添加到列表';
+        await loadProviders();
+      }
+
+      function readProviderForm() {
+        return {
+          name: document.querySelector('#provider-name').value,
+          providerType: document.querySelector('#provider-type').value,
+          baseUrl: document.querySelector('#base-url').value,
+          apiKey: state.keyEditing ? document.querySelector('#api-key').value : '',
+          model: document.querySelector('#model').value
+        };
+      }
+
+      function fillProviderForm(provider) {
+        state.editingProviderId = provider.id;
+        state.keyEditing = false;
+        document.querySelector('#provider-name').value = provider.name || '';
+        document.querySelector('#provider-type').value = provider.providerType;
+        document.querySelector('#base-url').value = provider.baseUrl || '';
+        renderModelOptions(provider.model ? [provider.model] : [], provider.model || '');
+        const apiKeyInput = document.querySelector('#api-key');
+        apiKeyInput.value = '';
+        apiKeyInput.disabled = true;
+        apiKeyInput.placeholder = provider.hasApiKey ? '已加密保存，点击更换密钥后输入新密钥' : '未保存密钥，点击更换密钥后输入';
+        document.querySelector('#change-key-button').textContent = '更换密钥';
+        document.querySelector('#masked-key').textContent = provider.hasApiKey ? `当前密钥：${provider.maskedApiKey || '••••••••'}` : '未保存密钥';
+        document.querySelector('#provider-state').textContent = provider.active
+          ? provider.hasApiKey
+            ? '当前启用 · 已保存密钥'
+            : '当前启用 · 未保存密钥'
+          : provider.hasApiKey
+            ? '备用引擎 · 已保存密钥'
+            : '备用引擎 · 未保存密钥';
+      }
+
+      function renderProviders() {
+        const providerList = document.querySelector('#provider-list');
+        providerList.innerHTML = state.providers.length
+          ? state.providers.map(renderProviderRow).join('')
+          : '<p class="muted">暂无引擎配置，请在下方添加。</p>';
+      }
+
+      function renderProviderRow(provider) {
+        return `
+          <article class="provider-row ${provider.active ? 'active' : ''}">
+            <div class="provider-main">
+              <strong>${escapeHtml(provider.name || '未命名引擎')}</strong>
+              <small>${provider.active ? '当前使用' : '备用通道'} · ${escapeHtml(provider.providerType || '--')}</small>
+            </div>
+            <div class="provider-meta"><span>接口地址</span><strong>${escapeHtml(provider.baseUrl || '--')}</strong></div>
+            <div class="provider-meta"><span>模型</span><strong>${escapeHtml(provider.model || '--')}</strong></div>
+            <div class="provider-meta"><span>密钥</span><strong>${provider.hasApiKey ? escapeHtml(provider.maskedApiKey || '••••••••') : '未保存'}</strong></div>
+            <div class="provider-actions">
+              <button class="text-button" type="button" data-provider-action="edit" data-provider-id="${escapeHtml(provider.id)}">编辑</button>
+              ${
+                provider.active
+                  ? '<span class="pill">使用中</span>'
+                  : `<button class="text-button" type="button" data-provider-action="activate" data-provider-id="${escapeHtml(provider.id)}">设为启用</button>`
+              }
+              <button class="text-button danger" type="button" data-provider-action="delete" data-provider-id="${escapeHtml(provider.id)}">删除</button>
+            </div>
+          </article>
+        `;
+      }
+
+      async function handleProviderAction(event) {
+        const button = event.target.closest('button[data-provider-action]');
+        if (!button) {
+          return;
+        }
+        const provider = state.providers.find((item) => item.id === button.dataset.providerId);
+        if (!provider) {
+          return;
+        }
+        if (button.dataset.providerAction === 'edit') {
+          fillProviderForm(provider);
+          statusText.textContent = `正在编辑：${provider.name || '未命名引擎'}`;
+          return;
+        }
+        if (button.dataset.providerAction === 'activate') {
+          await activateProvider(provider.id);
+        }
+        if (button.dataset.providerAction === 'delete') {
+          await deleteProvider(provider);
+        }
+      }
+
+      async function activateProvider(providerId) {
+        statusText.textContent = '正在切换启用引擎...';
+        const response = await fetch(apiUrl(`/api/admin/providers/${encodeURIComponent(providerId)}`), {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ active: true })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          statusText.textContent = payload.error || '切换失败';
+          return;
+        }
+        state.editingProviderId = providerId;
+        statusText.textContent = '当前启用引擎已切换';
+        await loadProviders();
+      }
+
+      function enableKeyEditing() {
+        state.keyEditing = true;
+        const apiKeyInput = document.querySelector('#api-key');
+        apiKeyInput.disabled = false;
+        apiKeyInput.value = '';
+        apiKeyInput.placeholder = '输入新的接口密钥';
+        apiKeyInput.focus();
+        document.querySelector('#change-key-button').textContent = '正在更换';
+        document.querySelector('#masked-key').textContent = '保存后将替换当前密钥';
+      }
+
+      function renderModelOptions(models, selectedModel = '') {
+        const normalizedModels = Array.from(new Set([selectedModel, ...models].filter(Boolean)));
+        const modelSelect = document.querySelector('#model');
+        modelSelect.innerHTML = normalizedModels.length
+          ? normalizedModels.map((model) => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('')
+          : '<option value="gpt-5.4-mini">gpt-5.4-mini</option>';
+        modelSelect.value = selectedModel && normalizedModels.includes(selectedModel) ? selectedModel : modelSelect.options[0]?.value || '';
+      }
+
+      async function loadModels() {
+        statusText.textContent = '正在获取模型列表...';
+        const selectedModel = document.querySelector('#model').value;
+        const response = await fetch(apiUrl('/api/admin/provider-models'), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            providerId: state.editingProviderId,
+            providerType: document.querySelector('#provider-type').value,
+            baseUrl: document.querySelector('#base-url').value,
+            apiKey: state.keyEditing ? document.querySelector('#api-key').value : ''
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          statusText.textContent = payload.error || '模型列表获取失败';
+          return;
+        }
+
+        state.modelOptions = Array.isArray(payload.models) ? payload.models : [];
+        renderModelOptions(state.modelOptions, state.modelOptions.includes(selectedModel) ? selectedModel : state.modelOptions[0]);
+        statusText.textContent = `已获取 ${state.modelOptions.length} 个模型`;
+      }
+
+      async function deleteProvider(provider) {
+        if (!confirm(`确认删除引擎“${provider.name || '未命名引擎'}”？`)) {
+          return;
+        }
+
+        statusText.textContent = '正在删除引擎...';
+        const response = await fetch(apiUrl(`/api/admin/providers/${encodeURIComponent(provider.id)}`), {
+          method: 'DELETE',
+          headers: { authorization: `Bearer ${token}` }
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          statusText.textContent = payload.error || '删除失败';
+          return;
+        }
+        state.editingProviderId = '';
+        statusText.textContent = '引擎已删除';
+        await loadProviders();
+      }
+
+      async function loadUsers() {
+        const payload = await authorizedRequest('/api/admin/users');
+        state.users = Array.isArray(payload.users) ? payload.users : [];
+        renderAllData();
+      }
+
+      async function authorizedRequest(pathname) {
+        const response = await fetch(apiUrl(pathname), {
+          headers: { authorization: `Bearer ${token}` }
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          logout(payload.error || '登录已失效，请重新登录');
+          throw new Error(payload.error || '请求失败');
+        }
+        return payload;
+      }
+
+      function setView(view) {
+        state.view = view;
+        document.querySelectorAll('.nav-button').forEach((button) => {
+          const active = button.dataset.view === view;
+          button.classList.toggle('active', active);
+          button.setAttribute('aria-pressed', String(active));
+        });
+        document.querySelector('#users-view').classList.toggle('hidden', view !== 'users');
+        document.querySelector('#data-view').classList.toggle('hidden', view !== 'data');
+        document.querySelector('#api-view').classList.toggle('hidden', view !== 'api');
+        document.querySelector('#header-title').textContent = view === 'users' ? 'Dashboard' : view === 'data' ? 'User Data' : 'API Settings';
+      }
+
+      function renderAllData() {
+        renderSummary();
+        renderUsers();
+        renderDataView();
+      }
+
+      function renderSummary() {
+        const users = state.users;
+        const historyTotal = users.reduce((sum, user) => sum + (user.historyCount || 0), 0);
+        const favoriteTotal = users.reduce((sum, user) => sum + (user.favoriteCount || 0), 0);
+        const activeUsers = users.filter((user) => (user.historyCount || 0) + (user.favoriteCount || 0) > 0).length;
+        const todayUsers = users.filter((user) => isToday(user.createdAt)).length;
+        document.querySelector('#stat-users-total').textContent = formatNumber(users.length);
+        document.querySelector('#stat-active-users').textContent = formatNumber(activeUsers);
+        document.querySelector('#stat-sync-total').textContent = formatNumber(historyTotal + favoriteTotal);
+        document.querySelector('#data-total-users').textContent = formatNumber(users.length);
+        document.querySelector('#data-today-users').textContent = formatNumber(todayUsers);
+        document.querySelector('#data-history-total').textContent = formatNumber(historyTotal);
+        document.querySelector('#data-favorite-total').textContent = formatNumber(favoriteTotal);
+      }
+
+      function renderUsers() {
+        const users = filteredUsers();
+        const tbody = document.querySelector('#user-table-body');
+        tbody.innerHTML = users.length
+          ? users.map(renderUserRow).join('')
+          : '<tr><td colspan="7" class="muted">暂无匹配用户</td></tr>';
+        document.querySelector('#pagination-summary').textContent = `显示 ${users.length} 条记录，共 ${state.users.length} 条`;
+      }
+
+      function renderUserRow(user) {
+        const initials = getInitials(user.displayName || user.email);
+        const isActive = (user.historyCount || 0) + (user.favoriteCount || 0) > 0;
+        return `
+          <tr>
+            <td>
+              <div class="user-cell">
+                <span class="user-avatar">${escapeHtml(initials)}</span>
+                <div><strong>${escapeHtml(user.displayName || '未命名用户')}</strong><small>ID: ${escapeHtml(user.id || '--')}</small></div>
+              </div>
+            </td>
+            <td>${escapeHtml(user.email || '--')}</td>
+            <td><span class="pill">${escapeHtml(languageLabel(user.defaultTargetLanguage))}</span></td>
+            <td>历史 ${user.historyCount || 0} / 收藏 ${user.favoriteCount || 0}</td>
+            <td>${formatDate(user.createdAt)}</td>
+            <td><span class="status-dot ${isActive ? '' : 'idle'}"></span>${isActive ? '活跃' : '正常'}</td>
+            <td>
+              <div class="table-actions">
+                <button class="text-button" type="button" data-user-action="email" data-user-id="${escapeHtml(user.id)}">改邮箱</button>
+                <button class="text-button" type="button" data-user-action="name" data-user-id="${escapeHtml(user.id)}">改昵称</button>
+                <button class="text-button danger" type="button" data-user-action="password" data-user-id="${escapeHtml(user.id)}">重置密码</button>
+                <button class="text-button danger" type="button" data-user-action="delete" data-user-id="${escapeHtml(user.id)}">删除</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
+
+      async function handleUserAction(event) {
+        const button = event.target.closest('button[data-user-action]');
+        if (!button) {
+          return;
+        }
+        const user = state.users.find((item) => item.id === button.dataset.userId);
+        if (!user) {
+          return;
+        }
+
+        const update = {};
+        if (button.dataset.userAction === 'email') {
+          const email = prompt('输入新的邮箱地址', user.email || '');
+          if (!email) return;
+          update.email = email;
+        }
+        if (button.dataset.userAction === 'name') {
+          const displayName = prompt('输入新的昵称', user.displayName || '');
+          if (!displayName) return;
+          update.displayName = displayName;
+        }
+        if (button.dataset.userAction === 'password') {
+          const password = prompt('输入新密码，至少 6 位');
+          if (!password) return;
+          update.password = password;
+        }
+        if (button.dataset.userAction === 'delete') {
+          if (!confirm(`确认删除用户“${user.email || user.displayName || user.id}”？该用户云端历史和收藏也会删除。`)) {
+            return;
+          }
+          const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(user.id)}`), {
+            method: 'DELETE',
+            headers: { authorization: `Bearer ${token}` }
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            alert(payload.error || '删除失败');
+            return;
+          }
+          await loadUsers();
+          return;
+        }
+
+        const response = await fetch(apiUrl(`/api/admin/users/${encodeURIComponent(user.id)}`), {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(update)
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(payload.error || '操作失败');
+          return;
+        }
+        await loadUsers();
+      }
+
+      function renderDataView() {
+        renderTrend();
+        renderDistribution();
+        const rows = state.users.slice(0, 5).map((user) => {
+          const isActive = (user.historyCount || 0) + (user.favoriteCount || 0) > 0;
+          return `
+            <tr>
+              <td><div class="user-cell"><span class="user-avatar">${escapeHtml(getInitials(user.displayName || user.email))}</span><div><strong>${escapeHtml(user.displayName || '未命名用户')}</strong><small>${escapeHtml(user.email || '--')}</small></div></div></td>
+              <td>历史 ${user.historyCount || 0} / 收藏 ${user.favoriteCount || 0}</td>
+              <td>${escapeHtml(languageLabel(user.defaultTargetLanguage))}</td>
+              <td><span class="status-dot ${isActive ? '' : 'idle'}"></span>${isActive ? '在线' : '已注册'}</td>
+            </tr>
+          `;
+        });
+        document.querySelector('#active-user-table').innerHTML = rows.length ? rows.join('') : '<tr><td colspan="4" class="muted">暂无注册用户</td></tr>';
+      }
+
+      function renderTrend() {
+        const days = Array.from({ length: 7 }, (_, index) => {
+          const date = new Date();
+          date.setDate(date.getDate() - (6 - index));
+          return {
+            label: `${date.getMonth() + 1}/${date.getDate()}`,
+            key: date.toDateString(),
+            count: 0
+          };
+        });
+        state.users.forEach((user) => {
+          const created = new Date(user.createdAt);
+          const item = days.find((day) => day.key === created.toDateString());
+          if (item) item.count += 1;
+        });
+        const max = Math.max(1, ...days.map((day) => day.count));
+        document.querySelector('#trend-bars').innerHTML = days
+          .map((day) => `<div class="trend-bar" style="height:${Math.max(8, Math.round((day.count / max) * 230))}px"><span>${day.label}</span></div>`)
+          .join('');
+      }
+
+      function renderDistribution() {
+        const total = Math.max(1, state.users.length);
+        const active = state.users.filter((user) => (user.historyCount || 0) + (user.favoriteCount || 0) > 0).length;
+        const configured = state.users.filter((user) => user.defaultTargetLanguage || user.theme).length;
+        const idle = Math.max(0, state.users.length - active);
+        const rows = [
+          ['已翻译用户', active, ''],
+          ['已设置偏好', configured, 'green'],
+          ['仅注册用户', idle, 'gray']
+        ];
+        document.querySelector('#distribution-list').innerHTML = rows
+          .map(([label, count, tone]) => `<div class="distribution-row"><span class="dot ${tone}"></span><span>${label}</span><strong>${Math.round((count / total) * 100)}%</strong></div>`)
+          .join('');
+      }
+
+      function filteredUsers() {
+        const keyword = state.search.trim().toLowerCase();
+        if (!keyword) return state.users;
+        return state.users.filter((user) =>
+          [user.email, user.displayName, user.defaultTargetLanguage, user.theme]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(keyword))
+        );
+      }
+
+      function logout(message = '') {
+        token = '';
+        localStorage.removeItem('quick-translate-admin-token');
+        adminShell.classList.add('hidden');
+        loginScreen.classList.remove('hidden');
+        loginStatus.textContent = message;
+      }
+
+      function apiUrl(pathname) {
+        return `${backendBase}${pathname}`;
+      }
+
+      function formatNumber(value) {
+        return new Intl.NumberFormat('zh-CN').format(value || 0);
+      }
+
+      function formatDate(value) {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? '--' : dateFormatter.format(date);
+      }
+
+      function isToday(value) {
+        const date = new Date(value);
+        return !Number.isNaN(date.getTime()) && date.toDateString() === new Date().toDateString();
+      }
+
+      function languageLabel(value) {
+        return languageLabels[value] || value || '未设置';
+      }
+
+      function getInitials(value) {
+        const normalized = String(value || 'U').trim();
+        return normalized.slice(0, 2).toUpperCase();
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      if (token) {
+        loadDashboard().catch(() => undefined);
+      }
+    </script>
+  </body>
+</html>

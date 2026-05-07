@@ -1,0 +1,128 @@
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createBackendApp } from './backend.mjs';
+import { translateText } from '../dist-electron/shared/translator.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.dirname(__dirname);
+const port = Number(process.env.PORT ?? process.env.QUICK_TRANSLATE_PORT ?? 8787);
+const dataDir = process.env.QUICK_TRANSLATE_DATA_DIR ?? path.join(projectRoot, 'server-data');
+
+const app = createBackendApp({
+  dataDir,
+  jwtSecret: process.env.QUICK_TRANSLATE_JWT_SECRET,
+  adminUsername: process.env.QUICK_TRANSLATE_ADMIN_USER,
+  adminPassword: process.env.QUICK_TRANSLATE_ADMIN_PASSWORD,
+  defaultProvider: {
+    providerType: process.env.TRANSLATE_PROVIDER ?? 'openai-compatible',
+    baseUrl: process.env.TRANSLATE_BASE_URL ?? 'https://ussub.lwvpscc.top/v1',
+    apiKey: process.env.TRANSLATE_API_KEY ?? 'sk-36546e4bf237b699fa4dc0a3bf7c4cdf7283776b15fba9db26ae273a4dbf5c5c',
+    model: process.env.TRANSLATE_MODEL ?? 'gpt-5.4-mini'
+  },
+  translateText: ({ text, targetLanguage, translationFormat, provider }) =>
+    translateText({
+      text,
+      targetLanguage,
+      translationFormat,
+      provider: {
+        type: provider.providerType === 'mock' ? 'mock' : 'openai-compatible',
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        model: provider.model
+      }
+    })
+});
+
+const server = createServer(async (request, response) => {
+  const requestBody = await readRequestBody(request);
+  const rawPathname = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`).pathname;
+  const pathname = rawPathname.startsWith('/quick-translate/backend')
+    ? rawPathname.slice('/quick-translate/backend'.length) || '/'
+    : rawPathname;
+
+  if (pathname === '/' || pathname === '/download' || pathname === '/download/') {
+    await serveStaticFile(response, path.join(__dirname, 'public', 'download.html'), 'text/html; charset=utf-8');
+    return;
+  }
+
+  if (pathname === '/admin' || pathname === '/admin/') {
+    await serveStaticFile(response, path.join(__dirname, 'public', 'admin.html'), 'text/html; charset=utf-8');
+    return;
+  }
+
+  if (pathname.startsWith('/assets/')) {
+    await servePublicAsset(response, pathname);
+    return;
+  }
+
+  const result = await app.handleRequest({
+    method: request.method ?? 'GET',
+    url: request.url ?? '/',
+    headers: request.headers,
+    body: requestBody
+  });
+
+  response.writeHead(result.status, result.headers);
+  response.end(typeof result.body === 'string' ? result.body : JSON.stringify(result.body));
+});
+
+server.listen(port, '0.0.0.0', () => {
+  console.log(`快捷翻译后台已启动：http://0.0.0.0:${port}`);
+});
+
+async function readRequestBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function serveStaticFile(response, filePath, contentType) {
+  try {
+    response.writeHead(200, {
+      'content-type': contentType,
+      'cache-control': 'no-cache'
+    });
+    response.end(await readFile(filePath));
+  } catch {
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end('页面不存在');
+  }
+}
+
+async function servePublicAsset(response, pathname) {
+  const assetRoot = path.join(__dirname, 'public', 'assets');
+  const requestedPath = decodeURIComponent(pathname.slice('/assets/'.length));
+  const filePath = path.resolve(assetRoot, requestedPath);
+
+  if (!filePath.startsWith(`${path.resolve(assetRoot)}${path.sep}`)) {
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    response.end('资源不存在');
+    return;
+  }
+
+  await serveStaticFile(response, filePath, contentTypeForPath(filePath));
+}
+
+function contentTypeForPath(filePath) {
+  switch (path.extname(filePath).toLowerCase()) {
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.webp':
+      return 'image/webp';
+    case '.svg':
+      return 'image/svg+xml; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.js':
+      return 'text/javascript; charset=utf-8';
+    default:
+      return 'application/octet-stream';
+  }
+}

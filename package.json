@@ -1,20 +1,31 @@
 {
   "name": "quick-translate",
-  "version": "0.1.0",
+  "version": "0.1.18",
+  "description": "Windows desktop and PWA quick translation tool.",
+  "author": "wfq",
   "private": true,
   "type": "module",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/desktop/main.js",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "desktop:dev": "concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "server:start": "node server/index.mjs",
     "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.electron.json",
+    "desktop:smoke": "node scripts/smoke-electron.mjs",
+    "download:manifest": "node scripts/generate-download-manifest.mjs",
+    "dist:win": "npm run build && electron-builder --dir && node scripts/apply-win-icon.mjs && electron-builder --win nsis --prepackaged release/win-unpacked --publish never && npm run smoke:update-channel && npm run download:manifest",
+    "package:dir": "npm run build && electron-builder --dir && node scripts/apply-win-icon.mjs",
+    "smoke:api": "node scripts/smoke-api.mjs",
+    "smoke:packaged-html": "node scripts/assert-packaged-html.mjs",
+    "smoke:update-channel": "node scripts/assert-update-channel.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify": "node scripts/verify.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
-    "electron": "^39.2.7",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^1.14.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
@@ -26,10 +37,47 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "concurrently": "^9.2.1",
+    "electron": "^39.8.10",
+    "electron-builder": "^26.8.1",
     "jsdom": "^27.2.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.7",
     "vitest": "^4.0.15",
     "wait-on": "^9.0.3"
+  },
+  "build": {
+    "appId": "cn.local.quicktranslate",
+    "productName": "快捷翻译",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "build/icons/**/*",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://sg.lwvpscc.top/quick-translate/updates/latest"
+      }
+    ],
+    "win": {
+      "icon": "build/icons/desktop-icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "installerIcon": "build/icons/installer-icon.ico",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

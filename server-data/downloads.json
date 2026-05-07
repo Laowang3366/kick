@@ -1,0 +1,46 @@
+{
+  "latestVersion": "0.1.18",
+  "releases": [
+    {
+      "version": "0.1.18",
+      "fileName": "快捷翻译 Setup 0.1.18.exe",
+      "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.18.exe",
+      "size": 99983015,
+      "sha512": "eXWxxMt7//QQXgZ6g7uOb2Wu7G70kUFq7vmouuFAJ8dsChKuhD2cJVg/zjw+ipW9I+k+8ZHEBmfHivZYM+TSwQ==",
+      "releaseDate": "2026-05-07T18:47:25.898Z"
+    },
+    {
+      "version": "0.1.17",
+      "fileName": "快捷翻译 Setup 0.1.17.exe",
+      "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.17.exe",
+      "size": 99748115,
+      "sha512": "/OKOKeuF0qoxI0xnzkRUJA7NSodS+q0jr08uR+S5rsfigvyJJFz1Md9pjnd+xbSKdwFU8WW3OBVAppQRIQhQEw==",
+      "releaseDate": "2026-05-07T16:03:15.883Z"
+    },
+    {
+      "version": "0.1.16",
+      "fileName": "快捷翻译 Setup 0.1.16.exe",
+      "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.16.exe",
+      "size": 99746892,
+      "sha512": "sGXpBlzhksB1TDFGwNTAw19BhmguxSpACWS5ApV8QC8dwx4nYlA0B0tV+l/9WzsM0CfKuiUCMhT2Siv/sa0VCw==",
+      "releaseDate": "2026-05-07T13:41:40.172Z"
+    },
+    {
+      "version": "0.1.15",
+      "fileName": "快捷翻译 Setup 0.1.15.exe",
+      "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.15.exe",
+      "size": 99747152,
+      "sha512": "+vbGq2XoAcvtZWo+J/8sbo5wO2b/m/MahdBer0sQVwr4w6vxGkAZVuQsKzUjLU3nQMbN6mmWGRkM5EOY7rGeCQ==",
+      "releaseDate": "2026-05-07T13:35:17.427Z"
+    },
+    {
+      "version": "0.1.14",
+      "fileName": "快捷翻译 Setup 0.1.14.exe",
+      "url": "http://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.14.exe",
+      "size": 99745751,
+      "sha512": "gc2ZY34jQhhvJJ1F1IqeHiJCvIQlagr8pSdTa0yUPrn/Yb86Ftd8eRWi1MIVFQZgyQUJr8WcRa5rugYfaI+5OQ==",
+      "releaseDate": "2026-05-07T12:48:37.123Z"
+    }
+  ]
+}
+

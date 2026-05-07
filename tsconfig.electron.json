@@ -8,9 +8,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "dist-electron",
-    "rootDir": "src/desktop",
+    "rootDir": "src",
     "types": ["node"]
   },
-  "include": ["src/desktop/**/*.ts"],
+  "include": ["src/desktop/**/*.ts", "src/desktop/**/*.cts", "src/shared/**/*.ts"],
   "exclude": ["src/**/*.test.ts"]
 }

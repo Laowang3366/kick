@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quick-translate-v2';
+const CACHE_NAME = 'quick-translate-v4';
 const CACHE_PREFIX = 'quick-translate-';
 const CORE_ASSETS = ['/', '/manifest.webmanifest', '/app-icon.svg'];
 const IS_LOCAL_DEV =
