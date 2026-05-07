@@ -1,10 +1,11 @@
 import type { StoredTranslationEntry } from './libraryStorage';
 import type { ThemePreference } from './themePreference';
+import { defaultQuickTranslateBackendBaseUrl, normalizeBackendBaseUrl } from '../shared/cloudEndpoint';
 import type { TranslateTextResult } from '../shared/translator';
 import type { TranslationFormat } from '../shared/translationFormats';
 
 export const defaultCloudBaseUrl =
-  import.meta.env.VITE_QUICK_TRANSLATE_API_URL || 'http://sg.lwvpscc.top/quick-translate/backend';
+  import.meta.env.VITE_QUICK_TRANSLATE_API_URL || defaultQuickTranslateBackendBaseUrl;
 
 export type CloudUser = {
   id: string;
@@ -35,7 +36,7 @@ type CloudClientOptions = {
 };
 
 export function createCloudClient(options: CloudClientOptions = {}) {
-  const baseUrl = (options.baseUrl ?? defaultCloudBaseUrl).replace(/\/$/, '');
+  const baseUrl = normalizeBackendBaseUrl(options.baseUrl ?? defaultCloudBaseUrl);
   const fetcher = options.fetcher ?? fetch;
 
   async function request<T>(pathname: string, init: RequestInit = {}): Promise<T> {

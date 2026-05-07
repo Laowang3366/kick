@@ -9,6 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.dirname(__dirname);
 const port = Number(process.env.PORT ?? process.env.QUICK_TRANSLATE_PORT ?? 8787);
 const dataDir = process.env.QUICK_TRANSLATE_DATA_DIR ?? path.join(projectRoot, 'server-data');
+const maxBodyBytes = Number(process.env.QUICK_TRANSLATE_MAX_BODY_BYTES ?? 1_048_576);
+const providerApiKey = process.env.TRANSLATE_API_KEY ?? process.env.OPENAI_API_KEY ?? '';
 
 const app = createBackendApp({
   dataDir,
@@ -16,9 +18,9 @@ const app = createBackendApp({
   adminUsername: process.env.QUICK_TRANSLATE_ADMIN_USER,
   adminPassword: process.env.QUICK_TRANSLATE_ADMIN_PASSWORD,
   defaultProvider: {
-    providerType: process.env.TRANSLATE_PROVIDER ?? 'openai-compatible',
+    providerType: process.env.TRANSLATE_PROVIDER ?? (providerApiKey ? 'openai-compatible' : 'mock'),
     baseUrl: process.env.TRANSLATE_BASE_URL ?? 'https://ussub.lwvpscc.top/v1',
-    apiKey: process.env.TRANSLATE_API_KEY ?? 'sk-36546e4bf237b699fa4dc0a3bf7c4cdf7283776b15fba9db26ae273a4dbf5c5c',
+    apiKey: providerApiKey,
     model: process.env.TRANSLATE_MODEL ?? 'gpt-5.4-mini'
   },
   translateText: ({ text, targetLanguage, translationFormat, provider }) =>
@@ -36,7 +38,16 @@ const app = createBackendApp({
 });
 
 const server = createServer(async (request, response) => {
-  const requestBody = await readRequestBody(request);
+  let requestBody;
+  try {
+    requestBody = await readRequestBody(request);
+  } catch (error) {
+    const status = error instanceof RequestBodyTooLargeError ? 413 : 400;
+    response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ error: status === 413 ? '请求内容过大' : '请求内容读取失败' }));
+    return;
+  }
+
   const rawPathname = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`).pathname;
   const pathname = rawPathname.startsWith('/quick-translate/backend')
     ? rawPathname.slice('/quick-translate/backend'.length) || '/'
@@ -74,11 +85,22 @@ server.listen(port, '0.0.0.0', () => {
 
 async function readRequestBody(request) {
   const chunks = [];
+  let totalBytes = 0;
+
   for await (const chunk of request) {
-    chunks.push(chunk);
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.length;
+    if (totalBytes > maxBodyBytes) {
+      throw new RequestBodyTooLargeError();
+    }
+
+    chunks.push(buffer);
   }
+
   return Buffer.concat(chunks).toString('utf8');
 }
+
+class RequestBodyTooLargeError extends Error {}
 
 async function serveStaticFile(response, filePath, contentType) {
   try {

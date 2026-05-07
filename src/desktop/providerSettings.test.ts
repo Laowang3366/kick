@@ -5,10 +5,10 @@ import { describe, expect, it } from 'vitest';
 import { getProviderSettingsPath, loadBackendProviderSettings, packagedProviderSettings } from './providerSettings';
 
 describe('backend provider settings', () => {
-  it('uses the packaged OpenAI-compatible provider when no backend channel is configured', () => {
+  it('does not package provider credentials when no direct backend channel is configured', () => {
     expect(packagedProviderSettings).toEqual({
-      providerType: 'openai-compatible',
-      apiKey: 'sk-36546e4bf237b699fa4dc0a3bf7c4cdf7283776b15fba9db26ae273a4dbf5c5c',
+      providerType: 'mock',
+      apiKey: '',
       baseUrl: 'https://ussub.lwvpscc.top/v1',
       model: 'gpt-5.4-mini'
     });

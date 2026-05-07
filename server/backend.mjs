@@ -1,7 +1,10 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
+
+const scryptAsync = promisify(scrypt);
 
 const jsonHeaders = {
   'content-type': 'application/json; charset=utf-8',
@@ -20,6 +23,8 @@ const defaultDownloadManifest = {
   latestVersion: '',
   releases: []
 };
+const providerTypes = new Set(['mock', 'openai-compatible']);
+const providerModelListTimeoutMs = 15_000;
 
 export function createBackendApp(options = {}) {
   const store = createJsonStore({
@@ -171,7 +176,7 @@ export function createBackendApp(options = {}) {
       id: randomId(),
       email,
       displayName,
-      passwordHash: hashPassword(password),
+      passwordHash: await hashPassword(password),
       createdAt: new Date().toISOString()
     };
     await store.saveUser(user);
@@ -188,7 +193,7 @@ export function createBackendApp(options = {}) {
     const password = stringOrEmpty(body.password);
     const user = email ? await store.findUserByEmail(email) : null;
 
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    if (!user || !(await verifyPassword(password, user.passwordHash))) {
       throw new HttpError(401, '邮箱或密码错误');
     }
 
@@ -229,87 +234,86 @@ export function createJsonStore({ dataDir, defaultProvider }) {
     downloads: path.join(dataDir, 'downloads.json')
   };
 
-  async function ensureDataDir() {
-    await mkdir(dataDir, { recursive: true });
-  }
-
-  async function readJson(filePath, fallback) {
-    await ensureDataDir();
-    if (!existsSync(filePath)) {
-      return fallback;
-    }
-
-    try {
-      return JSON.parse(await readFile(filePath, 'utf8'));
-    } catch {
-      return fallback;
-    }
-  }
-
-  async function writeJson(filePath, value) {
-    await ensureDataDir();
-    await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  }
+  const files = {
+    users: createJsonFile(paths.users, []),
+    states: createJsonFile(paths.states, {}),
+    provider: createJsonFile(paths.provider, undefined),
+    downloads: createJsonFile(paths.downloads, defaultDownloadManifest)
+  };
 
   return {
     async findUserByEmail(email) {
-      const users = await readJson(paths.users, []);
+      const users = normalizeUsers(await files.users.read());
       return users.find((user) => user.email === email) ?? null;
     },
     async saveUser(user) {
-      const users = await readJson(paths.users, []);
-      await writeJson(paths.users, [...users, user]);
+      await files.users.update((value) => {
+        const users = normalizeUsers(value);
+        if (users.some((existingUser) => existingUser.email === user.email)) {
+          throw new HttpError(409, '该邮箱已注册');
+        }
+
+        return [...users, user];
+      });
     },
     async updateUser(userId, update) {
-      const users = await readJson(paths.users, []);
-      const index = users.findIndex((user) => user.id === userId);
-      if (index < 0) {
-        throw new HttpError(404, '用户不存在');
-      }
+      let updatedUser = null;
+      await files.users.update(async (value) => {
+        const users = normalizeUsers(value);
+        const index = users.findIndex((user) => user.id === userId);
+        if (index < 0) {
+          throw new HttpError(404, '用户不存在');
+        }
 
-      const currentUser = users[index];
-      const nextEmail = normalizeEmail(update.email) || currentUser.email;
-      const displayName = stringOrEmpty(update.displayName).trim();
-      const password = stringOrEmpty(update.password);
+        const currentUser = users[index];
+        const nextEmail = normalizeEmail(update.email) || currentUser.email;
+        const displayName = stringOrEmpty(update.displayName).trim();
+        const password = stringOrEmpty(update.password);
 
-      if (!nextEmail) {
-        throw new HttpError(400, '邮箱不符合要求');
-      }
+        if (!nextEmail) {
+          throw new HttpError(400, '邮箱不符合要求');
+        }
 
-      if (nextEmail !== currentUser.email && users.some((user) => user.id !== userId && user.email === nextEmail)) {
-        throw new HttpError(409, '该邮箱已被其他用户使用');
-      }
+        if (nextEmail !== currentUser.email && users.some((user) => user.id !== userId && user.email === nextEmail)) {
+          throw new HttpError(409, '该邮箱已被其他用户使用');
+        }
 
-      if (password && password.length < 6) {
-        throw new HttpError(400, '密码至少需要 6 位');
-      }
+        if (password && password.length < 6) {
+          throw new HttpError(400, '密码至少需要 6 位');
+        }
 
-      const nextUser = {
-        ...currentUser,
-        email: nextEmail,
-        displayName: displayName || currentUser.displayName || nextEmail.split('@')[0],
-        ...(password ? { passwordHash: hashPassword(password) } : {})
-      };
-      users[index] = nextUser;
-      await writeJson(paths.users, users);
-      return nextUser;
+        updatedUser = {
+          ...currentUser,
+          email: nextEmail,
+          displayName: displayName || currentUser.displayName || nextEmail.split('@')[0],
+          ...(password ? { passwordHash: await hashPassword(password) } : {})
+        };
+        users[index] = updatedUser;
+        return users;
+      });
+
+      return updatedUser;
     },
     async deleteUser(userId) {
-      const users = await readJson(paths.users, []);
-      const index = users.findIndex((user) => user.id === userId);
-      if (index < 0) {
-        throw new HttpError(404, '用户不存在');
-      }
+      await files.users.update((value) => {
+        const users = normalizeUsers(value);
+        const index = users.findIndex((user) => user.id === userId);
+        if (index < 0) {
+          throw new HttpError(404, '用户不存在');
+        }
 
-      const states = await readJson(paths.states, {});
-      delete states[userId];
-      users.splice(index, 1);
-      await writeJson(paths.users, users);
-      await writeJson(paths.states, states);
+        users.splice(index, 1);
+        return users;
+      });
+      await files.states.update((value) => {
+        const states = normalizeStateRecord(value);
+        delete states[userId];
+        return states;
+      });
     },
     async listUsersWithStateSummary() {
-      const users = await readJson(paths.users, []);
-      const states = await readJson(paths.states, {});
+      const users = normalizeUsers(await files.users.read());
+      const states = normalizeStateRecord(await files.states.read());
       return users
         .map((user) => {
           const state = normalizeUserState(states[user.id]);
@@ -328,97 +332,166 @@ export function createJsonStore({ dataDir, defaultProvider }) {
         .sort((left, right) => stringOrEmpty(right.createdAt).localeCompare(stringOrEmpty(left.createdAt)));
     },
     async getUserState(userId) {
-      const states = await readJson(paths.states, {});
+      const states = normalizeStateRecord(await files.states.read());
       return normalizeUserState(states[userId]);
     },
     async saveUserState(userId, state) {
-      const states = await readJson(paths.states, {});
-      states[userId] = normalizeUserState(state);
-      await writeJson(paths.states, states);
+      await files.states.update((value) => {
+        const states = normalizeStateRecord(value);
+        states[userId] = normalizeUserState(state);
+        return states;
+      });
     },
     async getProvider() {
-      const providerState = normalizeProviderState(await readJson(paths.provider, undefined), defaultProvider);
+      const providerState = normalizeProviderState(await files.provider.read(), defaultProvider);
       return getActiveProvider(providerState);
     },
     async saveProvider(provider) {
-      const providerState = normalizeProviderState(await readJson(paths.provider, undefined), defaultProvider);
-      const currentProvider = getActiveProvider(providerState);
-      const nextProvider = normalizeProvider({ ...provider, id: currentProvider.id, name: currentProvider.name }, currentProvider);
-      const nextState = {
-        activeProviderId: currentProvider.id,
-        providers: providerState.providers.map((item) => (item.id === currentProvider.id ? nextProvider : item))
-      };
-      await writeJson(paths.provider, nextState);
+      await files.provider.update((value) => {
+        const providerState = normalizeProviderState(value, defaultProvider);
+        const currentProvider = getActiveProvider(providerState);
+        const nextProvider = normalizeProvider({ ...provider, id: currentProvider.id, name: currentProvider.name }, currentProvider);
+        return {
+          activeProviderId: currentProvider.id,
+          providers: providerState.providers.map((item) => (item.id === currentProvider.id ? nextProvider : item))
+        };
+      });
     },
     async getProviderState() {
-      return normalizeProviderState(await readJson(paths.provider, undefined), defaultProvider);
+      return normalizeProviderState(await files.provider.read(), defaultProvider);
     },
     async createProvider(provider) {
-      const providerState = normalizeProviderState(await readJson(paths.provider, undefined), defaultProvider);
-      const normalizedProvider = normalizeProvider(
-        {
-          ...provider,
-          id: randomId(),
-          name: stringOrEmpty(provider.name).trim() || `翻译引擎 ${providerState.providers.length + 1}`
-        },
-        defaultProvider
-      );
-      const nextState = {
-        activeProviderId: provider.active === true ? normalizedProvider.id : providerState.activeProviderId || normalizedProvider.id,
-        providers: [...providerState.providers, normalizedProvider]
-      };
-      await writeJson(paths.provider, nextState);
-      return normalizedProvider;
+      let createdProvider = null;
+      await files.provider.update((value) => {
+        const providerState = normalizeProviderState(value, defaultProvider);
+        createdProvider = normalizeProvider(
+          {
+            ...provider,
+            id: randomId(),
+            name: stringOrEmpty(provider.name).trim() || `翻译引擎 ${providerState.providers.length + 1}`
+          },
+          defaultProvider
+        );
+        return {
+          activeProviderId: provider.active === true ? createdProvider.id : providerState.activeProviderId || createdProvider.id,
+          providers: [...providerState.providers, createdProvider]
+        };
+      });
+
+      return createdProvider;
     },
     async updateProvider(providerId, update) {
-      const providerState = normalizeProviderState(await readJson(paths.provider, undefined), defaultProvider);
-      const provider = providerState.providers.find((item) => item.id === providerId);
-      if (!provider) {
-        throw new HttpError(404, '引擎不存在');
-      }
+      return files.provider.update((value) => {
+        const providerState = normalizeProviderState(value, defaultProvider);
+        const provider = providerState.providers.find((item) => item.id === providerId);
+        if (!provider) {
+          throw new HttpError(404, '引擎不存在');
+        }
 
-      const nextProvider = normalizeProvider(
-        {
-          ...provider,
-          ...update,
-          id: provider.id,
-          name: stringOrEmpty(update.name).trim() || provider.name,
-          apiKey: stringOrEmpty(update.apiKey) || provider.apiKey
-        },
-        provider
-      );
-      const nextState = {
-        activeProviderId: update.active === true ? providerId : providerState.activeProviderId,
-        providers: providerState.providers.map((item) => (item.id === providerId ? nextProvider : item))
-      };
-      await writeJson(paths.provider, nextState);
-      return nextState;
+        const nextProvider = normalizeProvider(
+          {
+            ...provider,
+            ...update,
+            id: provider.id,
+            name: stringOrEmpty(update.name).trim() || provider.name,
+            apiKey: stringOrEmpty(update.apiKey) || provider.apiKey
+          },
+          provider
+        );
+        return {
+          activeProviderId: update.active === true ? providerId : providerState.activeProviderId,
+          providers: providerState.providers.map((item) => (item.id === providerId ? nextProvider : item))
+        };
+      });
     },
     async deleteProvider(providerId) {
-      const providerState = normalizeProviderState(await readJson(paths.provider, undefined), defaultProvider);
-      const provider = providerState.providers.find((item) => item.id === providerId);
-      if (!provider) {
-        throw new HttpError(404, '引擎不存在');
-      }
-      if (providerState.providers.length <= 1) {
-        throw new HttpError(400, '至少需要保留一个翻译引擎');
-      }
+      return files.provider.update((value) => {
+        const providerState = normalizeProviderState(value, defaultProvider);
+        const provider = providerState.providers.find((item) => item.id === providerId);
+        if (!provider) {
+          throw new HttpError(404, '引擎不存在');
+        }
+        if (providerState.providers.length <= 1) {
+          throw new HttpError(400, '至少需要保留一个翻译引擎');
+        }
 
-      const providers = providerState.providers.filter((item) => item.id !== providerId);
-      const nextState = {
-        activeProviderId: providerState.activeProviderId === providerId ? providers[0].id : providerState.activeProviderId,
-        providers
-      };
-      await writeJson(paths.provider, nextState);
-      return nextState;
+        const providers = providerState.providers.filter((item) => item.id !== providerId);
+        return {
+          activeProviderId: providerState.activeProviderId === providerId ? providers[0].id : providerState.activeProviderId,
+          providers
+        };
+      });
     },
     async getDownloadManifest() {
-      return normalizeDownloadManifest(await readJson(paths.downloads, defaultDownloadManifest));
+      return normalizeDownloadManifest(await files.downloads.read());
     },
     async saveDownloadManifest(manifest) {
-      await writeJson(paths.downloads, normalizeDownloadManifest(manifest));
+      await files.downloads.replace(normalizeDownloadManifest(manifest));
     }
   };
+}
+
+function createJsonFile(filePath, fallback) {
+  let hasLoaded = false;
+  let cachedValue;
+  let queue = Promise.resolve();
+
+  async function load() {
+    if (hasLoaded) {
+      return cachedValue;
+    }
+
+    await mkdir(path.dirname(filePath), { recursive: true });
+    if (!existsSync(filePath)) {
+      cachedValue = cloneJson(fallback);
+      hasLoaded = true;
+      return cachedValue;
+    }
+
+    try {
+      cachedValue = JSON.parse(await readFile(filePath, 'utf8'));
+    } catch {
+      cachedValue = cloneJson(fallback);
+    }
+
+    hasLoaded = true;
+    return cachedValue;
+  }
+
+  function enqueue(task) {
+    const run = queue.catch(() => undefined).then(task);
+    queue = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run;
+  }
+
+  return {
+    async read() {
+      await queue;
+      return cloneJson(await load());
+    },
+    update(mutator) {
+      return enqueue(async () => {
+        const currentValue = await load();
+        const nextValue = await mutator(cloneJson(currentValue));
+        cachedValue = cloneJson(nextValue);
+        await writeJsonAtomic(filePath, cachedValue);
+        return cloneJson(cachedValue);
+      });
+    },
+    replace(value) {
+      return this.update(() => value);
+    }
+  };
+}
+
+async function writeJsonAtomic(filePath, value) {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  await rename(temporaryPath, filePath);
 }
 
 class HttpError extends Error {
@@ -489,19 +562,19 @@ function verifyToken(token, secret) {
   }
 }
 
-function hashPassword(password) {
+async function hashPassword(password) {
   const salt = randomBytes(16).toString('hex');
-  const key = scryptSync(password, salt, 32).toString('hex');
+  const key = (await scryptAsync(password, salt, 32)).toString('hex');
   return `${salt}:${key}`;
 }
 
-function verifyPassword(password, storedHash) {
+async function verifyPassword(password, storedHash) {
   const [salt, expectedKey] = stringOrEmpty(storedHash).split(':');
   if (!salt || !expectedKey) {
     return false;
   }
 
-  const actualKey = scryptSync(password, salt, 32).toString('hex');
+  const actualKey = (await scryptAsync(password, salt, 32)).toString('hex');
   return safeEqual(actualKey, expectedKey);
 }
 
@@ -539,6 +612,18 @@ function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function cloneJson(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function normalizeUsers(value) {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function normalizeStateRecord(value) {
+  return isRecord(value) ? value : {};
+}
+
 function normalizeUserState(value) {
   const record = isRecord(value) ? value : {};
   return {
@@ -569,16 +654,25 @@ async function fetchProviderModels(input, store) {
   }
 
   const modelsUrl = `${baseUrl.replace(/\/+$/, '')}/models`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), providerModelListTimeoutMs);
   let response;
   try {
     response = await fetch(modelsUrl, {
       headers: {
         authorization: `Bearer ${apiKey}`,
         accept: 'application/json'
-      }
+      },
+      signal: controller.signal
     });
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new HttpError(504, '模型列表请求超时，请检查接口地址');
+    }
+
     throw new HttpError(502, '模型列表请求失败，请检查接口地址');
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const payload = await response.json().catch(() => ({}));
@@ -617,11 +711,21 @@ function normalizeProvider(value, fallback = {}) {
   return {
     id: stringOrEmpty(record.id) || stringOrEmpty(fallback.id) || randomId(),
     name: stringOrEmpty(record.name) || stringOrEmpty(fallback.name) || '默认翻译引擎',
-    providerType: stringOrEmpty(record.providerType) || stringOrEmpty(fallback.providerType) || 'openai-compatible',
+    providerType: normalizeProviderType(record.providerType) || normalizeProviderType(fallback.providerType) || 'openai-compatible',
     baseUrl: stringOrEmpty(record.baseUrl) || stringOrEmpty(fallback.baseUrl),
     apiKey: stringOrEmpty(record.apiKey) || stringOrEmpty(fallback.apiKey),
     model: stringOrEmpty(record.model) || stringOrEmpty(fallback.model)
   };
+}
+
+function normalizeProviderType(value) {
+  return typeof value === 'string' && providerTypes.has(value) ? value : '';
+}
+
+function isAbortError(error) {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError';
 }
 
 function redactProvider(provider) {

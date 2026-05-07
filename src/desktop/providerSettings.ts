@@ -10,8 +10,8 @@ type LoadBackendProviderSettingsOptions = {
 const providerTypes = new Set<ProviderType>(['mock', 'openai-compatible']);
 
 export const packagedProviderSettings: ProviderSettings = {
-  providerType: 'openai-compatible',
-  apiKey: 'sk-36546e4bf237b699fa4dc0a3bf7c4cdf7283776b15fba9db26ae273a4dbf5c5c',
+  providerType: 'mock',
+  apiKey: '',
   baseUrl: 'https://ussub.lwvpscc.top/v1',
   model: 'gpt-5.4-mini'
 };

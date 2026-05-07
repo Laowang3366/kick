@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { startAutoUpdates } from './autoUpdate.js';
+import { resolveDesktopBackendBaseUrl, translateWithBackend } from './backendTranslationClient.js';
 import { captureSelectedText } from './captureSelection.js';
 import {
   defaultDesktopSettings,
@@ -26,7 +27,7 @@ import { getProviderSettingsPath, loadBackendProviderSettings } from './provider
 import { createFloatingWindowOptions, createMainWindowOptions } from './windowOptions.js';
 import { createProviderFromSettings } from '../shared/providerSettings.js';
 import { translateText } from '../shared/translator.js';
-import { normalizeTranslationFormat } from '../shared/translationFormats.js';
+import { normalizeTranslationFormat, type TranslationFormat } from '../shared/translationFormats.js';
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -301,6 +302,27 @@ function loadCurrentProvider() {
       env: process.env
     })
   );
+}
+
+async function translateUsingConfiguredChannel(request: { text: string; targetLanguage: string; translationFormat: TranslationFormat }) {
+  const directProvider = loadCurrentProvider();
+
+  try {
+    return await translateWithBackend(request, {
+      baseUrl: resolveDesktopBackendBaseUrl(process.env)
+    });
+  } catch (error) {
+    if (directProvider.type === 'openai-compatible') {
+      return translateText({
+        text: request.text,
+        targetLanguage: request.targetLanguage,
+        translationFormat: request.translationFormat,
+        provider: directProvider
+      });
+    }
+
+    throw error;
+  }
 }
 
 function setMouseButton4Enabled(enabled: boolean) {
@@ -618,13 +640,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('window-control', (_event, command: unknown) => executeWindowControl(command));
   ipcMain.handle('translate-text', (_event, input: unknown) => {
     const request = normalizeTranslationIpcInput(input);
-
-    return translateText({
-      text: request.text,
-      targetLanguage: request.targetLanguage,
-      translationFormat: request.translationFormat,
-      provider: loadCurrentProvider()
-    });
+    return translateUsingConfiguredChannel(request);
   });
   await createWindow();
   createTray();
