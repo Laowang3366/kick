@@ -45,6 +45,8 @@ type UniverBinding = {
     dispose: () => void;
   };
   workbook: FWorkbook;
+  captureSnapshot: () => ExcelWorkbookSnapshot;
+  syncWorkbookSnapshot: () => void;
   disposables: Array<{ dispose: () => void }>;
 };
 
@@ -67,6 +69,13 @@ function createSheetId(index: number) {
 
 function createWorkbookId() {
   return "excel-practice-workbook";
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select";
 }
 
 function workbookSnapshotToUniverData(workbook: ExcelWorkbookSnapshot): Partial<IWorkbookData> {
@@ -264,7 +273,13 @@ export function ExcelWorkbookEditor({
         }),
       ];
 
-      bindingRef.current = { univerAPI, workbook: univerWorkbook, disposables };
+      bindingRef.current = {
+        univerAPI,
+        workbook: univerWorkbook,
+        captureSnapshot,
+        syncWorkbookSnapshot,
+        disposables,
+      };
 
       const applyPermissions = async () => {
         if (!restrictEditingToRange || !editableRange) return;
@@ -381,6 +396,19 @@ export function ExcelWorkbookEditor({
     await shellRef.current.requestFullscreen();
   };
 
+  const handleEditorKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || (event.key !== "Backspace" && event.key !== "Delete")) return;
+    if (!latestOnWorkbookChangeRef.current || isEditableKeyboardTarget(event.target)) return;
+    const binding = bindingRef.current;
+    const activeRange = binding?.workbook.getActiveRange?.();
+    if (!binding || !activeRange?.clearContent) return;
+    event.preventDefault();
+    activeRange.clearContent();
+    window.setTimeout(() => {
+      binding.syncWorkbookSnapshot();
+    }, 0);
+  };
+
   useEffect(() => {
     if (!requestFullscreenVersion || !shellRef.current) return;
     if (document.fullscreenElement !== shellRef.current) {
@@ -395,6 +423,7 @@ export function ExcelWorkbookEditor({
   const editorShell = (
     <div
       ref={shellRef}
+      onKeyDownCapture={handleEditorKeyDownCapture}
       className={`relative isolate flex min-h-0 flex-col overflow-hidden bg-white ${isFullscreen ? "h-screen w-screen rounded-none border-0 shadow-none" : `rounded-[28px] border border-slate-200 shadow-[0_24px_60px_-32px_rgba(15,23,42,0.45)] ${className}`}`}
     >
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">

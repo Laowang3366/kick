@@ -37,6 +37,16 @@ export type FormulaAnswerRegion = {
   cellCount: number;
 };
 
+export type DynamicArrayHydrationRule = {
+  sheet: string;
+  anchorCell: string;
+  spillRange: string;
+};
+
+type BuildWorkbookWithAnswerSnapshotOptions = {
+  dynamicArrayRules?: DynamicArrayHydrationRule[];
+};
+
 export function columnIndexToLabel(index: number) {
   let current = Math.max(1, index);
   let result = "";
@@ -167,13 +177,80 @@ export function updateWorkbookCell(workbook: ExcelWorkbookSnapshot, sheetName: s
   return next;
 }
 
+export function clearWorkbookRange(workbook: ExcelWorkbookSnapshot, selection: ExcelRangeSelection | null | undefined) {
+  const next = cloneWorkbookSnapshot(workbook);
+  if (!selection) return next;
+  const sheet = getSheetSnapshot(next, selection.sheetName);
+  if (!sheet) return next;
+  for (let row = selection.startRow; row <= selection.endRow; row += 1) {
+    for (let col = selection.startCol; col <= selection.endCol; col += 1) {
+      delete sheet.cells[toCellRef(row, col)];
+    }
+  }
+  return next;
+}
+
+function buildDynamicArrayHydrationIndex(options: BuildWorkbookWithAnswerSnapshotOptions) {
+  const spillCells = new Map<string, Set<string>>();
+  const anchorCells = new Map<string, Set<string>>();
+
+  (options.dynamicArrayRules || []).forEach((rule) => {
+    const sheetName = String(rule.sheet || "").trim();
+    const anchor = parseCellRef(String(rule.anchorCell || ""));
+    const spill = parseRangeRef(String(rule.spillRange || ""));
+    if (!sheetName || !anchor || !spill) return;
+
+    const spillSet = spillCells.get(sheetName) || new Set<string>();
+    const anchorSet = anchorCells.get(sheetName) || new Set<string>();
+    for (let row = spill.startRow; row <= spill.endRow; row += 1) {
+      for (let col = spill.startCol; col <= spill.endCol; col += 1) {
+        spillSet.add(toCellRef(row, col));
+      }
+    }
+    anchorSet.add(toCellRef(anchor.row, anchor.col));
+    spillCells.set(sheetName, spillSet);
+    anchorCells.set(sheetName, anchorSet);
+  });
+
+  return { spillCells, anchorCells };
+}
+
+function isDynamicArraySpillChild(
+  index: ReturnType<typeof buildDynamicArrayHydrationIndex>,
+  sheetName: string,
+  cellRef: string,
+) {
+  return Boolean(index.spillCells.get(sheetName)?.has(cellRef))
+    && !index.anchorCells.get(sheetName)?.has(cellRef);
+}
+
+export function clearDynamicArraySpillChildren(
+  workbook: ExcelWorkbookSnapshot | null | undefined,
+  dynamicArrayRules: DynamicArrayHydrationRule[] | null | undefined,
+) {
+  const next = cloneWorkbookSnapshot(workbook);
+  const dynamicArrayHydrationIndex = buildDynamicArrayHydrationIndex({
+    dynamicArrayRules: dynamicArrayRules || [],
+  });
+  next.sheets.forEach((sheet) => {
+    const spillCells = dynamicArrayHydrationIndex.spillCells.get(sheet.name);
+    if (!spillCells) return;
+    spillCells.forEach((cellRef) => {
+      if (!isDynamicArraySpillChild(dynamicArrayHydrationIndex, sheet.name, cellRef)) return;
+      delete sheet.cells[cellRef];
+    });
+  });
+  return next;
+}
+
 export function buildWorkbookWithAnswerSnapshot(
   templateWorkbook: ExcelWorkbookSnapshot | null | undefined,
   sheetName: string | null | undefined,
   rangeRef: string | null | undefined,
   answerSnapshotJson: string | null | undefined,
+  options: BuildWorkbookWithAnswerSnapshotOptions = {},
 ) {
-  const next = cloneWorkbookSnapshot(templateWorkbook);
+  const next = clearDynamicArraySpillChildren(templateWorkbook, options.dynamicArrayRules);
   if (!sheetName || !rangeRef || !answerSnapshotJson) {
     return next;
   }
@@ -188,9 +265,14 @@ export function buildWorkbookWithAnswerSnapshot(
   } catch {
     return next;
   }
+  const dynamicArrayHydrationIndex = buildDynamicArrayHydrationIndex(options);
   for (let rowOffset = 0; rowOffset <= range.endRow - range.startRow; rowOffset += 1) {
     for (let colOffset = 0; colOffset <= range.endCol - range.startCol; colOffset += 1) {
       const cellRef = toCellRef(range.startRow + rowOffset, range.startCol + colOffset);
+      if (isDynamicArraySpillChild(dynamicArrayHydrationIndex, sheetName, cellRef)) {
+        delete sheet.cells[cellRef];
+        continue;
+      }
       const formula = answerSnapshot?.formulas?.[rowOffset]?.[colOffset] || "";
       const value = answerSnapshot?.values?.[rowOffset]?.[colOffset] ?? "";
       if (!formula && (value === null || value === undefined || String(value).trim() === "")) {

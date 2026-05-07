@@ -3,11 +3,13 @@ import { Expand, Minimize2 } from "lucide-react";
 import {
   ExcelRangeSelection,
   ExcelWorkbookSnapshot,
+  clearWorkbookRange,
   columnIndexToLabel,
   getCellInputValue,
   getComputedCellDisplayValue,
   getSheetSnapshot,
   isCellInSelection,
+  normalizeSelection,
   parseCellRef,
   resolveSheetBounds,
   toCellRef,
@@ -144,7 +146,21 @@ export function ExcelSnapshotEditor({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (editingMode !== "none" || selectionEnabled) return;
+    if (editingMode !== "none") return;
+    if ((event.key === "Backspace" || event.key === "Delete") && onWorkbookChange && sheet) {
+      const selectionToClear = selectionEnabled
+        ? selection
+        : activeCellEditable && activeCellPos
+          ? normalizeSelection(currentSheetName, activeCellPos.row, activeCellPos.col, activeCellPos.row, activeCellPos.col)
+          : null;
+      if (selectionToClear && selectionToClear.sheetName === currentSheetName) {
+        event.preventDefault();
+        onWorkbookChange(clearWorkbookRange(workbook, selectionToClear));
+        setDraftValue("");
+        return;
+      }
+    }
+    if (selectionEnabled) return;
     if (event.key === "ArrowUp") {
       event.preventDefault();
       moveActiveCell(-1, 0);
@@ -178,12 +194,6 @@ export function ExcelSnapshotEditor({
     if (event.key === "F2") {
       event.preventDefault();
       openFormulaEditor("cell");
-      return;
-    }
-    if ((event.key === "Backspace" || event.key === "Delete") && activeCellEditable && onWorkbookChange && sheet) {
-      event.preventDefault();
-      onWorkbookChange(updateWorkbookCell(workbook, sheet.name, activeCellRef, ""));
-      setDraftValue("");
       return;
     }
     if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && activeCellEditable) {

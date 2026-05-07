@@ -36,6 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { api, ApiError } from "../lib/api";
 import {
   buildWorkbookWithAnswerSnapshot,
+  clearDynamicArraySpillChildren,
   columnIndexToLabel,
   detectFormulaAnswerRegion,
   extractRangeAnswerSnapshot,
@@ -43,6 +44,7 @@ import {
   formatAnswerPreviewCellDisplay,
   ExcelRangeSelection,
   ExcelWorkbookSnapshot,
+  DynamicArrayHydrationRule,
   normalizeSelection,
   parseRangeRef,
   selectionToRangeRef,
@@ -2314,6 +2316,7 @@ export function AdminQuestions() {
     answerSheet?: string | null,
     answerRange?: string | null,
     answerSnapshotJson?: string | null,
+    dynamicArrayRules?: DynamicArrayHydrationRule[] | null,
   ) => {
     setTemplateLoading(true);
     setTemplateLoadError("");
@@ -2332,7 +2335,9 @@ export function AdminQuestions() {
         return null;
       }
       const sheetName = answerSheet || snapshot.sheets?.[0]?.name || "";
-      const workbookWithAnswer = buildWorkbookWithAnswerSnapshot(snapshot, answerSheet, answerRange, answerSnapshotJson);
+      const workbookWithAnswer = buildWorkbookWithAnswerSnapshot(snapshot, answerSheet, answerRange, answerSnapshotJson, {
+        dynamicArrayRules: Array.isArray(dynamicArrayRules) ? dynamicArrayRules : [],
+      });
       setTemplateWorkbook(snapshot);
       setEditorWorkbook(workbookWithAnswer);
       setSelectedSheetName(sheetName);
@@ -2390,7 +2395,7 @@ export function AdminQuestions() {
     setIsSelectingAnswerRange(false);
     setOpen(true);
     if (item.templateFileUrl) {
-      await loadTemplateWorkbook(item.templateFileUrl, item.answerSheet, item.answerRange, item.answerSnapshotJson);
+      await loadTemplateWorkbook(item.templateFileUrl, item.answerSheet, item.answerRange, item.answerSnapshotJson, dynamicArrayRules);
     } else {
       resetEditorState();
     }
@@ -2639,6 +2644,9 @@ export function AdminQuestions() {
         anchorCell: detectedRegion.anchorCell,
         spillRange: detectedRegion.dynamicSpillRange,
       };
+      if (form.gradingMode === "dynamic_array") {
+        setEditorWorkbook(clearDynamicArraySpillChildren(snapshot, [nextDynamicRule]));
+      }
       setForm({
         ...form,
         templateFileUrl: uploadResult.url,
@@ -3022,7 +3030,7 @@ export function AdminQuestions() {
               {form.templateFileUrl ? (
                 <button
                   type="button"
-                  onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson)}
+                  onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson, form.dynamicArrayRules)}
                   className="inline-flex h-8 items-center justify-center rounded-[2px] border border-amber-300 bg-white px-3 text-xs font-bold text-amber-800 transition hover:border-amber-400 hover:bg-amber-100"
                 >
                   重新加载
@@ -3359,7 +3367,7 @@ export function AdminQuestions() {
               {form.templateFileUrl ? (
                 <button
                   type="button"
-                  onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson)}
+                  onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson, form.dynamicArrayRules)}
                   className={secondaryButtonClassName()}
                 >
                   重新加载模板
@@ -3374,7 +3382,7 @@ export function AdminQuestions() {
                   <div>模板编辑器加载失败，请重新加载模板后再修改答案。</div>
                   <button
                     type="button"
-                    onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson)}
+                    onClick={() => void loadTemplateWorkbook(form.templateFileUrl, form.answerSheet, form.answerRange, form.answerSnapshotJson, form.dynamicArrayRules)}
                     className={secondaryButtonClassName()}
                   >
                     重新加载模板
