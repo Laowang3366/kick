@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { configureAutoUpdates } from './autoUpdate';
+import { checkForDesktopUpdates, configureAutoUpdates } from './autoUpdate';
 
 describe('auto update channel', () => {
   it('does not check for updates outside packaged production runs', () => {
@@ -57,12 +57,105 @@ describe('auto update channel', () => {
     expect(schedule).toHaveBeenCalledWith(expect.any(Function), 8000);
     expect(updater.checkForUpdatesAndNotify).toHaveBeenCalledOnce();
   });
+
+  it('does not run renderer-requested checks outside packaged runs', async () => {
+    const updater = createUpdater();
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: false,
+        isSmokeTest: false,
+        currentVersion: '0.1.21',
+        platform: 'win32',
+        updater
+      })
+    ).resolves.toMatchObject({
+      status: 'no-update',
+      currentVersion: '0.1.21'
+    });
+
+    expect(updater.checkForUpdates).not.toHaveBeenCalled();
+  });
+
+  it('does not run renderer-requested checks during smoke tests', async () => {
+    const updater = createUpdater();
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: true,
+        isSmokeTest: true,
+        currentVersion: '0.1.21',
+        platform: 'darwin',
+        updater
+      })
+    ).resolves.toMatchObject({
+      status: 'no-update',
+      currentVersion: '0.1.21'
+    });
+
+    expect(updater.checkForUpdates).not.toHaveBeenCalled();
+  });
+
+  it('uses the updater for renderer-requested packaged checks', async () => {
+    const updater = createUpdater();
+    updater.checkForUpdates.mockResolvedValue({
+      updateInfo: {
+        version: '0.1.22'
+      }
+    });
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: true,
+        isSmokeTest: false,
+        currentVersion: '0.1.21',
+        platform: 'win32',
+        updater
+      })
+    ).resolves.toEqual({
+      status: 'update-available',
+      currentVersion: '0.1.21',
+      availableVersion: '0.1.22',
+      message: '发现可用更新'
+    });
+
+    expect(updater.autoDownload).toBe(true);
+    expect(updater.autoInstallOnAppQuit).toBe(true);
+    expect(updater.checkForUpdates).toHaveBeenCalledOnce();
+  });
+
+  it('reports downloaded when the packaged updater download completes', async () => {
+    const updater = createUpdater();
+    updater.checkForUpdates.mockResolvedValue({
+      updateInfo: {
+        version: '0.1.22'
+      },
+      downloadPromise: Promise.resolve(['installer'])
+    });
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: true,
+        isSmokeTest: false,
+        currentVersion: '0.1.21',
+        platform: 'darwin',
+        updater
+      })
+    ).resolves.toMatchObject({
+      status: 'downloaded',
+      currentVersion: '0.1.21',
+      availableVersion: '0.1.22'
+    });
+
+    expect(updater.checkForUpdates).toHaveBeenCalledOnce();
+  });
 });
 
 function createUpdater() {
   return {
     autoDownload: false,
     autoInstallOnAppQuit: false,
+    checkForUpdates: vi.fn().mockResolvedValue(null),
     checkForUpdatesAndNotify: vi.fn().mockResolvedValue(undefined),
     on: vi.fn()
   };

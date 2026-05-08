@@ -6,11 +6,19 @@ import type { TranslationFormat } from '../shared/translationFormats';
 
 export {};
 
+type DesktopUpdateCheckResult = {
+  status: 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
+  currentVersion: string;
+  availableVersion?: string;
+  message: string;
+};
+
 declare global {
   interface Window {
     __quickTranslateDevCacheReset?: Promise<void>;
     quickTranslate?: {
       captureSelectedText(): Promise<string>;
+      checkForUpdates?(): Promise<DesktopUpdateCheckResult>;
       copyText(text: string): Promise<void>;
       getDesktopSettings?(): Promise<DesktopSettings>;
       onDesktopSettingsChanged?(callback: (settings: DesktopSettings) => void): () => void;

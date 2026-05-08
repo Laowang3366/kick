@@ -10,6 +10,7 @@ import { DEFAULT_TRANSLATION_FORMAT_STORAGE_KEY } from './translationFormatPrefe
 describe('App', () => {
   afterEach(() => {
     window.quickTranslate = undefined;
+    delete (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor;
     vi.restoreAllMocks();
     localStorage.clear();
   });
@@ -566,6 +567,10 @@ describe('App', () => {
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce({
         ok: true,
+        json: () => Promise.resolve({ releases: [] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
         json: () =>
           Promise.resolve({
             token: 'token-1',
@@ -593,6 +598,10 @@ describe('App', () => {
   it('syncs history and preferences to the cloud after login', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ releases: [] })
+      } as Response)
       .mockResolvedValueOnce({
         ok: true,
         json: () =>
@@ -841,5 +850,133 @@ describe('App', () => {
       targetLanguage: 'zh-CN',
       translationFormat: 'plain'
     });
+  });
+
+  it('shows a new desktop version in the settings update card', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          latestVersion: '0.1.22',
+          releases: [
+            {
+              version: '0.1.22',
+              platform: 'windows',
+              fileName: 'Quick Translate Setup 0.1.22.exe',
+              url: 'https://example.com/quick-translate.exe'
+            }
+          ]
+        })
+    } as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+
+    expect(await screen.findByText('发现新版本')).toBeInTheDocument();
+    expect(screen.getByText('版本 0.1.22')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '立即更新' })).toBeEnabled();
+  });
+
+  it('keeps an ignored update version in local storage', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          releases: [
+            {
+              version: '0.1.22',
+              platform: 'windows',
+              fileName: 'Quick Translate Setup 0.1.22.exe',
+              url: 'https://example.com/quick-translate.exe'
+            }
+          ]
+        })
+    } as Response);
+
+    const { unmount } = render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(await screen.findByText('发现新版本')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '忽略本版本' }));
+
+    expect(screen.getByText('已忽略本版本')).toBeInTheDocument();
+
+    unmount();
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+
+    expect(await screen.findByText('已忽略本版本')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '立即更新' })).toBeDisabled();
+  });
+
+  it('installs Android APK updates through the Capacitor plugin', async () => {
+    const installUpdateApk = vi.fn().mockResolvedValue(undefined);
+    (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      Plugins: {
+        UpdateInstaller: {
+          installUpdateApk
+        }
+      }
+    };
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          releases: [
+            {
+              version: '0.1.22',
+              platform: 'android',
+              fileName: 'quick-translate-0.1.22.apk',
+              url: 'https://example.com/quick-translate.apk',
+              sha512: 'sha512-value'
+            }
+          ]
+        })
+    } as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(await screen.findByText('版本 0.1.22')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
+
+    await waitFor(() => {
+      expect(installUpdateApk).toHaveBeenCalledWith({
+        url: 'https://example.com/quick-translate.apk',
+        sha512: 'sha512-value'
+      });
+    });
+  });
+
+  it('opens the APK download URL when the Android install plugin is unavailable', async () => {
+    (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      Plugins: {}
+    };
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          releases: [
+            {
+              version: '0.1.22',
+              platform: 'android',
+              fileName: 'quick-translate-0.1.22.apk',
+              url: 'https://example.com/quick-translate.apk'
+            }
+          ]
+        })
+    } as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(await screen.findByText('版本 0.1.22')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
+
+    expect(open).toHaveBeenCalledWith('https://example.com/quick-translate.apk', '_blank', 'noopener,noreferrer');
   });
 });

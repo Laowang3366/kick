@@ -52,6 +52,7 @@ body {
 :root[data-theme="dark"] h1,
 :root[data-theme="dark"] .view-heading h2,
 :root[data-theme="dark"] .settings-section h3,
+:root[data-theme="dark"] .update-card-main strong,
 :root[data-theme="dark"] .toggle-row strong,
 :root[data-theme="dark"] .shortcut-card strong,
 :root[data-theme="dark"] .entry-card strong,
@@ -82,6 +83,7 @@ body {
 :root[data-theme="dark"] .panel-footer,
 :root[data-theme="dark"] .nav-item,
 :root[data-theme="dark"] .entry-card span,
+:root[data-theme="dark"] .update-card small,
 :root[data-theme="dark"] .view-heading p,
 :root[data-theme="dark"] .toggle-row small {
   color: #aab7c8;
@@ -101,6 +103,7 @@ body {
 :root[data-theme="dark"] .settings-field select,
 :root[data-theme="dark"] .settings-field input,
 :root[data-theme="dark"] .toggle-row,
+:root[data-theme="dark"] .update-card,
 :root[data-theme="dark"] .entry-card,
 :root[data-theme="dark"] .floating-card,
 :root[data-theme="dark"] .floating-source-card,
@@ -1084,6 +1087,76 @@ textarea::placeholder {
   font-weight: 720;
 }
 
+.update-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.86fr);
+  gap: 16px;
+  align-items: center;
+  border: 1px solid rgba(31, 45, 66, 0.12);
+  border-radius: 8px;
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.update-card-main {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.update-card-main strong {
+  overflow: hidden;
+  color: #111827;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+}
+
+.update-card-main small {
+  overflow-wrap: anywhere;
+  color: #697386;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.update-status {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #5b6472;
+  background: #eef4fb;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 820;
+}
+
+.update-status.available {
+  color: #0d66d8;
+  background: #e8f3ff;
+}
+
+.update-status.current {
+  color: #087a4b;
+  background: #e8f7ef;
+}
+
+.update-status.failed {
+  color: #b42318;
+  background: #fff1f0;
+}
+
+.update-status.ignored {
+  color: #7b4e00;
+  background: #fff4d6;
+}
+
+.update-actions {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .settings-field {
   min-height: 76px;
   display: grid;
@@ -1906,7 +1979,9 @@ textarea::placeholder {
 
   .language-row,
   .command-bar,
-  .settings-action-grid {
+  .settings-action-grid,
+  .update-card,
+  .update-actions {
     grid-template-columns: 1fr;
     gap: 12px;
   }

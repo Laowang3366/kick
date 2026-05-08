@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('quickTranslate', {
   captureSelectedText: () => ipcRenderer.invoke('capture-selected-text'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   copyText: (text: string) => ipcRenderer.invoke('copy-text', text),
   getDesktopSettings: () => ipcRenderer.invoke('get-desktop-settings'),
   onDesktopSettingsChanged: (callback: (settings: unknown) => void) => {

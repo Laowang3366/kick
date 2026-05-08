@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { startAutoUpdates } from './autoUpdate.js';
+import { checkForUpdates, startAutoUpdates } from './autoUpdate.js';
 import { resolveDesktopBackendBaseUrl, translateWithBackend } from './backendTranslationClient.js';
 import { captureSelectedText } from './captureSelection.js';
 import {
@@ -89,6 +89,7 @@ async function createWindow() {
                 hasQuickTranslate: Boolean(window.quickTranslate),
                 hasTranslateText: typeof window.quickTranslate?.translateText === 'function',
                 hasGetDesktopSettings: typeof window.quickTranslate?.getDesktopSettings === 'function',
+                hasCheckForUpdates: typeof window.quickTranslate?.checkForUpdates === 'function',
               hasWindowControl: typeof window.quickTranslate?.windowControl === 'function',
               hasFloatingSessionPreferences: typeof window.quickTranslate?.setFloatingSessionPreferences === 'function',
                 hasPinButton: Boolean(document.querySelector('[aria-label="置顶窗口"]')),
@@ -109,6 +110,7 @@ async function createWindow() {
       smokeResult.hasQuickTranslate === true &&
       smokeResult.hasTranslateText === true &&
       smokeResult.hasGetDesktopSettings === true &&
+      smokeResult.hasCheckForUpdates === true &&
       smokeResult.hasWindowControl === true &&
       smokeResult.hasFloatingSessionPreferences === true &&
       smokeResult.hasPinButton === true &&
@@ -635,6 +637,7 @@ app.whenReady().then(async () => {
     clipboard.writeText(text);
   });
   ipcMain.handle('get-desktop-settings', () => desktopSettings);
+  ipcMain.handle('check-for-updates', () => checkForUpdates(isSmokeTest));
   ipcMain.handle('set-desktop-settings', (_event, settings: Partial<DesktopSettings>) => updateDesktopSettings(settings));
   ipcMain.handle('set-floating-session-preferences', (_event, preferences: unknown) => updateFloatingSessionPreferenceState(preferences));
   ipcMain.handle('window-control', (_event, command: unknown) => executeWindowControl(command));

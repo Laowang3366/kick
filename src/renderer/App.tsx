@@ -49,6 +49,14 @@ import { loadProviderSettings } from './providerSettingsStorage';
 import { readSharedTextFromUrl } from './sharedText';
 import { applyThemePreference, loadThemePreference, saveThemePreference, type ThemePreference } from './themePreference';
 import { loadDefaultTranslationFormat, saveDefaultTranslationFormat } from './translationFormatPreference';
+import {
+  checkForAppUpdates,
+  currentAppVersion,
+  ignoreUpdateVersion,
+  installOrOpenUpdate,
+  remindLater,
+  type UpdateCheckResult
+} from './updateCenter';
 import './styles.css';
 
 type TranslationStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -176,6 +184,8 @@ export function App() {
   const [accountMessage, setAccountMessage] = useState('');
   const [rememberPassword, setRememberPassword] = useState(Boolean(rememberedAccount));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const cloudClient = useMemo(() => createCloudClient(), []);
   const hasSelectedTargetLanguage = useRef(false);
   const lastMouseShortcutAt = useRef(0);
@@ -186,6 +196,10 @@ export function App() {
 
   useEffect(() => {
     document.title = '快捷翻译';
+  }, []);
+
+  useEffect(() => {
+    void runUpdateCheck();
   }, []);
 
   useEffect(() => {
@@ -626,6 +640,51 @@ export function App() {
     setTheme(nextTheme);
   }
 
+  async function runUpdateCheck() {
+    setIsCheckingUpdate(true);
+    try {
+      setUpdateCheck(await checkForAppUpdates());
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  }
+
+  async function updateNow() {
+    if (updateCheck?.status !== 'available') {
+      return;
+    }
+
+    try {
+      const message = await installOrOpenUpdate(updateCheck.release);
+      setCopyNotice({ tone: 'success', message });
+    } catch (error) {
+      setCopyNotice({ tone: 'error', message: error instanceof Error ? error.message : '更新启动失败' });
+    }
+  }
+
+  function ignoreCurrentUpdate() {
+    if (updateCheck?.status !== 'available') {
+      return;
+    }
+
+    ignoreUpdateVersion(updateCheck.release.version);
+    setUpdateCheck({
+      status: 'ignored',
+      platform: updateCheck.platform,
+      currentVersion: updateCheck.currentVersion,
+      release: updateCheck.release
+    });
+  }
+
+  function remindCurrentUpdateLater() {
+    if (updateCheck?.status !== 'available') {
+      return;
+    }
+
+    remindLater();
+    setUpdateCheck({ ...updateCheck, isSnoozed: true });
+  }
+
   async function translateWithCloudFallback(text: string, language: string, format: TranslationFormat) {
     try {
       return await cloudClient.translate({ text, targetLanguage: language, translationFormat: format });
@@ -1006,6 +1065,76 @@ export function App() {
                   <h2>设置</h2>
                   <p>窗口、应用和桌面快捷操作</p>
                 </div>
+
+                <section className="settings-section" aria-labelledby="app-update-heading">
+                  <h3 id="app-update-heading">应用更新</h3>
+                  <div className="update-card">
+                    <div className="update-card-main">
+                      <span className={`update-status ${updateCheck?.status ?? 'idle'}`}>
+                        {isCheckingUpdate
+                          ? '正在检查更新'
+                          : updateCheck?.status === 'available'
+                            ? '发现新版本'
+                            : updateCheck?.status === 'current'
+                              ? '已是最新'
+                              : updateCheck?.status === 'failed'
+                                ? '检查失败'
+                                : updateCheck?.status === 'ignored'
+                                  ? '已忽略本版本'
+                                  : '等待检查'}
+                      </span>
+                      <strong>
+                        {updateCheck?.status === 'available' || updateCheck?.status === 'ignored'
+                          ? `版本 ${updateCheck.release.version}`
+                          : `当前版本 ${updateCheck?.currentVersion ?? currentAppVersion}`}
+                      </strong>
+                      <small>
+                        {updateCheck?.status === 'available'
+                          ? `${updateCheck.platform} · ${updateCheck.release.fileName}${updateCheck.isSnoozed ? ' · 已设置稍后提醒' : ''}`
+                          : updateCheck?.status === 'current'
+                            ? `${updateCheck.platform} · 当前版本 ${updateCheck.currentVersion}`
+                            : updateCheck?.status === 'failed'
+                              ? updateCheck.message
+                              : updateCheck?.status === 'ignored'
+                                ? `${updateCheck.platform} · ${updateCheck.release.version} 已保留为忽略版本`
+                                : '启动时会自动检查，也可手动检查'}
+                      </small>
+                    </div>
+                    <div className="update-actions">
+                      <button className="settings-action" type="button" onClick={runUpdateCheck} disabled={isCheckingUpdate}>
+                        <RefreshCw size={20} />
+                        <span>检查更新</span>
+                      </button>
+                      <button
+                        className="settings-action primary-account-action"
+                        type="button"
+                        onClick={updateNow}
+                        disabled={isCheckingUpdate || updateCheck?.status !== 'available'}
+                      >
+                        <RefreshCw size={20} />
+                        <span>立即更新</span>
+                      </button>
+                      <button
+                        className="settings-action"
+                        type="button"
+                        onClick={ignoreCurrentUpdate}
+                        disabled={isCheckingUpdate || updateCheck?.status !== 'available'}
+                      >
+                        <X size={20} />
+                        <span>忽略本版本</span>
+                      </button>
+                      <button
+                        className="settings-action"
+                        type="button"
+                        onClick={remindCurrentUpdateLater}
+                        disabled={isCheckingUpdate || updateCheck?.status !== 'available'}
+                      >
+                        <History size={20} />
+                        <span>稍后提醒</span>
+                      </button>
+                    </div>
+                  </div>
+                </section>
 
                 <section className="settings-section" aria-labelledby="window-actions-heading">
                   <h3 id="window-actions-heading">窗口操作</h3>
