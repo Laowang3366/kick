@@ -3,14 +3,18 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const MOUSE_BUTTON_4_EVENT = 'MOUSE_BUTTON_4';
+const MOUSE_SIDE_BUTTON_EVENT = 'MOUSE_SIDE_BUTTON';
+const LEGACY_MOUSE_BUTTON_4_EVENT = 'MOUSE_BUTTON_4';
 
 export type MouseButton4Shortcut = {
   stop(): void;
 };
 
+export type MouseSideButton = 'mouse-button-4' | 'mouse-button-5';
+
 export type MouseButton4ShortcutOptions = {
   scriptPath?: string;
+  sideButton?: MouseSideButton;
   spawnProcess?: typeof spawn;
   logger?: Pick<Console, 'warn'>;
 };
@@ -21,7 +25,10 @@ export function extractMouseButton4ShortcutEvents(stdoutChunk: string, previousR
   const endsWithNewline = /\r?\n$/.test(combinedOutput);
   const completeLines = endsWithNewline ? lines.slice(0, -1) : lines.slice(0, -1);
   const remainder = endsWithNewline ? '' : (lines.at(-1) ?? '');
-  const eventCount = completeLines.filter((line) => line.trim() === MOUSE_BUTTON_4_EVENT).length;
+  const eventCount = completeLines.filter((line) => {
+    const eventName = line.trim();
+    return eventName === MOUSE_SIDE_BUTTON_EVENT || eventName === LEGACY_MOUSE_BUTTON_4_EVENT;
+  }).length;
 
   return { eventCount, remainder };
 }
@@ -34,8 +41,9 @@ export function startMouseButton4Shortcut(
     return { stop: () => undefined };
   }
 
-  const scriptPath = options.scriptPath ?? path.join(tmpdir(), 'quick-translate-mouse-button-4-hook.ps1');
-  writeFileSync(scriptPath, mouseButton4HookScript, 'utf8');
+  const sideButton = options.sideButton === 'mouse-button-5' ? 'mouse-button-5' : 'mouse-button-4';
+  const scriptPath = options.scriptPath ?? path.join(tmpdir(), `quick-translate-${sideButton}-hook.ps1`);
+  writeFileSync(scriptPath, createMouseSideButtonHookScript(sideButton), 'utf8');
 
   const spawnProcess = options.spawnProcess ?? spawn;
   const hookProcess = spawnProcess(
@@ -73,7 +81,10 @@ export function startMouseButton4Shortcut(
   };
 }
 
-const mouseButton4HookScript = String.raw`
+function createMouseSideButtonHookScript(sideButton: MouseSideButton) {
+  const xButton = sideButton === 'mouse-button-5' ? 2 : 1;
+
+  return String.raw`
 Add-Type -ReferencedAssemblies System.Windows.Forms @"
 using System;
 using System.Diagnostics;
@@ -84,7 +95,7 @@ public static class MouseButton4Hook
 {
     private const int WH_MOUSE_LL = 14;
     private const int WM_XBUTTONDOWN = 0x020B;
-    private const int XBUTTON1 = 1;
+    private const int TARGET_XBUTTON = ${xButton};
     private static LowLevelMouseProc _proc = HookCallback;
     private static IntPtr _hookID = IntPtr.Zero;
 
@@ -112,9 +123,9 @@ public static class MouseButton4Hook
         {
             MSLLHOOKSTRUCT hookStruct = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
             int xButton = (hookStruct.mouseData >> 16) & 0xffff;
-            if (xButton == XBUTTON1)
+            if (xButton == TARGET_XBUTTON)
             {
-                Console.Out.WriteLine("MOUSE_BUTTON_4");
+                Console.Out.WriteLine("MOUSE_SIDE_BUTTON");
                 Console.Out.Flush();
                 return (IntPtr)1;
             }
@@ -157,3 +168,4 @@ public static class MouseButton4Hook
 
 [MouseButton4Hook]::Main()
 `;
+}

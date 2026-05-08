@@ -78,6 +78,168 @@
         background: var(--blue);
       }
 
+      .site-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .site-nav a {
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+        border-radius: 8px;
+        padding: 0 14px;
+        color: rgba(255, 255, 255, 0.72);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 900;
+      }
+
+      .site-nav a.active,
+      .site-nav a:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      .home {
+        min-height: calc(100vh - 68px);
+        display: grid;
+        align-items: center;
+        color: #ffffff;
+      }
+
+      .home-inner {
+        width: min(1180px, calc(100% - 48px));
+        display: grid;
+        grid-template-columns: minmax(0, 0.84fr) minmax(420px, 1.16fr);
+        gap: 34px;
+        align-items: center;
+        margin: 0 auto;
+        padding: 46px 0 58px;
+      }
+
+      .home-copy {
+        display: grid;
+        align-content: start;
+        gap: 18px;
+      }
+
+      .home-copy h1 {
+        max-width: 620px;
+        font-size: clamp(42px, 7vw, 70px);
+      }
+
+      .translator-demo {
+        display: grid;
+        gap: 14px;
+        border-radius: 8px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.12);
+        box-shadow: 0 22px 46px rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(14px);
+      }
+
+      .demo-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .demo-toolbar h2 {
+        font-size: 20px;
+      }
+
+      .demo-controls {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .demo-controls select,
+      .demo-translate-button {
+        min-height: 38px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        padding: 0 12px;
+        color: #ffffff;
+        background: rgba(4, 17, 36, 0.44);
+        outline: 0;
+      }
+
+      .demo-controls select option {
+        color: #111827;
+        background: #ffffff;
+      }
+
+      .demo-translate-button {
+        border: 0;
+        background: var(--blue);
+        font-weight: 900;
+        cursor: pointer;
+      }
+
+      .demo-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .demo-panel {
+        min-height: 360px;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        gap: 12px;
+        border-radius: 8px;
+        padding: 16px;
+        background: #ffffff;
+        color: #111827;
+      }
+
+      .demo-panel-head,
+      .demo-panel-foot {
+        min-height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: #667085;
+        font-size: 13px;
+        font-weight: 850;
+      }
+
+      .detected-language {
+        color: var(--blue);
+      }
+
+      .demo-source,
+      .demo-result {
+        width: 100%;
+        min-height: 0;
+        border: 0;
+        outline: 0;
+        resize: none;
+        color: #151923;
+        background: transparent;
+        font: inherit;
+        font-size: 18px;
+        line-height: 1.72;
+      }
+
+      .demo-result {
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .demo-status {
+        min-height: 18px;
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 13px;
+      }
+
       .hero {
         min-height: calc(100vh - 68px);
         display: grid;
@@ -141,8 +303,10 @@
       }
 
       .primary-download {
+        border: 0;
         background: var(--blue);
         box-shadow: 0 18px 36px rgba(0, 82, 179, 0.36);
+        cursor: pointer;
       }
 
       .primary-download:hover {
@@ -418,6 +582,7 @@
 
       @media (max-width: 860px) {
         .site-header,
+        .home-inner,
         .hero-inner,
         .showcase-inner {
           width: auto;
@@ -425,14 +590,34 @@
           padding-right: 20px;
         }
 
+        .home-inner,
         .showcase-heading,
         .carousel-stage,
+        .demo-grid,
         .platform-downloads {
           grid-template-columns: 1fr;
+        }
+
+        .demo-panel {
+          min-height: 280px;
         }
       }
 
       @media (max-width: 560px) {
+        .site-header {
+          height: auto;
+          align-items: flex-start;
+          flex-wrap: wrap;
+          gap: 12px;
+          padding-top: 14px;
+          padding-bottom: 14px;
+        }
+
+        .site-nav {
+          width: 100%;
+          justify-content: flex-end;
+        }
+
         .hero-actions,
         .primary-download,
         .secondary-button {
@@ -447,9 +632,66 @@
         <span class="brand-mark" aria-hidden="true">译</span>
         <span>快捷翻译</span>
       </div>
+      <nav class="site-nav" aria-label="顶部导航">
+        <a href="/" data-nav-view="home">首页</a>
+        <a href="/download" data-nav-view="download">下载</a>
+      </nav>
     </header>
 
-    <section id="download-view" class="hero">
+    <section id="home-view" class="home">
+      <div class="home-inner">
+        <div class="home-copy">
+          <span class="eyebrow">在线体验 · 与客户端同一后台通道</span>
+          <h1>快捷翻译</h1>
+          <p class="hero-copy">在下载前直接体验翻译页。输入内容后会自动翻译，也可以手动点击翻译；桌面端安装后可继续使用鼠标下侧键、悬浮窗、历史收藏和账号同步。</p>
+          <div class="hero-actions">
+            <button id="home-start-button" class="primary-download" type="button">立即体验</button>
+            <a class="secondary-button" href="/download" data-nav-view="download">下载客户端</a>
+          </div>
+        </div>
+
+        <section class="translator-demo" aria-label="在线翻译体验">
+          <div class="demo-toolbar">
+            <h2>翻译体验</h2>
+            <div class="demo-controls">
+              <select id="demo-target-language" aria-label="目标语言">
+                <option value="zh-CN">简体中文</option>
+                <option value="en-US">英语</option>
+                <option value="ja-JP">日语</option>
+                <option value="ko-KR">韩语</option>
+                <option value="fr-FR">法语</option>
+                <option value="de-DE">德语</option>
+                <option value="es-ES">西班牙语</option>
+                <option value="ru-RU">俄语</option>
+                <option value="ar-SA">阿拉伯语</option>
+              </select>
+              <button id="demo-translate-button" class="demo-translate-button" type="button">翻译</button>
+            </div>
+          </div>
+          <div class="demo-grid">
+            <section class="demo-panel" aria-label="原文">
+              <div class="demo-panel-head">
+                <strong>原文</strong>
+                <span id="demo-source-language" class="detected-language">自动检测</span>
+              </div>
+              <textarea id="demo-source" class="demo-source" rows="10" placeholder="输入或粘贴需要翻译的文本">Hello, welcome to Quick Translate.</textarea>
+              <div class="demo-panel-foot"><span id="demo-source-count">0 / 5000</span></div>
+            </section>
+            <section class="demo-panel" aria-label="译文">
+              <div class="demo-panel-head">
+                <strong>译文</strong>
+                <span id="demo-target-language-label" class="detected-language">简体中文</span>
+              </div>
+              <div id="demo-result" class="demo-result">翻译结果会显示在这里</div>
+              <div class="demo-panel-foot"><span>网页体验版</span></div>
+            </section>
+          </div>
+          <p id="demo-status" class="demo-status" role="status">输入内容后会自动翻译。</p>
+        </section>
+      </div>
+    </section>
+
+    <section id="download-view" class="hero hidden">
       <div class="hero-inner">
         <span class="eyebrow">Windows 桌面端 · 鼠标下侧键快速翻译</span>
         <h1>快捷翻译</h1>
@@ -507,8 +749,48 @@
     <script>
       const backendBase = resolveBackendBase();
       const assetBase = `${backendBase}/assets/`;
+      const viewIds = ['home', 'download', 'interface'];
+      const languageLabels = {
+        'zh-CN': '简体中文',
+        'en-US': '英语',
+        'ja-JP': '日语',
+        'ko-KR': '韩语',
+        'fr-FR': '法语',
+        'de-DE': '德语',
+        'es-ES': '西班牙语',
+        'ru-RU': '俄语',
+        'ar-SA': '阿拉伯语'
+      };
       document.querySelectorAll('img[data-asset]').forEach((image) => {
         image.src = `${assetBase}${image.dataset.asset}`;
+      });
+
+      function showView(view, shouldPushState = true) {
+        const normalizedView = viewIds.includes(view) ? view : 'home';
+        viewIds.forEach((viewId) => {
+          document.querySelector(`#${viewId}-view`)?.classList.toggle('hidden', viewId !== normalizedView);
+        });
+        document.querySelectorAll('[data-nav-view]').forEach((link) => {
+          link.classList.toggle('active', link.dataset.navView === normalizedView);
+        });
+        if (shouldPushState) {
+          history.pushState({ view: normalizedView }, '', normalizedView === 'download' ? '/download' : '/');
+        }
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      }
+
+      document.querySelectorAll('[data-nav-view]').forEach((link) => {
+        link.addEventListener('click', (event) => {
+          const view = link.dataset.navView;
+          if (!view || !viewIds.includes(view)) {
+            return;
+          }
+          event.preventDefault();
+          showView(view);
+        });
+      });
+      window.addEventListener('popstate', () => {
+        showView(location.pathname.replace(/\/+$/, '') === '/download' ? 'download' : 'home', false);
       });
 
       const formatter = new Intl.DateTimeFormat('zh-CN', {
@@ -518,6 +800,101 @@
         hour: '2-digit',
         minute: '2-digit'
       });
+      const demoSource = document.querySelector('#demo-source');
+      const demoTargetLanguage = document.querySelector('#demo-target-language');
+      const demoResult = document.querySelector('#demo-result');
+      const demoStatus = document.querySelector('#demo-status');
+      const demoSourceCount = document.querySelector('#demo-source-count');
+      const demoSourceLanguage = document.querySelector('#demo-source-language');
+      const demoTargetLanguageLabel = document.querySelector('#demo-target-language-label');
+      let demoTranslateTimer = 0;
+      let demoRequestId = 0;
+
+      function detectSourceLanguage(text) {
+        const normalizedText = text.trim();
+        if (!normalizedText) {
+          return '自动检测';
+        }
+        if (/[\u4e00-\u9fff]/.test(normalizedText)) {
+          return '中文';
+        }
+        if (/[\u3040-\u30ff]/.test(normalizedText)) {
+          return '日语';
+        }
+        if (/[\uac00-\ud7af]/.test(normalizedText)) {
+          return '韩语';
+        }
+        if (/[а-яё]/i.test(normalizedText)) {
+          return '俄语';
+        }
+        if (/[\u0600-\u06ff]/.test(normalizedText)) {
+          return '阿拉伯语';
+        }
+        return '英语';
+      }
+
+      function updateDemoMeta() {
+        const text = demoSource.value;
+        demoSourceCount.textContent = `${text.length} / 5000`;
+        demoSourceLanguage.textContent = detectSourceLanguage(text);
+        demoTargetLanguageLabel.textContent = languageLabels[demoTargetLanguage.value] || demoTargetLanguage.value;
+      }
+
+      function scheduleDemoTranslation() {
+        updateDemoMeta();
+        window.clearTimeout(demoTranslateTimer);
+        demoTranslateTimer = window.setTimeout(runDemoTranslation, 520);
+      }
+
+      async function runDemoTranslation() {
+        const text = demoSource.value.trim();
+        const requestId = ++demoRequestId;
+        updateDemoMeta();
+        if (!text) {
+          demoResult.textContent = '翻译结果会显示在这里';
+          demoStatus.textContent = '输入内容后会自动翻译。';
+          return;
+        }
+
+        demoStatus.textContent = '正在翻译...';
+        try {
+          const response = await fetch(apiUrl('/api/translate'), {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              text,
+              targetLanguage: demoTargetLanguage.value,
+              translationFormat: 'plain'
+            })
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (requestId !== demoRequestId) {
+            return;
+          }
+          if (!response.ok) {
+            throw new Error(payload.error || '翻译失败');
+          }
+          demoResult.textContent = payload.translatedText || '未返回译文';
+          demoStatus.textContent = '翻译完成。';
+        } catch (error) {
+          if (requestId !== demoRequestId) {
+            return;
+          }
+          demoResult.textContent = '当前无法进行翻译';
+          demoStatus.textContent = error instanceof Error ? error.message : '翻译失败';
+        }
+      }
+
+      demoSource.addEventListener('input', scheduleDemoTranslation);
+      demoTargetLanguage.addEventListener('change', scheduleDemoTranslation);
+      document.querySelector('#demo-translate-button').addEventListener('click', runDemoTranslation);
+      document.querySelector('#home-start-button').addEventListener('click', () => {
+        demoSource.focus();
+        void runDemoTranslation();
+      });
+      updateDemoMeta();
+      scheduleDemoTranslation();
+
       const slides = [
         {
           tab: '主窗口',
@@ -637,15 +1014,11 @@
       resetCarouselTimer();
 
       document.querySelector('#show-interface-button').addEventListener('click', () => {
-        document.querySelector('#download-view').classList.add('hidden');
-        document.querySelector('#interface-view').classList.remove('hidden');
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        showView('interface');
       });
 
       document.querySelector('#back-download-button').addEventListener('click', () => {
-        document.querySelector('#interface-view').classList.add('hidden');
-        document.querySelector('#download-view').classList.remove('hidden');
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        showView('download');
       });
 
       function apiUrl(pathname) {
@@ -787,6 +1160,8 @@
           container.appendChild(card);
         });
       }
+
+      showView(location.pathname.replace(/\/+$/, '') === '/download' ? 'download' : 'home', false);
 
       fetch(apiUrl('/api/downloads'))
         .then((response) => response.json())

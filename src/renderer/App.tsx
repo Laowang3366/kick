@@ -24,7 +24,12 @@ import {
   X
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type TouchEvent } from 'react';
-import type { DesktopSettings } from '../desktop/desktopSettings';
+import {
+  floatingTranslateShortcutOptions,
+  getFloatingTranslateShortcutLabel,
+  normalizeFloatingTranslateShortcut,
+  type DesktopSettings
+} from '../desktop/desktopSettings';
 import { clearAccountSession, loadAccountSession, saveAccountSession, type AccountSession } from './accountSession';
 import { createCloudClient } from './cloudClient';
 import {
@@ -1021,7 +1026,7 @@ export function App() {
 
             <div className="shortcut-card" aria-label="翻译快捷键">
               <span className="shortcut-label">快捷键</span>
-              <strong>鼠标下侧键</strong>
+              <strong>{getFloatingTranslateShortcutLabel(desktopSettings?.floatingTranslateShortcut)}</strong>
               <span>选中文字后快速翻译</span>
             </div>
 
@@ -1338,17 +1343,21 @@ export function App() {
                   <section className="settings-section" aria-labelledby="desktop-actions-heading">
                     <h3 id="desktop-actions-heading">桌面快捷</h3>
                     <div className="settings-list">
-                      <label className="toggle-row">
-                        <input
-                          type="checkbox"
-                          checked={desktopSettings.mouseButton4Enabled}
-                          aria-label="启用鼠标下侧键"
-                          onChange={(event) => updateDesktopSettings({ mouseButton4Enabled: event.target.checked })}
-                        />
-                        <span>
-                          <strong>启用鼠标下侧键</strong>
-                          <small>释放鼠标下侧键时翻译选中内容或剪贴板</small>
-                        </span>
+                      <label className="settings-field">
+                        <span>悬浮翻译快捷键</span>
+                        <select
+                          value={normalizeFloatingTranslateShortcut(desktopSettings.floatingTranslateShortcut)}
+                          aria-label="悬浮翻译快捷键"
+                          onChange={(event) =>
+                            updateDesktopSettings({ floatingTranslateShortcut: normalizeFloatingTranslateShortcut(event.target.value) })
+                          }
+                        >
+                          {floatingTranslateShortcutOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="toggle-row">
                         <input

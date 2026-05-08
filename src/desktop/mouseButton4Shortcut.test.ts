@@ -15,4 +15,11 @@ describe('extractMouseButton4ShortcutEvents', () => {
     expect(result.eventCount).toBe(2);
     expect(result.remainder).toBe('');
   });
+
+  it('extracts the configurable mouse side button event name', () => {
+    const result = extractMouseButton4ShortcutEvents('MOUSE_SIDE_BUTTON\n');
+
+    expect(result.eventCount).toBe(1);
+    expect(result.remainder).toBe('');
+  });
 });

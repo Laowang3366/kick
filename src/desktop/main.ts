@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, clipboard, ipcMain, nativeImage, screen } from 'electron';
+import { app, BrowserWindow, Menu, Tray, clipboard, globalShortcut, ipcMain, nativeImage, screen } from 'electron';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -10,10 +10,15 @@ import { resolveDesktopBackendBaseUrl, translateWithBackend } from './backendTra
 import { captureSelectedText } from './captureSelection.js';
 import {
   defaultDesktopSettings,
+  floatingTranslateShortcutOptions,
+  getFloatingTranslateShortcutAccelerator,
+  getFloatingTranslateShortcutLabel,
   mergeDesktopSettings,
+  normalizeFloatingTranslateShortcut,
   parseDesktopSettings,
   serializeDesktopSettings,
-  type DesktopSettings
+  type DesktopSettings,
+  type FloatingTranslateShortcut
 } from './desktopSettings.js';
 import { destroyExistingFloatingWindow } from './floatingWindowLifecycle.js';
 import { createFloatingWindowBounds } from './floatingWindowBounds.js';
@@ -44,6 +49,7 @@ if (isSmokeTest) {
 let mainWindow: BrowserWindow | null = null;
 let floatingWindow: BrowserWindow | null = null;
 let mouseButton4Shortcut: MouseButton4Shortcut | null = null;
+let keyboardFloatingShortcutAccelerator: string | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let desktopSettings: DesktopSettings = defaultDesktopSettings;
@@ -327,14 +333,35 @@ async function translateUsingConfiguredChannel(request: { text: string; targetLa
   }
 }
 
-function setMouseButton4Enabled(enabled: boolean) {
+function setFloatingTranslateShortcut(shortcut: FloatingTranslateShortcut) {
   mouseButton4Shortcut?.stop();
   mouseButton4Shortcut = null;
 
-  if (enabled) {
+  if (keyboardFloatingShortcutAccelerator) {
+    globalShortcut.unregister(keyboardFloatingShortcutAccelerator);
+    keyboardFloatingShortcutAccelerator = null;
+  }
+
+  const normalizedShortcut = normalizeFloatingTranslateShortcut(shortcut);
+  if (normalizedShortcut === 'mouse-button-4' || normalizedShortcut === 'mouse-button-5') {
     mouseButton4Shortcut = startMouseButton4Shortcut(() => {
       void handleGlobalMouseButton4Shortcut();
+    }, {
+      sideButton: normalizedShortcut
     });
+    return;
+  }
+
+  const accelerator = getFloatingTranslateShortcutAccelerator(normalizedShortcut);
+  if (accelerator) {
+    const isRegistered = globalShortcut.register(accelerator, () => {
+      void handleGlobalMouseButton4Shortcut();
+    });
+    if (isRegistered) {
+      keyboardFloatingShortcutAccelerator = accelerator;
+    } else {
+      console.warn(`[快捷键] 注册失败：${getFloatingTranslateShortcutLabel(normalizedShortcut)}`);
+    }
   }
 }
 
@@ -398,7 +425,7 @@ function updateFloatingSessionPreferenceState(input: unknown) {
 function applyDesktopSettings(settings: DesktopSettings) {
   desktopSettings = settings;
   app.setLoginItemSettings({ openAtLogin: settings.launchAtLogin });
-  setMouseButton4Enabled(settings.mouseButton4Enabled);
+  setFloatingTranslateShortcut(settings.floatingTranslateShortcut);
   updateTrayMenu();
   mainWindow?.webContents.send('desktop-settings-changed', settings);
 }
@@ -554,10 +581,13 @@ function updateTrayMenu() {
       { label: '显示快捷翻译', click: showMainWindow },
       { type: 'separator' },
       {
-        label: '启用鼠标下侧键',
-        type: 'checkbox',
-        checked: desktopSettings.mouseButton4Enabled,
-        click: (menuItem) => updateDesktopSettings({ mouseButton4Enabled: menuItem.checked })
+        label: `悬浮翻译快捷键：${getFloatingTranslateShortcutLabel(desktopSettings.floatingTranslateShortcut)}`,
+        submenu: floatingTranslateShortcutOptions.map((option) => ({
+          label: option.label,
+          type: 'radio' as const,
+          checked: desktopSettings.floatingTranslateShortcut === option.value,
+          click: () => updateDesktopSettings({ floatingTranslateShortcut: option.value })
+        }))
       },
       {
         label: '开机自启',
@@ -661,6 +691,10 @@ app.on('before-quit', () => {
 app.on('will-quit', () => {
   mouseButton4Shortcut?.stop();
   mouseButton4Shortcut = null;
+  if (keyboardFloatingShortcutAccelerator) {
+    globalShortcut.unregister(keyboardFloatingShortcutAccelerator);
+    keyboardFloatingShortcutAccelerator = null;
+  }
   floatingWindow?.destroy();
   floatingWindow = null;
   tray?.destroy();

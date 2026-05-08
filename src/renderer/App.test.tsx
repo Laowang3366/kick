@@ -146,6 +146,7 @@ describe('App', () => {
   it('keeps the default target language preference separate from the translate view selection', async () => {
     const setDesktopSettings = vi.fn().mockResolvedValue({
       mouseButton4Enabled: true,
+      floatingTranslateShortcut: 'mouse-button-4',
       launchAtLogin: false,
       hideToTrayOnClose: true,
       defaultTargetLanguage: 'es-ES',
@@ -156,6 +157,7 @@ describe('App', () => {
       copyText: vi.fn(),
       getDesktopSettings: vi.fn().mockResolvedValue({
         mouseButton4Enabled: true,
+        floatingTranslateShortcut: 'mouse-button-4',
         launchAtLogin: false,
         hideToTrayOnClose: true,
         defaultTargetLanguage: 'es-ES',
@@ -839,23 +841,28 @@ describe('App', () => {
   });
 
   it('renders and updates desktop settings when running in Electron', async () => {
+    let currentDesktopSettings = {
+      mouseButton4Enabled: true,
+      floatingTranslateShortcut: 'mouse-button-4',
+      launchAtLogin: false,
+      hideToTrayOnClose: true,
+      defaultTargetLanguage: 'es-ES',
+      defaultTranslationFormat: 'plain'
+    };
     window.quickTranslate = {
       captureSelectedText: vi.fn(),
       copyText: vi.fn(),
       onSelectionCaptured: vi.fn(),
-      getDesktopSettings: vi.fn().mockResolvedValue({
-        mouseButton4Enabled: true,
-        launchAtLogin: false,
-        hideToTrayOnClose: true,
-        defaultTargetLanguage: 'es-ES',
-        defaultTranslationFormat: 'plain'
-      }),
-      setDesktopSettings: vi.fn().mockResolvedValue({
-        mouseButton4Enabled: true,
-        launchAtLogin: true,
-        hideToTrayOnClose: true,
-        defaultTargetLanguage: 'ja-JP',
-        defaultTranslationFormat: 'java-camel-case'
+      getDesktopSettings: vi.fn().mockResolvedValue(currentDesktopSettings),
+      setDesktopSettings: vi.fn().mockImplementation((patch) => {
+        currentDesktopSettings = {
+          ...currentDesktopSettings,
+          ...patch,
+          mouseButton4Enabled: patch.floatingTranslateShortcut
+            ? patch.floatingTranslateShortcut === 'mouse-button-4'
+            : currentDesktopSettings.mouseButton4Enabled
+        };
+        return Promise.resolve(currentDesktopSettings);
       })
     };
 
@@ -869,8 +876,19 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '打开开发者工具' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '退出应用' })).not.toBeInTheDocument();
 
+    expect(screen.getByLabelText('悬浮翻译快捷键')).toHaveValue('mouse-button-4');
     const launchAtLogin = await screen.findByLabelText('开机自启');
     expect(launchAtLogin).not.toBeChecked();
+
+    fireEvent.change(screen.getByLabelText('悬浮翻译快捷键'), {
+      target: { value: 'ctrl-alt-t' }
+    });
+
+    await waitFor(() => {
+      expect(window.quickTranslate?.setDesktopSettings).toHaveBeenCalledWith({
+        floatingTranslateShortcut: 'ctrl-alt-t'
+      });
+    });
 
     fireEvent.click(launchAtLogin);
 
@@ -880,7 +898,7 @@ describe('App', () => {
       });
     });
     expect(launchAtLogin).toBeChecked();
-    expect(screen.getByLabelText('启用鼠标下侧键')).toBeChecked();
+    expect(screen.getByLabelText('悬浮翻译快捷键')).toHaveValue('ctrl-alt-t');
     expect(screen.getByLabelText('关闭时隐藏到托盘')).toBeChecked();
 
     fireEvent.change(screen.getByLabelText('默认目标语言'), {
