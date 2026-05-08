@@ -29,6 +29,7 @@ import {
 } from './floatingSessionPreferences.js';
 import { startMouseButton4Shortcut, type MouseButton4Shortcut } from './mouseButton4Shortcut.js';
 import { getProviderSettingsPath, loadBackendProviderSettings } from './providerSettings.js';
+import { applyLightweightRuntime } from './runtimeOptimization.js';
 import { createFloatingWindowOptions, createMainWindowOptions } from './windowOptions.js';
 import { createProviderFromSettings } from '../shared/providerSettings.js';
 import { translateText } from '../shared/translator.js';
@@ -38,12 +39,12 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isSmokeTest = process.argv.includes('--smoke-test');
 
+applyLightweightRuntime(app);
+
 if (isSmokeTest) {
   const smokeUserDataPath = path.join(tmpdir(), 'quick-translate-electron-smoke');
   mkdirSync(smokeUserDataPath, { recursive: true });
   app.setPath('userData', smokeUserDataPath);
-  app.disableHardwareAcceleration();
-  app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 }
 
 let mainWindow: BrowserWindow | null = null;
