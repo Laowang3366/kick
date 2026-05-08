@@ -12,14 +12,14 @@ describe('update channel assertions', () => {
           publish: [
             {
               provider: 'generic',
-              url: 'http://sg.lwvpscc.top/quick-translate/updates/latest'
+              url: 'https://sg.lwvpscc.top/quick-translate/updates/latest'
             }
           ]
         }
       })
     ).toEqual({
       provider: 'generic',
-      url: 'http://sg.lwvpscc.top/quick-translate/updates/latest'
+      url: 'https://sg.lwvpscc.top/quick-translate/updates/latest'
     });
   });
 

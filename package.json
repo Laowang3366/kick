@@ -1,6 +1,6 @@
 {
   "name": "quick-translate",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Windows desktop and PWA quick translation tool.",
   "author": "wfq",
   "private": true,
@@ -64,7 +64,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "http://sg.lwvpscc.top/quick-translate/updates/latest"
+        "url": "https://sg.lwvpscc.top/quick-translate/updates/latest"
       }
     ],
     "win": {

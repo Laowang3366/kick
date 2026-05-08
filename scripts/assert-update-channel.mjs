@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const expectedUpdateUrl = 'http://sg.lwvpscc.top/quick-translate/updates/latest';
+const expectedUpdateUrl = 'https://sg.lwvpscc.top/quick-translate/updates/latest';
 
 export function validatePublishConfig(packageJson) {
   const publishEntries = Array.isArray(packageJson?.build?.publish) ? packageJson.build.publish : [];

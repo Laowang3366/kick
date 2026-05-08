@@ -8,7 +8,7 @@ const releaseDir = path.join(projectRoot, 'release');
 const dataDir = process.env.QUICK_TRANSLATE_DATA_DIR ?? path.join(projectRoot, 'server-data');
 const outputPath = path.join(dataDir, 'downloads.json');
 const publicUpdateBaseUrl =
-  process.env.QUICK_TRANSLATE_UPDATE_BASE_URL ?? 'http://sg.lwvpscc.top/quick-translate/updates/latest';
+  process.env.QUICK_TRANSLATE_UPDATE_BASE_URL ?? 'https://sg.lwvpscc.top/quick-translate/updates/latest';
 
 const latestYmlPath = path.join(releaseDir, 'latest.yml');
 

@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5173/` 使用网页和移动端 PWA 版本。线上 Web App 入口是 `http://sg.lwvpscc.top/quick-translate/backend/app/`。
+打开 `http://127.0.0.1:5173/` 使用网页和移动端 PWA 版本。线上 Web App 入口是 `https://sg.lwvpscc.top/quick-translate/backend/app/`。
 
 ```powershell
 npm run desktop:dev
@@ -69,8 +69,8 @@ npm run server:start
 
 后台页面：
 
-- 用户下载页：`http://sg.lwvpscc.top/quick-translate/backend/download`
-- 管理后台：`http://sg.lwvpscc.top/quick-translate/backend/admin`
+- 用户下载页：`https://sg.lwvpscc.top/quick-translate/backend/download`
+- 管理后台：`https://sg.lwvpscc.top/quick-translate/backend/admin`
 
 软件未登录时继续使用本地历史、收藏和设置；登录后会把历史、收藏和设置同步到后台。翻译请求在 Electron 安装版和 Web/PWA 中都优先走服务器翻译代理；接口不可用时，桌面端仅在本机配置了直连通道时兜底。
 
@@ -87,7 +87,7 @@ npm run server:start
 后台服务会把 `dist/` 暴露到 `/app/`，用于 Android、iOS 和桌面浏览器安装 Web App：
 
 ```text
-http://sg.lwvpscc.top/quick-translate/backend/app/
+https://sg.lwvpscc.top/quick-translate/backend/app/
 ```
 
 ## 验证
@@ -148,7 +148,7 @@ npm run dist:mac
 Windows 客户端使用 Electron 自动更新的 generic 通道：
 
 ```text
-http://sg.lwvpscc.top/quick-translate/updates/latest/latest.yml
+https://sg.lwvpscc.top/quick-translate/updates/latest/latest.yml
 ```
 
 当前服务器静态目录：
