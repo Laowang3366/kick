@@ -6,8 +6,9 @@ type AutoUpdaterLike = {
   autoInstallOnAppQuit: boolean;
   checkForUpdates(): Promise<UpdateCheckResultLike | null>;
   checkForUpdatesAndNotify(): Promise<unknown>;
-  on(eventName: 'error', listener: (error: Error) => void): unknown;
+  on(eventName: string, listener: (...args: unknown[]) => void): unknown;
   quitAndInstall?(isSilent?: boolean, isForceRunAfter?: boolean): void;
+  removeListener?(eventName: string, listener: (...args: unknown[]) => void): unknown;
   setFeedURL?(options: { provider: 'generic'; url: string }): unknown;
 };
 
@@ -33,6 +34,7 @@ type CheckForUpdatesOptions = {
   platform: NodeJS.Platform;
   updater: AutoUpdaterLike;
   logger?: Pick<Console, 'warn'>;
+  onProgress?: (progress: DesktopUpdateProgress) => void;
 };
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
@@ -42,6 +44,15 @@ export type DesktopUpdateCheckResult = {
   currentVersion: string;
   availableVersion?: string;
   message: string;
+};
+
+export type DesktopUpdateProgress = {
+  status: 'checking' | 'downloading' | 'downloaded' | 'error';
+  percent: number;
+  transferred?: number;
+  total?: number;
+  bytesPerSecond?: number;
+  message?: string;
 };
 
 const updateCheckDelayMs = 8000;
@@ -56,7 +67,8 @@ export function configureAutoUpdates(options: ConfigureAutoUpdatesOptions): bool
   options.updater.autoDownload = true;
   options.updater.autoInstallOnAppQuit = true;
   options.updater.on('error', (error) => {
-    options.logger?.warn(`[自动更新] 检查失败：${error.message}`);
+    const message = error instanceof Error ? error.message : String(error);
+    options.logger?.warn(`[自动更新] 检查失败：${message}`);
   });
 
   options.schedule(() => {
@@ -90,7 +102,23 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
   options.updater.autoInstallOnAppQuit = true;
   configureUpdaterFeed(options.updater, options.logger);
 
+  let hasDownloadProgressEvent = false;
+  const progressListener = (progress: unknown) => {
+    hasDownloadProgressEvent = true;
+    options.onProgress?.(normalizeDownloadProgress(progress));
+  };
+
+  if (options.onProgress) {
+    options.updater.on('download-progress', progressListener);
+  }
+
   try {
+    options.onProgress?.({
+      status: 'checking',
+      percent: 0,
+      message: '正在检查更新'
+    });
+
     const result = await options.updater.checkForUpdates();
     const availableVersion = result?.updateInfo?.version;
 
@@ -104,7 +132,20 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
     }
 
     if (result.downloadPromise) {
+      if (!hasDownloadProgressEvent) {
+        options.onProgress?.({
+          status: 'downloading',
+          percent: 0,
+          message: '正在下载更新'
+        });
+      }
       await result.downloadPromise;
+      options.onProgress?.({
+        status: 'downloaded',
+        percent: 100,
+        message: '更新已下载'
+      });
+
       if (options.updater.quitAndInstall) {
         options.updater.quitAndInstall(true, true);
         return {
@@ -132,16 +173,25 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     options.logger?.warn(`[自动更新] 手动检查失败：${message}`);
+    options.onProgress?.({
+      status: 'error',
+      percent: 0,
+      message
+    });
 
     return {
       status: 'error',
       currentVersion: options.currentVersion,
       message
     };
+  } finally {
+    if (options.onProgress) {
+      options.updater.removeListener?.('download-progress', progressListener);
+    }
   }
 }
 
-export function checkForUpdates(isSmokeTest: boolean) {
+export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: DesktopUpdateProgress) => void) {
   const { autoUpdater } = electronUpdater;
 
   return checkForDesktopUpdates({
@@ -150,7 +200,8 @@ export function checkForUpdates(isSmokeTest: boolean) {
     currentVersion: app.getVersion(),
     platform: process.platform,
     updater: autoUpdater,
-    logger: console
+    logger: console,
+    onProgress
   });
 }
 
@@ -164,6 +215,36 @@ function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, '
     const message = error instanceof Error ? error.message : String(error);
     logger?.warn(`[自动更新] 设置更新源失败：${message}`);
   }
+}
+
+function normalizeDownloadProgress(progress: unknown): DesktopUpdateProgress {
+  if (!progress || typeof progress !== 'object') {
+    return {
+      status: 'downloading',
+      percent: 0,
+      message: '正在下载更新'
+    };
+  }
+
+  const record = progress as Record<string, unknown>;
+  const percent = typeof record.percent === 'number' && Number.isFinite(record.percent) ? record.percent : 0;
+
+  return {
+    status: 'downloading',
+    percent: clampPercent(percent),
+    transferred: numberOrUndefined(record.transferred),
+    total: numberOrUndefined(record.total),
+    bytesPerSecond: numberOrUndefined(record.bytesPerSecond),
+    message: '正在下载更新'
+  };
+}
+
+function numberOrUndefined(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function clampPercent(value: number) {
+  return Math.min(100, Math.max(0, value));
 }
 
 export function startAutoUpdates(isSmokeTest: boolean) {

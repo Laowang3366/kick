@@ -621,7 +621,11 @@ app.whenReady().then(async () => {
     clipboard.writeText(text);
   });
   ipcMain.handle('get-desktop-settings', () => desktopSettings);
-  ipcMain.handle('check-for-updates', () => checkForUpdates(isSmokeTest));
+  ipcMain.handle('check-for-updates', () =>
+    checkForUpdates(isSmokeTest, (progress) => {
+      mainWindow?.webContents.send('desktop-update-progress', progress);
+    })
+  );
   ipcMain.handle('set-desktop-settings', (_event, settings: Partial<DesktopSettings>) => updateDesktopSettings(settings));
   ipcMain.handle('set-floating-session-preferences', (_event, preferences: unknown) => updateFloatingSessionPreferenceState(preferences));
   ipcMain.handle('window-control', (_event, command: unknown) => executeWindowControl(command));

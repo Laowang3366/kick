@@ -1119,6 +1119,26 @@ textarea::placeholder {
   line-height: 1.45;
 }
 
+.update-progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7edf5;
+}
+
+.update-progress span {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1b74e8, #43b581);
+  transition: width 180ms ease;
+}
+
+.update-progress.error span {
+  background: #d92d20;
+}
+
 .update-status {
   width: fit-content;
   border-radius: 999px;

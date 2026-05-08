@@ -13,6 +13,14 @@ contextBridge.exposeInMainWorld('quickTranslate', {
       ipcRenderer.removeListener('desktop-settings-changed', listener);
     };
   },
+  onUpdateProgress: (callback: (progress: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress);
+    ipcRenderer.on('desktop-update-progress', listener);
+
+    return () => {
+      ipcRenderer.removeListener('desktop-update-progress', listener);
+    };
+  },
   onFloatingSourceCaptured: (callback: (payload: unknown) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
     ipcRenderer.on('floating-source-captured', listener);

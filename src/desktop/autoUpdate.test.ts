@@ -134,11 +134,27 @@ describe('auto update channel', () => {
 
   it('quits and installs when the packaged updater download completes', async () => {
     const updater = createUpdater();
+    const progressEvents: unknown[] = [];
+    let downloadProgressListener: ((progress: unknown) => void) | undefined;
+    updater.on.mockImplementation((eventName: string, listener: (...args: unknown[]) => void) => {
+      if (eventName === 'download-progress') {
+        downloadProgressListener = listener;
+      }
+      return undefined;
+    });
     updater.checkForUpdates.mockResolvedValue({
       updateInfo: {
         version: '0.1.22'
       },
-      downloadPromise: Promise.resolve(['installer'])
+      downloadPromise: Promise.resolve().then(() => {
+        downloadProgressListener?.({
+          percent: 48,
+          transferred: 48_000,
+          total: 100_000,
+          bytesPerSecond: 12_000
+        });
+        return ['installer'];
+      })
     });
 
     await expect(
@@ -147,7 +163,8 @@ describe('auto update channel', () => {
         isSmokeTest: false,
         currentVersion: '0.1.21',
         platform: 'darwin',
-        updater
+        updater,
+        onProgress: (progress) => progressEvents.push(progress)
       })
     ).resolves.toMatchObject({
       status: 'downloaded',
@@ -158,6 +175,27 @@ describe('auto update channel', () => {
 
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
     expect(updater.quitAndInstall).toHaveBeenCalledWith(true, true);
+    expect(updater.removeListener).toHaveBeenCalledWith('download-progress', expect.any(Function));
+    expect(progressEvents).toEqual([
+      {
+        status: 'checking',
+        percent: 0,
+        message: '正在检查更新'
+      },
+      {
+        status: 'downloading',
+        percent: 48,
+        transferred: 48_000,
+        total: 100_000,
+        bytesPerSecond: 12_000,
+        message: '正在下载更新'
+      },
+      {
+        status: 'downloaded',
+        percent: 100,
+        message: '更新已下载'
+      }
+    ]);
   });
 
   it('falls back to installing on app quit when quitAndInstall is unavailable', async () => {
@@ -195,6 +233,7 @@ function createUpdater() {
     checkForUpdatesAndNotify: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
     quitAndInstall: vi.fn(),
+    removeListener: vi.fn(),
     setFeedURL: vi.fn()
   };
 }

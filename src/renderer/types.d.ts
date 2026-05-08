@@ -13,6 +13,15 @@ type DesktopUpdateCheckResult = {
   message: string;
 };
 
+type DesktopUpdateProgress = {
+  status: 'checking' | 'downloading' | 'downloaded' | 'error';
+  percent: number;
+  transferred?: number;
+  total?: number;
+  bytesPerSecond?: number;
+  message?: string;
+};
+
 declare global {
   interface Window {
     __quickTranslateDevCacheReset?: Promise<void>;
@@ -22,6 +31,7 @@ declare global {
       copyText(text: string): Promise<void>;
       getDesktopSettings?(): Promise<DesktopSettings>;
       onDesktopSettingsChanged?(callback: (settings: DesktopSettings) => void): () => void;
+      onUpdateProgress?(callback: (progress: DesktopUpdateProgress) => void): () => void;
       onFloatingSourceCaptured?(
         callback: (payload: { text: string; targetLanguage?: string; translationFormat?: TranslationFormat }) => void
       ): () => void;

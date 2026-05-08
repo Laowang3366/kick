@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { ACCOUNT_SESSION_STORAGE_KEY } from './accountSession';
@@ -953,6 +953,60 @@ describe('App', () => {
     });
     expect(open).toHaveBeenCalledWith('https://example.com/quick-translate.exe', '_blank', 'noopener,noreferrer');
     expect(screen.getByText('应用内更新不可用，已打开安装包下载页')).toBeInTheDocument();
+  });
+
+  it('shows desktop update download progress from the desktop bridge', async () => {
+    let progressCallback: ((progress: {
+      status: 'downloading';
+      percent: number;
+      transferred: number;
+      total: number;
+      bytesPerSecond: number;
+      message: string;
+    }) => void) | undefined;
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      onSelectionCaptured: vi.fn(),
+      onUpdateProgress: vi.fn((callback) => {
+        progressCallback = callback as typeof progressCallback;
+        return vi.fn();
+      })
+    } as any;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          releases: [
+            {
+              version: '0.1.26',
+              platform: 'windows',
+              fileName: 'Quick Translate Setup 0.1.26.exe',
+              url: 'https://example.com/quick-translate.exe'
+            }
+          ]
+        })
+    } as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(await screen.findByText('版本 0.1.26')).toBeInTheDocument();
+
+    act(() => {
+      progressCallback?.({
+        status: 'downloading',
+        percent: 48,
+        transferred: 48_000,
+        total: 100_000,
+        bytesPerSecond: 12_000,
+        message: '正在下载更新'
+      });
+    });
+
+    expect(screen.getByText('正在下载更新 48%')).toBeInTheDocument();
+    expect(screen.getByText('46.9 KB / 97.7 KB · 11.7 KB/s')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: '更新进度' })).toHaveAttribute('aria-valuenow', '48');
   });
 
   it('installs Android APK updates through the Capacitor plugin', async () => {

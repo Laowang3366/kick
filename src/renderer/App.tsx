@@ -65,6 +65,14 @@ type CopyNotice = {
   message: string;
   tone: 'success' | 'error';
 };
+type DesktopUpdateProgress = {
+  status: 'checking' | 'downloading' | 'downloaded' | 'error';
+  percent: number;
+  transferred?: number;
+  total?: number;
+  bytesPerSecond?: number;
+  message?: string;
+};
 type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 type WindowControlCommand =
   | 'minimize'
@@ -81,6 +89,7 @@ type RememberedAccount = {
 const activeViewOrder: ActiveView[] = ['translate', 'history', 'favorites', 'settings', 'account'];
 const swipeThresholdPx = 72;
 const swipeDominanceRatio = 1.2;
+const desktopUpdatePlatforms = new Set(['windows', 'macos']);
 
 type NavItemProps = {
   active: boolean;
@@ -108,6 +117,51 @@ function formatEntryTime() {
     hour: '2-digit',
     minute: '2-digit'
   }).format(new Date());
+}
+
+function normalizeDesktopUpdateProgress(progress: DesktopUpdateProgress): DesktopUpdateProgress {
+  return {
+    ...progress,
+    percent: Math.min(100, Math.max(0, Number.isFinite(progress.percent) ? progress.percent : 0))
+  };
+}
+
+function formatBytes(value?: number) {
+  if (!value || value <= 0) {
+    return '';
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function formatUpdateProgressDetail(progress: DesktopUpdateProgress) {
+  if (progress.status === 'checking') {
+    return progress.message ?? '正在准备更新';
+  }
+
+  if (progress.status === 'downloaded') {
+    return progress.message ?? '更新已下载';
+  }
+
+  if (progress.status === 'error') {
+    return progress.message ?? '更新失败';
+  }
+
+  const percent = Math.round(progress.percent);
+  const total = formatBytes(progress.total);
+  const transferred = formatBytes(progress.transferred);
+  const speed = formatBytes(progress.bytesPerSecond);
+  const sizeText = total && transferred ? `${transferred} / ${total}` : '';
+  const speedText = speed ? `${speed}/s` : '';
+  return [sizeText, speedText].filter(Boolean).join(' · ') || `下载进度 ${percent}%`;
 }
 
 const rememberedAccountStorageKey = 'quick-translate-remembered-account';
@@ -179,6 +233,8 @@ export function App() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckResult | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<DesktopUpdateProgress | null>(null);
   const cloudClient = useMemo(() => createCloudClient(), []);
   const hasSelectedTargetLanguage = useRef(false);
   const lastMouseShortcutAt = useRef(0);
@@ -193,6 +249,12 @@ export function App() {
 
   useEffect(() => {
     void runUpdateCheck();
+  }, []);
+
+  useEffect(() => {
+    return window.quickTranslate?.onUpdateProgress?.((progress) => {
+      setUpdateProgress(normalizeDesktopUpdateProgress(progress));
+    });
   }, []);
 
   useEffect(() => {
@@ -636,6 +698,7 @@ export function App() {
 
   async function runUpdateCheck() {
     setIsCheckingUpdate(true);
+    setUpdateProgress(null);
     try {
       setUpdateCheck(await checkForAppUpdates());
     } finally {
@@ -648,11 +711,36 @@ export function App() {
       return;
     }
 
+    setIsInstallingUpdate(true);
+    if (desktopUpdatePlatforms.has(updateCheck.release.platform)) {
+      setUpdateProgress({
+        status: 'checking',
+        percent: 0,
+        message: '正在准备更新'
+      });
+    } else {
+      setUpdateProgress(null);
+    }
+
     try {
       const message = await installOrOpenUpdate(updateCheck.release);
+      if (desktopUpdatePlatforms.has(updateCheck.release.platform)) {
+        setUpdateProgress(
+          message.includes('已下载') || message.includes('正在退出')
+            ? { status: 'downloaded', percent: 100, message }
+            : null
+        );
+      }
       setCopyNotice({ tone: 'success', message });
     } catch (error) {
+      setUpdateProgress({
+        status: 'error',
+        percent: 0,
+        message: error instanceof Error ? error.message : '更新启动失败'
+      });
       setCopyNotice({ tone: 'error', message: error instanceof Error ? error.message : '更新启动失败' });
+    } finally {
+      setIsInstallingUpdate(false);
     }
   }
 
@@ -806,6 +894,19 @@ export function App() {
 
     switchActiveView(deltaX < 0 ? 1 : -1);
   }
+
+  const isUpdateBusy = isCheckingUpdate || isInstallingUpdate;
+  const updateProgressPercent = Math.round(updateProgress?.percent ?? 0);
+  const updateProgressLabel =
+    updateProgress?.status === 'checking'
+      ? '正在准备更新'
+      : updateProgress?.status === 'downloading'
+        ? `正在下载更新 ${updateProgressPercent}%`
+        : updateProgress?.status === 'downloaded'
+          ? '更新下载完成'
+          : updateProgress?.status === 'error'
+            ? '更新失败'
+            : '';
 
   return (
     <main className="app-shell">
@@ -1065,7 +1166,9 @@ export function App() {
                   <div className="update-card">
                     <div className="update-card-main">
                       <span className={`update-status ${updateCheck?.status ?? 'idle'}`}>
-                        {isCheckingUpdate
+                        {updateProgress
+                          ? updateProgressLabel
+                          : isCheckingUpdate
                           ? '正在检查更新'
                           : updateCheck?.status === 'available'
                             ? '发现新版本'
@@ -1083,7 +1186,9 @@ export function App() {
                           : `当前版本 ${updateCheck?.currentVersion ?? currentAppVersion}`}
                       </strong>
                       <small>
-                        {updateCheck?.status === 'available'
+                        {updateProgress
+                          ? formatUpdateProgressDetail(updateProgress)
+                          : updateCheck?.status === 'available'
                           ? `${updateCheck.platform} · ${updateCheck.release.fileName}${updateCheck.isSnoozed ? ' · 已设置稍后提醒' : ''}`
                           : updateCheck?.status === 'current'
                             ? `${updateCheck.platform} · 当前版本 ${updateCheck.currentVersion}`
@@ -1091,11 +1196,23 @@ export function App() {
                               ? updateCheck.message
                               : updateCheck?.status === 'ignored'
                                 ? `${updateCheck.platform} · ${updateCheck.release.version} 已保留为忽略版本`
-                                : '启动时会自动检查，也可手动检查'}
+                                 : '启动时会自动检查，也可手动检查'}
                       </small>
+                      {updateProgress ? (
+                        <div
+                          className={`update-progress ${updateProgress.status}`}
+                          role="progressbar"
+                          aria-label="更新进度"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={updateProgressPercent}
+                        >
+                          <span style={{ width: `${updateProgressPercent}%` }} />
+                        </div>
+                      ) : null}
                     </div>
                     <div className="update-actions">
-                      <button className="settings-action" type="button" onClick={runUpdateCheck} disabled={isCheckingUpdate}>
+                      <button className="settings-action" type="button" onClick={runUpdateCheck} disabled={isUpdateBusy}>
                         <RefreshCw size={20} />
                         <span>检查更新</span>
                       </button>
@@ -1103,7 +1220,7 @@ export function App() {
                         className="settings-action primary-account-action"
                         type="button"
                         onClick={updateNow}
-                        disabled={isCheckingUpdate || updateCheck?.status !== 'available'}
+                        disabled={isUpdateBusy || updateCheck?.status !== 'available'}
                       >
                         <RefreshCw size={20} />
                         <span>立即更新</span>
@@ -1112,7 +1229,7 @@ export function App() {
                         className="settings-action"
                         type="button"
                         onClick={ignoreCurrentUpdate}
-                        disabled={isCheckingUpdate || updateCheck?.status !== 'available'}
+                        disabled={isUpdateBusy || updateCheck?.status !== 'available'}
                       >
                         <X size={20} />
                         <span>忽略本版本</span>
@@ -1121,7 +1238,7 @@ export function App() {
                         className="settings-action"
                         type="button"
                         onClick={remindCurrentUpdateLater}
-                        disabled={isCheckingUpdate || updateCheck?.status !== 'available'}
+                        disabled={isUpdateBusy || updateCheck?.status !== 'available'}
                       >
                         <History size={20} />
                         <span>稍后提醒</span>
