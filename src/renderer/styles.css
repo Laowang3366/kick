@@ -65,6 +65,7 @@ body {
 :root[data-theme="dark"] .format-control,
 :root[data-theme="dark"] .format-control select,
 :root[data-theme="dark"] .format-control-text strong,
+:root[data-theme="dark"] .language-search input,
 :root[data-theme="dark"] .theme-switch,
 :root[data-theme="dark"] .theme-option,
 :root[data-theme="dark"] .settings-action,
@@ -81,6 +82,8 @@ body {
 :root[data-theme="dark"] .language-field,
 :root[data-theme="dark"] .panel-title,
 :root[data-theme="dark"] .panel-footer,
+:root[data-theme="dark"] .language-search,
+:root[data-theme="dark"] .language-empty,
 :root[data-theme="dark"] .nav-item,
 :root[data-theme="dark"] .entry-card span,
 :root[data-theme="dark"] .update-card small,
@@ -91,6 +94,7 @@ body {
 
 :root[data-theme="dark"] .select-shell,
 :root[data-theme="dark"] .language-trigger,
+:root[data-theme="dark"] .language-search,
 :root[data-theme="dark"] .text-panel,
 :root[data-theme="dark"] .command-button,
 :root[data-theme="dark"] .format-control,
@@ -134,6 +138,28 @@ body {
 :root[data-theme="dark"] .window-control.pin.active {
   color: #7db7ff;
   background: #193554;
+}
+
+:root[data-theme="dark"] .source-language-chip,
+:root[data-theme="dark"] .source-language-chip strong,
+:root[data-theme="dark"] .panel-language-picker .language-trigger-label,
+:root[data-theme="dark"] .panel-language-picker .select-chevron {
+  color: #7db7ff;
+}
+
+:root[data-theme="dark"] .source-language-chip span,
+:root[data-theme="dark"] .panel-language-picker .language-badge,
+:root[data-theme="dark"] .language-option span,
+:root[data-theme="dark"] .language-badge {
+  color: #7db7ff;
+  background: #193554;
+}
+
+:root[data-theme="dark"] .panel-language-picker .language-trigger,
+:root[data-theme="dark"] .panel-language-picker .language-trigger:hover,
+:root[data-theme="dark"] .panel-language-picker .language-trigger[aria-expanded="true"] {
+  border-color: transparent;
+  background: transparent;
 }
 
 :root[data-theme="dark"] .format-control.disabled {
@@ -515,6 +541,36 @@ h1 {
   box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
 }
 
+.language-search {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border: 1px solid rgba(31, 45, 66, 0.13);
+  border-radius: 8px;
+  padding: 0 11px;
+  color: #667085;
+  background: #ffffff;
+}
+
+.language-search input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #151923;
+  background: transparent;
+  font-size: 14px;
+}
+
+.language-search:focus-within {
+  border-color: #0d66d8;
+  box-shadow: 0 0 0 3px rgba(13, 102, 216, 0.12);
+}
+
 .language-menu-region {
   display: grid;
   gap: 8px;
@@ -571,6 +627,25 @@ h1 {
   background: #e9f3ff;
 }
 
+.language-empty {
+  margin: 0;
+  padding: 10px 4px 4px;
+  color: #667085;
+  font-size: 14px;
+}
+
+.translation-format-row {
+  display: grid;
+  grid-template-columns: var(--translation-panel-columns);
+  gap: var(--translation-column-gap);
+  align-items: end;
+}
+
+.translation-format-control {
+  grid-column: 3;
+  width: 100%;
+}
+
 .translate-grid {
   min-height: 0;
   display: grid;
@@ -598,10 +673,48 @@ h1 {
   box-shadow: inset 0 0 0 1px rgba(13, 102, 216, 0.08);
 }
 
+.panel-meta {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
 .panel-title {
   color: #5b6472;
   font-size: 13px;
   font-weight: 700;
+}
+
+.source-language-chip {
+  min-width: 0;
+  max-width: 68%;
+  display: inline-grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: #0d66d8;
+}
+
+.source-language-chip span {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #e8f3ff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.source-language-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 textarea {
@@ -671,11 +784,12 @@ textarea::placeholder {
 }
 
 .result-meta {
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
 }
 
 .result-meta .panel-title {
@@ -728,6 +842,47 @@ textarea::placeholder {
 .result-format-control.disabled strong,
 .result-format-control.disabled svg {
   color: #7b8494;
+}
+
+.panel-language-picker {
+  flex: 0 1 auto;
+  max-width: 68%;
+}
+
+.panel-language-picker .language-trigger {
+  width: auto;
+  min-height: 32px;
+  grid-template-columns: 26px minmax(0, auto) 16px;
+  gap: 7px;
+  border-color: transparent;
+  border-radius: 8px;
+  padding: 2px 0;
+  color: #0d66d8;
+  background: transparent;
+}
+
+.panel-language-picker .language-trigger:hover,
+.panel-language-picker .language-trigger[aria-expanded="true"] {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.panel-language-picker .language-badge {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+}
+
+.panel-language-picker .language-trigger-label {
+  color: #0d66d8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.panel-language-picker .select-chevron {
+  width: 15px;
+  height: 15px;
+  color: #0d66d8;
 }
 
 .translated-text,
@@ -1894,6 +2049,14 @@ textarea::placeholder {
     gap: 22px;
   }
 
+  .translation-format-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .translation-format-control {
+    grid-column: auto;
+  }
+
   .language-row .language-field:nth-child(2) {
     grid-column: auto;
   }
@@ -1998,6 +2161,7 @@ textarea::placeholder {
   }
 
   .language-row,
+  .translation-format-row,
   .command-bar,
   .settings-action-grid,
   .update-card,
@@ -2008,6 +2172,24 @@ textarea::placeholder {
 
   .language-row .language-field:nth-child(2) {
     grid-column: auto;
+  }
+
+  .panel-meta,
+  .result-meta {
+    gap: 10px;
+  }
+
+  .panel-language-picker,
+  .source-language-chip {
+    max-width: 58%;
+  }
+
+  .language-menu {
+    width: min(92vw, 520px);
+  }
+
+  .language-menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .settings-field {

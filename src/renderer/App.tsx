@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   ChevronDown,
+  CloudUpload,
   Copy,
   History,
   KeyRound,
@@ -300,10 +301,8 @@ export function App() {
     () => resolveTranslationFormat(targetLanguage, translationFormat),
     [targetLanguage, translationFormat]
   );
-  const selectedLanguage = useMemo(() => getLanguageLabel(targetLanguage), [targetLanguage]);
   const selectedTranslationFormat = useMemo(() => getTranslationFormatLabel(activeTranslationFormat), [activeTranslationFormat]);
   const detectedSourceLanguage = useMemo(() => detectSourceLanguage(sourceText), [sourceText]);
-  const sourceLanguageValue = detectedSourceLanguage?.value ?? 'auto';
   const sourceLanguageLabel = detectedSourceLanguage?.label ?? '自动检测';
   const sourceLanguageBadge = detectedSourceLanguage?.badge ?? '自';
   const favoriteEntries = useMemo(
@@ -345,15 +344,7 @@ export function App() {
     const timer = window.setTimeout(() => {
       setSyncStatus('syncing');
       void cloudClient
-        .saveState(accountSession.token, {
-          history: historyEntries,
-          favoriteIds,
-          settings: {
-            defaultTargetLanguage,
-            defaultTranslationFormat: translationFormat,
-            theme
-          }
-        })
+        .saveState(accountSession.token, createCloudBackupState())
         .then(() => {
           setSyncStatus('success');
           setAccountMessage('云端备份已更新');
@@ -848,6 +839,36 @@ export function App() {
     }
   }
 
+  function createCloudBackupState() {
+    return {
+      history: historyEntries,
+      favoriteIds,
+      settings: {
+        defaultTargetLanguage,
+        defaultTranslationFormat: translationFormat,
+        theme
+      }
+    };
+  }
+
+  async function backupAccountState() {
+    if (!accountSession) {
+      return;
+    }
+
+    setSyncStatus('syncing');
+    setAccountMessage('正在备份本地数据');
+
+    try {
+      await cloudClient.saveState(accountSession.token, createCloudBackupState());
+      setSyncStatus('success');
+      setAccountMessage('手动备份已完成');
+    } catch (error) {
+      setSyncStatus('error');
+      setAccountMessage(error instanceof Error ? error.message : '手动备份失败，本地数据已保留');
+    }
+  }
+
   function logoutAccount() {
     clearAccountSession();
     setAccountSession(null);
@@ -1022,31 +1043,44 @@ export function App() {
           >
             {activeView === 'translate' ? (
               <>
-                <div className="language-row">
-                  <label className="language-field" htmlFor="source-language">
-                    <span>源语言</span>
-                    <span className="select-shell">
-                      <span className="language-badge" aria-hidden="true">
-                        {sourceLanguageBadge}
-                      </span>
-                      <select id="source-language" value={sourceLanguageValue} disabled aria-label="源语言">
-                        <option value={sourceLanguageValue}>{sourceLanguageLabel}</option>
-                      </select>
-                      <ChevronDown className="select-chevron" size={18} aria-hidden="true" />
+                <div className="translation-format-row">
+                  <label
+                    className={`format-control translation-format-control${canSelectTranslationFormat ? '' : ' disabled'}`}
+                    aria-disabled={!canSelectTranslationFormat}
+                  >
+                    <Languages size={22} aria-hidden="true" />
+                    <span className="format-control-text">
+                      <span>翻译格式</span>
+                      <strong>{selectedTranslationFormat}</strong>
                     </span>
+                    {canSelectTranslationFormat ? <ChevronDown size={18} aria-hidden="true" /> : null}
+                    <select
+                      className="format-control-select"
+                      value={activeTranslationFormat}
+                      aria-label="翻译格式"
+                      disabled={!canSelectTranslationFormat}
+                      onChange={(event) => selectTranslationFormat(event.target.value)}
+                    >
+                      {translationFormatOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </label>
-
-                  <div className="language-field">
-                    <span>目标语言</span>
-                    <LanguagePicker ariaLabel="目标语言" value={targetLanguage} onChange={changeTargetLanguage} />
-                  </div>
                 </div>
 
                 <div className="translate-grid">
                   <section className="text-panel source-panel" aria-label="原文面板">
-                    <label className="panel-title" htmlFor="source-text">
-                      原文
-                    </label>
+                    <div className="panel-meta">
+                      <label className="panel-title" htmlFor="source-text">
+                        原文
+                      </label>
+                      <span className="source-language-chip" aria-label={`检测到的源语言：${sourceLanguageLabel}`}>
+                        <span aria-hidden="true">{sourceLanguageBadge}</span>
+                        <strong>{sourceLanguageLabel}</strong>
+                      </span>
+                    </div>
                     <textarea
                       id="source-text"
                       value={sourceText}
@@ -1077,29 +1111,12 @@ export function App() {
                   <section className="text-panel result-panel" aria-live="polite" aria-label="译文面板">
                     <div className="result-meta">
                       <span className="panel-title">译文</span>
-                      <label
-                        className={`result-format-control${canSelectTranslationFormat ? '' : ' disabled'}`}
-                        aria-disabled={!canSelectTranslationFormat}
-                      >
-                        <strong>
-                          {selectedLanguage}
-                          {activeTranslationFormat !== 'plain' ? ` · ${selectedTranslationFormat}` : ''}
-                        </strong>
-                        {canSelectTranslationFormat ? <ChevronDown size={15} aria-hidden="true" /> : null}
-                        <select
-                          className="format-control-select"
-                          value={activeTranslationFormat}
-                          aria-label="翻译格式"
-                          disabled={!canSelectTranslationFormat}
-                          onChange={(event) => selectTranslationFormat(event.target.value)}
-                        >
-                          {translationFormatOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      <LanguagePicker
+                        ariaLabel="目标语言"
+                        value={targetLanguage}
+                        onChange={changeTargetLanguage}
+                        className="panel-language-picker"
+                      />
                     </div>
 
                     <div className="result-body">
@@ -1384,10 +1401,21 @@ export function App() {
                       </div>
                     </div>
                     <p className={`sync-status ${syncStatus}`}>{accountMessage || '云端备份已启用，本地数据继续保留。'}</p>
-                    <button className="settings-action danger" type="button" onClick={logoutAccount}>
-                      <LogOut size={20} />
-                      <span>退出登录</span>
-                    </button>
+                    <div className="account-actions">
+                      <button
+                        className="settings-action primary-account-action"
+                        type="button"
+                        onClick={backupAccountState}
+                        disabled={syncStatus === 'syncing'}
+                      >
+                        <CloudUpload size={20} />
+                        <span>手动备份</span>
+                      </button>
+                      <button className="settings-action danger" type="button" onClick={logoutAccount}>
+                        <LogOut size={20} />
+                        <span>退出登录</span>
+                      </button>
+                    </div>
                   </section>
                 ) : (
                   <div className="account-auth-layout">

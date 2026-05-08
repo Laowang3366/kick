@@ -4,6 +4,7 @@ import { App } from './App';
 import { ACCOUNT_SESSION_STORAGE_KEY } from './accountSession';
 import { defaultCloudBaseUrl } from './cloudClient';
 import { DEFAULT_TARGET_LANGUAGE_STORAGE_KEY } from './languagePreference';
+import { FAVORITE_IDS_STORAGE_KEY, TRANSLATION_HISTORY_STORAGE_KEY } from './libraryStorage';
 import { THEME_STORAGE_KEY } from './themePreference';
 import { DEFAULT_TRANSLATION_FORMAT_STORAGE_KEY } from './translationFormatPreference';
 
@@ -72,13 +73,13 @@ describe('App', () => {
   it('shows the detected source language from the original text', () => {
     render(<App />);
 
-    expect(screen.getByRole('option', { name: '自动检测' })).toBeInTheDocument();
+    expect(screen.getByLabelText('检测到的源语言：自动检测')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('原文'), {
       target: { value: '我会把原生菜单栏去掉' }
     });
 
-    expect(screen.getByRole('option', { name: '中文' })).toBeInTheDocument();
+    expect(screen.getByLabelText('检测到的源语言：中文')).toBeInTheDocument();
   });
 
   it('renders a styled world-language target picker', () => {
@@ -90,6 +91,13 @@ describe('App', () => {
     expect(screen.getByRole('option', { name: '阿拉伯语' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '印地语' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '斯瓦希里语' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('检索目标语言'), {
+      target: { value: '斯瓦' }
+    });
+
+    expect(screen.getByRole('option', { name: '斯瓦希里语' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '阿拉伯语' })).not.toBeInTheDocument();
   });
 
   it('closes the target language picker when clicking outside it', () => {
@@ -328,12 +336,14 @@ describe('App', () => {
     expect(screen.getByRole('combobox', { name: '翻译格式' })).toBeInTheDocument();
   });
 
-  it('moves translation format to the result header and removes the bottom action bar', () => {
+  it('places language chips in panel headers and keeps translation format in the toolbar', () => {
     render(<App />);
 
     const formatSelect = screen.getByRole('combobox', { name: '翻译格式' });
 
-    expect(formatSelect.closest('.result-meta')).toBeInTheDocument();
+    expect(formatSelect.closest('.translation-format-row')).toBeInTheDocument();
+    expect(screen.getByLabelText('检测到的源语言：自动检测').closest('.panel-meta')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '目标语言：简体中文' }).closest('.result-meta')).toBeInTheDocument();
     expect(screen.queryByLabelText('翻译操作')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '翻译' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '复制' })).not.toBeInTheDocument();
@@ -497,9 +507,8 @@ describe('App', () => {
 
     expect(document.title).toBe('快捷翻译');
     expect(screen.getByRole('heading', { name: '快捷翻译' })).toBeInTheDocument();
-    expect(screen.getByText('源语言')).toBeInTheDocument();
-    expect(screen.getByText('目标语言')).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: '自动检测' })).toBeInTheDocument();
+    expect(screen.getByText('翻译格式')).toBeInTheDocument();
+    expect(screen.getByLabelText('检测到的源语言：自动检测')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '目标语言：简体中文' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '翻译视图' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '历史记录' })).toBeInTheDocument();
@@ -643,6 +652,75 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(`${defaultCloudBaseUrl}/api/sync/state`, expect.objectContaining({ method: 'PUT' }));
+    });
+  });
+
+  it('manually backs up local history, favorites, and settings from the account center', async () => {
+    localStorage.setItem(
+      TRANSLATION_HISTORY_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: 'entry-1',
+          provider: 'openai-compatible',
+          sourceText: 'hello',
+          translatedText: '你好',
+          targetLanguage: 'zh-CN',
+          createdAt: '10:00',
+          targetLabel: '简体中文',
+          translationFormat: 'plain',
+          formatLabel: '普通翻译'
+        }
+      ])
+    );
+    localStorage.setItem(FAVORITE_IDS_STORAGE_KEY, JSON.stringify(['entry-1']));
+    localStorage.setItem(DEFAULT_TARGET_LANGUAGE_STORAGE_KEY, 'en-US');
+    localStorage.setItem(DEFAULT_TRANSLATION_FORMAT_STORAGE_KEY, 'java-camel-case');
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ releases: [] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            token: 'token-1',
+            user: { id: 'u1', email: 'user@example.com', displayName: '用户' }
+          })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ state: { history: [], favoriteIds: [], settings: {} } })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ state: { history: [], favoriteIds: [], settings: {} } })
+      } as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '账号' }));
+    fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getByRole('button', { name: '登录' }));
+    await screen.findByText('用户');
+
+    fireEvent.click(screen.getByRole('button', { name: '手动备份' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('手动备份已完成')).toBeInTheDocument();
+    });
+    const putCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'PUT');
+    expect(putCall).toBeTruthy();
+    const backupBody = JSON.parse((putCall?.[1] as RequestInit).body as string);
+    expect(backupBody.history[0]).toMatchObject({ id: 'entry-1', sourceText: 'hello', translatedText: '你好' });
+    expect(backupBody.favoriteIds).toEqual(['entry-1']);
+    expect(backupBody.settings).toMatchObject({
+      defaultTargetLanguage: 'en-US',
+      defaultTranslationFormat: 'java-camel-case',
+      theme: 'dark'
     });
   });
 
