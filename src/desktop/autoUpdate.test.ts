@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { checkForDesktopUpdates, configureAutoUpdates, openInstallerDetached } from './autoUpdate';
+import { checkForDesktopUpdates, configureAutoUpdates, openInstallerAfterAppExit, openInstallerDetached } from './autoUpdate';
 
 describe('auto update channel', () => {
   it('does not check for updates outside packaged production runs', () => {
@@ -319,6 +319,42 @@ describe('auto update channel', () => {
         windowsHide: true
       }
     );
+    expect(child.unref).toHaveBeenCalledOnce();
+  });
+
+  it('opens the Windows installer only after the current app process exits', async () => {
+    const child = {
+      unref: vi.fn()
+    };
+    const launcher = vi.fn(() => child);
+
+    await openInstallerAfterAppExit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
+      platform: 'win32',
+      launcher,
+      currentProcessId: 1234,
+      powershellPath: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+    });
+
+    expect(launcher).toHaveBeenCalledWith(
+      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        expect.stringContaining('Wait-Process -Id $targetPid -Timeout 45')
+      ],
+      {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      }
+    );
+    const command = launcher.mock.calls[0]?.[1]?.at(-1) as string;
+    expect(command).toContain('$targetPid = 1234');
+    expect(command).toContain("Start-Process -FilePath 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe'");
     expect(child.unref).toHaveBeenCalledOnce();
   });
 

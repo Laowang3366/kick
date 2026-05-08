@@ -55,6 +55,11 @@ type OpenInstallerOptions = {
   shellOpenPath?: (filePath: string) => Promise<string>;
 };
 
+type DelayedInstallerOptions = OpenInstallerOptions & {
+  currentProcessId?: number;
+  powershellPath?: string;
+};
+
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
 
 export type DesktopUpdateCheckResult = {
@@ -230,7 +235,7 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     logger: console,
     onProgress,
     stageDownloadedUpdate: copyDownloadedUpdateToDownloads,
-    openDownloadedUpdate: openInstallerDetached,
+    openDownloadedUpdate: process.platform === 'win32' ? openInstallerAfterAppExit : openInstallerDetached,
     quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined
   });
 }
@@ -261,11 +266,51 @@ export async function openInstallerDetached(filePath: string, options: OpenInsta
   }
 }
 
+export async function openInstallerAfterAppExit(filePath: string, options: DelayedInstallerOptions = {}) {
+  const platform = options.platform ?? process.platform;
+  if (platform !== 'win32') {
+    await openInstallerDetached(filePath, options);
+    return;
+  }
+
+  const launcher = options.launcher ?? spawn;
+  const currentProcessId = options.currentProcessId ?? process.pid;
+  const powershellPath =
+    options.powershellPath ??
+    path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const installerPath = escapePowerShellSingleQuotedString(filePath);
+  const command = [
+    '$ErrorActionPreference = "SilentlyContinue";',
+    `$targetPid = ${currentProcessId};`,
+    'if ($targetPid -gt 0) { Wait-Process -Id $targetPid -Timeout 45 -ErrorAction SilentlyContinue; }',
+    `Start-Process -FilePath '${installerPath}';`
+  ].join(' ');
+
+  const child = launcher(
+    powershellPath,
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', command],
+    {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    }
+  );
+  child.unref();
+}
+
 function scheduleQuitAfterOpeningInstaller() {
   const timer = setTimeout(() => {
     app.quit();
-  }, 2500);
+    const forceExitTimer = setTimeout(() => {
+      app.exit(0);
+    }, 1500);
+    forceExitTimer.unref();
+  }, 500);
   timer.unref();
+}
+
+function escapePowerShellSingleQuotedString(value: string) {
+  return value.replace(/'/g, "''");
 }
 
 function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, 'warn'>) {
