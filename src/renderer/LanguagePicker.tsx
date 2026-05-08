@@ -1,5 +1,5 @@
 import { ChevronDown, Search } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { getLanguageBadge, getLanguageLabel, languageOptions } from '../shared/languages';
 
 type LanguagePickerProps = {
@@ -13,7 +13,9 @@ export function LanguagePicker({ ariaLabel, value, onChange, className = '' }: L
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const pickerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const [mobileMenuStyle, setMobileMenuStyle] = useState<CSSProperties | undefined>();
   const selectedLabel = getLanguageLabel(value);
   const filteredLanguageOptions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -57,7 +59,51 @@ export function LanguagePicker({ ariaLabel, value, onChange, className = '' }: L
       window.setTimeout(() => searchRef.current?.focus(), 0);
     } else {
       setQuery('');
+      setMobileMenuStyle(undefined);
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    function updateMobileMenuPosition() {
+      if (!(window.matchMedia?.('(max-width: 640px)').matches ?? false)) {
+        setMobileMenuStyle(undefined);
+        return;
+      }
+
+      const triggerRect = triggerRef.current?.getBoundingClientRect();
+      if (!triggerRect) {
+        return;
+      }
+
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const bottomReservedPx = 104;
+      const minMenuHeightPx = 220;
+      const triggerBottom = triggerRect.bottom + 8;
+      const fallbackTop = 72;
+      const top = Math.min(
+        Math.max(triggerBottom, 12),
+        Math.max(fallbackTop, viewportHeight - minMenuHeightPx - bottomReservedPx)
+      );
+      const maxHeight = Math.max(minMenuHeightPx, viewportHeight - top - bottomReservedPx);
+
+      setMobileMenuStyle({
+        '--language-menu-mobile-top': `${top}px`,
+        '--language-menu-mobile-max-height': `${maxHeight}px`
+      } as CSSProperties);
+    }
+
+    updateMobileMenuPosition();
+    window.addEventListener('resize', updateMobileMenuPosition);
+    window.visualViewport?.addEventListener('resize', updateMobileMenuPosition);
+
+    return () => {
+      window.removeEventListener('resize', updateMobileMenuPosition);
+      window.visualViewport?.removeEventListener('resize', updateMobileMenuPosition);
+    };
   }, [isOpen]);
 
   function selectLanguage(nextValue: string) {
@@ -69,6 +115,7 @@ export function LanguagePicker({ ariaLabel, value, onChange, className = '' }: L
   return (
     <div className={`language-picker${className ? ` ${className}` : ''}`} ref={pickerRef}>
       <button
+        ref={triggerRef}
         className="language-trigger"
         type="button"
         aria-label={`${ariaLabel}：${selectedLabel}`}
@@ -84,7 +131,7 @@ export function LanguagePicker({ ariaLabel, value, onChange, className = '' }: L
       </button>
 
       {isOpen ? (
-        <div className="language-menu" role="listbox" aria-label={`${ariaLabel}列表`}>
+        <div className="language-menu" role="listbox" aria-label={`${ariaLabel}列表`} style={mobileMenuStyle}>
           <label className="language-search">
             <Search size={17} aria-hidden="true" />
             <input

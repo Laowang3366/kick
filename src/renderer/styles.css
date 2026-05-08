@@ -2407,8 +2407,19 @@ textarea::placeholder {
     max-width: 58%;
   }
 
+  .language-picker {
+    position: static;
+  }
+
   .language-menu {
-    width: min(92vw, 520px);
+    width: auto;
+    max-width: none;
+    max-height: var(--language-menu-mobile-max-height, min(62vh, calc(100vh - 180px)));
+    position: fixed;
+    top: var(--language-menu-mobile-top, calc(80px + env(safe-area-inset-top)));
+    right: 12px;
+    left: 12px;
+    z-index: 120;
   }
 
   .language-menu-grid {
