@@ -861,12 +861,12 @@ describe('App', () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          latestVersion: '0.1.27',
+          latestVersion: '0.1.28',
           releases: [
             {
-              version: '0.1.27',
+              version: '0.1.28',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.27.exe',
+              fileName: 'Quick Translate Setup 0.1.28.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -878,7 +878,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
     expect(await screen.findByText('发现新版本')).toBeInTheDocument();
-    expect(screen.getByText('版本 0.1.27')).toBeInTheDocument();
+    expect(screen.getByText('版本 0.1.28')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载更新包' })).toBeEnabled();
   });
 
@@ -889,9 +889,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.27',
+              version: '0.1.28',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.27.exe',
+              fileName: 'Quick Translate Setup 0.1.28.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -933,9 +933,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.27',
+              version: '0.1.28',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.27.exe',
+              fileName: 'Quick Translate Setup 0.1.28.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -945,7 +945,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.27')).toBeInTheDocument();
+    expect(await screen.findByText('版本 0.1.28')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '下载更新包' }));
 
     await waitFor(() => {
@@ -979,9 +979,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.27',
+              version: '0.1.28',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.27.exe',
+              fileName: 'Quick Translate Setup 0.1.28.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -991,7 +991,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.27')).toBeInTheDocument();
+    expect(await screen.findByText('版本 0.1.28')).toBeInTheDocument();
 
     act(() => {
       progressCallback?.({
@@ -1025,9 +1025,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.27',
+              version: '0.1.28',
               platform: 'android',
-              fileName: 'quick-translate-0.1.27.apk',
+              fileName: 'quick-translate-0.1.28.apk',
               url: 'https://example.com/quick-translate.apk',
               sha512: 'sha512-value'
             }
@@ -1038,7 +1038,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.27')).toBeInTheDocument();
+    expect(await screen.findByText('版本 0.1.28')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
 
     await waitFor(() => {
@@ -1061,9 +1061,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.27',
+              version: '0.1.28',
               platform: 'android',
-              fileName: 'quick-translate-0.1.27.apk',
+              fileName: 'quick-translate-0.1.28.apk',
               url: 'https://example.com/quick-translate.apk'
             }
           ]
@@ -1073,7 +1073,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.27')).toBeInTheDocument();
+    expect(await screen.findByText('版本 0.1.28')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
 
     expect(open).toHaveBeenCalledWith('https://example.com/quick-translate.apk', '_blank', 'noopener,noreferrer');
