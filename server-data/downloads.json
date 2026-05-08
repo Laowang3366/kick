@@ -1,6 +1,15 @@
 {
-  "latestVersion": "0.1.32",
+  "latestVersion": "0.1.33",
   "releases": [
+    {
+      "version": "0.1.33",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.33.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.33.exe",
+      "size": 105786770,
+      "sha512": "S+aZhoYzqkT7T0Kj8J3WgekRbL0dZ6KhlTMV5MOX1h2P7Op/MxWv2vTsNFGU6v83URTE9vnaUKlGVGJI9DnIHQ==",
+      "releaseDate": "2026-05-08T15:06:22.147Z"
+    },
     {
       "version": "0.1.32",
       "platform": "windows",
