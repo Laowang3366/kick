@@ -1,5 +1,6 @@
 import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
+import { spawn } from 'node:child_process';
 import { copyFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -37,6 +38,20 @@ type CheckForUpdatesOptions = {
   onProgress?: (progress: DesktopUpdateProgress) => void;
   stageDownloadedUpdate?: (filePath: string, version?: string) => string | Promise<string>;
   openDownloadedUpdate?: (filePath: string) => void | Promise<void>;
+};
+
+type InstallerLaunchOptions = {
+  detached: boolean;
+  stdio: 'ignore';
+  windowsHide: boolean;
+};
+
+type InstallerLauncher = (command: string, args: string[], options: InstallerLaunchOptions) => { unref(): void };
+
+type OpenInstallerOptions = {
+  platform?: NodeJS.Platform;
+  launcher?: InstallerLauncher;
+  shellOpenPath?: (filePath: string) => Promise<string>;
 };
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
@@ -213,13 +228,29 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     logger: console,
     onProgress,
     stageDownloadedUpdate: copyDownloadedUpdateToDownloads,
-    openDownloadedUpdate: async (filePath) => {
-      const errorMessage = await shell.openPath(filePath);
-      if (errorMessage) {
-        throw new Error(errorMessage);
-      }
-    }
+    openDownloadedUpdate: openInstallerDetached
   });
+}
+
+export async function openInstallerDetached(filePath: string, options: OpenInstallerOptions = {}) {
+  const platform = options.platform ?? process.platform;
+
+  if (platform === 'win32') {
+    const launcher = options.launcher ?? spawn;
+    const child = launcher('cmd.exe', ['/d', '/s', '/c', 'start', '""', filePath], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    child.unref();
+    return;
+  }
+
+  const shellOpenPath = options.shellOpenPath ?? shell.openPath;
+  const errorMessage = await shellOpenPath(filePath);
+  if (errorMessage) {
+    throw new Error(errorMessage);
+  }
 }
 
 function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, 'warn'>) {

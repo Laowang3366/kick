@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { checkForDesktopUpdates, configureAutoUpdates } from './autoUpdate';
+import { checkForDesktopUpdates, configureAutoUpdates, openInstallerDetached } from './autoUpdate';
 
 describe('auto update channel', () => {
   it('does not check for updates outside packaged production runs', () => {
@@ -278,6 +278,46 @@ describe('auto update channel', () => {
 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('保存安装包副本失败'));
     expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe');
+  });
+
+  it('starts the Windows installer outside the Electron process tree', async () => {
+    const child = {
+      unref: vi.fn()
+    };
+    const launcher = vi.fn(() => child);
+    const shellOpenPath = vi.fn();
+
+    await openInstallerDetached('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe', {
+      platform: 'win32',
+      launcher,
+      shellOpenPath
+    });
+
+    expect(launcher).toHaveBeenCalledWith(
+      'cmd.exe',
+      ['/d', '/s', '/c', 'start', '""', 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe'],
+      {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      }
+    );
+    expect(child.unref).toHaveBeenCalledOnce();
+    expect(shellOpenPath).not.toHaveBeenCalled();
+  });
+
+  it('uses the platform shell opener outside Windows', async () => {
+    const launcher = vi.fn();
+    const shellOpenPath = vi.fn().mockResolvedValue('');
+
+    await openInstallerDetached('/Users/wfq/Downloads/Quick-Translate-0.1.33.dmg', {
+      platform: 'darwin',
+      launcher,
+      shellOpenPath
+    });
+
+    expect(shellOpenPath).toHaveBeenCalledWith('/Users/wfq/Downloads/Quick-Translate-0.1.33.dmg');
+    expect(launcher).not.toHaveBeenCalled();
   });
 });
 
