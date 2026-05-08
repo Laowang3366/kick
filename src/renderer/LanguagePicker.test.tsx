@@ -41,5 +41,7 @@ describe('LanguagePicker', () => {
       '--language-menu-mobile-top': '174px',
       '--language-menu-mobile-max-height': '502px'
     });
+    expect(menu.querySelector('.language-menu-scroll')).toContainElement(screen.getByRole('option', { name: '英语' }));
+    expect(menu.querySelector('.language-menu-scroll')).not.toContainElement(screen.getByLabelText('检索目标语言'));
   });
 });

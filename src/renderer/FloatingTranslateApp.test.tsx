@@ -242,4 +242,64 @@ describe('FloatingTranslateApp', () => {
     expect(sourceInput.value).toHaveLength(30000);
     expect(screen.getByText('30000/30000')).toBeInTheDocument();
   });
+
+  it('clears the floating translation result and ignores stale requests when source text is emptied', async () => {
+    let resolveTranslation: (value: {
+      provider: 'openai-compatible';
+      sourceText: string;
+      translatedText: string;
+      targetLanguage: string;
+    }) => void = () => {};
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      getDesktopSettings: vi.fn().mockResolvedValue({
+        mouseButton4Enabled: true,
+        launchAtLogin: false,
+        hideToTrayOnClose: true,
+        defaultTargetLanguage: 'zh-CN',
+        defaultTranslationFormat: 'plain'
+      }),
+      onFloatingSourceCaptured: vi.fn(() => vi.fn()),
+      onSelectionCaptured: vi.fn(),
+      translateText: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveTranslation = resolve;
+          })
+      ),
+      windowControl: vi.fn()
+    } as any;
+
+    render(<FloatingTranslateApp />);
+
+    fireEvent.change(screen.getByLabelText('悬浮原文'), {
+      target: { value: 'hello' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: '翻译' }));
+
+    await waitFor(() => {
+      expect(window.quickTranslate?.translateText).toHaveBeenCalled();
+    });
+
+    fireEvent.change(screen.getByLabelText('悬浮原文'), {
+      target: { value: '' }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('翻译结果会显示在这里')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      resolveTranslation({
+        provider: 'openai-compatible',
+        sourceText: 'hello',
+        translatedText: '你好',
+        targetLanguage: 'zh-CN'
+      });
+    });
+
+    expect(screen.queryByText('你好')).not.toBeInTheDocument();
+    expect(screen.getByText('翻译结果会显示在这里')).toBeInTheDocument();
+  });
 });

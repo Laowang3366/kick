@@ -42,6 +42,7 @@ export function FloatingTranslateApp() {
   const [providerSettings] = useState(loadProviderSettings);
   const targetLanguageRef = useRef(targetLanguage);
   const translationFormatRef = useRef(translationFormat);
+  const translationRequestId = useRef(0);
 
   useEffect(() => {
     targetLanguageRef.current = targetLanguage;
@@ -100,12 +101,12 @@ export function FloatingTranslateApp() {
     const effectiveFormat = resolveTranslationFormat(language, format);
 
     if (!normalizedText) {
-      setResult(null);
-      setStatus('idle');
-      setError('');
+      clearCurrentTranslation();
       return;
     }
 
+    const requestId = translationRequestId.current + 1;
+    translationRequestId.current = requestId;
     setStatus('loading');
     setError('');
 
@@ -119,12 +120,36 @@ export function FloatingTranslateApp() {
             provider: createProviderFromSettings(providerSettings)
           });
 
+      if (requestId !== translationRequestId.current) {
+        return;
+      }
+
       setResult(translation);
       setStatus('success');
     } catch (translationError) {
+      if (requestId !== translationRequestId.current) {
+        return;
+      }
+
       setResult(null);
       setStatus('error');
       setError(translationError instanceof Error ? translationError.message : '翻译失败');
+    }
+  }
+
+  function clearCurrentTranslation() {
+    translationRequestId.current += 1;
+    setResult(null);
+    setStatus('idle');
+    setError('');
+  }
+
+  function changeSourceText(value: string) {
+    const limitedText = limitTranslationText(value);
+    setSourceText(limitedText);
+
+    if (!limitedText.trim()) {
+      clearCurrentTranslation();
     }
   }
 
@@ -248,7 +273,7 @@ export function FloatingTranslateApp() {
             aria-label="悬浮原文"
             placeholder="输入或粘贴需要翻译的文本"
             maxLength={maxTranslationTextLength}
-            onChange={(event) => setSourceText(limitTranslationText(event.target.value))}
+            onChange={(event) => changeSourceText(event.target.value)}
           />
           <div className="floating-card-footer">
             <span>{sourceText.length}/{maxTranslationTextLength}</span>

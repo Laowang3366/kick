@@ -142,30 +142,32 @@ export function LanguagePicker({ ariaLabel, value, onChange, className = '' }: L
               onChange={(event) => setQuery(event.target.value)}
             />
           </label>
-          {regions.map((region) => (
-            <section className="language-menu-region" key={region} aria-label={region}>
-              <span className="language-menu-heading">{region}</span>
-              <div className="language-menu-grid">
-                {filteredLanguageOptions
-                  .filter((option) => option.region === region)
-                  .map((option) => (
-                    <button
-                      className={`language-option${option.value === value ? ' selected' : ''}`}
-                      type="button"
-                      role="option"
-                      aria-label={option.label}
-                      aria-selected={option.value === value}
-                      key={option.value}
-                      onClick={() => selectLanguage(option.value)}
-                    >
-                      <span>{option.badge}</span>
-                      <strong>{option.label}</strong>
-                    </button>
-                ))}
-              </div>
-            </section>
-          ))}
-          {filteredLanguageOptions.length === 0 ? <p className="language-empty">未找到匹配语言</p> : null}
+          <div className="language-menu-scroll">
+            {regions.map((region) => (
+              <section className="language-menu-region" key={region} aria-label={region}>
+                <span className="language-menu-heading">{region}</span>
+                <div className="language-menu-grid">
+                  {filteredLanguageOptions
+                    .filter((option) => option.region === region)
+                    .map((option) => (
+                      <button
+                        className={`language-option${option.value === value ? ' selected' : ''}`}
+                        type="button"
+                        role="option"
+                        aria-label={option.label}
+                        aria-selected={option.value === value}
+                        key={option.value}
+                        onClick={() => selectLanguage(option.value)}
+                      >
+                        <span>{option.badge}</span>
+                        <strong>{option.label}</strong>
+                      </button>
+                    ))}
+                </div>
+              </section>
+            ))}
+            {filteredLanguageOptions.length === 0 ? <p className="language-empty">未找到匹配语言</p> : null}
+          </div>
         </div>
       ) : null}
     </div>

@@ -563,8 +563,10 @@ h1 {
   right: 0;
   z-index: 20;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 14px;
-  overflow-y: auto;
+  overflow: hidden;
+  overscroll-behavior: contain;
   border: 1px solid rgba(13, 102, 216, 0.16);
   border-radius: 8px;
   padding: 14px;
@@ -578,14 +580,20 @@ h1 {
   grid-template-columns: 20px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  position: sticky;
-  top: 0;
-  z-index: 1;
   border: 1px solid rgba(31, 45, 66, 0.13);
   border-radius: 8px;
   padding: 0 11px;
   color: #667085;
   background: #ffffff;
+}
+
+.language-menu-scroll {
+  min-height: 0;
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 
 .language-search input {
@@ -1628,7 +1636,7 @@ textarea::placeholder {
   min-height: 0;
   -webkit-app-region: drag;
   display: grid;
-  grid-template-rows: auto minmax(0, 126px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   border: 0;
   border-radius: 0;
@@ -1721,14 +1729,21 @@ textarea::placeholder {
 .floating-source-card,
 .floating-result-card {
   -webkit-app-region: no-drag;
+  min-height: 0;
   display: grid;
   border: 1px solid rgba(31, 45, 66, 0.1);
   border-radius: 8px;
   background: #ffffff;
 }
 
+.floating-source-card {
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
 .floating-source-card textarea {
   -webkit-app-region: no-drag;
+  height: 100%;
   min-height: 0;
   padding: 14px 16px;
   font-size: 17px;
@@ -1792,10 +1807,10 @@ textarea::placeholder {
 }
 
 .floating-result-card {
-  min-height: 0;
   position: relative;
   align-content: start;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 14px 44px 14px 16px;
 }
 
