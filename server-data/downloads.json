@@ -1,6 +1,24 @@
 {
-  "latestVersion": "0.1.23",
+  "latestVersion": "0.1.24",
   "releases": [
+    {
+      "version": "0.1.24",
+      "platform": "windows",
+      "fileName": "快捷翻译 Setup 0.1.24.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.24.exe",
+      "size": 105789163,
+      "sha512": "5oMB4TATrppA7SjBkv6WGBbQjXMV7uBJFdhT2kmMbne8Icxq4T33i7LY4kKZsgmvaMZa7E4g0a37jqsasEIBkw==",
+      "releaseDate": "2026-05-08T08:51:04.240Z"
+    },
+    {
+      "version": "0.1.24",
+      "platform": "android",
+      "fileName": "快捷翻译 Android 0.1.24.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Android%200.1.24.apk",
+      "size": 3259633,
+      "sha512": "Qlga07dnZUXlqImjlc3NFAXtdwS4hA4T2ftPnupjN9ZldZ29+GnD63oooF21y193uRs/5F11r7WiHFaiV0KzBA==",
+      "releaseDate": "2026-05-08T08:51:04.240Z"
+    },
     {
       "version": "0.1.23",
       "platform": "windows",
