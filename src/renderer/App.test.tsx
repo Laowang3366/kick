@@ -22,6 +22,7 @@ describe('App', () => {
   }
 
   it('translates typed or pasted text through the mock provider', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
     render(<App />);
 
     fireEvent.change(screen.getByLabelText('原文'), {
@@ -31,6 +32,39 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.getByText('你好')).toBeInTheDocument();
+    });
+  });
+
+  it('uses the cloud translation channel in web and mobile environments without requiring login', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          provider: 'openai-compatible',
+          sourceText: 'hello',
+          translatedText: '云端译文',
+          targetLanguage: 'zh-CN'
+        })
+    } as Response);
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('原文'), {
+      target: { value: 'hello' }
+    });
+    submitTranslation();
+
+    await waitFor(() => {
+      expect(screen.getByText('云端译文')).toBeInTheDocument();
+    });
+    expect(fetch).toHaveBeenCalledWith(`${defaultCloudBaseUrl}/api/translate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: 'hello',
+        targetLanguage: 'zh-CN',
+        translationFormat: 'plain'
+      })
     });
   });
 
@@ -762,8 +796,14 @@ describe('App', () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn().mockResolvedValue('Hello world'),
       copyText: vi.fn(),
-      onSelectionCaptured: vi.fn()
-    };
+      onSelectionCaptured: vi.fn(),
+      translateText: vi.fn().mockResolvedValue({
+        provider: 'openai-compatible',
+        sourceText: 'Hello world',
+        translatedText: '你好，世界',
+        targetLanguage: 'zh-CN'
+      })
+    } as any;
 
     render(<App />);
 
@@ -773,5 +813,10 @@ describe('App', () => {
       expect(screen.getByText('你好，世界')).toBeInTheDocument();
     });
     expect(window.quickTranslate.captureSelectedText).toHaveBeenCalledOnce();
+    expect(window.quickTranslate.translateText).toHaveBeenCalledWith({
+      text: 'Hello world',
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain'
+    });
   });
 });

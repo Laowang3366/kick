@@ -12,6 +12,9 @@
     "server:start": "node server/index.mjs",
     "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.electron.json",
     "build:webapp": "npm run build",
+    "android:add": "capacitor add android",
+    "android:sync": "npm run build && capacitor sync android",
+    "dist:android": "npm run android:sync && node scripts/prepare-android-signing.mjs && cd android && .\\gradlew.bat assembleRelease && cd .. && node scripts/copy-android-apk.mjs && npm run download:manifest",
     "desktop:smoke": "node scripts/smoke-electron.mjs",
     "download:manifest": "node scripts/generate-download-manifest.mjs",
     "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never && npm run download:manifest",
@@ -27,6 +30,8 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.2",
+    "@capacitor/core": "^8.3.2",
     "@vitejs/plugin-react": "^5.1.1",
     "electron-updater": "^6.8.3",
     "lucide-react": "^1.14.0",
@@ -34,6 +39,7 @@
     "react-dom": "^19.2.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^24.10.1",

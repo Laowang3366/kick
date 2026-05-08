@@ -4,6 +4,13 @@ dist-electron/
 release/
 run-logs/
 coverage/
+android/.gradle/
+android/local.properties
+android/keystore.properties
+android/*.jks
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
 
 .env
 .env.*

@@ -11,6 +11,15 @@
       "releaseDate": "2026-05-08T05:23:22.377Z"
     },
     {
+      "version": "0.1.20",
+      "platform": "android",
+      "fileName": "快捷翻译 Android 0.1.20.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Android%200.1.20.apk",
+      "size": 3256681,
+      "sha512": "dFQvZkEG98FGakHcdGSzwcieCIHTveFhyYav72sOtQGFPl7HCISb8nlWVA1UaLnweGPRVP4ggz7QHxK/Uq3mMA==",
+      "releaseDate": "2026-05-08T05:23:22.377Z"
+    },
+    {
       "version": "0.1.19",
       "platform": "windows",
       "fileName": "快捷翻译 Setup 0.1.19.exe",

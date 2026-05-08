@@ -622,15 +622,6 @@ export function App() {
   }
 
   async function translateWithCloudFallback(text: string, language: string, format: TranslationFormat) {
-    if (!accountSession) {
-      return translateText({
-        text,
-        targetLanguage: language,
-        translationFormat: format,
-        provider: createProviderFromSettings(providerSettings)
-      });
-    }
-
     try {
       return await cloudClient.translate({ text, targetLanguage: language, translationFormat: format });
     } catch {

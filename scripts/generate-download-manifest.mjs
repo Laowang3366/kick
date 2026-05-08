@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,11 +34,19 @@ const release = {
   sha512,
   releaseDate
 };
+const additionalReleases = await collectAdditionalReleases({
+  releaseDir,
+  version,
+  skipFileNames: new Set([fileName, `${fileName}.blockmap`, 'latest.yml']),
+  publicUpdateBaseUrl
+});
 
 const existingManifest = await readExistingManifest(outputPath);
+const newReleases = [release, ...additionalReleases];
+const newReleaseKeys = new Set(newReleases.map(releaseKey));
 const releases = [
-  release,
-  ...existingManifest.releases.filter((item) => item.version !== version)
+  ...newReleases,
+  ...existingManifest.releases.filter((item) => !newReleaseKeys.has(releaseKey(item)))
 ].sort((left, right) => compareVersions(right.version, left.version));
 
 await mkdir(dataDir, { recursive: true });
@@ -91,6 +101,49 @@ async function readExistingManifest(filePath) {
   } catch {
     return { releases: [] };
   }
+}
+
+async function collectAdditionalReleases({ releaseDir, version, skipFileNames, publicUpdateBaseUrl }) {
+  const entries = await readdir(releaseDir, { withFileTypes: true });
+  const artifactExtensions = new Set(['.apk', '.dmg', '.pkg']);
+  const releases = [];
+
+  for (const entry of entries) {
+    if (!entry.isFile() || skipFileNames.has(entry.name)) {
+      continue;
+    }
+
+    const extension = path.extname(entry.name).toLowerCase();
+    if (!artifactExtensions.has(extension)) {
+      continue;
+    }
+
+    const filePath = path.join(releaseDir, entry.name);
+    const fileStat = await stat(filePath);
+    releases.push({
+      version: versionFromFileName(entry.name) || version,
+      platform: inferPlatform(entry.name),
+      fileName: entry.name,
+      url: `${publicUpdateBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(entry.name)}`,
+      size: fileStat.size,
+      sha512: await sha512Base64(filePath),
+      releaseDate
+    });
+  }
+
+  return releases;
+}
+
+async function sha512Base64(filePath) {
+  return createHash('sha512').update(await readFile(filePath)).digest('base64');
+}
+
+function releaseKey(release) {
+  return `${release.version}::${release.platform || inferPlatform(release.fileName)}::${release.fileName}`;
+}
+
+function versionFromFileName(fileName) {
+  return fileName.match(/\d+\.\d+\.\d+/)?.[0] ?? '';
 }
 
 function compareVersions(left, right) {
