@@ -44,9 +44,12 @@ const additionalReleases = await collectAdditionalReleases({
 const existingManifest = await readExistingManifest(outputPath);
 const newReleases = [release, ...additionalReleases];
 const newReleaseKeys = new Set(newReleases.map(releaseKey));
+const replacedReleaseTargets = new Set(newReleases.map(releaseTargetKey));
 const releases = [
   ...newReleases,
-  ...existingManifest.releases.filter((item) => !newReleaseKeys.has(releaseKey(item)))
+  ...existingManifest.releases.filter(
+    (item) => !newReleaseKeys.has(releaseKey(item)) && !replacedReleaseTargets.has(releaseTargetKey(item))
+  )
 ].sort((left, right) => compareVersions(right.version, left.version));
 
 await mkdir(dataDir, { recursive: true });
@@ -145,6 +148,10 @@ async function sha512Base64(filePath) {
 
 function releaseKey(release) {
   return `${release.version}::${release.platform || inferPlatform(release.fileName)}::${release.fileName}`;
+}
+
+function releaseTargetKey(release) {
+  return `${release.version}::${release.platform || inferPlatform(release.fileName)}`;
 }
 
 function versionFromFileName(fileName) {

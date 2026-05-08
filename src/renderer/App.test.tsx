@@ -944,7 +944,7 @@ describe('App', () => {
             {
               version: '0.1.29',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.29.exe',
+              fileName: 'Quick-Translate-0.1.29.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -969,7 +969,7 @@ describe('App', () => {
             {
               version: '0.1.29',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.29.exe',
+              fileName: 'Quick-Translate-0.1.29.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -1013,7 +1013,7 @@ describe('App', () => {
             {
               version: '0.1.29',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.29.exe',
+              fileName: 'Quick-Translate-0.1.29.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -1059,7 +1059,7 @@ describe('App', () => {
             {
               version: '0.1.29',
               platform: 'windows',
-              fileName: 'Quick Translate Setup 0.1.29.exe',
+              fileName: 'Quick-Translate-0.1.29.exe',
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -1105,7 +1105,7 @@ describe('App', () => {
             {
               version: '0.1.29',
               platform: 'android',
-              fileName: 'quick-translate-0.1.29.apk',
+              fileName: 'Quick-Translate-Android-0.1.29.apk',
               url: 'https://example.com/quick-translate.apk',
               sha512: 'sha512-value'
             }
@@ -1141,7 +1141,7 @@ describe('App', () => {
             {
               version: '0.1.29',
               platform: 'android',
-              fileName: 'quick-translate-0.1.29.apk',
+              fileName: 'Quick-Translate-Android-0.1.29.apk',
               url: 'https://example.com/quick-translate.apk'
             }
           ]

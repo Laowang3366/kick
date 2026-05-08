@@ -7,7 +7,7 @@ const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.js
 const version = packageJson.version;
 const sourceApk = path.join(projectRoot, 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
 const releaseDir = path.join(projectRoot, 'release');
-const targetApk = path.join(releaseDir, `快捷翻译 Android ${version}.apk`);
+const targetApk = path.join(releaseDir, `Quick-Translate-Android-${version}.apk`);
 
 await stat(sourceApk);
 await mkdir(releaseDir, { recursive: true });

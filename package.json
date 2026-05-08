@@ -57,6 +57,7 @@
   "build": {
     "appId": "cn.local.quicktranslate",
     "productName": "快捷翻译",
+    "artifactName": "Quick-Translate-${version}.${ext}",
     "asar": true,
     "directories": {
       "output": "release"

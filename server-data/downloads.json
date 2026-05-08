@@ -4,20 +4,20 @@
     {
       "version": "0.1.28",
       "platform": "windows",
-      "fileName": "快捷翻译 Setup 0.1.28.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Setup%200.1.28.exe",
-      "size": 105791104,
-      "sha512": "Yu29jA2VeAQNm/Og8A2sK/IOUOzSyjcK1uKl7Syfta/+mYgR0LTbHCDfrFzWHTsoj0S5An9AYMMY+JSe3zA0+w==",
-      "releaseDate": "2026-05-08T11:41:09.739Z"
+      "fileName": "Quick-Translate-0.1.28.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.28.exe",
+      "size": 105791094,
+      "sha512": "YagbPBMwqN2VrG40kSdilur1Pq+ZIW/ihYLtKBH0fAdEN1tSysmhWwYrIsBRopF/Fk2mhLsrZshr0jG7FTD+6w==",
+      "releaseDate": "2026-05-08T11:51:58.055Z"
     },
     {
       "version": "0.1.28",
       "platform": "android",
-      "fileName": "快捷翻译 Android 0.1.28.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Android%200.1.28.apk",
+      "fileName": "Quick-Translate-Android-0.1.28.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.28.apk",
       "size": 3261141,
       "sha512": "vFrRNZ626CEcjWpfSLitBpRm3eMcyoZNBsO5H7txi7dsKnBzQbjJhPQv9wyeu380ujVfl+EPEuabzqEqBlbS7Q==",
-      "releaseDate": "2026-05-08T11:41:09.739Z"
+      "releaseDate": "2026-05-08T11:51:58.055Z"
     },
     {
       "version": "0.1.27",
