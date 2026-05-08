@@ -784,10 +784,11 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
-    expect(await screen.findByRole('heading', { name: '窗口操作' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '重新加载界面' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '打开开发者工具' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '退出应用' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '界面外观' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '窗口操作' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '重新加载界面' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '打开开发者工具' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '退出应用' })).not.toBeInTheDocument();
 
     const launchAtLogin = await screen.findByLabelText('开机自启');
     expect(launchAtLogin).not.toBeChecked();

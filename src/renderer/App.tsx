@@ -1,7 +1,6 @@
 import {
   ArrowLeftRight,
   ChevronDown,
-  Code2,
   Copy,
   History,
   KeyRound,
@@ -71,13 +70,7 @@ type WindowControlCommand =
   | 'minimize'
   | 'toggle-maximize'
   | 'close'
-  | 'reload'
-  | 'toggle-devtools'
-  | 'toggle-always-on-top'
-  | 'toggle-floating-always-on-top'
-  | 'show-main-window'
-  | 'hide-floating-window'
-  | 'quit';
+  | 'toggle-always-on-top';
 
 type TranslationEntry = StoredTranslationEntry;
 type RememberedAccount = {
@@ -613,10 +606,6 @@ export function App() {
       return window.quickTranslate.windowControl(command);
     }
 
-    if (command === 'reload') {
-      window.location.reload();
-    }
-
     return undefined;
   }
 
@@ -1138,36 +1127,6 @@ export function App() {
                         <span>稍后提醒</span>
                       </button>
                     </div>
-                  </div>
-                </section>
-
-                <section className="settings-section" aria-labelledby="window-actions-heading">
-                  <h3 id="window-actions-heading">窗口操作</h3>
-                  <div className="settings-action-grid">
-                    <button className="settings-action" type="button" onClick={() => runWindowCommand('reload')}>
-                      <RefreshCw size={20} />
-                      <span>重新加载界面</span>
-                    </button>
-                    <button className="settings-action" type="button" onClick={() => runWindowCommand('toggle-devtools')}>
-                      <Code2 size={20} />
-                      <span>打开开发者工具</span>
-                    </button>
-                    <button className="settings-action" type="button" onClick={() => runWindowCommand('minimize')}>
-                      <Minus size={20} />
-                      <span>最小化窗口</span>
-                    </button>
-                    <button className="settings-action" type="button" onClick={() => runWindowCommand('toggle-maximize')}>
-                      <Maximize2 size={20} />
-                      <span>最大化或还原窗口</span>
-                    </button>
-                    <button className="settings-action" type="button" onClick={() => runWindowCommand('close')}>
-                      <X size={20} />
-                      <span>关闭窗口</span>
-                    </button>
-                    <button className="settings-action danger" type="button" onClick={() => runWindowCommand('quit')}>
-                      <LogOut size={20} />
-                      <span>退出应用</span>
-                    </button>
                   </div>
                 </section>
 
