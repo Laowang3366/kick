@@ -890,6 +890,24 @@ describe('App', () => {
       });
     });
 
+    fireEvent.change(screen.getByLabelText('悬浮翻译快捷键'), {
+      target: { value: 'custom' }
+    });
+    fireEvent.keyDown(screen.getByRole('button', { name: '录入悬浮翻译快捷键' }), {
+      key: 'k',
+      code: 'KeyK',
+      ctrlKey: true,
+      altKey: true
+    });
+
+    await waitFor(() => {
+      expect(window.quickTranslate?.setDesktopSettings).toHaveBeenCalledWith({
+        floatingTranslateShortcut: 'custom:CommandOrControl+Alt+K'
+      });
+    });
+    expect(screen.getByLabelText('悬浮翻译快捷键')).toHaveValue('custom');
+    expect(screen.getByText('Ctrl + Alt + K')).toBeInTheDocument();
+
     fireEvent.click(launchAtLogin);
 
     await waitFor(() => {
@@ -898,7 +916,7 @@ describe('App', () => {
       });
     });
     expect(launchAtLogin).toBeChecked();
-    expect(screen.getByLabelText('悬浮翻译快捷键')).toHaveValue('ctrl-alt-t');
+    expect(screen.getByLabelText('悬浮翻译快捷键')).toHaveValue('custom');
     expect(screen.getByLabelText('关闭时隐藏到托盘')).toBeChecked();
 
     fireEvent.change(screen.getByLabelText('默认目标语言'), {

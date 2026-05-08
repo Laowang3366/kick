@@ -582,12 +582,19 @@ function updateTrayMenu() {
       { type: 'separator' },
       {
         label: `悬浮翻译快捷键：${getFloatingTranslateShortcutLabel(desktopSettings.floatingTranslateShortcut)}`,
-        submenu: floatingTranslateShortcutOptions.map((option) => ({
-          label: option.label,
-          type: 'radio' as const,
-          checked: desktopSettings.floatingTranslateShortcut === option.value,
-          click: () => updateDesktopSettings({ floatingTranslateShortcut: option.value })
-        }))
+        submenu: [
+          {
+            label: `当前：${getFloatingTranslateShortcutLabel(desktopSettings.floatingTranslateShortcut)}`,
+            enabled: false
+          },
+          { type: 'separator' as const },
+          ...floatingTranslateShortcutOptions.map((option) => ({
+            label: option.label,
+            type: 'radio' as const,
+            checked: desktopSettings.floatingTranslateShortcut === option.value,
+            click: () => updateDesktopSettings({ floatingTranslateShortcut: option.value })
+          }))
+        ]
       },
       {
         label: '开机自启',

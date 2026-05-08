@@ -1,7 +1,7 @@
 import { defaultTargetLanguage, normalizeTargetLanguage } from '../shared/languages.js';
 import { defaultTranslationFormat, normalizeTranslationFormat, type TranslationFormat } from '../shared/translationFormats.js';
 
-export type FloatingTranslateShortcut =
+export type FloatingTranslateShortcutPreset =
   | 'mouse-button-4'
   | 'mouse-button-5'
   | 'ctrl-alt-t'
@@ -10,8 +10,10 @@ export type FloatingTranslateShortcut =
   | 'f8'
   | 'disabled';
 
+export type FloatingTranslateShortcut = FloatingTranslateShortcutPreset | `custom:${string}`;
+
 export type FloatingTranslateShortcutOption = {
-  value: FloatingTranslateShortcut;
+  value: FloatingTranslateShortcutPreset;
   label: string;
   accelerator?: string;
 };
@@ -35,6 +37,29 @@ export const floatingTranslateShortcutOptions: FloatingTranslateShortcutOption[]
   { value: 'disabled', label: '关闭快捷键' }
 ];
 
+const customShortcutPrefix = 'custom:';
+const supportedModifierKeys = new Set(['CommandOrControl', 'Control', 'Command', 'Alt', 'Option', 'AltGr', 'Shift', 'Super']);
+const supportedNamedKeys = new Set([
+  'Plus',
+  'Space',
+  'Tab',
+  'Backspace',
+  'Delete',
+  'Insert',
+  'Return',
+  'Enter',
+  'Escape',
+  'Esc',
+  'Up',
+  'Down',
+  'Left',
+  'Right',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown'
+]);
+
 export const defaultDesktopSettings: DesktopSettings = {
   mouseButton4Enabled: true,
   floatingTranslateShortcut: 'mouse-button-4',
@@ -53,19 +78,186 @@ function booleanOrDefault(value: unknown, fallback: boolean): boolean {
 }
 
 export function normalizeFloatingTranslateShortcut(value: unknown): FloatingTranslateShortcut {
-  return typeof value === 'string' && floatingTranslateShortcutOptions.some((option) => option.value === value)
-    ? (value as FloatingTranslateShortcut)
-    : defaultDesktopSettings.floatingTranslateShortcut;
+  if (typeof value !== 'string') {
+    return defaultDesktopSettings.floatingTranslateShortcut;
+  }
+
+  if (floatingTranslateShortcutOptions.some((option) => option.value === value)) {
+    return value as FloatingTranslateShortcutPreset;
+  }
+
+  if (value.startsWith(customShortcutPrefix)) {
+    const accelerator = normalizeCustomShortcutAccelerator(value.slice(customShortcutPrefix.length));
+    return accelerator ? createCustomFloatingTranslateShortcut(accelerator) : defaultDesktopSettings.floatingTranslateShortcut;
+  }
+
+  return defaultDesktopSettings.floatingTranslateShortcut;
 }
 
 export function getFloatingTranslateShortcutLabel(value: unknown) {
   const shortcut = normalizeFloatingTranslateShortcut(value);
+  if (isCustomFloatingTranslateShortcut(shortcut)) {
+    return `自定义：${formatShortcutAcceleratorLabel(shortcut.slice(customShortcutPrefix.length))}`;
+  }
+
   return floatingTranslateShortcutOptions.find((option) => option.value === shortcut)?.label ?? '鼠标下侧键';
 }
 
 export function getFloatingTranslateShortcutAccelerator(value: unknown) {
   const shortcut = normalizeFloatingTranslateShortcut(value);
+  if (isCustomFloatingTranslateShortcut(shortcut)) {
+    return shortcut.slice(customShortcutPrefix.length);
+  }
+
   return floatingTranslateShortcutOptions.find((option) => option.value === shortcut)?.accelerator;
+}
+
+export function createCustomFloatingTranslateShortcut(accelerator: string): FloatingTranslateShortcut {
+  const normalizedAccelerator = normalizeCustomShortcutAccelerator(accelerator);
+  return normalizedAccelerator ? `${customShortcutPrefix}${normalizedAccelerator}` : defaultDesktopSettings.floatingTranslateShortcut;
+}
+
+export function isCustomFloatingTranslateShortcut(value: unknown): value is `custom:${string}` {
+  return typeof value === 'string' && value.startsWith(customShortcutPrefix);
+}
+
+export function normalizeCustomShortcutAccelerator(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const parts = value
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const modifiers: string[] = [];
+  let key = '';
+
+  for (const part of parts) {
+    const normalizedPart = normalizeShortcutPart(part);
+    if (!normalizedPart) {
+      return undefined;
+    }
+
+    if (supportedModifierKeys.has(normalizedPart)) {
+      if (!modifiers.includes(normalizedPart)) {
+        modifiers.push(normalizedPart);
+      }
+      continue;
+    }
+
+    if (key) {
+      return undefined;
+    }
+    key = normalizedPart;
+  }
+
+  const hasActivationModifier = modifiers.some((modifier) => modifier !== 'Shift');
+  if (!key || (!hasActivationModifier && !isFunctionKey(key))) {
+    return undefined;
+  }
+
+  return [...sortShortcutModifiers(modifiers), key].join('+');
+}
+
+export function formatShortcutAcceleratorLabel(accelerator: string) {
+  return accelerator
+    .split('+')
+    .map((part) => {
+      if (part === 'CommandOrControl') {
+        return 'Ctrl';
+      }
+      if (part === 'Super') {
+        return 'Win';
+      }
+      if (part === 'Return') {
+        return 'Enter';
+      }
+      if (part === 'Escape') {
+        return 'Esc';
+      }
+      return part;
+    })
+    .join(' + ');
+}
+
+function normalizeShortcutPart(value: string) {
+  const trimmedValue = value.trim();
+  const lowerValue = trimmedValue.toLowerCase();
+  const modifierMap: Record<string, string> = {
+    ctrl: 'CommandOrControl',
+    control: 'CommandOrControl',
+    cmdorctrl: 'CommandOrControl',
+    commandorcontrol: 'CommandOrControl',
+    command: 'Command',
+    cmd: 'Command',
+    alt: 'Alt',
+    option: 'Option',
+    altgr: 'AltGr',
+    shift: 'Shift',
+    super: 'Super',
+    meta: 'Super',
+    win: 'Super',
+    windows: 'Super'
+  };
+  const keyMap: Record<string, string> = {
+    '+': 'Plus',
+    plus: 'Plus',
+    space: 'Space',
+    ' ': 'Space',
+    tab: 'Tab',
+    backspace: 'Backspace',
+    delete: 'Delete',
+    del: 'Delete',
+    insert: 'Insert',
+    ins: 'Insert',
+    return: 'Return',
+    enter: 'Return',
+    escape: 'Escape',
+    esc: 'Escape',
+    arrowup: 'Up',
+    up: 'Up',
+    arrowdown: 'Down',
+    down: 'Down',
+    arrowleft: 'Left',
+    left: 'Left',
+    arrowright: 'Right',
+    right: 'Right',
+    home: 'Home',
+    end: 'End',
+    pageup: 'PageUp',
+    pagedown: 'PageDown'
+  };
+
+  if (modifierMap[lowerValue]) {
+    return modifierMap[lowerValue];
+  }
+  if (keyMap[lowerValue]) {
+    return keyMap[lowerValue];
+  }
+  if (/^f([1-9]|1\d|2[0-4])$/i.test(trimmedValue)) {
+    return trimmedValue.toUpperCase();
+  }
+  if (/^[a-z]$/i.test(trimmedValue)) {
+    return trimmedValue.toUpperCase();
+  }
+  if (/^\d$/.test(trimmedValue)) {
+    return trimmedValue;
+  }
+  if (supportedNamedKeys.has(trimmedValue)) {
+    return trimmedValue;
+  }
+
+  return undefined;
+}
+
+function sortShortcutModifiers(modifiers: string[]) {
+  const sortOrder = ['CommandOrControl', 'Control', 'Command', 'Super', 'Alt', 'Option', 'AltGr', 'Shift'];
+  return [...modifiers].sort((left, right) => sortOrder.indexOf(left) - sortOrder.indexOf(right));
+}
+
+function isFunctionKey(value: string) {
+  return /^F([1-9]|1\d|2[0-4])$/.test(value);
 }
 
 export function normalizeDesktopSettings(value: unknown): DesktopSettings {

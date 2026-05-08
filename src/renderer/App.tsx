@@ -25,8 +25,12 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type TouchEvent } from 'react';
 import {
+  createCustomFloatingTranslateShortcut,
   floatingTranslateShortcutOptions,
+  formatShortcutAcceleratorLabel,
   getFloatingTranslateShortcutLabel,
+  isCustomFloatingTranslateShortcut,
+  normalizeCustomShortcutAccelerator,
   normalizeFloatingTranslateShortcut,
   type DesktopSettings
 } from '../desktop/desktopSettings';
@@ -196,6 +200,63 @@ function clearRememberedAccount() {
   localStorage.removeItem(rememberedAccountStorageKey);
 }
 
+function createShortcutAcceleratorFromKeyboardEvent(event: KeyboardEvent<HTMLElement>) {
+  const key = normalizeKeyboardShortcutKey(event.key, event.code);
+  const parts = [
+    event.ctrlKey ? 'CommandOrControl' : '',
+    event.metaKey ? 'Super' : '',
+    event.altKey ? 'Alt' : '',
+    event.shiftKey ? 'Shift' : '',
+    key
+  ].filter(Boolean);
+
+  return normalizeCustomShortcutAccelerator(parts.join('+'));
+}
+
+function normalizeKeyboardShortcutKey(key: string, code: string) {
+  if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') {
+    return '';
+  }
+
+  if (/^Key[A-Z]$/.test(code)) {
+    return code.slice(3);
+  }
+  if (/^Digit\d$/.test(code)) {
+    return code.slice(5);
+  }
+  if (/^F([1-9]|1\d|2[0-4])$/.test(key)) {
+    return key;
+  }
+
+  const keyMap: Record<string, string> = {
+    '+': 'Plus',
+    ' ': 'Space',
+    ArrowUp: 'Up',
+    ArrowDown: 'Down',
+    ArrowLeft: 'Left',
+    ArrowRight: 'Right',
+    Enter: 'Return',
+    Escape: 'Escape',
+    Tab: 'Tab',
+    Backspace: 'Backspace',
+    Delete: 'Delete',
+    Insert: 'Insert',
+    Home: 'Home',
+    End: 'End',
+    PageUp: 'PageUp',
+    PageDown: 'PageDown'
+  };
+
+  if (keyMap[key]) {
+    return keyMap[key];
+  }
+  if (key.length === 1 && /^[a-z0-9]$/i.test(key)) {
+    return key.toUpperCase();
+  }
+
+  return '';
+}
+
 function NavItem({ active, icon, label, screenReaderLabel, onClick }: NavItemProps) {
   return (
     <button
@@ -241,6 +302,9 @@ export function App() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<DesktopUpdateProgress | null>(null);
+  const [showCustomFloatingShortcutEditor, setShowCustomFloatingShortcutEditor] = useState(false);
+  const [isRecordingFloatingShortcut, setIsRecordingFloatingShortcut] = useState(false);
+  const [floatingShortcutError, setFloatingShortcutError] = useState('');
   const cloudClient = useMemo(() => createCloudClient(), []);
   const hasSelectedTargetLanguage = useRef(false);
   const lastMouseShortcutAt = useRef(0);
@@ -248,6 +312,7 @@ export function App() {
   const translationRequestId = useRef(0);
   const hasLoadedCloudState = useRef(false);
   const contentSwipeStart = useRef<{ x: number; y: number } | null>(null);
+  const floatingShortcutCaptureButton = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     document.title = '快捷翻译';
@@ -267,6 +332,12 @@ export function App() {
     const appliedTheme = applyThemePreference(theme);
     saveThemePreference(appliedTheme);
   }, [theme]);
+
+  useEffect(() => {
+    if (isRecordingFloatingShortcut) {
+      floatingShortcutCaptureButton.current?.focus();
+    }
+  }, [isRecordingFloatingShortcut]);
 
   useEffect(() => {
     let isMounted = true;
@@ -659,6 +730,45 @@ export function App() {
     }
   }
 
+  function selectFloatingShortcut(value: string) {
+    setFloatingShortcutError('');
+
+    if (value === 'custom') {
+      setShowCustomFloatingShortcutEditor(true);
+      setIsRecordingFloatingShortcut(true);
+      return;
+    }
+
+    setShowCustomFloatingShortcutEditor(false);
+    setIsRecordingFloatingShortcut(false);
+    void updateDesktopSettings({ floatingTranslateShortcut: normalizeFloatingTranslateShortcut(value) });
+  }
+
+  function captureFloatingShortcut(event: KeyboardEvent<HTMLElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === 'Escape') {
+      setIsRecordingFloatingShortcut(false);
+      setFloatingShortcutError('');
+      if (!isCustomFloatingTranslateShortcut(desktopSettings?.floatingTranslateShortcut)) {
+        setShowCustomFloatingShortcutEditor(false);
+      }
+      return;
+    }
+
+    const accelerator = createShortcutAcceleratorFromKeyboardEvent(event);
+    if (!accelerator) {
+      setFloatingShortcutError('请按 Ctrl、Alt 或 Win 加字母、数字、方向键，也可直接使用 F1-F24');
+      return;
+    }
+
+    setFloatingShortcutError('');
+    setIsRecordingFloatingShortcut(false);
+    setShowCustomFloatingShortcutEditor(true);
+    void updateDesktopSettings({ floatingTranslateShortcut: createCustomFloatingTranslateShortcut(accelerator) });
+  }
+
   async function runWindowCommand(command: WindowControlCommand) {
     if (window.quickTranslate?.windowControl) {
       return window.quickTranslate.windowControl(command);
@@ -934,8 +1044,17 @@ export function App() {
         : updateProgress?.status === 'downloaded'
           ? '更新下载完成'
           : updateProgress?.status === 'error'
-            ? '更新失败'
-            : '';
+          ? '更新失败'
+          : '';
+  const normalizedFloatingShortcut = normalizeFloatingTranslateShortcut(desktopSettings?.floatingTranslateShortcut);
+  const isCustomFloatingShortcut = isCustomFloatingTranslateShortcut(normalizedFloatingShortcut);
+  const shouldShowCustomFloatingShortcutEditor =
+    isCustomFloatingShortcut || showCustomFloatingShortcutEditor || isRecordingFloatingShortcut;
+  const floatingShortcutSelectValue = shouldShowCustomFloatingShortcutEditor ? 'custom' : normalizedFloatingShortcut;
+  const customFloatingShortcutAccelerator = isCustomFloatingShortcut ? normalizedFloatingShortcut.slice('custom:'.length) : '';
+  const customFloatingShortcutLabel = customFloatingShortcutAccelerator
+    ? formatShortcutAcceleratorLabel(customFloatingShortcutAccelerator)
+    : '点击后按下新的组合键';
 
   return (
     <main className="app-shell">
@@ -1345,19 +1464,42 @@ export function App() {
                     <div className="settings-list">
                       <label className="settings-field">
                         <span>悬浮翻译快捷键</span>
-                        <select
-                          value={normalizeFloatingTranslateShortcut(desktopSettings.floatingTranslateShortcut)}
-                          aria-label="悬浮翻译快捷键"
-                          onChange={(event) =>
-                            updateDesktopSettings({ floatingTranslateShortcut: normalizeFloatingTranslateShortcut(event.target.value) })
-                          }
-                        >
-                          {floatingTranslateShortcutOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="shortcut-setting-control">
+                          <select
+                            value={floatingShortcutSelectValue}
+                            aria-label="悬浮翻译快捷键"
+                            onChange={(event) => selectFloatingShortcut(event.target.value)}
+                          >
+                            {floatingTranslateShortcutOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                            <option value="custom">自定义快捷键</option>
+                          </select>
+                          {shouldShowCustomFloatingShortcutEditor ? (
+                            <div className="shortcut-recorder">
+                              <button
+                                ref={floatingShortcutCaptureButton}
+                                className={`shortcut-capture-button${isRecordingFloatingShortcut ? ' recording' : ''}`}
+                                type="button"
+                                aria-label="录入悬浮翻译快捷键"
+                                onClick={() => {
+                                  setShowCustomFloatingShortcutEditor(true);
+                                  setIsRecordingFloatingShortcut(true);
+                                  setFloatingShortcutError('');
+                                }}
+                                onKeyDown={captureFloatingShortcut}
+                              >
+                                <KeyRound size={18} />
+                                <span>{isRecordingFloatingShortcut ? '请按新的组合键' : customFloatingShortcutLabel}</span>
+                              </button>
+                              <small className={floatingShortcutError ? 'shortcut-error' : undefined}>
+                                {floatingShortcutError || '推荐使用 Ctrl / Alt / Win 与字母、数字或方向键组合'}
+                              </small>
+                            </div>
+                          ) : null}
+                        </div>
                       </label>
                       <label className="toggle-row">
                         <input

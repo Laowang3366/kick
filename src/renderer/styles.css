@@ -71,6 +71,7 @@ body {
 :root[data-theme="dark"] .settings-action,
 :root[data-theme="dark"] .settings-field select,
 :root[data-theme="dark"] .settings-field input,
+:root[data-theme="dark"] .shortcut-capture-button,
 :root[data-theme="dark"] .floating-language-select select,
 :root[data-theme="dark"] .floating-window-actions button,
 :root[data-theme="dark"] .floating-result-card > button,
@@ -106,6 +107,7 @@ body {
 :root[data-theme="dark"] .settings-field,
 :root[data-theme="dark"] .settings-field select,
 :root[data-theme="dark"] .settings-field input,
+:root[data-theme="dark"] .shortcut-capture-button,
 :root[data-theme="dark"] .toggle-row,
 :root[data-theme="dark"] .update-card,
 :root[data-theme="dark"] .entry-card,
@@ -120,6 +122,20 @@ body {
   border-color: rgba(96, 165, 250, 0.28);
   background: rgba(18, 29, 43, 0.98);
   box-shadow: 0 20px 46px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="dark"] .shortcut-capture-button.recording {
+  border-color: #2f8cff;
+  color: #ffffff;
+  background: #0d66d8;
+}
+
+:root[data-theme="dark"] .shortcut-recorder small {
+  color: #aab7c8;
+}
+
+:root[data-theme="dark"] .shortcut-recorder .shortcut-error {
+  color: #ff9d95;
 }
 
 :root[data-theme="dark"] .language-option {
@@ -1369,6 +1385,57 @@ textarea::placeholder {
   color: #151923;
   background: #ffffff;
   outline: none;
+}
+
+.shortcut-setting-control {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.shortcut-recorder {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.shortcut-capture-button {
+  width: 100%;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed rgba(13, 102, 216, 0.35);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #0d66d8;
+  background: #f3f8ff;
+  font-size: 14px;
+  font-weight: 760;
+  outline: none;
+}
+
+.shortcut-capture-button.recording {
+  border-style: solid;
+  color: #ffffff;
+  background: #0d66d8;
+}
+
+.shortcut-capture-button:focus-visible {
+  border-color: #0d66d8;
+  box-shadow: 0 0 0 3px rgba(13, 102, 216, 0.12);
+}
+
+.shortcut-recorder small {
+  color: #637083;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.shortcut-recorder .shortcut-error {
+  color: #b42318;
 }
 
 .appearance-field {
