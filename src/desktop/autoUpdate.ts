@@ -53,7 +53,6 @@ type OpenInstallerOptions = {
   platform?: NodeJS.Platform;
   launcher?: InstallerLauncher;
   shellOpenPath?: (filePath: string) => Promise<string>;
-  launchDelaySeconds?: number;
 };
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
@@ -238,12 +237,16 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
 
 export async function openInstallerDetached(filePath: string, options: OpenInstallerOptions = {}) {
   const platform = options.platform ?? process.platform;
+  const shellOpenPath = options.shellOpenPath ?? shell.openPath;
 
   if (platform === 'win32') {
+    const errorMessage = await shellOpenPath(filePath);
+    if (!errorMessage) {
+      return;
+    }
+
     const launcher = options.launcher ?? spawn;
-    const launchDelaySeconds = options.launchDelaySeconds ?? 2;
-    const command = `timeout /t ${launchDelaySeconds} /nobreak >nul & start "" "${filePath.replace(/"/g, '')}"`;
-    const child = launcher('cmd.exe', ['/d', '/s', '/c', command], {
+    const child = launcher(filePath, [], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true
@@ -252,7 +255,6 @@ export async function openInstallerDetached(filePath: string, options: OpenInsta
     return;
   }
 
-  const shellOpenPath = options.shellOpenPath ?? shell.openPath;
   const errorMessage = await shellOpenPath(filePath);
   if (errorMessage) {
     throw new Error(errorMessage);
@@ -262,7 +264,7 @@ export async function openInstallerDetached(filePath: string, options: OpenInsta
 function scheduleQuitAfterOpeningInstaller() {
   const timer = setTimeout(() => {
     app.quit();
-  }, 300);
+  }, 2500);
   timer.unref();
 }
 
@@ -360,6 +362,7 @@ async function openDownloadedUpdate(filePath: string, options: Pick<CheckForUpda
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     options.logger?.warn(`[自动更新] 打开安装包失败：${message}`);
+    throw error;
   }
 }
 

@@ -9,6 +9,10 @@ import { THEME_STORAGE_KEY } from './themePreference';
 import { DEFAULT_TRANSLATION_FORMAT_STORAGE_KEY } from './translationFormatPreference';
 import { currentAppVersion } from './updateCenter';
 
+const testUpdateVersion = '99.0.0';
+const testWindowsInstallerName = `Quick-Translate-${testUpdateVersion}.exe`;
+const testAndroidInstallerName = `Quick-Translate-Android-${testUpdateVersion}.apk`;
+
 describe('App', () => {
   afterEach(() => {
     window.quickTranslate = undefined;
@@ -1080,12 +1084,12 @@ describe('App', () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          latestVersion: '0.1.36',
+          latestVersion: testUpdateVersion,
           releases: [
             {
-              version: '0.1.36',
+              version: testUpdateVersion,
               platform: 'windows',
-              fileName: 'Quick-Translate-0.1.36.exe',
+              fileName: testWindowsInstallerName,
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -1097,7 +1101,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
     expect(await screen.findByText('发现新版本')).toBeInTheDocument();
-    expect(screen.getByText('版本 0.1.36')).toBeInTheDocument();
+    expect(screen.getByText(`版本 ${testUpdateVersion}`)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载并安装' })).toBeEnabled();
   });
 
@@ -1108,9 +1112,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.36',
+              version: testUpdateVersion,
               platform: 'windows',
-              fileName: 'Quick-Translate-0.1.36.exe',
+              fileName: testWindowsInstallerName,
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -1152,9 +1156,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.36',
+              version: testUpdateVersion,
               platform: 'windows',
-              fileName: 'Quick-Translate-0.1.36.exe',
+              fileName: testWindowsInstallerName,
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -1164,7 +1168,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.36')).toBeInTheDocument();
+    expect(await screen.findByText(`版本 ${testUpdateVersion}`)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '下载并安装' }));
 
     await waitFor(() => {
@@ -1198,9 +1202,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.36',
+              version: testUpdateVersion,
               platform: 'windows',
-              fileName: 'Quick-Translate-0.1.36.exe',
+              fileName: testWindowsInstallerName,
               url: 'https://example.com/quick-translate.exe'
             }
           ]
@@ -1210,7 +1214,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.36')).toBeInTheDocument();
+    expect(await screen.findByText(`版本 ${testUpdateVersion}`)).toBeInTheDocument();
 
     act(() => {
       progressCallback?.({
@@ -1257,9 +1261,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.36',
+              version: testUpdateVersion,
               platform: 'android',
-              fileName: 'Quick-Translate-Android-0.1.36.apk',
+              fileName: testAndroidInstallerName,
               url: 'https://example.com/quick-translate.apk',
               sha512: 'sha512-value'
             }
@@ -1270,7 +1274,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.36')).toBeInTheDocument();
+    expect(await screen.findByText(`版本 ${testUpdateVersion}`)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
 
     await waitFor(() => {
@@ -1316,9 +1320,9 @@ describe('App', () => {
         Promise.resolve({
           releases: [
             {
-              version: '0.1.36',
+              version: testUpdateVersion,
               platform: 'android',
-              fileName: 'Quick-Translate-Android-0.1.36.apk',
+              fileName: testAndroidInstallerName,
               url: 'https://example.com/quick-translate.apk'
             }
           ]
@@ -1328,7 +1332,7 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
-    expect(await screen.findByText('版本 0.1.36')).toBeInTheDocument();
+    expect(await screen.findByText(`版本 ${testUpdateVersion}`)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
 
     expect(open).toHaveBeenCalledWith('https://example.com/quick-translate.apk', '_blank', 'noopener,noreferrer');

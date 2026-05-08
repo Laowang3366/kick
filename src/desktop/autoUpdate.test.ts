@@ -280,28 +280,39 @@ describe('auto update channel', () => {
     expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe');
   });
 
-  it('starts the Windows installer outside the Electron process tree', async () => {
+  it('opens the Windows installer through the system shell', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
-    const shellOpenPath = vi.fn();
+    const shellOpenPath = vi.fn().mockResolvedValue('');
 
     await openInstallerDetached('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath,
-      launchDelaySeconds: 2
+      shellOpenPath
+    });
+
+    expect(shellOpenPath).toHaveBeenCalledWith('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe');
+    expect(launcher).not.toHaveBeenCalled();
+  });
+
+  it('falls back to direct process launch when Windows shell open fails', async () => {
+    const child = {
+      unref: vi.fn()
+    };
+    const launcher = vi.fn(() => child);
+    const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
+
+    await openInstallerDetached('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe', {
+      platform: 'win32',
+      launcher,
+      shellOpenPath
     });
 
     expect(launcher).toHaveBeenCalledWith(
-      'cmd.exe',
-      [
-        '/d',
-        '/s',
-        '/c',
-        'timeout /t 2 /nobreak >nul & start "" "C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe"'
-      ],
+      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe',
+      [],
       {
         detached: true,
         stdio: 'ignore',
@@ -309,7 +320,6 @@ describe('auto update channel', () => {
       }
     );
     expect(child.unref).toHaveBeenCalledOnce();
-    expect(shellOpenPath).not.toHaveBeenCalled();
   });
 
   it('uses the platform shell opener outside Windows', async () => {
@@ -354,6 +364,39 @@ describe('auto update channel', () => {
 
     expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe');
     expect(quitAfterOpenDownloadedUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('does not report success when opening the downloaded installer fails', async () => {
+    const updater = createUpdater();
+    const logger = { warn: vi.fn() };
+    const openDownloadedUpdate = vi.fn().mockRejectedValue(new Error('open failed'));
+    const quitAfterOpenDownloadedUpdate = vi.fn();
+    updater.checkForUpdates.mockResolvedValue({
+      updateInfo: {
+        version: '0.1.22'
+      },
+      downloadPromise: Promise.resolve(['C:\\Temp\\installer.exe'])
+    });
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: true,
+        isSmokeTest: false,
+        currentVersion: '0.1.21',
+        platform: 'win32',
+        updater,
+        logger,
+        openDownloadedUpdate,
+        quitAfterOpenDownloadedUpdate
+      })
+    ).resolves.toMatchObject({
+      status: 'error',
+      currentVersion: '0.1.21',
+      message: 'open failed'
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('打开安装包失败'));
+    expect(quitAfterOpenDownloadedUpdate).not.toHaveBeenCalled();
   });
 });
 
