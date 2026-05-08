@@ -69,7 +69,7 @@ npm run server:start
 
 后台页面：
 
-- 用户下载页：`https://sg.lwvpscc.top/quick-translate/backend/download`
+- 用户下载页：`https://sg.lwvpscc.top`
 - 管理后台：`https://sg.lwvpscc.top/quick-translate/backend/admin`
 
 软件未登录时继续使用本地历史、收藏和设置；登录后会把历史、收藏和设置同步到后台。翻译请求在 Electron 安装版和 Web/PWA 中都优先走服务器翻译代理；接口不可用时，桌面端仅在本机配置了直连通道时兜底。
