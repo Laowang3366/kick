@@ -914,6 +914,47 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '立即更新' })).toBeDisabled();
   });
 
+  it('opens the desktop installer URL when the packaged updater is unavailable', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const checkForUpdates = vi.fn().mockResolvedValue({
+      status: 'error',
+      currentVersion: '0.1.23',
+      message: "ENOENT: no such file or directory, open 'app-update.yml'"
+    });
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      onSelectionCaptured: vi.fn(),
+      checkForUpdates
+    } as any;
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          releases: [
+            {
+              version: '0.1.24',
+              platform: 'windows',
+              fileName: 'Quick Translate Setup 0.1.24.exe',
+              url: 'https://example.com/quick-translate.exe'
+            }
+          ]
+        })
+    } as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(await screen.findByText('版本 0.1.24')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
+
+    await waitFor(() => {
+      expect(checkForUpdates).toHaveBeenCalledOnce();
+    });
+    expect(open).toHaveBeenCalledWith('https://example.com/quick-translate.exe', '_blank', 'noopener,noreferrer');
+    expect(screen.getByText('应用内更新不可用，已打开安装包下载页')).toBeInTheDocument();
+  });
+
   it('installs Android APK updates through the Capacitor plugin', async () => {
     const installUpdateApk = vi.fn().mockResolvedValue(undefined);
     (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {

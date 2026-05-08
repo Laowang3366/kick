@@ -53,6 +53,10 @@ describe('auto update channel', () => {
 
     expect(updater.autoDownload).toBe(true);
     expect(updater.autoInstallOnAppQuit).toBe(true);
+    expect(updater.setFeedURL).toHaveBeenCalledWith({
+      provider: 'generic',
+      url: 'https://sg.lwvpscc.top/quick-translate/updates/latest'
+    });
     expect(updater.on).toHaveBeenCalledWith('error', expect.any(Function));
     expect(schedule).toHaveBeenCalledWith(expect.any(Function), 8000);
     expect(updater.checkForUpdatesAndNotify).toHaveBeenCalledOnce();
@@ -121,6 +125,10 @@ describe('auto update channel', () => {
 
     expect(updater.autoDownload).toBe(true);
     expect(updater.autoInstallOnAppQuit).toBe(true);
+    expect(updater.setFeedURL).toHaveBeenCalledWith({
+      provider: 'generic',
+      url: 'https://sg.lwvpscc.top/quick-translate/updates/latest'
+    });
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
   });
 
@@ -157,6 +165,7 @@ function createUpdater() {
     autoInstallOnAppQuit: false,
     checkForUpdates: vi.fn().mockResolvedValue(null),
     checkForUpdatesAndNotify: vi.fn().mockResolvedValue(undefined),
-    on: vi.fn()
+    on: vi.fn(),
+    setFeedURL: vi.fn()
   };
 }

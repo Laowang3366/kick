@@ -7,6 +7,7 @@ type AutoUpdaterLike = {
   checkForUpdates(): Promise<UpdateCheckResultLike | null>;
   checkForUpdatesAndNotify(): Promise<unknown>;
   on(eventName: 'error', listener: (error: Error) => void): unknown;
+  setFeedURL?(options: { provider: 'generic'; url: string }): unknown;
 };
 
 type UpdateCheckResultLike = {
@@ -43,12 +44,14 @@ export type DesktopUpdateCheckResult = {
 };
 
 const updateCheckDelayMs = 8000;
+const desktopUpdateFeedUrl = 'https://sg.lwvpscc.top/quick-translate/updates/latest';
 
 export function configureAutoUpdates(options: ConfigureAutoUpdatesOptions): boolean {
   if (!options.isPackaged || options.isSmokeTest) {
     return false;
   }
 
+  configureUpdaterFeed(options.updater, options.logger);
   options.updater.autoDownload = true;
   options.updater.autoInstallOnAppQuit = true;
   options.updater.on('error', (error) => {
@@ -84,6 +87,7 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
 
   options.updater.autoDownload = true;
   options.updater.autoInstallOnAppQuit = true;
+  configureUpdaterFeed(options.updater, options.logger);
 
   try {
     const result = await options.updater.checkForUpdates();
@@ -137,6 +141,18 @@ export function checkForUpdates(isSmokeTest: boolean) {
     updater: autoUpdater,
     logger: console
   });
+}
+
+function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, 'warn'>) {
+  try {
+    updater.setFeedURL?.({
+      provider: 'generic',
+      url: desktopUpdateFeedUrl
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger?.warn(`[自动更新] 设置更新源失败：${message}`);
+  }
 }
 
 export function startAutoUpdates(isSmokeTest: boolean) {
