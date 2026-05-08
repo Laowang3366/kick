@@ -135,6 +135,7 @@ describe('auto update channel', () => {
   it('opens the downloaded installer when the packaged updater download completes', async () => {
     const updater = createUpdater();
     const openDownloadedUpdate = vi.fn();
+    const stageDownloadedUpdate = vi.fn().mockResolvedValue('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.22.exe');
     const progressEvents: unknown[] = [];
     let downloadProgressListener: ((progress: unknown) => void) | undefined;
     updater.on.mockImplementation((eventName: string, listener: (...args: unknown[]) => void) => {
@@ -170,6 +171,7 @@ describe('auto update channel', () => {
         currentVersion: '0.1.21',
         platform: 'darwin',
         updater,
+        stageDownloadedUpdate,
         openDownloadedUpdate,
         onProgress: (progress) => progressEvents.push(progress)
       })
@@ -182,8 +184,12 @@ describe('auto update channel', () => {
 
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
     expect(updater.autoInstallOnAppQuit).toBe(false);
+    expect(stageDownloadedUpdate).toHaveBeenCalledWith(
+      'C:\\Users\\wfq\\AppData\\Local\\quick-translate-updater\\installer.exe',
+      '0.1.22'
+    );
     expect(openDownloadedUpdate).toHaveBeenCalledWith(
-      'C:\\Users\\wfq\\AppData\\Local\\quick-translate-updater\\installer.exe'
+      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.22.exe'
     );
     expect(updater.removeListener).toHaveBeenCalledWith('download-progress', expect.any(Function));
     expect(updater.removeListener).toHaveBeenCalledWith('update-downloaded', expect.any(Function));
@@ -212,6 +218,7 @@ describe('auto update channel', () => {
   it('uses the downloaded promise path when no update-downloaded event is available', async () => {
     const updater = createUpdater();
     const openDownloadedUpdate = vi.fn();
+    const stageDownloadedUpdate = vi.fn().mockResolvedValue('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.22.exe');
     updater.checkForUpdates.mockResolvedValue({
       updateInfo: {
         version: '0.1.22'
@@ -226,6 +233,7 @@ describe('auto update channel', () => {
         currentVersion: '0.1.21',
         platform: 'darwin',
         updater,
+        stageDownloadedUpdate,
         openDownloadedUpdate
       })
     ).resolves.toMatchObject({
@@ -235,6 +243,40 @@ describe('auto update channel', () => {
       message: '更新包已下载，已打开安装界面。请按安装器提示完成更新'
     });
 
+    expect(stageDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe', '0.1.22');
+    expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.22.exe');
+  });
+
+  it('falls back to the updater cache installer when staging the copy fails', async () => {
+    const updater = createUpdater();
+    const openDownloadedUpdate = vi.fn();
+    const stageDownloadedUpdate = vi.fn().mockRejectedValue(new Error('copy failed'));
+    const logger = { warn: vi.fn() };
+    updater.checkForUpdates.mockResolvedValue({
+      updateInfo: {
+        version: '0.1.22'
+      },
+      downloadPromise: Promise.resolve(['C:\\Temp\\installer.exe'])
+    });
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: true,
+        isSmokeTest: false,
+        currentVersion: '0.1.21',
+        platform: 'win32',
+        updater,
+        logger,
+        stageDownloadedUpdate,
+        openDownloadedUpdate
+      })
+    ).resolves.toMatchObject({
+      status: 'downloaded',
+      currentVersion: '0.1.21',
+      availableVersion: '0.1.22'
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('保存安装包副本失败'));
     expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe');
   });
 });

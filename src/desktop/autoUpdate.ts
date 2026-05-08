@@ -1,5 +1,7 @@
 import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
+import { copyFile, mkdir } from 'node:fs/promises';
+import path from 'node:path';
 
 type AutoUpdaterLike = {
   autoDownload: boolean;
@@ -33,6 +35,7 @@ type CheckForUpdatesOptions = {
   updater: AutoUpdaterLike;
   logger?: Pick<Console, 'warn'>;
   onProgress?: (progress: DesktopUpdateProgress) => void;
+  stageDownloadedUpdate?: (filePath: string, version?: string) => string | Promise<string>;
   openDownloadedUpdate?: (filePath: string) => void | Promise<void>;
 };
 
@@ -152,7 +155,8 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
       });
 
       if (downloadedUpdatePath) {
-        await openDownloadedUpdate(downloadedUpdatePath, options);
+        const stagedUpdatePath = await stageDownloadedUpdate(downloadedUpdatePath, availableVersion, options);
+        await openDownloadedUpdate(stagedUpdatePath, options);
         return {
           status: 'downloaded',
           currentVersion: options.currentVersion,
@@ -208,6 +212,7 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     updater: autoUpdater,
     logger: console,
     onProgress,
+    stageDownloadedUpdate: copyDownloadedUpdateToDownloads,
     openDownloadedUpdate: async (filePath) => {
       const errorMessage = await shell.openPath(filePath);
       if (errorMessage) {
@@ -274,6 +279,35 @@ function getDownloadedFilePath(value: unknown): string | undefined {
   }
 
   return undefined;
+}
+
+async function stageDownloadedUpdate(
+  filePath: string,
+  version: string | undefined,
+  options: Pick<CheckForUpdatesOptions, 'logger' | 'stageDownloadedUpdate'>
+) {
+  try {
+    return (await options.stageDownloadedUpdate?.(filePath, version)) ?? filePath;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    options.logger?.warn(`[自动更新] 保存安装包副本失败，将使用原始安装包：${message}`);
+    return filePath;
+  }
+}
+
+async function copyDownloadedUpdateToDownloads(filePath: string, version?: string) {
+  const safeVersion = typeof version === 'string' && /^\d+\.\d+\.\d+/.test(version) ? version : 'latest';
+  const extension = path.extname(filePath) || (process.platform === 'darwin' ? '.dmg' : '.exe');
+  const targetDirectory = path.join(app.getPath('downloads'), '快捷翻译更新包');
+  const targetPath = path.join(targetDirectory, `Quick-Translate-${safeVersion}${extension}`);
+
+  if (path.resolve(filePath).toLowerCase() === path.resolve(targetPath).toLowerCase()) {
+    return filePath;
+  }
+
+  await mkdir(targetDirectory, { recursive: true });
+  await copyFile(filePath, targetPath);
+  return targetPath;
 }
 
 async function openDownloadedUpdate(filePath: string, options: Pick<CheckForUpdatesOptions, 'logger' | 'openDownloadedUpdate'>) {
