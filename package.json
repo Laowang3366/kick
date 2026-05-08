@@ -1,6 +1,6 @@
 {
   "name": "quick-translate",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "description": "Windows desktop and PWA quick translation tool.",
   "author": "wfq",
   "private": true,
@@ -89,6 +89,7 @@
       ]
     },
     "nsis": {
+      "include": "build/installer.nsh",
       "installerIcon": "build/icons/installer-icon.ico",
       "oneClick": false,
       "perMachine": false,
