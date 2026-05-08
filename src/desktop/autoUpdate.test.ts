@@ -290,12 +290,18 @@ describe('auto update channel', () => {
     await openInstallerDetached('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath
+      shellOpenPath,
+      launchDelaySeconds: 2
     });
 
     expect(launcher).toHaveBeenCalledWith(
       'cmd.exe',
-      ['/d', '/s', '/c', 'start', '""', 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe'],
+      [
+        '/d',
+        '/s',
+        '/c',
+        'timeout /t 2 /nobreak >nul & start "" "C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe"'
+      ],
       {
         detached: true,
         stdio: 'ignore',
@@ -318,6 +324,36 @@ describe('auto update channel', () => {
 
     expect(shellOpenPath).toHaveBeenCalledWith('/Users/wfq/Downloads/Quick-Translate-0.1.33.dmg');
     expect(launcher).not.toHaveBeenCalled();
+  });
+
+  it('can quit the running desktop app after opening the installer', async () => {
+    const updater = createUpdater();
+    const openDownloadedUpdate = vi.fn();
+    const quitAfterOpenDownloadedUpdate = vi.fn();
+    updater.checkForUpdates.mockResolvedValue({
+      updateInfo: {
+        version: '0.1.22'
+      },
+      downloadPromise: Promise.resolve(['C:\\Temp\\installer.exe'])
+    });
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: true,
+        isSmokeTest: false,
+        currentVersion: '0.1.21',
+        platform: 'win32',
+        updater,
+        openDownloadedUpdate,
+        quitAfterOpenDownloadedUpdate
+      })
+    ).resolves.toMatchObject({
+      status: 'downloaded',
+      availableVersion: '0.1.22'
+    });
+
+    expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe');
+    expect(quitAfterOpenDownloadedUpdate).toHaveBeenCalledOnce();
   });
 });
 

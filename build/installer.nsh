@@ -2,11 +2,19 @@
   DetailPrint "Closing running Quick Translate before install."
   nsExec::Exec `"$CmdPath" /C taskkill /IM "${APP_EXECUTABLE_FILENAME}"`
   Pop $0
-  Sleep 1200
+  nsExec::Exec `"$CmdPath" /C taskkill /IM "快捷翻译.exe"`
+  Pop $0
+  nsExec::Exec `"$CmdPath" /C taskkill /IM "quick-translate.exe"`
+  Pop $0
+  Sleep 1500
 
   nsExec::Exec `"$CmdPath" /C taskkill /F /IM "${APP_EXECUTABLE_FILENAME}"`
   Pop $0
-  Sleep 800
+  nsExec::Exec `"$CmdPath" /C taskkill /F /IM "快捷翻译.exe"`
+  Pop $0
+  nsExec::Exec `"$CmdPath" /C taskkill /F /IM "quick-translate.exe"`
+  Pop $0
+  Sleep 1200
 !macroend
 
 !macro customInit

@@ -38,6 +38,7 @@ type CheckForUpdatesOptions = {
   onProgress?: (progress: DesktopUpdateProgress) => void;
   stageDownloadedUpdate?: (filePath: string, version?: string) => string | Promise<string>;
   openDownloadedUpdate?: (filePath: string) => void | Promise<void>;
+  quitAfterOpenDownloadedUpdate?: () => void;
 };
 
 type InstallerLaunchOptions = {
@@ -52,6 +53,7 @@ type OpenInstallerOptions = {
   platform?: NodeJS.Platform;
   launcher?: InstallerLauncher;
   shellOpenPath?: (filePath: string) => Promise<string>;
+  launchDelaySeconds?: number;
 };
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
@@ -172,6 +174,7 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
       if (downloadedUpdatePath) {
         const stagedUpdatePath = await stageDownloadedUpdate(downloadedUpdatePath, availableVersion, options);
         await openDownloadedUpdate(stagedUpdatePath, options);
+        options.quitAfterOpenDownloadedUpdate?.();
         return {
           status: 'downloaded',
           currentVersion: options.currentVersion,
@@ -228,7 +231,8 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     logger: console,
     onProgress,
     stageDownloadedUpdate: copyDownloadedUpdateToDownloads,
-    openDownloadedUpdate: openInstallerDetached
+    openDownloadedUpdate: openInstallerDetached,
+    quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined
   });
 }
 
@@ -237,7 +241,9 @@ export async function openInstallerDetached(filePath: string, options: OpenInsta
 
   if (platform === 'win32') {
     const launcher = options.launcher ?? spawn;
-    const child = launcher('cmd.exe', ['/d', '/s', '/c', 'start', '""', filePath], {
+    const launchDelaySeconds = options.launchDelaySeconds ?? 2;
+    const command = `timeout /t ${launchDelaySeconds} /nobreak >nul & start "" "${filePath.replace(/"/g, '')}"`;
+    const child = launcher('cmd.exe', ['/d', '/s', '/c', command], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true
@@ -251,6 +257,13 @@ export async function openInstallerDetached(filePath: string, options: OpenInsta
   if (errorMessage) {
     throw new Error(errorMessage);
   }
+}
+
+function scheduleQuitAfterOpeningInstaller() {
+  const timer = setTimeout(() => {
+    app.quit();
+  }, 300);
+  timer.unref();
 }
 
 function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, 'warn'>) {
