@@ -118,10 +118,15 @@ async function collectAdditionalReleases({ releaseDir, version, skipFileNames, p
       continue;
     }
 
+    const artifactVersion = versionFromFileName(entry.name);
+    if (artifactVersion && artifactVersion !== version) {
+      continue;
+    }
+
     const filePath = path.join(releaseDir, entry.name);
     const fileStat = await stat(filePath);
     releases.push({
-      version: versionFromFileName(entry.name) || version,
+      version: artifactVersion || version,
       platform: inferPlatform(entry.name),
       fileName: entry.name,
       url: `${publicUpdateBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(entry.name)}`,
