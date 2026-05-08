@@ -132,7 +132,7 @@ describe('auto update channel', () => {
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
   });
 
-  it('reports downloaded when the packaged updater download completes', async () => {
+  it('quits and installs when the packaged updater download completes', async () => {
     const updater = createUpdater();
     updater.checkForUpdates.mockResolvedValue({
       updateInfo: {
@@ -152,10 +152,38 @@ describe('auto update channel', () => {
     ).resolves.toMatchObject({
       status: 'downloaded',
       currentVersion: '0.1.21',
-      availableVersion: '0.1.22'
+      availableVersion: '0.1.22',
+      message: '更新已下载，正在退出并安装'
     });
 
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
+    expect(updater.quitAndInstall).toHaveBeenCalledWith(true, true);
+  });
+
+  it('falls back to installing on app quit when quitAndInstall is unavailable', async () => {
+    const updater = createUpdater();
+    updater.quitAndInstall = undefined;
+    updater.checkForUpdates.mockResolvedValue({
+      updateInfo: {
+        version: '0.1.22'
+      },
+      downloadPromise: Promise.resolve(['installer'])
+    });
+
+    await expect(
+      checkForDesktopUpdates({
+        isPackaged: true,
+        isSmokeTest: false,
+        currentVersion: '0.1.21',
+        platform: 'darwin',
+        updater
+      })
+    ).resolves.toMatchObject({
+      status: 'downloaded',
+      currentVersion: '0.1.21',
+      availableVersion: '0.1.22',
+      message: '更新已下载，将在应用退出后安装'
+    });
   });
 });
 
@@ -166,6 +194,7 @@ function createUpdater() {
     checkForUpdates: vi.fn().mockResolvedValue(null),
     checkForUpdatesAndNotify: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
+    quitAndInstall: vi.fn(),
     setFeedURL: vi.fn()
   };
 }

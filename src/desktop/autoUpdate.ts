@@ -7,6 +7,7 @@ type AutoUpdaterLike = {
   checkForUpdates(): Promise<UpdateCheckResultLike | null>;
   checkForUpdatesAndNotify(): Promise<unknown>;
   on(eventName: 'error', listener: (error: Error) => void): unknown;
+  quitAndInstall?(isSilent?: boolean, isForceRunAfter?: boolean): void;
   setFeedURL?(options: { provider: 'generic'; url: string }): unknown;
 };
 
@@ -104,6 +105,16 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
 
     if (result.downloadPromise) {
       await result.downloadPromise;
+      if (options.updater.quitAndInstall) {
+        options.updater.quitAndInstall(true, true);
+        return {
+          status: 'downloaded',
+          currentVersion: options.currentVersion,
+          availableVersion,
+          message: '更新已下载，正在退出并安装'
+        };
+      }
+
       return {
         status: 'downloaded',
         currentVersion: options.currentVersion,

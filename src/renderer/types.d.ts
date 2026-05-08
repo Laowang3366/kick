@@ -37,8 +37,6 @@ declare global {
           | 'minimize'
           | 'toggle-maximize'
           | 'close'
-          | 'reload'
-          | 'toggle-devtools'
           | 'toggle-always-on-top'
           | 'toggle-floating-always-on-top'
           | 'minimize-floating-window'
@@ -47,7 +45,6 @@ declare global {
           | 'resize-floating-window-large'
           | 'show-main-window'
           | 'hide-floating-window'
-          | 'quit'
       ): Promise<boolean | void>;
     };
   }

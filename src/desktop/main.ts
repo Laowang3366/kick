@@ -427,12 +427,6 @@ function executeWindowControl(command: unknown) {
     case 'close':
       mainWindow?.close();
       break;
-    case 'reload':
-      mainWindow?.webContents.reload();
-      break;
-    case 'toggle-devtools':
-      mainWindow?.webContents.toggleDevTools();
-      break;
     case 'toggle-always-on-top': {
       if (!mainWindow) {
         return false;
@@ -465,10 +459,6 @@ function executeWindowControl(command: unknown) {
     case 'hide-floating-window':
       floatingWindow?.hide();
       break;
-    case 'quit':
-      isQuitting = true;
-      app.quit();
-      break;
   }
 }
 
@@ -476,8 +466,6 @@ type WindowControlCommand =
   | 'minimize'
   | 'toggle-maximize'
   | 'close'
-  | 'reload'
-  | 'toggle-devtools'
   | 'toggle-always-on-top'
   | 'toggle-floating-always-on-top'
   | 'minimize-floating-window'
@@ -485,16 +473,13 @@ type WindowControlCommand =
   | 'resize-floating-window-standard'
   | 'resize-floating-window-large'
   | 'show-main-window'
-  | 'hide-floating-window'
-  | 'quit';
+  | 'hide-floating-window';
 
 function normalizeWindowControlCommand(command: unknown): WindowControlCommand {
   if (
     command === 'minimize' ||
     command === 'toggle-maximize' ||
     command === 'close' ||
-    command === 'reload' ||
-    command === 'toggle-devtools' ||
     command === 'toggle-always-on-top' ||
     command === 'toggle-floating-always-on-top' ||
     command === 'minimize-floating-window' ||
@@ -502,8 +487,7 @@ function normalizeWindowControlCommand(command: unknown): WindowControlCommand {
     command === 'resize-floating-window-standard' ||
     command === 'resize-floating-window-large' ||
     command === 'show-main-window' ||
-    command === 'hide-floating-window' ||
-    command === 'quit'
+    command === 'hide-floating-window'
   ) {
     return command;
   }
