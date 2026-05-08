@@ -1735,32 +1735,56 @@ textarea::placeholder {
   .workspace {
     display: block;
     min-height: 0;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
   }
 
   .sidebar {
-    min-height: 72px;
-    flex-direction: row;
+    min-height: calc(72px + env(safe-area-inset-bottom));
+    width: 100%;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: grid;
     align-items: center;
-    padding: 12px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
     border-right: 0;
-    border-bottom: 1px solid rgba(31, 45, 66, 0.12);
+    border-top: 1px solid rgba(31, 45, 66, 0.12);
+    border-bottom: 0;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -12px 28px rgba(15, 23, 42, 0.08);
+    backdrop-filter: blur(14px);
   }
 
   .nav-list {
-    display: flex;
-    flex: 1;
-    gap: 8px;
+    width: min(100%, 640px);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 5px;
+    justify-self: center;
   }
 
   .nav-item {
-    min-height: 44px;
+    min-width: 0;
+    min-height: 56px;
+    flex-direction: column;
     justify-content: center;
-    padding: 0 12px;
+    gap: 4px;
+    border-radius: 10px;
+    padding: 6px 4px;
+    font-size: 12px;
   }
 
   .nav-item::before,
-  .shortcut-card {
+  .shortcut-card,
+  .theme-switch {
     display: none;
+  }
+
+  .nav-item svg {
+    width: 20px;
+    height: 20px;
   }
 
   .content-area {
@@ -1769,7 +1793,7 @@ textarea::placeholder {
     grid-template-rows: auto;
     align-content: start;
     overflow: visible;
-    padding: 18px;
+    padding: 18px 18px calc(100px + env(safe-area-inset-bottom));
   }
 
   .language-row {
@@ -1845,24 +1869,16 @@ textarea::placeholder {
   }
 
   .window-controls {
-    align-self: center;
-  }
-
-  .window-control {
-    width: 34px;
-    min-height: 40px;
+    display: none;
   }
 
   .sidebar {
-    display: grid;
-    grid-template-columns: 1fr;
     overflow: visible;
   }
 
   .nav-list {
     width: 100%;
     min-width: 0;
-    display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
   }
@@ -1879,13 +1895,9 @@ textarea::placeholder {
     height: 18px;
   }
 
-  .theme-switch {
-    display: none;
-  }
-
   .content-area {
     gap: 18px;
-    padding: 16px;
+    padding: 16px 16px calc(100px + env(safe-area-inset-bottom));
   }
 
   .library-view {
@@ -1934,5 +1946,11 @@ textarea::placeholder {
   .format-control {
     min-height: 54px;
     font-size: 16px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .window-controls {
+    display: none;
   }
 }

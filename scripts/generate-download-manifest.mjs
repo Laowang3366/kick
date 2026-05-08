@@ -54,7 +54,7 @@ await writeFile(
   outputPath,
   `${JSON.stringify(
     {
-      latestVersion: version,
+      latestVersion: releases[0]?.version ?? version,
       releases
     },
     null,

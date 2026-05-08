@@ -23,7 +23,7 @@ import {
   UserRound,
   X
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type TouchEvent } from 'react';
 import type { DesktopSettings } from '../desktop/desktopSettings';
 import { clearAccountSession, loadAccountSession, saveAccountSession, type AccountSession } from './accountSession';
 import { createCloudClient } from './cloudClient';
@@ -76,6 +76,10 @@ type RememberedAccount = {
   email: string;
   password: string;
 };
+
+const activeViewOrder: ActiveView[] = ['translate', 'history', 'favorites', 'settings', 'account'];
+const swipeThresholdPx = 72;
+const swipeDominanceRatio = 1.2;
 
 type NavItemProps = {
   active: boolean;
@@ -178,6 +182,7 @@ export function App() {
   const lastAutoTranslationKey = useRef('');
   const translationRequestId = useRef(0);
   const hasLoadedCloudState = useRef(false);
+  const contentSwipeStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     document.title = '快捷翻译';
@@ -710,6 +715,45 @@ export function App() {
     setAccountMessage('已退出账号，本地数据仍会保留');
   }
 
+  function switchActiveView(direction: -1 | 1) {
+    setActiveView((currentView) => {
+      const currentIndex = activeViewOrder.indexOf(currentView);
+      const nextIndex = Math.min(Math.max(currentIndex + direction, 0), activeViewOrder.length - 1);
+      return activeViewOrder[nextIndex];
+    });
+  }
+
+  function handleContentTouchStart(event: TouchEvent<HTMLElement>) {
+    if (event.touches.length !== 1) {
+      contentSwipeStart.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    contentSwipeStart.current = {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  }
+
+  function handleContentTouchEnd(event: TouchEvent<HTMLElement>) {
+    const start = contentSwipeStart.current;
+    const touch = event.changedTouches[0];
+    contentSwipeStart.current = null;
+
+    if (!start || !touch) {
+      return;
+    }
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < swipeThresholdPx || Math.abs(deltaX) < Math.abs(deltaY) * swipeDominanceRatio) {
+      return;
+    }
+
+    switchActiveView(deltaX < 0 ? 1 : -1);
+  }
+
   return (
     <main className="app-shell">
       <section className="window-frame" aria-label="快捷翻译">
@@ -810,7 +854,15 @@ export function App() {
             </button>
           </aside>
 
-          <section className="content-area">
+          <section
+            className="content-area"
+            aria-label="功能内容"
+            onTouchStart={handleContentTouchStart}
+            onTouchEnd={handleContentTouchEnd}
+            onTouchCancel={() => {
+              contentSwipeStart.current = null;
+            }}
+          >
             {activeView === 'translate' ? (
               <>
                 <div className="language-row">

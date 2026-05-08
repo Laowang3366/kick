@@ -339,6 +339,29 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '打开历史记录' })).not.toBeInTheDocument();
   });
 
+  it('switches modules by horizontal screen swipes', () => {
+    render(<App />);
+
+    const content = screen.getByLabelText('功能内容');
+    fireEvent.touchStart(content, {
+      touches: [{ clientX: 340, clientY: 220 }]
+    });
+    fireEvent.touchEnd(content, {
+      changedTouches: [{ clientX: 210, clientY: 230 }]
+    });
+
+    expect(screen.getByRole('heading', { name: '历史记录' })).toBeInTheDocument();
+
+    fireEvent.touchStart(content, {
+      touches: [{ clientX: 210, clientY: 220 }]
+    });
+    fireEvent.touchEnd(content, {
+      changedTouches: [{ clientX: 340, clientY: 230 }]
+    });
+
+    expect(screen.getByLabelText('原文')).toBeInTheDocument();
+  });
+
   it('does not render the decorative walking mascot at the bottom of the desktop app', () => {
     const { container } = render(<App />);
 

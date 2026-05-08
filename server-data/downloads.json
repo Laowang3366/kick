@@ -1,6 +1,15 @@
 {
-  "latestVersion": "0.1.20",
+  "latestVersion": "0.1.21",
   "releases": [
+    {
+      "version": "0.1.21",
+      "platform": "android",
+      "fileName": "快捷翻译 Android 0.1.21.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7%E7%BF%BB%E8%AF%91%20Android%200.1.21.apk",
+      "size": 3257097,
+      "sha512": "PHM3jxShFcJhmHUSOIjYr1hd5gMhbmfWR4HuNO6q7NcKcx4a6PBfX9jc6uIzrFZWem07OVqlwymEV5rrTyTz1A==",
+      "releaseDate": "2026-05-08T05:23:22.377Z"
+    },
     {
       "version": "0.1.20",
       "platform": "windows",
