@@ -221,4 +221,25 @@ describe('FloatingTranslateApp', () => {
       });
     });
   });
+
+  it('limits floating translation input to 30000 characters', () => {
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      onFloatingSourceCaptured: vi.fn(() => vi.fn()),
+      onSelectionCaptured: vi.fn(),
+      translateText: vi.fn(),
+      windowControl: vi.fn()
+    } as any;
+
+    render(<FloatingTranslateApp />);
+
+    const sourceInput = screen.getByLabelText('悬浮原文') as HTMLTextAreaElement;
+    fireEvent.change(sourceInput, {
+      target: { value: 'a'.repeat(30005) }
+    });
+
+    expect(sourceInput.value).toHaveLength(30000);
+    expect(screen.getByText('30000/30000')).toBeInTheDocument();
+  });
 });

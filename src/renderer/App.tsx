@@ -49,6 +49,7 @@ import {
   type TranslationFormat
 } from '../shared/translationFormats';
 import { canUseTranslationFormat, resolveTranslationFormat } from '../shared/translationFormatRules';
+import { limitTranslationText, maxTranslationTextLength } from '../shared/textLimits';
 import { translateText, type TranslateTextResult } from '../shared/translator';
 import { LanguagePicker } from './LanguagePicker';
 import { loadDefaultTargetLanguage, saveDefaultTargetLanguage } from './languagePreference';
@@ -64,6 +65,7 @@ import {
   ignoreUpdateVersion,
   installOrOpenUpdate,
   remindLater,
+  type UpdateInstallProgress,
   type UpdateCheckResult
 } from './updateCenter';
 import './styles.css';
@@ -75,14 +77,7 @@ type CopyNotice = {
   message: string;
   tone: 'success' | 'error';
 };
-type DesktopUpdateProgress = {
-  status: 'checking' | 'downloading' | 'downloaded' | 'error';
-  percent: number;
-  transferred?: number;
-  total?: number;
-  bytesPerSecond?: number;
-  message?: string;
-};
+type DesktopUpdateProgress = UpdateInstallProgress;
 type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 type WindowControlCommand =
   | 'minimize'
@@ -285,6 +280,7 @@ export function App() {
   const [activeView, setActiveView] = useState<ActiveView>('translate');
   const [historyEntries, setHistoryEntries] = useState<TranslationEntry[]>(loadHistoryEntries);
   const [favoriteIds, setFavoriteIds] = useState<string[]>(loadFavoriteIds);
+  const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([]);
   const [lastEntryId, setLastEntryId] = useState<string | null>(null);
   const [providerSettings] = useState(loadProviderSettings);
   const [desktopSettings, setDesktopSettingsState] = useState<DesktopSettings | null>(null);
@@ -392,6 +388,11 @@ export function App() {
   }, [historyEntries]);
 
   useEffect(() => {
+    const historyIdSet = new Set(historyEntries.map((entry) => entry.id));
+    setSelectedHistoryIds((ids) => ids.filter((id) => historyIdSet.has(id)));
+  }, [historyEntries]);
+
+  useEffect(() => {
     saveFavoriteIds(favoriteIds);
   }, [favoriteIds]);
 
@@ -470,18 +471,20 @@ export function App() {
 
   useEffect(() => {
     return window.quickTranslate?.onSelectionCaptured?.((text) => {
-      setSourceText(text);
+      const limitedText = limitTranslationText(text);
+      setSourceText(limitedText);
       setActiveView('translate');
-      void runTranslation(text, targetLanguage, translationFormat);
+      void runTranslation(limitedText, targetLanguage, translationFormat);
     });
   }, [targetLanguage, translationFormat, providerSettings]);
 
   useEffect(() => {
     const sharedText = readSharedTextFromUrl(window.location.href);
     if (sharedText) {
-      setSourceText(sharedText);
+      const limitedText = limitTranslationText(sharedText);
+      setSourceText(limitedText);
       setActiveView('translate');
-      void runTranslation(sharedText, targetLanguage, translationFormat);
+      void runTranslation(limitedText, targetLanguage, translationFormat);
     }
   }, []);
 
@@ -513,7 +516,8 @@ export function App() {
   }, [targetLanguage, translationFormat, providerSettings]);
 
   async function runTranslation(text = sourceText, language = targetLanguage, format = translationFormat) {
-    const normalizedText = text.trim();
+    const limitedText = limitTranslationText(text);
+    const normalizedText = limitedText.trim();
     if (!normalizedText) {
       translationRequestId.current += 1;
       lastAutoTranslationKey.current = '';
@@ -571,8 +575,9 @@ export function App() {
       (await navigator.clipboard?.readText?.().catch(() => '')) ??
       '';
 
-    setSourceText(capturedText);
-    await runTranslation(capturedText, targetLanguage, translationFormat);
+    const limitedText = limitTranslationText(capturedText);
+    setSourceText(limitedText);
+    await runTranslation(limitedText, targetLanguage, translationFormat);
   }
 
   async function copyResult() {
@@ -612,9 +617,10 @@ export function App() {
   }
 
   function handleSourceTextChange(text: string) {
-    setSourceText(text);
+    const limitedText = limitTranslationText(text);
+    setSourceText(limitedText);
 
-    if (!text.trim()) {
+    if (!limitedText.trim()) {
       clearCurrentTranslation();
     }
   }
@@ -647,14 +653,54 @@ export function App() {
   function deleteEntry(entryId: string) {
     setHistoryEntries((entries) => entries.filter((entry) => entry.id !== entryId));
     setFavoriteIds((ids) => ids.filter((id) => id !== entryId));
+    setSelectedHistoryIds((ids) => ids.filter((id) => id !== entryId));
     if (lastEntryId === entryId) {
       setLastEntryId(null);
     }
     setCopyNotice({ tone: 'success', message: '已删除记录' });
   }
 
+  function selectAllHistoryEntries() {
+    setSelectedHistoryIds(historyEntries.map((entry) => entry.id));
+  }
+
+  function clearHistorySelection() {
+    setSelectedHistoryIds([]);
+  }
+
+  function toggleHistorySelection(entryId: string) {
+    setSelectedHistoryIds((ids) => (ids.includes(entryId) ? ids.filter((id) => id !== entryId) : [...ids, entryId]));
+  }
+
+  function deleteSelectedHistoryEntries() {
+    if (selectedHistoryIds.length === 0) {
+      return;
+    }
+
+    const selectedIdSet = new Set(selectedHistoryIds);
+    setHistoryEntries((entries) => entries.filter((entry) => !selectedIdSet.has(entry.id)));
+    setFavoriteIds((ids) => ids.filter((id) => !selectedIdSet.has(id)));
+    if (lastEntryId && selectedIdSet.has(lastEntryId)) {
+      setLastEntryId(null);
+    }
+    setSelectedHistoryIds([]);
+    setCopyNotice({ tone: 'success', message: '已删除选中记录' });
+  }
+
+  function deleteAllHistoryEntries() {
+    if (historyEntries.length === 0) {
+      return;
+    }
+
+    setHistoryEntries([]);
+    setFavoriteIds([]);
+    setSelectedHistoryIds([]);
+    setLastEntryId(null);
+    setCopyNotice({ tone: 'success', message: '已清空历史记录' });
+  }
+
   function restoreEntry(entry: TranslationEntry) {
-    setSourceText(entry.sourceText);
+    setSourceText(limitTranslationText(entry.sourceText));
     changeTargetLanguage(entry.targetLanguage);
     changeTranslationFormat(entry.translationFormat);
     setResult({
@@ -818,24 +864,24 @@ export function App() {
     }
 
     setIsInstallingUpdate(true);
-    if (desktopUpdatePlatforms.has(updateCheck.release.platform)) {
-      setUpdateProgress({
-        status: 'checking',
-        percent: 0,
-        message: '正在准备更新'
-      });
-    } else {
-      setUpdateProgress(null);
-    }
+    setUpdateProgress({
+      status: 'checking',
+      percent: 0,
+      message: '正在准备更新'
+    });
 
     try {
-      const message = await installOrOpenUpdate(updateCheck.release);
-      if (desktopUpdatePlatforms.has(updateCheck.release.platform)) {
+      const message = await installOrOpenUpdate(updateCheck.release, (progress) => {
+        setUpdateProgress(normalizeDesktopUpdateProgress(progress));
+      });
+      if (desktopUpdatePlatforms.has(updateCheck.release.platform) || updateCheck.release.platform === 'android') {
         setUpdateProgress(
-          message.includes('已下载') || message.includes('更新包')
+          message.includes('已下载') || message.includes('更新包') || message.includes('安装') || message.includes('确认页')
             ? { status: 'downloaded', percent: 100, message }
             : null
         );
+      } else {
+        setUpdateProgress(null);
       }
       setCopyNotice({ tone: 'success', message });
     } catch (error) {
@@ -1055,6 +1101,18 @@ export function App() {
   const customFloatingShortcutLabel = customFloatingShortcutAccelerator
     ? formatShortcutAcceleratorLabel(customFloatingShortcutAccelerator)
     : '点击后按下新的组合键';
+  const latestVersionLabel =
+    updateCheck?.status === 'available' || updateCheck?.status === 'ignored'
+      ? updateCheck.release.version
+      : updateCheck?.status === 'current'
+        ? updateCheck.latestVersion ?? updateCheck.currentVersion
+        : updateCheck?.status === 'failed'
+          ? '检查失败'
+          : '检查中';
+  const floatingShortcutLabel = getFloatingTranslateShortcutLabel(normalizedFloatingShortcut);
+  const isFloatingShortcutEnabled = normalizedFloatingShortcut !== 'disabled';
+  const defaultTargetLanguageLabel = getLanguageLabel(defaultTargetLanguage);
+  const defaultTranslationFormatLabel = getTranslationFormatLabel(translationFormat);
 
   return (
     <main className="app-shell">
@@ -1171,7 +1229,7 @@ export function App() {
             }}
           >
             {activeView === 'translate' ? (
-              <>
+              <section className="translate-view" aria-label="翻译">
                 <div className="translate-grid">
                   <section className="text-panel source-panel" aria-label="原文面板">
                     <div className="panel-meta">
@@ -1189,10 +1247,11 @@ export function App() {
                       onChange={(event) => handleSourceTextChange(event.target.value)}
                       onKeyDown={handleSourceTextKeyDown}
                       placeholder="输入或粘贴需要翻译的文本"
+                      maxLength={maxTranslationTextLength}
                       rows={10}
                     />
                     <div className="panel-footer">
-                      <span>{sourceLength} / 5000</span>
+                      <span>{sourceLength} / {maxTranslationTextLength}</span>
                       <button className="panel-action" type="button" onClick={clearText} aria-label="清空原文">
                         <X size={18} />
                         <span>清空</span>
@@ -1271,7 +1330,39 @@ export function App() {
                     </div>
                   </section>
                 </div>
-              </>
+                <section className="translate-settings-summary" aria-label="当前设置信息">
+                  <article>
+                    <span>悬浮翻译</span>
+                    <strong>{isFloatingShortcutEnabled ? '已开启' : '已关闭'}</strong>
+                    <small>{floatingShortcutLabel}</small>
+                  </article>
+                  <article>
+                    <span>版本</span>
+                    <strong>当前 {currentAppVersion}</strong>
+                    <small>最新 {latestVersionLabel}</small>
+                  </article>
+                  <article>
+                    <span>默认目标语言</span>
+                    <strong>{defaultTargetLanguageLabel}</strong>
+                    <small>设置页保存后同步到翻译页</small>
+                  </article>
+                  <article>
+                    <span>开机自启</span>
+                    <strong>{desktopSettings?.launchAtLogin ? '已开启' : '未开启'}</strong>
+                    <small>{desktopSettings ? '桌面端设置' : '安装版可用'}</small>
+                  </article>
+                  <article>
+                    <span>关闭隐藏到托盘</span>
+                    <strong>{desktopSettings?.hideToTrayOnClose ? '已开启' : '未开启'}</strong>
+                    <small>后台保留快捷翻译</small>
+                  </article>
+                  <article>
+                    <span>默认翻译格式</span>
+                    <strong>{defaultTranslationFormatLabel}</strong>
+                    <small>仅英文目标语言可用</small>
+                  </article>
+                </section>
+              </section>
             ) : null}
 
             {activeView === 'history' ? (
@@ -1280,9 +1371,15 @@ export function App() {
                 emptyText="还没有翻译历史"
                 entries={historyEntries}
                 favoriteIds={favoriteIds}
+                selectedIds={selectedHistoryIds}
                 onRestore={restoreEntry}
                 onDelete={deleteEntry}
                 onToggleFavorite={toggleEntryFavorite}
+                onToggleSelected={toggleHistorySelection}
+                onSelectAll={selectAllHistoryEntries}
+                onClearSelection={clearHistorySelection}
+                onDeleteSelected={deleteSelectedHistoryEntries}
+                onDeleteAll={deleteAllHistoryEntries}
               />
             ) : null}
 
@@ -1708,19 +1805,34 @@ function LibraryView({
   emptyText,
   entries,
   favoriteIds,
+  selectedIds = [],
   onRestore,
   onDelete,
-  onToggleFavorite
+  onToggleFavorite,
+  onToggleSelected,
+  onSelectAll,
+  onClearSelection,
+  onDeleteSelected,
+  onDeleteAll
 }: {
   title: string;
   emptyText: string;
   entries: TranslationEntry[];
   favoriteIds: string[];
+  selectedIds?: string[];
   onRestore: (entry: TranslationEntry) => void;
   onDelete: (entryId: string) => void;
   onToggleFavorite: (entryId: string) => void;
+  onToggleSelected?: (entryId: string) => void;
+  onSelectAll?: () => void;
+  onClearSelection?: () => void;
+  onDeleteSelected?: () => void;
+  onDeleteAll?: () => void;
 }) {
   const listLabel = title.endsWith('列表') ? title : `${title}列表`;
+  const selectionEnabled = Boolean(onToggleSelected);
+  const selectedCount = selectedIds.length;
+  const allSelected = entries.length > 0 && selectedCount === entries.length;
 
   return (
     <section className="library-view" aria-label={title}>
@@ -1730,40 +1842,72 @@ function LibraryView({
       </div>
 
       {entries.length > 0 ? (
-        <div className="entry-list" role="list" aria-label={listLabel}>
-          {entries.map((entry) => {
-            const isFavorite = favoriteIds.includes(entry.id);
-
-            return (
-              <div className="entry-row" role="listitem" key={entry.id}>
-                <button className="entry-card" type="button" onClick={() => onRestore(entry)}>
-                  <span className="entry-time">{entry.createdAt}</span>
-                  <strong>{entry.sourceText}</strong>
-                  <span>{entry.translatedText}</span>
-                  <small>
-                    {entry.targetLabel}
-                    {entry.translationFormat !== 'plain' ? ` · ${entry.formatLabel}` : ''}
-                    {isFavorite ? ' · 已收藏' : ''}
-                  </small>
+        <div className="library-content">
+          {selectionEnabled ? (
+            <div className="library-toolbar" aria-label="历史记录批量操作">
+              <span>已选 {selectedCount} / {entries.length}</span>
+              <div>
+                <button type="button" onClick={onSelectAll} disabled={allSelected}>
+                  全选
                 </button>
-                <div className="entry-actions" aria-label="记录操作">
-                  <button
-                    className={`entry-action-button${isFavorite ? ' active' : ''}`}
-                    type="button"
-                    onClick={() => onToggleFavorite(entry.id)}
-                    aria-label={isFavorite ? '取消收藏' : '收藏译文'}
-                  >
-                    {isFavorite ? <StarOff size={17} /> : <Star size={17} />}
-                    <span>{isFavorite ? '取消收藏' : '收藏'}</span>
-                  </button>
-                  <button className="entry-action-button danger" type="button" onClick={() => onDelete(entry.id)} aria-label="删除记录">
-                    <Trash2 size={17} />
-                    <span>删除</span>
-                  </button>
-                </div>
+                <button type="button" onClick={onClearSelection} disabled={selectedCount === 0}>
+                  取消选择
+                </button>
+                <button className="danger" type="button" onClick={onDeleteSelected} disabled={selectedCount === 0}>
+                  删除选中
+                </button>
+                <button className="danger" type="button" onClick={onDeleteAll}>
+                  全部删除
+                </button>
               </div>
-            );
-          })}
+            </div>
+          ) : null}
+          <div className="entry-list" role="list" aria-label={listLabel}>
+            {entries.map((entry) => {
+              const isFavorite = favoriteIds.includes(entry.id);
+              const isSelected = selectedIds.includes(entry.id);
+
+              return (
+                <div className={`entry-row${selectionEnabled ? ' selectable' : ''}`} role="listitem" key={entry.id}>
+                  {selectionEnabled ? (
+                    <label className="entry-select">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        aria-label={`选择历史记录 ${entry.sourceText}`}
+                        onChange={() => onToggleSelected?.(entry.id)}
+                      />
+                    </label>
+                  ) : null}
+                  <button className="entry-card" type="button" onClick={() => onRestore(entry)}>
+                    <span className="entry-time">{entry.createdAt}</span>
+                    <strong>{entry.sourceText}</strong>
+                    <span>{entry.translatedText}</span>
+                    <small>
+                      {entry.targetLabel}
+                      {entry.translationFormat !== 'plain' ? ` · ${entry.formatLabel}` : ''}
+                      {isFavorite ? ' · 已收藏' : ''}
+                    </small>
+                  </button>
+                  <div className="entry-actions" aria-label="记录操作">
+                    <button
+                      className={`entry-action-button${isFavorite ? ' active' : ''}`}
+                      type="button"
+                      onClick={() => onToggleFavorite(entry.id)}
+                      aria-label={isFavorite ? '取消收藏' : '收藏译文'}
+                    >
+                      {isFavorite ? <StarOff size={17} /> : <Star size={17} />}
+                      <span>{isFavorite ? '取消收藏' : '收藏'}</span>
+                    </button>
+                    <button className="entry-action-button danger" type="button" onClick={() => onDelete(entry.id)} aria-label="删除记录">
+                      <Trash2 size={17} />
+                      <span>删除</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <p className="empty-state">{emptyText}</p>

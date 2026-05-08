@@ -674,8 +674,8 @@
                 <strong>原文</strong>
                 <span id="demo-source-language" class="detected-language">自动检测</span>
               </div>
-              <textarea id="demo-source" class="demo-source" rows="10" placeholder="输入或粘贴需要翻译的文本">Hello, welcome to Quick Translate.</textarea>
-              <div class="demo-panel-foot"><span id="demo-source-count">0 / 5000</span></div>
+              <textarea id="demo-source" class="demo-source" rows="10" maxlength="30000" placeholder="输入或粘贴需要翻译的文本">Hello, welcome to Quick Translate.</textarea>
+              <div class="demo-panel-foot"><span id="demo-source-count">0 / 30000</span></div>
             </section>
             <section class="demo-panel" aria-label="译文">
               <div class="demo-panel-head">
@@ -835,7 +835,7 @@
 
       function updateDemoMeta() {
         const text = demoSource.value;
-        demoSourceCount.textContent = `${text.length} / 5000`;
+        demoSourceCount.textContent = `${text.length} / 30000`;
         demoSourceLanguage.textContent = detectSourceLanguage(text);
         demoTargetLanguageLabel.textContent = languageLabels[demoTargetLanguage.value] || demoTargetLanguage.value;
       }

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { DesktopSettings } from '../desktop/desktopSettings';
 import { getLanguageBadge, languageOptions, normalizeTargetLanguage } from '../shared/languages';
 import { canUseTranslationFormat, resolveTranslationFormat } from '../shared/translationFormatRules';
+import { limitTranslationText, maxTranslationTextLength } from '../shared/textLimits';
 import {
   getTranslationFormatLabel,
   normalizeTranslationFormat,
@@ -88,13 +89,14 @@ export function FloatingTranslateApp() {
       setTranslationFormat(nextFormat);
       targetLanguageRef.current = nextLanguage;
       translationFormatRef.current = nextFormat;
-      setSourceText(payload.text);
-      void runTranslation(payload.text, nextLanguage, nextFormat);
+      const limitedText = limitTranslationText(payload.text);
+      setSourceText(limitedText);
+      void runTranslation(limitedText, nextLanguage, nextFormat);
     });
   }, [providerSettings]);
 
   async function runTranslation(text = sourceText, language = targetLanguageRef.current, format = translationFormatRef.current) {
-    const normalizedText = text.trim();
+    const normalizedText = limitTranslationText(text).trim();
     const effectiveFormat = resolveTranslationFormat(language, format);
 
     if (!normalizedText) {
@@ -245,10 +247,11 @@ export function FloatingTranslateApp() {
             value={sourceText}
             aria-label="悬浮原文"
             placeholder="输入或粘贴需要翻译的文本"
-            onChange={(event) => setSourceText(event.target.value)}
+            maxLength={maxTranslationTextLength}
+            onChange={(event) => setSourceText(limitTranslationText(event.target.value))}
           />
           <div className="floating-card-footer">
-            <span>{sourceText.length}/5000</span>
+            <span>{sourceText.length}/{maxTranslationTextLength}</span>
             <label className={`floating-format-select${canSelectTranslationFormat ? '' : ' disabled'}`} aria-disabled={!canSelectTranslationFormat}>
               <Code2 size={16} aria-hidden="true" />
               <strong>{selectedTranslationFormat}</strong>

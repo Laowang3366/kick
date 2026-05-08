@@ -14,6 +14,15 @@ export type DownloadRelease = {
   releaseDate?: string;
 };
 
+export type UpdateInstallProgress = {
+  status: 'checking' | 'downloading' | 'downloaded' | 'error';
+  percent: number;
+  transferred?: number;
+  total?: number;
+  bytesPerSecond?: number;
+  message?: string;
+};
+
 export type UpdateState = {
   ignoredVersion?: string;
   remindLaterUntil?: number;
@@ -32,6 +41,10 @@ type CapacitorGlobal = {
   getPlatform?: () => string;
   Plugins?: {
     UpdateInstaller?: {
+      addListener?: (
+        eventName: 'downloadProgress',
+        callback: (progress: unknown) => void
+      ) => Promise<{ remove: () => Promise<void> | void }>;
       installUpdateApk?: (input: { url: string; sha512?: string }) => Promise<unknown>;
     };
   };
@@ -140,12 +153,35 @@ export async function checkForAppUpdates(): Promise<UpdateCheckResult> {
   }
 }
 
-export async function installOrOpenUpdate(release: DownloadRelease) {
+export async function installOrOpenUpdate(release: DownloadRelease, onProgress?: (progress: UpdateInstallProgress) => void) {
   if (release.platform === 'android') {
-    const installUpdateApk = getCapacitor()?.Plugins?.UpdateInstaller?.installUpdateApk;
+    const updateInstaller = getCapacitor()?.Plugins?.UpdateInstaller;
+    const installUpdateApk = updateInstaller?.installUpdateApk;
     if (installUpdateApk) {
-      await installUpdateApk({ url: release.url, sha512: release.sha512 });
-      return '已打开系统安装确认页';
+      const listener = await updateInstaller?.addListener?.('downloadProgress', (progress) => {
+        onProgress?.(normalizeInstallProgress(progress));
+      });
+
+      try {
+        onProgress?.({
+          status: 'downloading',
+          percent: 0,
+          transferred: 0,
+          total: release.size,
+          message: '正在下载更新'
+        });
+        await installUpdateApk({ url: release.url, sha512: release.sha512 });
+        onProgress?.({
+          status: 'downloaded',
+          percent: 100,
+          transferred: release.size,
+          total: release.size,
+          message: '更新包下载完成，正在打开安装界面'
+        });
+        return '已打开系统安装确认页';
+      } finally {
+        await listener?.remove();
+      }
     }
   }
 
@@ -218,6 +254,28 @@ function toVersionParts(value: string) {
 
 function stringOrEmpty(value: unknown) {
   return typeof value === 'string' ? value : '';
+}
+
+function normalizeInstallProgress(value: unknown): UpdateInstallProgress {
+  const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const status = isUpdateProgressStatus(record.status) ? record.status : 'downloading';
+  const percent = typeof record.percent === 'number' && Number.isFinite(record.percent) ? record.percent : 0;
+  return {
+    status,
+    percent: Math.min(100, Math.max(0, percent)),
+    transferred: numberOrUndefined(record.transferred),
+    total: numberOrUndefined(record.total),
+    bytesPerSecond: numberOrUndefined(record.bytesPerSecond),
+    message: stringOrEmpty(record.message) || undefined
+  };
+}
+
+function isUpdateProgressStatus(value: unknown): value is UpdateInstallProgress['status'] {
+  return value === 'checking' || value === 'downloading' || value === 'downloaded' || value === 'error';
+}
+
+function numberOrUndefined(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function getCapacitor() {

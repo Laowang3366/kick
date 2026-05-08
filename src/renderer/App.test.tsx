@@ -7,6 +7,7 @@ import { DEFAULT_TARGET_LANGUAGE_STORAGE_KEY } from './languagePreference';
 import { FAVORITE_IDS_STORAGE_KEY, TRANSLATION_HISTORY_STORAGE_KEY } from './libraryStorage';
 import { THEME_STORAGE_KEY } from './themePreference';
 import { DEFAULT_TRANSLATION_FORMAT_STORAGE_KEY } from './translationFormatPreference';
+import { currentAppVersion } from './updateCenter';
 
 describe('App', () => {
   afterEach(() => {
@@ -330,10 +331,84 @@ describe('App', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
   });
 
+  it('selects and deletes history entries in bulk', async () => {
+    localStorage.setItem(
+      TRANSLATION_HISTORY_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: 'entry-1',
+          provider: 'openai-compatible',
+          sourceText: 'first',
+          translatedText: '第一条',
+          targetLanguage: 'zh-CN',
+          createdAt: '10:00',
+          targetLabel: '简体中文',
+          translationFormat: 'plain',
+          formatLabel: '普通翻译'
+        },
+        {
+          id: 'entry-2',
+          provider: 'openai-compatible',
+          sourceText: 'second',
+          translatedText: '第二条',
+          targetLanguage: 'zh-CN',
+          createdAt: '10:01',
+          targetLabel: '简体中文',
+          translationFormat: 'plain',
+          formatLabel: '普通翻译'
+        },
+        {
+          id: 'entry-3',
+          provider: 'openai-compatible',
+          sourceText: 'third',
+          translatedText: '第三条',
+          targetLanguage: 'zh-CN',
+          createdAt: '10:02',
+          targetLabel: '简体中文',
+          translationFormat: 'plain',
+          formatLabel: '普通翻译'
+        }
+      ])
+    );
+    localStorage.setItem(FAVORITE_IDS_STORAGE_KEY, JSON.stringify(['entry-1']));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+
+    expect(screen.getByText('已选 0 / 3')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '全选' }));
+    expect(screen.getByText('已选 3 / 3')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '取消选择' }));
+    expect(screen.getByText('已选 0 / 3')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('选择历史记录 first'));
+    fireEvent.click(screen.getByRole('button', { name: '删除选中' }));
+    expect(screen.queryByText('第一条')).not.toBeInTheDocument();
+    expect(screen.getByText('已选 0 / 2')).toBeInTheDocument();
+    expect(localStorage.getItem(FAVORITE_IDS_STORAGE_KEY)).not.toContain('entry-1');
+
+    fireEvent.click(screen.getByRole('button', { name: '全部删除' }));
+    expect(screen.getByText('还没有翻译历史')).toBeInTheDocument();
+  });
+
+  it('limits translation input to 30000 characters', () => {
+    render(<App />);
+
+    const sourceInput = screen.getByLabelText('原文') as HTMLTextAreaElement;
+    fireEvent.change(sourceInput, {
+      target: { value: 'a'.repeat(30005) }
+    });
+
+    expect(sourceInput.value).toHaveLength(30000);
+    expect(screen.getByText('30000 / 30000')).toBeInTheDocument();
+  });
+
   it('shows the lower mouse side button as the shortcut entry point', () => {
     render(<App />);
 
-    expect(screen.getByText('鼠标下侧键')).toBeInTheDocument();
+    expect(screen.getAllByText('鼠标下侧键').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: '翻译剪贴板' })).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: '翻译格式' })).toBeInTheDocument();
   });
@@ -943,6 +1018,35 @@ describe('App', () => {
     });
   });
 
+  it('shows current settings information in the translate view', async () => {
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      onDesktopSettingsChanged: vi.fn(),
+      onSelectionCaptured: vi.fn(),
+      getDesktopSettings: vi.fn().mockResolvedValue({
+        mouseButton4Enabled: true,
+        floatingTranslateShortcut: 'ctrl-alt-t',
+        launchAtLogin: true,
+        hideToTrayOnClose: false,
+        defaultTargetLanguage: 'en-US',
+        defaultTranslationFormat: 'java-camel-case'
+      })
+    } as any;
+
+    render(<App />);
+
+    const summary = screen.getByLabelText('当前设置信息');
+    await waitFor(() => {
+      expect(summary).toHaveTextContent('默认目标语言英语');
+    });
+    expect(summary).toHaveTextContent('悬浮翻译已开启Ctrl + Alt + T');
+    expect(summary).toHaveTextContent('开机自启已开启');
+    expect(summary).toHaveTextContent('关闭隐藏到托盘未开启');
+    expect(summary).toHaveTextContent('默认翻译格式Java 驼峰命名');
+    expect(summary).toHaveTextContent(`当前 ${currentAppVersion}`);
+  });
+
   it('translates clipboard text when the lower mouse side button is released in the app window', async () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn().mockResolvedValue('Hello world'),
@@ -1067,7 +1171,7 @@ describe('App', () => {
       expect(checkForUpdates).toHaveBeenCalledOnce();
     });
     expect(open).toHaveBeenCalledWith('https://example.com/quick-translate.exe', '_blank', 'noopener,noreferrer');
-    expect(screen.getByText('应用内更新不可用，已打开安装包下载页')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('应用内更新不可用，已打开安装包下载页');
   });
 
   it('shows desktop update download progress from the desktop bridge', async () => {
@@ -1125,11 +1229,24 @@ describe('App', () => {
   });
 
   it('installs Android APK updates through the Capacitor plugin', async () => {
-    const installUpdateApk = vi.fn().mockResolvedValue(undefined);
+    let progressListener: ((progress: unknown) => void) | undefined;
+    let resolveInstall: (() => void) | undefined;
+    const removeListener = vi.fn();
+    const addListener = vi.fn((eventName: string, listener: (progress: unknown) => void) => {
+      progressListener = listener;
+      return Promise.resolve({ remove: removeListener });
+    });
+    const installUpdateApk = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveInstall = resolve;
+        })
+    );
     (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
       getPlatform: () => 'android',
       Plugins: {
         UpdateInstaller: {
+          addListener,
           installUpdateApk
         }
       }
@@ -1162,6 +1279,29 @@ describe('App', () => {
         sha512: 'sha512-value'
       });
     });
+    expect(addListener).toHaveBeenCalledWith('downloadProgress', expect.any(Function));
+
+    act(() => {
+      progressListener?.({
+        status: 'downloading',
+        percent: 42,
+        transferred: 42_000,
+        total: 100_000,
+        message: '正在下载更新'
+      });
+    });
+
+    expect(screen.getByText('正在下载更新 42%')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: '更新进度' })).toHaveAttribute('aria-valuenow', '42');
+
+    act(() => {
+      resolveInstall?.();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('已打开系统安装确认页');
+    });
+    expect(removeListener).toHaveBeenCalledOnce();
   });
 
   it('opens the APK download URL when the Android install plugin is unavailable', async () => {
