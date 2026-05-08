@@ -229,8 +229,11 @@ export function App() {
 
   useEffect(() => {
     return window.quickTranslate?.onDesktopSettingsChanged?.((settings) => {
+      const normalizedTargetLanguage = normalizeTargetLanguage(settings.defaultTargetLanguage);
       setDesktopSettingsState(settings);
-      setDefaultTargetLanguage(normalizeTargetLanguage(settings.defaultTargetLanguage));
+      setDefaultTargetLanguage(normalizedTargetLanguage);
+      setTargetLanguage(normalizedTargetLanguage);
+      hasSelectedTargetLanguage.current = false;
       setTranslationFormat(normalizeTranslationFormat(settings.defaultTranslationFormat));
     });
   }, []);
@@ -578,6 +581,8 @@ export function App() {
     if (settings.defaultTargetLanguage) {
       const defaultTargetLanguage = saveDefaultTargetLanguage(settings.defaultTargetLanguage);
       setDefaultTargetLanguage(defaultTargetLanguage);
+      setTargetLanguage(defaultTargetLanguage);
+      hasSelectedTargetLanguage.current = false;
       settings = { ...settings, defaultTargetLanguage };
     }
 

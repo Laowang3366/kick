@@ -812,6 +812,9 @@ describe('App', () => {
         defaultTargetLanguage: 'ja-JP'
       });
     });
+    fireEvent.click(screen.getByRole('button', { name: '翻译视图' }));
+    expect(screen.getByRole('button', { name: '目标语言：日语' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
     fireEvent.change(screen.getByLabelText('翻译格式'), {
       target: { value: 'java-camel-case' }
