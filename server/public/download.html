@@ -505,7 +505,7 @@
     </section>
 
     <script>
-      const backendBase = location.pathname.replace(/\/download\/?$/, '') || '';
+      const backendBase = resolveBackendBase();
       const assetBase = `${backendBase}/assets/`;
       document.querySelectorAll('img[data-asset]').forEach((image) => {
         image.src = `${assetBase}${image.dataset.asset}`;
@@ -650,6 +650,15 @@
 
       function apiUrl(pathname) {
         return `${backendBase}${pathname}`;
+      }
+
+      function resolveBackendBase() {
+        const pathname = location.pathname.replace(/\/+$/, '') || '/';
+        if (pathname === '/') {
+          return '/quick-translate/backend';
+        }
+
+        return pathname.replace(/\/download$/, '') || '/quick-translate/backend';
       }
 
       function formatSize(size) {
