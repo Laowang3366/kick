@@ -1,6 +1,6 @@
 {
   "name": "quick-translate",
-  "version": "0.1.25",
+  "version": "0.1.26",
   "description": "Windows desktop and PWA quick translation tool.",
   "author": "wfq",
   "private": true,
