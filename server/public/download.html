@@ -673,7 +673,7 @@
       function platformOf(release) {
         const explicitPlatform = String(release.platform || release.os || '').toLowerCase();
         if (explicitPlatform) {
-          return explicitPlatform;
+          return explicitPlatform === 'mac' ? 'macos' : explicitPlatform;
         }
 
         const fileName = String(release.fileName || '').toLowerCase();
@@ -689,8 +689,21 @@
         return 'windows';
       }
 
-      function renderPlatformDownloads(releases) {
-        const appUrl = `${backendBase}/app/`;
+      function currentDevicePlatform() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        if (userAgent.includes('android')) {
+          return 'android';
+        }
+        if (/iphone|ipad|ipod/.test(userAgent)) {
+          return 'ios';
+        }
+        if (userAgent.includes('macintosh') || userAgent.includes('mac os x')) {
+          return 'macos';
+        }
+        return 'windows';
+      }
+
+      function newestReleaseByPlatform(releases) {
         const newestByPlatform = new Map();
         releases.forEach((release) => {
           const platform = platformOf(release);
@@ -698,6 +711,17 @@
             newestByPlatform.set(platform, release);
           }
         });
+        return newestByPlatform;
+      }
+
+      function pickPrimaryRelease(releases) {
+        const newestByPlatform = newestReleaseByPlatform(releases);
+        return newestByPlatform.get(currentDevicePlatform()) || releases[0];
+      }
+
+      function renderPlatformDownloads(releases) {
+        const appUrl = `${backendBase}/app/`;
+        const newestByPlatform = newestReleaseByPlatform(releases);
 
         const platforms = [
           {
@@ -717,9 +741,10 @@
           {
             key: 'android',
             title: 'Android 移动端',
-            description: '移动端以可安装 Web App 适配，打开后可添加到主屏幕。',
-            action: '打开安装入口',
-            fallbackHref: appUrl
+            description: '原生 APK 安装包，登录后可同步历史、收藏和设置。',
+            action: '下载 APK',
+            fallbackHref: appUrl,
+            fallbackAction: '打开 Web 版'
           },
           {
             key: 'ios',
@@ -746,7 +771,9 @@
             ? `${release.version} · ${formatSize(release.size)}`
             : platform.key === 'macos'
               ? '原生安装包待 macOS 构建生成'
-              : '使用移动端 Web App';
+              : platform.key === 'android'
+                ? 'APK 待发布'
+                : '使用移动端 Web App';
           const link = document.createElement(href ? 'a' : 'button');
           link.textContent = release ? platform.action : platform.fallbackAction || platform.action;
           if (href) {
@@ -765,7 +792,7 @@
         .then((response) => response.json())
         .then((manifest) => {
           const releases = Array.isArray(manifest.releases) ? manifest.releases : [];
-          const latest = releases[0];
+          const latest = pickPrimaryRelease(releases);
           const latestTitle = document.querySelector('#latest-title');
           const latestFile = document.querySelector('#latest-file');
           const latestSize = document.querySelector('#latest-size');
