@@ -33,7 +33,7 @@ export function createFloatingWindowOptions(input: { preloadPath: string }): Bro
     maximizable: false,
     minimizable: true,
     movable: true,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     skipTaskbar: true,
     title: '悬浮翻译',
     backgroundColor: '#f8fbff',

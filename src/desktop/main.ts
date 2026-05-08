@@ -208,6 +208,7 @@ async function runFloatingSmokeCheck() {
     smokeResult.floatingShellBackground === 'rgb(255, 255, 255)' &&
     smokeResult.floatingCardBorderTopWidth === '0px' &&
     smokeResult.floatingCardBoxShadow === 'none' &&
+    window.isAlwaysOnTop() === false &&
     isRecord(smokeResult.sessionPreferenceResult) &&
     smokeResult.sessionPreferenceResult.targetLanguage === 'en-US' &&
     smokeResult.sessionPreferenceResult.translationFormat === 'java-camel-case';

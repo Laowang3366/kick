@@ -4,6 +4,7 @@ import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { keepLatestVersions } from './downloadManifestRetention.mjs';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const releaseDir = path.join(projectRoot, 'release');
@@ -45,12 +46,12 @@ const existingManifest = await readExistingManifest(outputPath);
 const newReleases = [release, ...additionalReleases];
 const newReleaseKeys = new Set(newReleases.map(releaseKey));
 const replacedReleaseTargets = new Set(newReleases.map(releaseTargetKey));
-const releases = [
+const releases = keepLatestVersions([
   ...newReleases,
   ...existingManifest.releases.filter(
     (item) => !newReleaseKeys.has(releaseKey(item)) && !replacedReleaseTargets.has(releaseTargetKey(item))
   )
-].sort((left, right) => compareVersions(right.version, left.version));
+], 2);
 
 await mkdir(dataDir, { recursive: true });
 await writeFile(
@@ -156,16 +157,4 @@ function releaseTargetKey(release) {
 
 function versionFromFileName(fileName) {
   return fileName.match(/\d+\.\d+\.\d+/)?.[0] ?? '';
-}
-
-function compareVersions(left, right) {
-  const leftParts = left.split('.').map(Number);
-  const rightParts = right.split('.').map(Number);
-  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
-    const diff = (leftParts[index] || 0) - (rightParts[index] || 0);
-    if (diff !== 0) {
-      return diff;
-    }
-  }
-  return 0;
 }

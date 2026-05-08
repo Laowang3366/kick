@@ -82,7 +82,7 @@ describe('FloatingTranslateApp', () => {
       }),
       setFloatingSessionPreferences: vi.fn(),
       translateText: vi.fn(),
-      windowControl: vi.fn().mockResolvedValue(false)
+      windowControl: vi.fn().mockResolvedValueOnce(true)
     } as any;
 
     render(<FloatingTranslateApp />);
@@ -98,15 +98,15 @@ describe('FloatingTranslateApp', () => {
       translationFormat: 'plain'
     });
 
-    const pinButton = screen.getByRole('button', { name: '取消悬浮窗置顶' });
-    expect(pinButton).toHaveAttribute('aria-pressed', 'true');
+    const pinButton = screen.getByRole('button', { name: '置顶悬浮窗' });
+    expect(pinButton).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(pinButton);
 
     await waitFor(() => {
       expect(window.quickTranslate?.windowControl).toHaveBeenCalledWith('toggle-floating-always-on-top');
     });
-    expect(screen.getByRole('button', { name: '置顶悬浮窗' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: '取消悬浮窗置顶' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('minimizes the floating window from the title bar', async () => {

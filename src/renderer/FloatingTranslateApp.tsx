@@ -36,7 +36,7 @@ export function FloatingTranslateApp() {
   const [status, setStatus] = useState<FloatingStatus>('idle');
   const [error, setError] = useState('');
   const [result, setResult] = useState<TranslateTextResult | null>(null);
-  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [floatingSize, setFloatingSize] = useState<FloatingSize>('standard');
   const [notice, setNotice] = useState<FloatingNotice | null>(null);
   const [providerSettings] = useState(loadProviderSettings);
