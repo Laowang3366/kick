@@ -726,7 +726,7 @@ export function App() {
       const message = await installOrOpenUpdate(updateCheck.release);
       if (desktopUpdatePlatforms.has(updateCheck.release.platform)) {
         setUpdateProgress(
-          message.includes('已下载') || message.includes('正在退出')
+          message.includes('已下载') || message.includes('更新包')
             ? { status: 'downloaded', percent: 100, message }
             : null
         );
@@ -896,6 +896,9 @@ export function App() {
   }
 
   const isUpdateBusy = isCheckingUpdate || isInstallingUpdate;
+  const isDesktopReleaseUpdate =
+    (updateCheck?.status === 'available' || updateCheck?.status === 'ignored') &&
+    desktopUpdatePlatforms.has(updateCheck.release.platform);
   const updateProgressPercent = Math.round(updateProgress?.percent ?? 0);
   const updateProgressLabel =
     updateProgress?.status === 'checking'
@@ -1223,7 +1226,7 @@ export function App() {
                         disabled={isUpdateBusy || updateCheck?.status !== 'available'}
                       >
                         <RefreshCw size={20} />
-                        <span>立即更新</span>
+                        <span>{isDesktopReleaseUpdate ? '下载更新包' : '立即更新'}</span>
                       </button>
                       <button
                         className="settings-action"

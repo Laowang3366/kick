@@ -879,7 +879,7 @@ describe('App', () => {
 
     expect(await screen.findByText('发现新版本')).toBeInTheDocument();
     expect(screen.getByText('版本 0.1.27')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '立即更新' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '下载更新包' })).toBeEnabled();
   });
 
   it('keeps an ignored update version in local storage', async () => {
@@ -911,7 +911,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
     expect(await screen.findByText('已忽略本版本')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '立即更新' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '下载更新包' })).toBeDisabled();
   });
 
   it('opens the desktop installer URL when the packaged updater is unavailable', async () => {
@@ -946,7 +946,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
     expect(await screen.findByText('版本 0.1.27')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '立即更新' }));
+    fireEvent.click(screen.getByRole('button', { name: '下载更新包' }));
 
     await waitFor(() => {
       expect(checkForUpdates).toHaveBeenCalledOnce();

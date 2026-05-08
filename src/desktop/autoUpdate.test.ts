@@ -16,7 +16,7 @@ describe('auto update channel', () => {
     ).toBe(false);
 
     expect(schedule).not.toHaveBeenCalled();
-    expect(updater.checkForUpdatesAndNotify).not.toHaveBeenCalled();
+    expect(updater.checkForUpdates).not.toHaveBeenCalled();
   });
 
   it('does not check for updates during smoke tests', () => {
@@ -35,7 +35,7 @@ describe('auto update channel', () => {
     expect(schedule).not.toHaveBeenCalled();
   });
 
-  it('enables automatic download and schedules a packaged update check', () => {
+  it('checks packaged updates without background download or install', () => {
     const updater = createUpdater();
     const schedule = vi.fn((callback: () => void) => {
       callback();
@@ -51,15 +51,15 @@ describe('auto update channel', () => {
       })
     ).toBe(true);
 
-    expect(updater.autoDownload).toBe(true);
-    expect(updater.autoInstallOnAppQuit).toBe(true);
+    expect(updater.autoDownload).toBe(false);
+    expect(updater.autoInstallOnAppQuit).toBe(false);
     expect(updater.setFeedURL).toHaveBeenCalledWith({
       provider: 'generic',
       url: 'https://sg.lwvpscc.top/quick-translate/updates/latest'
     });
     expect(updater.on).toHaveBeenCalledWith('error', expect.any(Function));
     expect(schedule).toHaveBeenCalledWith(expect.any(Function), 8000);
-    expect(updater.checkForUpdatesAndNotify).toHaveBeenCalledOnce();
+    expect(updater.checkForUpdates).toHaveBeenCalledOnce();
   });
 
   it('does not run renderer-requested checks outside packaged runs', async () => {
@@ -124,7 +124,7 @@ describe('auto update channel', () => {
     });
 
     expect(updater.autoDownload).toBe(true);
-    expect(updater.autoInstallOnAppQuit).toBe(true);
+    expect(updater.autoInstallOnAppQuit).toBe(false);
     expect(updater.setFeedURL).toHaveBeenCalledWith({
       provider: 'generic',
       url: 'https://sg.lwvpscc.top/quick-translate/updates/latest'
@@ -132,13 +132,19 @@ describe('auto update channel', () => {
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
   });
 
-  it('quits and installs when the packaged updater download completes', async () => {
+  it('reveals the downloaded installer when the packaged updater download completes', async () => {
     const updater = createUpdater();
+    const revealDownloadedUpdate = vi.fn();
     const progressEvents: unknown[] = [];
     let downloadProgressListener: ((progress: unknown) => void) | undefined;
     updater.on.mockImplementation((eventName: string, listener: (...args: unknown[]) => void) => {
       if (eventName === 'download-progress') {
         downloadProgressListener = listener;
+      }
+      if (eventName === 'update-downloaded') {
+        listener({
+          downloadedFile: 'C:\\Users\\wfq\\AppData\\Local\\quick-translate-updater\\installer.exe'
+        });
       }
       return undefined;
     });
@@ -164,18 +170,23 @@ describe('auto update channel', () => {
         currentVersion: '0.1.21',
         platform: 'darwin',
         updater,
+        revealDownloadedUpdate,
         onProgress: (progress) => progressEvents.push(progress)
       })
     ).resolves.toMatchObject({
       status: 'downloaded',
       currentVersion: '0.1.21',
       availableVersion: '0.1.22',
-      message: '更新已下载，正在退出并安装'
+      message: '更新包已下载，已打开安装包所在文件夹。请退出快捷翻译后手动运行安装包完成更新'
     });
 
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
-    expect(updater.quitAndInstall).toHaveBeenCalledWith(true, true);
+    expect(updater.autoInstallOnAppQuit).toBe(false);
+    expect(revealDownloadedUpdate).toHaveBeenCalledWith(
+      'C:\\Users\\wfq\\AppData\\Local\\quick-translate-updater\\installer.exe'
+    );
     expect(updater.removeListener).toHaveBeenCalledWith('download-progress', expect.any(Function));
+    expect(updater.removeListener).toHaveBeenCalledWith('update-downloaded', expect.any(Function));
     expect(progressEvents).toEqual([
       {
         status: 'checking',
@@ -198,14 +209,14 @@ describe('auto update channel', () => {
     ]);
   });
 
-  it('falls back to installing on app quit when quitAndInstall is unavailable', async () => {
+  it('uses the downloaded promise path when no update-downloaded event is available', async () => {
     const updater = createUpdater();
-    updater.quitAndInstall = undefined;
+    const revealDownloadedUpdate = vi.fn();
     updater.checkForUpdates.mockResolvedValue({
       updateInfo: {
         version: '0.1.22'
       },
-      downloadPromise: Promise.resolve(['installer'])
+      downloadPromise: Promise.resolve(['C:\\Temp\\installer.exe'])
     });
 
     await expect(
@@ -214,14 +225,17 @@ describe('auto update channel', () => {
         isSmokeTest: false,
         currentVersion: '0.1.21',
         platform: 'darwin',
-        updater
+        updater,
+        revealDownloadedUpdate
       })
     ).resolves.toMatchObject({
       status: 'downloaded',
       currentVersion: '0.1.21',
       availableVersion: '0.1.22',
-      message: '更新已下载，将在应用退出后安装'
+      message: '更新包已下载，已打开安装包所在文件夹。请退出快捷翻译后手动运行安装包完成更新'
     });
+
+    expect(revealDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe');
   });
 });
 
@@ -230,9 +244,7 @@ function createUpdater() {
     autoDownload: false,
     autoInstallOnAppQuit: false,
     checkForUpdates: vi.fn().mockResolvedValue(null),
-    checkForUpdatesAndNotify: vi.fn().mockResolvedValue(undefined),
     on: vi.fn(),
-    quitAndInstall: vi.fn(),
     removeListener: vi.fn(),
     setFeedURL: vi.fn()
   };

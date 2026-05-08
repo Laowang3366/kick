@@ -1,13 +1,11 @@
-import { app } from 'electron';
+import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
 
 type AutoUpdaterLike = {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
   checkForUpdates(): Promise<UpdateCheckResultLike | null>;
-  checkForUpdatesAndNotify(): Promise<unknown>;
   on(eventName: string, listener: (...args: unknown[]) => void): unknown;
-  quitAndInstall?(isSilent?: boolean, isForceRunAfter?: boolean): void;
   removeListener?(eventName: string, listener: (...args: unknown[]) => void): unknown;
   setFeedURL?(options: { provider: 'generic'; url: string }): unknown;
 };
@@ -35,6 +33,7 @@ type CheckForUpdatesOptions = {
   updater: AutoUpdaterLike;
   logger?: Pick<Console, 'warn'>;
   onProgress?: (progress: DesktopUpdateProgress) => void;
+  revealDownloadedUpdate?: (filePath: string) => void | Promise<void>;
 };
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
@@ -64,15 +63,15 @@ export function configureAutoUpdates(options: ConfigureAutoUpdatesOptions): bool
   }
 
   configureUpdaterFeed(options.updater, options.logger);
-  options.updater.autoDownload = true;
-  options.updater.autoInstallOnAppQuit = true;
+  options.updater.autoDownload = false;
+  options.updater.autoInstallOnAppQuit = false;
   options.updater.on('error', (error) => {
     const message = error instanceof Error ? error.message : String(error);
     options.logger?.warn(`[自动更新] 检查失败：${message}`);
   });
 
   options.schedule(() => {
-    void options.updater.checkForUpdatesAndNotify().catch((error: unknown) => {
+    void options.updater.checkForUpdates().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       options.logger?.warn(`[自动更新] 检查失败：${message}`);
     });
@@ -99,18 +98,23 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
   }
 
   options.updater.autoDownload = true;
-  options.updater.autoInstallOnAppQuit = true;
+  options.updater.autoInstallOnAppQuit = false;
   configureUpdaterFeed(options.updater, options.logger);
 
   let hasDownloadProgressEvent = false;
+  let downloadedUpdatePath: string | undefined;
   const progressListener = (progress: unknown) => {
     hasDownloadProgressEvent = true;
     options.onProgress?.(normalizeDownloadProgress(progress));
+  };
+  const downloadedListener = (event: unknown) => {
+    downloadedUpdatePath = getDownloadedFilePath(event) ?? downloadedUpdatePath;
   };
 
   if (options.onProgress) {
     options.updater.on('download-progress', progressListener);
   }
+  options.updater.on('update-downloaded', downloadedListener);
 
   try {
     options.onProgress?.({
@@ -139,20 +143,21 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
           message: '正在下载更新'
         });
       }
-      await result.downloadPromise;
+      const downloadedFiles = await result.downloadPromise;
+      downloadedUpdatePath = downloadedUpdatePath ?? getDownloadedFilePath(downloadedFiles);
       options.onProgress?.({
         status: 'downloaded',
         percent: 100,
         message: '更新已下载'
       });
 
-      if (options.updater.quitAndInstall) {
-        options.updater.quitAndInstall(true, true);
+      if (downloadedUpdatePath) {
+        await revealDownloadedUpdate(downloadedUpdatePath, options);
         return {
           status: 'downloaded',
           currentVersion: options.currentVersion,
           availableVersion,
-          message: '更新已下载，正在退出并安装'
+          message: '更新包已下载，已打开安装包所在文件夹。请退出快捷翻译后手动运行安装包完成更新'
         };
       }
 
@@ -160,7 +165,7 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
         status: 'downloaded',
         currentVersion: options.currentVersion,
         availableVersion,
-        message: '更新已下载，将在应用退出后安装'
+        message: '更新包已下载。请退出快捷翻译后手动运行安装包完成更新'
       };
     }
 
@@ -188,6 +193,7 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
     if (options.onProgress) {
       options.updater.removeListener?.('download-progress', progressListener);
     }
+    options.updater.removeListener?.('update-downloaded', downloadedListener);
   }
 }
 
@@ -201,7 +207,10 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     platform: process.platform,
     updater: autoUpdater,
     logger: console,
-    onProgress
+    onProgress,
+    revealDownloadedUpdate: (filePath) => {
+      shell.showItemInFolder(filePath);
+    }
   });
 }
 
@@ -245,6 +254,32 @@ function numberOrUndefined(value: unknown) {
 
 function clampPercent(value: number) {
   return Math.min(100, Math.max(0, value));
+}
+
+function getDownloadedFilePath(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.find((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  }
+
+  if (value && typeof value === 'object') {
+    const downloadedFile = (value as Record<string, unknown>).downloadedFile;
+    return typeof downloadedFile === 'string' && downloadedFile.trim() ? downloadedFile : undefined;
+  }
+
+  return undefined;
+}
+
+async function revealDownloadedUpdate(filePath: string, options: Pick<CheckForUpdatesOptions, 'logger' | 'revealDownloadedUpdate'>) {
+  try {
+    await options.revealDownloadedUpdate?.(filePath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    options.logger?.warn(`[自动更新] 打开安装包位置失败：${message}`);
+  }
 }
 
 export function startAutoUpdates(isSmokeTest: boolean) {
