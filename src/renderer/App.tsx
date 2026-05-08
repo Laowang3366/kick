@@ -1048,33 +1048,6 @@ export function App() {
           >
             {activeView === 'translate' ? (
               <>
-                <div className="translation-format-row">
-                  <label
-                    className={`format-control translation-format-control${canSelectTranslationFormat ? '' : ' disabled'}`}
-                    aria-disabled={!canSelectTranslationFormat}
-                  >
-                    <Languages size={22} aria-hidden="true" />
-                    <span className="format-control-text">
-                      <span>翻译格式</span>
-                      <strong>{selectedTranslationFormat}</strong>
-                    </span>
-                    {canSelectTranslationFormat ? <ChevronDown size={18} aria-hidden="true" /> : null}
-                    <select
-                      className="format-control-select"
-                      value={activeTranslationFormat}
-                      aria-label="翻译格式"
-                      disabled={!canSelectTranslationFormat}
-                      onChange={(event) => selectTranslationFormat(event.target.value)}
-                    >
-                      {translationFormatOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
                 <div className="translate-grid">
                   <section className="text-panel source-panel" aria-label="原文面板">
                     <div className="panel-meta">
@@ -1116,12 +1089,34 @@ export function App() {
                   <section className="text-panel result-panel" aria-live="polite" aria-label="译文面板">
                     <div className="result-meta">
                       <span className="panel-title">译文</span>
-                      <LanguagePicker
-                        ariaLabel="目标语言"
-                        value={targetLanguage}
-                        onChange={changeTargetLanguage}
-                        className="panel-language-picker"
-                      />
+                      <div className="result-header-actions">
+                        <LanguagePicker
+                          ariaLabel="目标语言"
+                          value={targetLanguage}
+                          onChange={changeTargetLanguage}
+                          className="panel-language-picker"
+                        />
+                        <label
+                          className={`result-format-control${canSelectTranslationFormat ? '' : ' disabled'}`}
+                          aria-disabled={!canSelectTranslationFormat}
+                        >
+                          <strong>翻译格式 {selectedTranslationFormat}</strong>
+                          {canSelectTranslationFormat ? <ChevronDown size={15} aria-hidden="true" /> : null}
+                          <select
+                            className="format-control-select"
+                            value={activeTranslationFormat}
+                            aria-label="翻译格式"
+                            disabled={!canSelectTranslationFormat}
+                            onChange={(event) => selectTranslationFormat(event.target.value)}
+                          >
+                            {translationFormatOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
                     </div>
 
                     <div className="result-body">

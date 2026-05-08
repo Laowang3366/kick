@@ -336,14 +336,15 @@ describe('App', () => {
     expect(screen.getByRole('combobox', { name: '翻译格式' })).toBeInTheDocument();
   });
 
-  it('places language chips in panel headers and keeps translation format in the toolbar', () => {
+  it('places language chips and translation format controls in panel headers', () => {
     render(<App />);
 
     const formatSelect = screen.getByRole('combobox', { name: '翻译格式' });
 
-    expect(formatSelect.closest('.translation-format-row')).toBeInTheDocument();
+    expect(formatSelect.closest('.result-format-control')).toBeInTheDocument();
+    expect(formatSelect.closest('.result-header-actions')).toBeInTheDocument();
     expect(screen.getByLabelText('检测到的源语言：自动检测').closest('.panel-meta')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '目标语言：简体中文' }).closest('.result-meta')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '目标语言：简体中文' }).closest('.result-header-actions')).toBeInTheDocument();
     expect(screen.queryByLabelText('翻译操作')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '翻译' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '复制' })).not.toBeInTheDocument();
@@ -507,7 +508,7 @@ describe('App', () => {
 
     expect(document.title).toBe('快捷翻译');
     expect(screen.getByRole('heading', { name: '快捷翻译' })).toBeInTheDocument();
-    expect(screen.getByText('翻译格式')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '翻译格式' })).toBeInTheDocument();
     expect(screen.getByLabelText('检测到的源语言：自动检测')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '目标语言：简体中文' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '翻译视图' })).toBeInTheDocument();

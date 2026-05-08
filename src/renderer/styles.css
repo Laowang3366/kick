@@ -634,18 +634,6 @@ h1 {
   font-size: 14px;
 }
 
-.translation-format-row {
-  display: grid;
-  grid-template-columns: var(--translation-panel-columns);
-  gap: var(--translation-column-gap);
-  align-items: end;
-}
-
-.translation-format-control {
-  grid-column: 3;
-  width: 100%;
-}
-
 .translate-grid {
   min-height: 0;
   display: grid;
@@ -796,6 +784,15 @@ textarea::placeholder {
   flex: 0 0 auto;
 }
 
+.result-header-actions {
+  min-width: 0;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .result-meta strong {
   min-width: 0;
   overflow: hidden;
@@ -809,14 +806,14 @@ textarea::placeholder {
 
 .result-format-control {
   min-width: 0;
-  max-width: min(76%, 280px);
+  max-width: 168px;
   position: relative;
   display: inline-grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: end;
   gap: 4px;
-  flex: 1 1 auto;
+  flex: 0 1 168px;
   color: #0d66d8;
   cursor: pointer;
 }
@@ -845,14 +842,15 @@ textarea::placeholder {
 }
 
 .panel-language-picker {
-  flex: 0 1 auto;
-  max-width: 68%;
+  min-width: 0;
+  max-width: 190px;
+  flex: 0 1 190px;
 }
 
 .panel-language-picker .language-trigger {
-  width: auto;
+  width: 100%;
   min-height: 32px;
-  grid-template-columns: 26px minmax(0, auto) 16px;
+  grid-template-columns: 26px minmax(0, 1fr) 16px;
   gap: 7px;
   border-color: transparent;
   border-radius: 8px;
@@ -874,6 +872,10 @@ textarea::placeholder {
 }
 
 .panel-language-picker .language-trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #0d66d8;
   font-size: 13px;
   font-weight: 800;
@@ -2049,14 +2051,6 @@ textarea::placeholder {
     gap: 22px;
   }
 
-  .translation-format-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .translation-format-control {
-    grid-column: auto;
-  }
-
   .language-row .language-field:nth-child(2) {
     grid-column: auto;
   }
@@ -2161,7 +2155,6 @@ textarea::placeholder {
   }
 
   .language-row,
-  .translation-format-row,
   .command-bar,
   .settings-action-grid,
   .update-card,
@@ -2179,7 +2172,16 @@ textarea::placeholder {
     gap: 10px;
   }
 
+  .result-header-actions {
+    gap: 8px;
+  }
+
   .panel-language-picker,
+  .result-format-control {
+    flex-basis: calc(50% - 4px);
+    max-width: calc(50% - 4px);
+  }
+
   .source-language-chip {
     max-width: 58%;
   }
