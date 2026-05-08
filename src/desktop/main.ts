@@ -65,7 +65,7 @@ async function createWindow() {
   mainWindow.setMenuBarVisibility(false);
 
   mainWindow.on('close', (event) => {
-    if (desktopSettings.hideToTrayOnClose && !isQuitting && !isSmokeTest) {
+    if (mainWindow?.isFocused() && desktopSettings.hideToTrayOnClose && !isQuitting && !isSmokeTest) {
       event.preventDefault();
       mainWindow?.hide();
     }
@@ -427,6 +427,13 @@ function executeWindowControl(command: unknown) {
     case 'close':
       mainWindow?.close();
       break;
+    case 'hide-main-window':
+      if (desktopSettings.hideToTrayOnClose && !isSmokeTest) {
+        mainWindow?.hide();
+      } else {
+        mainWindow?.close();
+      }
+      break;
     case 'toggle-always-on-top': {
       if (!mainWindow) {
         return false;
@@ -466,6 +473,7 @@ type WindowControlCommand =
   | 'minimize'
   | 'toggle-maximize'
   | 'close'
+  | 'hide-main-window'
   | 'toggle-always-on-top'
   | 'toggle-floating-always-on-top'
   | 'minimize-floating-window'
@@ -480,6 +488,7 @@ function normalizeWindowControlCommand(command: unknown): WindowControlCommand {
     command === 'minimize' ||
     command === 'toggle-maximize' ||
     command === 'close' ||
+    command === 'hide-main-window' ||
     command === 'toggle-always-on-top' ||
     command === 'toggle-floating-always-on-top' ||
     command === 'minimize-floating-window' ||

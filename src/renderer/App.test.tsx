@@ -761,7 +761,7 @@ describe('App', () => {
 
     expect(windowControl).toHaveBeenNthCalledWith(1, 'minimize');
     expect(windowControl).toHaveBeenNthCalledWith(2, 'toggle-maximize');
-    expect(windowControl).toHaveBeenNthCalledWith(3, 'close');
+    expect(windowControl).toHaveBeenNthCalledWith(3, 'hide-main-window');
   });
 
   it('toggles always-on-top from the title bar and defaults to not pinned', async () => {
@@ -957,7 +957,7 @@ describe('App', () => {
 
     expect(await screen.findByText('发现新版本')).toBeInTheDocument();
     expect(screen.getByText('版本 0.1.29')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '下载更新包' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '下载并安装' })).toBeEnabled();
   });
 
   it('keeps an ignored update version in local storage', async () => {
@@ -989,7 +989,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
 
     expect(await screen.findByText('已忽略本版本')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '下载更新包' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '下载并安装' })).toBeDisabled();
   });
 
   it('opens the desktop installer URL when the packaged updater is unavailable', async () => {
@@ -1024,7 +1024,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
     expect(await screen.findByText('版本 0.1.29')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '下载更新包' }));
+    fireEvent.click(screen.getByRole('button', { name: '下载并安装' }));
 
     await waitFor(() => {
       expect(checkForUpdates).toHaveBeenCalledOnce();

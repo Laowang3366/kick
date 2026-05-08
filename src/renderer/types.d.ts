@@ -47,6 +47,7 @@ declare global {
           | 'minimize'
           | 'toggle-maximize'
           | 'close'
+          | 'hide-main-window'
           | 'toggle-always-on-top'
           | 'toggle-floating-always-on-top'
           | 'minimize-floating-window'

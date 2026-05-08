@@ -78,7 +78,7 @@ type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 type WindowControlCommand =
   | 'minimize'
   | 'toggle-maximize'
-  | 'close'
+  | 'hide-main-window'
   | 'toggle-always-on-top';
 
 type TranslationEntry = StoredTranslationEntry;
@@ -968,7 +968,12 @@ export function App() {
             >
               <Maximize2 size={15} />
             </button>
-            <button className="window-control close" type="button" aria-label="关闭窗口" onClick={() => runWindowCommand('close')}>
+            <button
+              className="window-control close"
+              type="button"
+              aria-label="关闭窗口"
+              onClick={() => runWindowCommand('hide-main-window')}
+            >
               <X size={18} />
             </button>
           </div>
@@ -1243,7 +1248,7 @@ export function App() {
                         disabled={isUpdateBusy || updateCheck?.status !== 'available'}
                       >
                         <RefreshCw size={20} />
-                        <span>{isDesktopReleaseUpdate ? '下载更新包' : '立即更新'}</span>
+                        <span>{isDesktopReleaseUpdate ? '下载并安装' : '立即更新'}</span>
                       </button>
                       <button
                         className="settings-action"

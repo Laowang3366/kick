@@ -33,7 +33,7 @@ type CheckForUpdatesOptions = {
   updater: AutoUpdaterLike;
   logger?: Pick<Console, 'warn'>;
   onProgress?: (progress: DesktopUpdateProgress) => void;
-  revealDownloadedUpdate?: (filePath: string) => void | Promise<void>;
+  openDownloadedUpdate?: (filePath: string) => void | Promise<void>;
 };
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
@@ -152,12 +152,12 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
       });
 
       if (downloadedUpdatePath) {
-        await revealDownloadedUpdate(downloadedUpdatePath, options);
+        await openDownloadedUpdate(downloadedUpdatePath, options);
         return {
           status: 'downloaded',
           currentVersion: options.currentVersion,
           availableVersion,
-          message: '更新包已下载，已打开安装包所在文件夹。请退出快捷翻译后手动运行安装包完成更新'
+          message: '更新包已下载，已打开安装界面。请按安装器提示完成更新'
         };
       }
 
@@ -165,7 +165,7 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
         status: 'downloaded',
         currentVersion: options.currentVersion,
         availableVersion,
-        message: '更新包已下载。请退出快捷翻译后手动运行安装包完成更新'
+        message: '更新包已下载。请在下载目录中手动运行安装包完成更新'
       };
     }
 
@@ -208,8 +208,11 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     updater: autoUpdater,
     logger: console,
     onProgress,
-    revealDownloadedUpdate: (filePath) => {
-      shell.showItemInFolder(filePath);
+    openDownloadedUpdate: async (filePath) => {
+      const errorMessage = await shell.openPath(filePath);
+      if (errorMessage) {
+        throw new Error(errorMessage);
+      }
     }
   });
 }
@@ -273,12 +276,12 @@ function getDownloadedFilePath(value: unknown): string | undefined {
   return undefined;
 }
 
-async function revealDownloadedUpdate(filePath: string, options: Pick<CheckForUpdatesOptions, 'logger' | 'revealDownloadedUpdate'>) {
+async function openDownloadedUpdate(filePath: string, options: Pick<CheckForUpdatesOptions, 'logger' | 'openDownloadedUpdate'>) {
   try {
-    await options.revealDownloadedUpdate?.(filePath);
+    await options.openDownloadedUpdate?.(filePath);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    options.logger?.warn(`[自动更新] 打开安装包位置失败：${message}`);
+    options.logger?.warn(`[自动更新] 打开安装包失败：${message}`);
   }
 }
 
