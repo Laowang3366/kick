@@ -1,6 +1,24 @@
 {
-  "latestVersion": "0.1.37",
+  "latestVersion": "0.1.38",
   "releases": [
+    {
+      "version": "0.1.38",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.38.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.38.exe",
+      "size": 106015518,
+      "sha512": "98/b1V/30Uvuct+Ejodb+EqIO/z7gFPdpt7niDOyZNNxsGNtw7JqUz1Y6N303kmfNC+HZRYHLH7l2SnY2voPPQ==",
+      "releaseDate": "2026-05-08T16:53:10.009Z"
+    },
+    {
+      "version": "0.1.38",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.38.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.38.apk",
+      "size": 3264389,
+      "sha512": "7v1upTwuzVSeEEuhkccN4yI8UKxQy8ygawZ4UrgXP/GnO14+6vU0AhWc1ndMuLEaOz/gV/yN1xN8kBEXK+f6Dw==",
+      "releaseDate": "2026-05-08T16:53:10.009Z"
+    },
     {
       "version": "0.1.37",
       "platform": "windows",
