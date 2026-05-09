@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   ChevronDown,
+  CloudDownload,
   CloudUpload,
   Copy,
   History,
@@ -977,13 +978,13 @@ export function App() {
     setAccountMessage('请联系管理员在后台用户管理中重置密码。');
   }
 
-  async function loadCloudState(session: AccountSession) {
+  async function loadCloudState(session: AccountSession, options: { replaceLocalState?: boolean } = {}) {
     try {
       const state = await cloudClient.loadState(session.token);
-      if (state.history.length > 0) {
+      if (options.replaceLocalState || state.history.length > 0) {
         setHistoryEntries(state.history);
       }
-      if (state.favoriteIds.length > 0) {
+      if (options.replaceLocalState || state.favoriteIds.length > 0) {
         setFavoriteIds(state.favoriteIds);
       }
       if (state.settings.defaultTargetLanguage) {
@@ -1027,6 +1028,24 @@ export function App() {
     } catch (error) {
       setSyncStatus('error');
       setAccountMessage(error instanceof Error ? error.message : '手动备份失败，本地数据已保留');
+    }
+  }
+
+  async function restoreAccountState() {
+    if (!accountSession) {
+      return;
+    }
+
+    setSyncStatus('syncing');
+    setAccountMessage('正在从云端恢复数据');
+
+    try {
+      await loadCloudState(accountSession, { replaceLocalState: true });
+      setSyncStatus('success');
+      setAccountMessage('云端数据已恢复');
+    } catch (error) {
+      setSyncStatus('error');
+      setAccountMessage(error instanceof Error ? error.message : '云端恢复失败，本地数据已保留');
     }
   }
 
@@ -1658,6 +1677,15 @@ export function App() {
                       >
                         <CloudUpload size={20} />
                         <span>手动备份</span>
+                      </button>
+                      <button
+                        className="settings-action"
+                        type="button"
+                        onClick={restoreAccountState}
+                        disabled={syncStatus === 'syncing'}
+                      >
+                        <CloudDownload size={20} />
+                        <span>云端恢复</span>
                       </button>
                       <button className="settings-action danger" type="button" onClick={logoutAccount}>
                         <LogOut size={20} />

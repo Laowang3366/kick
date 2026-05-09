@@ -806,6 +806,93 @@ describe('App', () => {
     });
   });
 
+  it('manually restores cloud history, favorites, and settings from the account center', async () => {
+    localStorage.setItem(
+      TRANSLATION_HISTORY_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: 'local-entry',
+          provider: 'openai-compatible',
+          sourceText: 'local',
+          translatedText: '本地',
+          targetLanguage: 'zh-CN',
+          createdAt: '09:00',
+          targetLabel: '简体中文',
+          translationFormat: 'plain',
+          formatLabel: '普通翻译'
+        }
+      ])
+    );
+    localStorage.setItem(FAVORITE_IDS_STORAGE_KEY, JSON.stringify(['local-entry']));
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ releases: [] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            token: 'token-1',
+            user: { id: 'u1', email: 'user@example.com', displayName: '用户' }
+          })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ state: { history: [], favoriteIds: [], settings: {} } })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            state: {
+              history: [
+                {
+                  id: 'cloud-entry',
+                  provider: 'openai-compatible',
+                  sourceText: 'cloud',
+                  translatedText: '云端',
+                  targetLanguage: 'en-US',
+                  createdAt: '10:00',
+                  targetLabel: '英语',
+                  translationFormat: 'java-camel-case',
+                  formatLabel: 'Java 驼峰命名'
+                }
+              ],
+              favoriteIds: ['cloud-entry'],
+              settings: {
+                defaultTargetLanguage: 'en-US',
+                defaultTranslationFormat: 'java-camel-case',
+                theme: 'dark'
+              }
+            }
+          })
+      } as Response);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '账号' }));
+    fireEvent.change(screen.getByLabelText('邮箱'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getByRole('button', { name: '登录' }));
+    await screen.findByText('用户');
+
+    fireEvent.click(screen.getByRole('button', { name: '云端恢复' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('云端数据已恢复')).toBeInTheDocument();
+    });
+    expect(fetchMock).toHaveBeenCalledWith(`${defaultCloudBaseUrl}/api/sync/state`, expect.objectContaining({ method: 'GET' }));
+    fireEvent.click(screen.getByRole('button', { name: '历史记录' }));
+    expect(screen.getByText('云端')).toBeInTheDocument();
+    expect(screen.queryByText('本地')).not.toBeInTheDocument();
+    expect(localStorage.getItem(FAVORITE_IDS_STORAGE_KEY)).toContain('cloud-entry');
+    expect(localStorage.getItem(DEFAULT_TARGET_LANGUAGE_STORAGE_KEY)).toBe('en-US');
+    expect(localStorage.getItem(DEFAULT_TRANSLATION_FORMAT_STORAGE_KEY)).toBe('java-camel-case');
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+  });
+
   it('switches the app theme from settings and stores the preference', async () => {
     render(<App />);
 
