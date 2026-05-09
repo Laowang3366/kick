@@ -1092,6 +1092,30 @@
         return newestByPlatform.get(currentDevicePlatform()) || releases[0];
       }
 
+      function trackDownload(release) {
+        if (!release) {
+          return;
+        }
+
+        const payload = JSON.stringify({
+          version: release.version || '',
+          platform: platformOf(release),
+          fileName: release.fileName || ''
+        });
+        const endpoint = apiUrl('/api/downloads/track');
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(endpoint, new Blob([payload], { type: 'application/json' }));
+          return;
+        }
+
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: payload,
+          keepalive: true
+        }).catch(() => undefined);
+      }
+
       function renderPlatformDownloads(releases) {
         const appUrl = `${backendBase}/app/`;
         const newestByPlatform = newestReleaseByPlatform(releases);
@@ -1151,6 +1175,9 @@
           link.textContent = release ? platform.action : platform.fallbackAction || platform.action;
           if (href) {
             link.href = href;
+            if (release) {
+              link.addEventListener('click', () => trackDownload(release));
+            }
           } else {
             link.type = 'button';
             link.disabled = true;
@@ -1186,6 +1213,7 @@
           latestSize.textContent = formatSize(latest.size);
           latestDate.textContent = formatDate(latest.releaseDate);
           latestLink.href = latest.url;
+          latestLink.addEventListener('click', () => trackDownload(latest));
           renderPlatformDownloads(releases);
         })
         .catch(() => {

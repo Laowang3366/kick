@@ -3,6 +3,7 @@ import electronUpdater from 'electron-updater';
 import { spawn } from 'node:child_process';
 import { copyFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { getDefaultUpdatePackageDirectory, normalizeUpdatePackageDirectoryPath } from './updatePackageDirectory.js';
 
 type AutoUpdaterLike = {
   autoDownload: boolean;
@@ -221,7 +222,11 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
   }
 }
 
-export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: DesktopUpdateProgress) => void) {
+export function checkForUpdates(
+  isSmokeTest: boolean,
+  onProgress?: (progress: DesktopUpdateProgress) => void,
+  updatePackageDirectory?: string
+) {
   const { autoUpdater } = electronUpdater;
 
   return checkForDesktopUpdates({
@@ -232,7 +237,7 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     updater: autoUpdater,
     logger: console,
     onProgress,
-    stageDownloadedUpdate: copyDownloadedUpdateToDownloads,
+    stageDownloadedUpdate: (filePath, version) => copyDownloadedUpdateToPackageDirectory(filePath, version, updatePackageDirectory),
     openDownloadedUpdate:
       process.platform === 'win32'
         ? (filePath) =>
@@ -398,10 +403,13 @@ async function stageDownloadedUpdate(
   }
 }
 
-async function copyDownloadedUpdateToDownloads(filePath: string, version?: string) {
+async function copyDownloadedUpdateToPackageDirectory(filePath: string, version?: string, updatePackageDirectory?: string) {
   const safeVersion = typeof version === 'string' && /^\d+\.\d+\.\d+/.test(version) ? version : 'latest';
   const extension = path.extname(filePath) || (process.platform === 'darwin' ? '.dmg' : '.exe');
-  const targetDirectory = path.join(app.getPath('downloads'), '快捷翻译更新包');
+  const targetDirectory = normalizeUpdatePackageDirectoryPath(
+    updatePackageDirectory,
+    getDefaultUpdatePackageDirectory(app.getPath('downloads'))
+  );
   const targetPath = path.join(targetDirectory, `Quick-Translate-${safeVersion}${extension}`);
 
   if (path.resolve(filePath).toLowerCase() === path.resolve(targetPath).toLowerCase()) {

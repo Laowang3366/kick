@@ -1528,6 +1528,25 @@ textarea::placeholder {
   gap: 10px;
 }
 
+.path-setting-control {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.path-setting-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.path-setting-control small {
+  color: #637083;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
 .shortcut-recorder {
   min-width: 0;
   display: grid;
@@ -2381,7 +2400,8 @@ textarea::placeholder {
   .command-bar,
   .settings-action-grid,
   .update-card,
-  .update-actions {
+  .update-actions,
+  .path-setting-actions {
     grid-template-columns: 1fr;
     gap: 12px;
   }

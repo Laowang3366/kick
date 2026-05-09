@@ -4,6 +4,7 @@ import {
   CloudDownload,
   CloudUpload,
   Copy,
+  FolderOpen,
   History,
   KeyRound,
   Languages,
@@ -302,6 +303,8 @@ export function App() {
   const [showCustomFloatingShortcutEditor, setShowCustomFloatingShortcutEditor] = useState(false);
   const [isRecordingFloatingShortcut, setIsRecordingFloatingShortcut] = useState(false);
   const [floatingShortcutError, setFloatingShortcutError] = useState('');
+  const [updatePackageDirectoryDraft, setUpdatePackageDirectoryDraft] = useState('');
+  const [updatePackageMessage, setUpdatePackageMessage] = useState('');
   const cloudClient = useMemo(() => createCloudClient(), []);
   const hasSelectedTargetLanguage = useRef(false);
   const lastAutoTranslationKey = useRef('');
@@ -336,12 +339,19 @@ export function App() {
   }, [isRecordingFloatingShortcut]);
 
   useEffect(() => {
+    if (desktopSettings?.updatePackageDirectory) {
+      setUpdatePackageDirectoryDraft(desktopSettings.updatePackageDirectory);
+    }
+  }, [desktopSettings?.updatePackageDirectory]);
+
+  useEffect(() => {
     let isMounted = true;
 
     void window.quickTranslate?.getDesktopSettings?.().then((settings) => {
       if (isMounted) {
         const normalizedTargetLanguage = normalizeTargetLanguage(settings.defaultTargetLanguage);
         setDesktopSettingsState(settings);
+        setUpdatePackageDirectoryDraft(settings.updatePackageDirectory || '');
         setDefaultTargetLanguage(normalizedTargetLanguage);
         if (!hasSelectedTargetLanguage.current) {
           setTargetLanguage(normalizedTargetLanguage);
@@ -359,6 +369,7 @@ export function App() {
     return window.quickTranslate?.onDesktopSettingsChanged?.((settings) => {
       const normalizedTargetLanguage = normalizeTargetLanguage(settings.defaultTargetLanguage);
       setDesktopSettingsState(settings);
+      setUpdatePackageDirectoryDraft(settings.updatePackageDirectory || '');
       setDefaultTargetLanguage(normalizedTargetLanguage);
       setTargetLanguage(normalizedTargetLanguage);
       hasSelectedTargetLanguage.current = false;
@@ -750,6 +761,35 @@ export function App() {
     setShowCustomFloatingShortcutEditor(false);
     setIsRecordingFloatingShortcut(false);
     void updateDesktopSettings({ floatingTranslateShortcut: normalizeFloatingTranslateShortcut(value) });
+  }
+
+  async function saveUpdatePackageDirectory() {
+    const nextDirectory = updatePackageDirectoryDraft.trim();
+    if (!nextDirectory) {
+      setUpdatePackageMessage('更新包保存路径不能为空');
+      return;
+    }
+
+    await updateDesktopSettings({ updatePackageDirectory: nextDirectory });
+    setUpdatePackageMessage('更新包保存路径已保存');
+  }
+
+  async function openUpdatePackageDirectory() {
+    try {
+      await window.quickTranslate?.openUpdatePackageDirectory?.();
+      setUpdatePackageMessage('已打开更新包目录');
+    } catch (error) {
+      setUpdatePackageMessage(error instanceof Error ? error.message : '打开更新包目录失败');
+    }
+  }
+
+  async function clearUpdatePackages() {
+    try {
+      const result = await window.quickTranslate?.clearUpdatePackages?.();
+      setUpdatePackageMessage(`已清理 ${result?.deletedCount ?? 0} 个更新安装包`);
+    } catch (error) {
+      setUpdatePackageMessage(error instanceof Error ? error.message : '清理更新安装包失败');
+    }
   }
 
   function captureFloatingShortcut(event: KeyboardEvent<HTMLElement>) {
@@ -1578,6 +1618,46 @@ export function App() {
                           ) : null}
                         </div>
                       </label>
+                      <div className="settings-field update-package-directory-field">
+                        <span>更新包保存路径</span>
+                        <div className="path-setting-control">
+                          <input
+                            value={updatePackageDirectoryDraft}
+                            aria-label="更新包保存路径"
+                            onChange={(event) => setUpdatePackageDirectoryDraft(event.target.value)}
+                          />
+                          <div className="path-setting-actions">
+                            <button
+                              className="settings-action"
+                              type="button"
+                              aria-label="保存更新包保存路径"
+                              onClick={saveUpdatePackageDirectory}
+                            >
+                              <Settings size={18} />
+                              <span>保存路径</span>
+                            </button>
+                            <button
+                              className="settings-action"
+                              type="button"
+                              aria-label="打开更新包目录"
+                              onClick={openUpdatePackageDirectory}
+                            >
+                              <FolderOpen size={18} />
+                              <span>打开目录</span>
+                            </button>
+                            <button
+                              className="settings-action danger"
+                              type="button"
+                              aria-label="清理更新安装包"
+                              onClick={clearUpdatePackages}
+                            >
+                              <Trash2 size={18} />
+                              <span>清理安装包</span>
+                            </button>
+                          </div>
+                          <small>{updatePackageMessage || '应用内更新下载的安装包会保存到此目录，清理时只删除快捷翻译安装包文件。'}</small>
+                        </div>
+                      </div>
                       <label className="toggle-row">
                         <input
                           type="checkbox"

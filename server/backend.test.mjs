@@ -24,6 +24,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  await app.store.waitForMetrics();
   await rm(tempDir, { recursive: true, force: true });
 });
 
@@ -331,6 +332,33 @@ describe('backend app', () => {
     expect(response.body.latestVersion).toBe('0.1.14');
     expect(response.body.releases[0].fileName).toContain('快捷翻译');
     expect(response.body.releases[0].platform).toBe('windows');
+  });
+
+  it('tracks download clicks and API call counts for the admin dashboard', async () => {
+    const adminLoginResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'admin-pass'
+    });
+
+    const downloadsResponse = await request('GET', '/api/downloads');
+    expect(downloadsResponse.status).toBe(200);
+
+    const trackResponse = await request('POST', '/api/downloads/track', {
+      version: '0.1.46',
+      platform: 'windows',
+      fileName: 'Quick-Translate-0.1.46.exe'
+    });
+    expect(trackResponse.status).toBe(200);
+
+    const statsResponse = await request('GET', '/api/admin/stats', undefined, adminLoginResponse.body.token);
+
+    expect(statsResponse.status).toBe(200);
+    expect(statsResponse.body.metrics.downloads.total).toBe(1);
+    expect(statsResponse.body.metrics.downloads.byPlatform.windows).toBe(1);
+    expect(statsResponse.body.metrics.downloads.byVersion['0.1.46']).toBe(1);
+    expect(statsResponse.body.metrics.apiCalls.total).toBeGreaterThanOrEqual(4);
+    expect(statsResponse.body.metrics.apiCalls.byEndpoint['GET /api/downloads']).toBe(1);
+    expect(statsResponse.body.metrics.apiCalls.byEndpoint['POST /api/downloads/track']).toBe(1);
   });
 
   it('accepts the nginx backend prefix in API paths', async () => {

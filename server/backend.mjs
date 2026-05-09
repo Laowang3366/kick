@@ -23,6 +23,21 @@ const defaultDownloadManifest = {
   latestVersion: '',
   releases: []
 };
+const defaultMetrics = {
+  apiCalls: {
+    total: 0,
+    byEndpoint: {},
+    byMethod: {},
+    latestAt: ''
+  },
+  downloads: {
+    total: 0,
+    byPlatform: {},
+    byVersion: {},
+    byFileName: {},
+    latestAt: ''
+  }
+};
 const providerTypes = new Set(['mock', 'openai-compatible']);
 const providerModelListTimeoutMs = 15_000;
 
@@ -44,6 +59,8 @@ export function createBackendApp(options = {}) {
     if (method === 'OPTIONS') {
       return createResponse(204);
     }
+
+    void store.recordApiCall({ method, pathname }).catch(() => undefined);
 
     try {
       if (method === 'POST' && pathname === '/api/auth/register') {
@@ -117,6 +134,11 @@ export function createBackendApp(options = {}) {
         return createJsonResponse(200, { total: users.length, users });
       }
 
+      if (method === 'GET' && pathname === '/api/admin/stats') {
+        requireAuth(request, jwtSecret, 'admin');
+        return createJsonResponse(200, { metrics: await store.getMetrics() });
+      }
+
       const userMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
       if (userMatch && method === 'PUT') {
         requireAuth(request, jwtSecret, 'admin');
@@ -146,6 +168,11 @@ export function createBackendApp(options = {}) {
 
       if (method === 'GET' && pathname === '/api/downloads') {
         return createJsonResponse(200, await store.getDownloadManifest());
+      }
+
+      if (method === 'POST' && pathname === '/api/downloads/track') {
+        const metrics = await store.recordDownloadEvent(await readJsonBody(request));
+        return createJsonResponse(200, { metrics: metrics.downloads });
       }
 
       return createJsonResponse(404, { error: '接口不存在' });
@@ -231,14 +258,16 @@ export function createJsonStore({ dataDir, defaultProvider }) {
     users: path.join(dataDir, 'users.json'),
     states: path.join(dataDir, 'states.json'),
     provider: path.join(dataDir, 'provider.json'),
-    downloads: path.join(dataDir, 'downloads.json')
+    downloads: path.join(dataDir, 'downloads.json'),
+    metrics: path.join(dataDir, 'metrics.json')
   };
 
   const files = {
     users: createJsonFile(paths.users, []),
     states: createJsonFile(paths.states, {}),
     provider: createJsonFile(paths.provider, undefined),
-    downloads: createJsonFile(paths.downloads, defaultDownloadManifest)
+    downloads: createJsonFile(paths.downloads, defaultDownloadManifest),
+    metrics: createJsonFile(paths.metrics, defaultMetrics)
   };
 
   return {
@@ -427,6 +456,18 @@ export function createJsonStore({ dataDir, defaultProvider }) {
     },
     async saveDownloadManifest(manifest) {
       await files.downloads.replace(normalizeDownloadManifest(manifest));
+    },
+    async recordApiCall(event) {
+      return files.metrics.update((value) => incrementApiCallMetrics(value, event));
+    },
+    async recordDownloadEvent(event) {
+      return files.metrics.update((value) => incrementDownloadMetrics(value, event));
+    },
+    async getMetrics() {
+      return normalizeMetrics(await files.metrics.read());
+    },
+    async waitForMetrics() {
+      await files.metrics.read();
     }
   };
 }
@@ -795,6 +836,76 @@ function redactProviderState(providerState) {
       active: provider.id === providerState.activeProviderId
     }))
   };
+}
+
+function normalizeMetrics(value) {
+  const record = isRecord(value) ? value : {};
+  const apiCalls = isRecord(record.apiCalls) ? record.apiCalls : {};
+  const downloads = isRecord(record.downloads) ? record.downloads : {};
+
+  return {
+    apiCalls: {
+      total: nonNegativeNumber(apiCalls.total),
+      byEndpoint: normalizeCounterRecord(apiCalls.byEndpoint),
+      byMethod: normalizeCounterRecord(apiCalls.byMethod),
+      latestAt: stringOrEmpty(apiCalls.latestAt)
+    },
+    downloads: {
+      total: nonNegativeNumber(downloads.total),
+      byPlatform: normalizeCounterRecord(downloads.byPlatform),
+      byVersion: normalizeCounterRecord(downloads.byVersion),
+      byFileName: normalizeCounterRecord(downloads.byFileName),
+      latestAt: stringOrEmpty(downloads.latestAt)
+    }
+  };
+}
+
+function incrementApiCallMetrics(value, event) {
+  const metrics = normalizeMetrics(value);
+  const method = stringOrEmpty(event?.method).toUpperCase() || 'GET';
+  const pathname = stringOrEmpty(event?.pathname) || '/';
+  const endpoint = `${method} ${pathname}`;
+
+  metrics.apiCalls.total += 1;
+  incrementCounter(metrics.apiCalls.byMethod, method);
+  incrementCounter(metrics.apiCalls.byEndpoint, endpoint);
+  metrics.apiCalls.latestAt = new Date().toISOString();
+  return metrics;
+}
+
+function incrementDownloadMetrics(value, event) {
+  const metrics = normalizeMetrics(value);
+  const record = isRecord(event) ? event : {};
+  const platform = normalizeReleasePlatform(record.platform || record.os || record.fileName);
+  const version = stringOrEmpty(record.version) || 'unknown';
+  const fileName = stringOrEmpty(record.fileName) || 'unknown';
+
+  metrics.downloads.total += 1;
+  incrementCounter(metrics.downloads.byPlatform, platform);
+  incrementCounter(metrics.downloads.byVersion, version);
+  incrementCounter(metrics.downloads.byFileName, fileName);
+  metrics.downloads.latestAt = new Date().toISOString();
+  return metrics;
+}
+
+function normalizeCounterRecord(value) {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, count]) => [key, nonNegativeNumber(count)])
+      .filter(([key, count]) => key && count > 0)
+  );
+}
+
+function incrementCounter(record, key) {
+  record[key] = (record[key] || 0) + 1;
+}
+
+function nonNegativeNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
 function normalizeDownloadManifest(value) {

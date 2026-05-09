@@ -1083,6 +1083,12 @@
             <article class="stat-card"><span class="stat-icon" aria-hidden="true">历</span><div><span>历史记录</span><strong id="data-history-total">0</strong></div></article>
             <article class="stat-card"><span class="stat-icon red" aria-hidden="true">藏</span><div><span>收藏记录</span><strong id="data-favorite-total">0</strong></div></article>
           </div>
+          <div class="stats-grid four">
+            <article class="stat-card"><span class="stat-icon" aria-hidden="true">下</span><div><span>下载次数</span><strong id="data-download-total">0</strong></div></article>
+            <article class="stat-card"><span class="stat-icon green" aria-hidden="true">调</span><div><span>API 调用</span><strong id="data-api-total">0</strong></div></article>
+            <article class="stat-card"><span class="stat-icon" aria-hidden="true">译</span><div><span>翻译接口</span><strong id="data-translate-api-total">0</strong></div></article>
+            <article class="stat-card"><span class="stat-icon red" aria-hidden="true">包</span><div><span>下载接口</span><strong id="data-download-api-total">0</strong></div></article>
+          </div>
           <div class="data-layout">
             <section class="panel-card chart-card">
               <div class="chart-head">
@@ -1207,7 +1213,8 @@
         activeProviderId: '',
         editingProviderId: '',
         keyEditing: false,
-        modelOptions: []
+        modelOptions: [],
+        metrics: null
       };
       const languageLabels = {
         'zh-CN': '简体中文',
@@ -1256,7 +1263,7 @@
 
       document.querySelector('#logout-button').addEventListener('click', logout);
       document.querySelector('#refresh-users-button').addEventListener('click', loadUsers);
-      document.querySelector('#refresh-data-button').addEventListener('click', loadUsers);
+      document.querySelector('#refresh-data-button').addEventListener('click', loadData);
       document.querySelector('#save-button').addEventListener('click', saveProvider);
       document.querySelector('#create-provider-button').addEventListener('click', createProvider);
       document.querySelector('#change-key-button').addEventListener('click', enableKeyEditing);
@@ -1289,7 +1296,7 @@
       async function loadDashboard() {
         loginScreen.classList.add('hidden');
         adminShell.classList.remove('hidden');
-        await Promise.all([loadProviders(), loadUsers()]);
+        await Promise.all([loadProviders(), loadUsers(), loadStats()]);
         setView(state.view);
       }
 
@@ -1530,6 +1537,16 @@
         renderAllData();
       }
 
+      async function loadStats() {
+        const payload = await authorizedRequest('/api/admin/stats');
+        state.metrics = payload.metrics || null;
+        renderAllData();
+      }
+
+      async function loadData() {
+        await Promise.all([loadUsers(), loadStats()]);
+      }
+
       async function authorizedRequest(pathname) {
         const response = await fetch(apiUrl(pathname), {
           headers: { authorization: `Bearer ${token}` }
@@ -1567,6 +1584,10 @@
         const favoriteTotal = users.reduce((sum, user) => sum + (user.favoriteCount || 0), 0);
         const activeUsers = users.filter((user) => (user.historyCount || 0) + (user.favoriteCount || 0) > 0).length;
         const todayUsers = users.filter((user) => isToday(user.createdAt)).length;
+        const metrics = state.metrics || {};
+        const apiCalls = metrics.apiCalls || {};
+        const downloads = metrics.downloads || {};
+        const byEndpoint = apiCalls.byEndpoint || {};
         document.querySelector('#stat-users-total').textContent = formatNumber(users.length);
         document.querySelector('#stat-active-users').textContent = formatNumber(activeUsers);
         document.querySelector('#stat-sync-total').textContent = formatNumber(historyTotal + favoriteTotal);
@@ -1574,6 +1595,12 @@
         document.querySelector('#data-today-users').textContent = formatNumber(todayUsers);
         document.querySelector('#data-history-total').textContent = formatNumber(historyTotal);
         document.querySelector('#data-favorite-total').textContent = formatNumber(favoriteTotal);
+        document.querySelector('#data-download-total').textContent = formatNumber(downloads.total);
+        document.querySelector('#data-api-total').textContent = formatNumber(apiCalls.total);
+        document.querySelector('#data-translate-api-total').textContent = formatNumber(byEndpoint['POST /api/translate']);
+        document.querySelector('#data-download-api-total').textContent = formatNumber(
+          (byEndpoint['GET /api/downloads'] || 0) + (byEndpoint['POST /api/downloads/track'] || 0)
+        );
       }
 
       function renderUsers() {

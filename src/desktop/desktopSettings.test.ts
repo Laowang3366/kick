@@ -21,13 +21,19 @@ describe('desktop settings', () => {
   it('merges partial stored settings with defaults', () => {
     expect(
       parseDesktopSettings(
-        JSON.stringify({ launchAtLogin: true, defaultTargetLanguage: 'es-ES', defaultTranslationFormat: 'java-camel-case' })
+        JSON.stringify({
+          launchAtLogin: true,
+          defaultTargetLanguage: 'es-ES',
+          defaultTranslationFormat: 'java-camel-case',
+          updatePackageDirectory: 'D:\\Downloads\\QuickTranslate'
+        })
       )
     ).toEqual({
       ...defaultDesktopSettings,
       defaultTargetLanguage: 'es-ES',
       defaultTranslationFormat: 'java-camel-case',
-      launchAtLogin: true
+      launchAtLogin: true,
+      updatePackageDirectory: 'D:\\Downloads\\QuickTranslate'
     });
   });
 

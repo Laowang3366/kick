@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Menu, Tray, clipboard, globalShortcut, ipcMain, nativeImage, screen } from 'electron';
+import { app, BrowserWindow, Menu, Tray, clipboard, globalShortcut, ipcMain, nativeImage, screen, shell } from 'electron';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +32,11 @@ import { runFloatingTranslateShortcut } from './floatingShortcutHandler.js';
 import { startMouseButton4Shortcut, type MouseButton4Shortcut } from './mouseButton4Shortcut.js';
 import { getProviderSettingsPath, loadBackendProviderSettings } from './providerSettings.js';
 import { applyLightweightRuntime } from './runtimeOptimization.js';
+import {
+  clearUpdatePackageArtifacts,
+  getDefaultUpdatePackageDirectory,
+  normalizeUpdatePackageDirectoryPath
+} from './updatePackageDirectory.js';
 import { createFloatingWindowOptions, createMainWindowOptions } from './windowOptions.js';
 import { createProviderFromSettings } from '../shared/providerSettings.js';
 import { translateText } from '../shared/translator.js';
@@ -280,9 +286,22 @@ function getDesktopSettingsPath() {
   return path.join(app.getPath('userData'), 'desktop-settings.json');
 }
 
+function getCurrentUpdatePackageDirectory(settings: DesktopSettings = desktopSettings) {
+  return normalizeUpdatePackageDirectoryPath(settings.updatePackageDirectory, getDefaultUpdatePackageDirectory(app.getPath('downloads')));
+}
+
 function loadDesktopSettings(): DesktopSettings {
   const settingsPath = getDesktopSettingsPath();
-  return parseDesktopSettings(existsSync(settingsPath) ? readFileSync(settingsPath, 'utf8') : undefined);
+  const settings = parseDesktopSettings(existsSync(settingsPath) ? readFileSync(settingsPath, 'utf8') : undefined);
+  const hydratedSettings = {
+    ...settings,
+    updatePackageDirectory: getCurrentUpdatePackageDirectory(settings)
+  };
+  if (settings.updatePackageDirectory !== hydratedSettings.updatePackageDirectory) {
+    saveDesktopSettings(hydratedSettings);
+  }
+
+  return hydratedSettings;
 }
 
 function saveDesktopSettings(settings: DesktopSettings) {
@@ -425,6 +444,21 @@ function updateDesktopSettings(settingsPatch: Partial<DesktopSettings>) {
   saveDesktopSettings(nextSettings);
   applyDesktopSettings(nextSettings);
   return nextSettings;
+}
+
+async function openUpdatePackageDirectory() {
+  const directory = getCurrentUpdatePackageDirectory();
+  await mkdir(directory, { recursive: true });
+  const errorMessage = await shell.openPath(directory);
+  if (errorMessage) {
+    throw new Error(errorMessage);
+  }
+
+  return true;
+}
+
+async function clearStoredUpdatePackages() {
+  return clearUpdatePackageArtifacts(getCurrentUpdatePackageDirectory());
 }
 
 function executeWindowControl(command: unknown) {
@@ -660,8 +694,10 @@ app.whenReady().then(async () => {
   ipcMain.handle('check-for-updates', () =>
     checkForUpdates(isSmokeTest, (progress) => {
       mainWindow?.webContents.send('desktop-update-progress', progress);
-    })
+    }, desktopSettings.updatePackageDirectory)
   );
+  ipcMain.handle('open-update-package-directory', () => openUpdatePackageDirectory());
+  ipcMain.handle('clear-update-packages', () => clearStoredUpdatePackages());
   ipcMain.handle('set-desktop-settings', (_event, settings: Partial<DesktopSettings>) => updateDesktopSettings(settings));
   ipcMain.handle('set-floating-session-preferences', (_event, preferences: unknown) => updateFloatingSessionPreferenceState(preferences));
   ipcMain.handle('window-control', (_event, command: unknown) => executeWindowControl(command));

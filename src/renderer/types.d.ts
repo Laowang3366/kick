@@ -28,8 +28,10 @@ declare global {
     quickTranslate?: {
       captureSelectedText(): Promise<string>;
       checkForUpdates?(): Promise<DesktopUpdateCheckResult>;
+      clearUpdatePackages?(): Promise<{ directory: string; deletedCount: number }>;
       copyText(text: string): Promise<void>;
       getDesktopSettings?(): Promise<DesktopSettings>;
+      openUpdatePackageDirectory?(): Promise<boolean>;
       onDesktopSettingsChanged?(callback: (settings: DesktopSettings) => void): () => void;
       onUpdateProgress?(callback: (progress: DesktopUpdateProgress) => void): () => void;
       onFloatingSourceCaptured?(

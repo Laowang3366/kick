@@ -1013,13 +1013,21 @@ describe('App', () => {
       launchAtLogin: false,
       hideToTrayOnClose: true,
       defaultTargetLanguage: 'es-ES',
-      defaultTranslationFormat: 'plain'
+      defaultTranslationFormat: 'plain',
+      updatePackageDirectory: 'D:\\QuickTranslate\\packages'
     };
+    const clearUpdatePackages = vi.fn().mockResolvedValue({
+      directory: 'D:\\QuickTranslate\\packages',
+      deletedCount: 2
+    });
+    const openUpdatePackageDirectory = vi.fn().mockResolvedValue(true);
     window.quickTranslate = {
       captureSelectedText: vi.fn(),
+      clearUpdatePackages,
       copyText: vi.fn(),
       onSelectionCaptured: vi.fn(),
       getDesktopSettings: vi.fn().mockResolvedValue(currentDesktopSettings),
+      openUpdatePackageDirectory,
       setDesktopSettings: vi.fn().mockImplementation((patch) => {
         currentDesktopSettings = {
           ...currentDesktopSettings,
@@ -1043,6 +1051,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '退出应用' })).not.toBeInTheDocument();
 
     expect(screen.getByLabelText('悬浮翻译快捷键')).toHaveValue('mouse-button-4');
+    expect(screen.getByLabelText('更新包保存路径')).toHaveValue('D:\\QuickTranslate\\packages');
     const launchAtLogin = await screen.findByLabelText('开机自启');
     expect(launchAtLogin).not.toBeChecked();
 
@@ -1107,6 +1116,28 @@ describe('App', () => {
         defaultTranslationFormat: 'java-camel-case'
       });
     });
+
+    fireEvent.change(screen.getByLabelText('更新包保存路径'), {
+      target: { value: 'E:\\QuickTranslate\\updates' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: '保存更新包保存路径' }));
+
+    await waitFor(() => {
+      expect(window.quickTranslate?.setDesktopSettings).toHaveBeenCalledWith({
+        updatePackageDirectory: 'E:\\QuickTranslate\\updates'
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '打开更新包目录' }));
+    await waitFor(() => {
+      expect(openUpdatePackageDirectory).toHaveBeenCalledOnce();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '清理更新安装包' }));
+    await waitFor(() => {
+      expect(clearUpdatePackages).toHaveBeenCalledOnce();
+    });
+    expect(screen.getByText('已清理 2 个更新安装包')).toBeInTheDocument();
   });
 
   it('shows current settings information in the translate view', async () => {

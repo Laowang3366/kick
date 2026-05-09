@@ -25,6 +25,7 @@ export type DesktopSettings = {
   hideToTrayOnClose: boolean;
   defaultTargetLanguage: string;
   defaultTranslationFormat: TranslationFormat;
+  updatePackageDirectory: string;
 };
 
 export const floatingTranslateShortcutOptions: FloatingTranslateShortcutOption[] = [
@@ -66,7 +67,8 @@ export const defaultDesktopSettings: DesktopSettings = {
   launchAtLogin: false,
   hideToTrayOnClose: false,
   defaultTargetLanguage,
-  defaultTranslationFormat
+  defaultTranslationFormat,
+  updatePackageDirectory: ''
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -275,7 +277,8 @@ export function normalizeDesktopSettings(value: unknown): DesktopSettings {
     launchAtLogin: booleanOrDefault(record.launchAtLogin, defaultDesktopSettings.launchAtLogin),
     hideToTrayOnClose: booleanOrDefault(record.hideToTrayOnClose, defaultDesktopSettings.hideToTrayOnClose),
     defaultTargetLanguage: normalizeTargetLanguage(record.defaultTargetLanguage),
-    defaultTranslationFormat: normalizeTranslationFormat(record.defaultTranslationFormat)
+    defaultTranslationFormat: normalizeTranslationFormat(record.defaultTranslationFormat),
+    updatePackageDirectory: typeof record.updatePackageDirectory === 'string' ? record.updatePackageDirectory.trim() : ''
   };
 }
 

@@ -3,8 +3,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('quickTranslate', {
   captureSelectedText: () => ipcRenderer.invoke('capture-selected-text'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  clearUpdatePackages: () => ipcRenderer.invoke('clear-update-packages'),
   copyText: (text: string) => ipcRenderer.invoke('copy-text', text),
   getDesktopSettings: () => ipcRenderer.invoke('get-desktop-settings'),
+  openUpdatePackageDirectory: () => ipcRenderer.invoke('open-update-package-directory'),
   onDesktopSettingsChanged: (callback: (settings: unknown) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, settings: unknown) => callback(settings);
     ipcRenderer.on('desktop-settings-changed', listener);
