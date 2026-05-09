@@ -304,7 +304,6 @@ export function App() {
   const [floatingShortcutError, setFloatingShortcutError] = useState('');
   const cloudClient = useMemo(() => createCloudClient(), []);
   const hasSelectedTargetLanguage = useRef(false);
-  const lastMouseShortcutAt = useRef(0);
   const lastAutoTranslationKey = useRef('');
   const translationRequestId = useRef(0);
   const hasLoadedCloudState = useRef(false);
@@ -489,33 +488,6 @@ export function App() {
     }
   }, []);
 
-  useEffect(() => {
-    const handleMouseButtonShortcut = (event: MouseEvent) => {
-      if (event.button !== 3) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      const now = Date.now();
-      if (now - lastMouseShortcutAt.current < 250) {
-        return;
-      }
-      lastMouseShortcutAt.current = now;
-
-      void translateClipboard();
-    };
-
-    window.addEventListener('mouseup', handleMouseButtonShortcut, { capture: true });
-    window.addEventListener('auxclick', handleMouseButtonShortcut, { capture: true });
-
-    return () => {
-      window.removeEventListener('mouseup', handleMouseButtonShortcut, { capture: true });
-      window.removeEventListener('auxclick', handleMouseButtonShortcut, { capture: true });
-    };
-  }, [targetLanguage, translationFormat, providerSettings]);
-
   async function runTranslation(text = sourceText, language = targetLanguage, format = translationFormat) {
     const limitedText = limitTranslationText(text);
     const normalizedText = limitedText.trim();
@@ -568,17 +540,6 @@ export function App() {
       setStatus('error');
       setError(translationError instanceof Error ? translationError.message : '翻译失败');
     }
-  }
-
-  async function translateClipboard() {
-    const capturedText =
-      (await window.quickTranslate?.captureSelectedText?.()) ??
-      (await navigator.clipboard?.readText?.().catch(() => '')) ??
-      '';
-
-    const limitedText = limitTranslationText(capturedText);
-    setSourceText(limitedText);
-    await runTranslation(limitedText, targetLanguage, translationFormat);
   }
 
   async function copyResult() {

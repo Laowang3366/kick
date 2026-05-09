@@ -27,6 +27,7 @@ import {
   updateFloatingSessionPreferences,
   type FloatingSessionPreferenceState
 } from './floatingSessionPreferences.js';
+import { runFloatingTranslateShortcut } from './floatingShortcutHandler.js';
 import { startMouseButton4Shortcut, type MouseButton4Shortcut } from './mouseButton4Shortcut.js';
 import { getProviderSettingsPath, loadBackendProviderSettings } from './providerSettings.js';
 import { applyLightweightRuntime } from './runtimeOptimization.js';
@@ -254,24 +255,11 @@ async function captureFromSelection() {
   return text;
 }
 
-async function handleGlobalMouseButton4Shortcut() {
-  const text = await readSelectedTextFromSystem();
-
-  if (isMainWindowReadyForInlineTranslation()) {
-    mainWindow?.show();
-    mainWindow?.focus();
-
-    if (text) {
-      mainWindow?.webContents.send('selection-captured', text);
-    }
-    return;
-  }
-
-  await showFloatingTranslation(text);
-}
-
-function isMainWindowReadyForInlineTranslation() {
-  return Boolean(mainWindow && mainWindow.isVisible() && !mainWindow.isMinimized());
+async function handleGlobalFloatingTranslateShortcut() {
+  await runFloatingTranslateShortcut({
+    readSelectedText: readSelectedTextFromSystem,
+    showFloatingTranslation
+  });
 }
 
 async function sendWindowsCopyShortcut() {
@@ -347,7 +335,7 @@ function setFloatingTranslateShortcut(shortcut: FloatingTranslateShortcut) {
   const normalizedShortcut = normalizeFloatingTranslateShortcut(shortcut);
   if (normalizedShortcut === 'mouse-button-4' || normalizedShortcut === 'mouse-button-5') {
     mouseButton4Shortcut = startMouseButton4Shortcut(() => {
-      void handleGlobalMouseButton4Shortcut();
+      void handleGlobalFloatingTranslateShortcut();
     }, {
       sideButton: normalizedShortcut
     });
@@ -357,7 +345,7 @@ function setFloatingTranslateShortcut(shortcut: FloatingTranslateShortcut) {
   const accelerator = getFloatingTranslateShortcutAccelerator(normalizedShortcut);
   if (accelerator) {
     const isRegistered = globalShortcut.register(accelerator, () => {
-      void handleGlobalMouseButton4Shortcut();
+      void handleGlobalFloatingTranslateShortcut();
     });
     if (isRegistered) {
       keyboardFloatingShortcutAccelerator = accelerator;

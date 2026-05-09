@@ -1138,7 +1138,7 @@ describe('App', () => {
     expect(summary).toHaveTextContent(`当前 ${currentAppVersion}`);
   });
 
-  it('translates clipboard text when the lower mouse side button is released in the app window', async () => {
+  it('does not handle floating translation shortcuts inside the main window', async () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn().mockResolvedValue('Hello world'),
       copyText: vi.fn(),
@@ -1155,15 +1155,9 @@ describe('App', () => {
 
     fireEvent.mouseUp(window, { button: 3 });
 
-    await waitFor(() => {
-      expect(screen.getByText('你好，世界')).toBeInTheDocument();
-    });
-    expect(window.quickTranslate.captureSelectedText).toHaveBeenCalledOnce();
-    expect(window.quickTranslate.translateText).toHaveBeenCalledWith({
-      text: 'Hello world',
-      targetLanguage: 'zh-CN',
-      translationFormat: 'plain'
-    });
+    expect(window.quickTranslate.captureSelectedText).not.toHaveBeenCalled();
+    expect(window.quickTranslate.translateText).not.toHaveBeenCalled();
+    expect(screen.queryByText('你好，世界')).not.toBeInTheDocument();
   });
 
   it('shows a new desktop version in the settings update card', async () => {
