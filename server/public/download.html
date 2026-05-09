@@ -779,6 +779,11 @@
         window.scrollTo({ top: 0, behavior: 'auto' });
       }
 
+      function currentRouteView() {
+        const pathname = location.pathname.replace(/\/+$/, '') || '/';
+        return pathname.endsWith('/download') ? 'download' : 'home';
+      }
+
       document.querySelectorAll('[data-nav-view]').forEach((link) => {
         link.addEventListener('click', (event) => {
           const view = link.dataset.navView;
@@ -790,7 +795,7 @@
         });
       });
       window.addEventListener('popstate', () => {
-        showView(location.pathname.replace(/\/+$/, '') === '/download' ? 'download' : 'home', false);
+        showView(currentRouteView(), false);
       });
 
       const formatter = new Intl.DateTimeFormat('zh-CN', {
@@ -1170,7 +1175,7 @@
         });
       }
 
-      showView(location.pathname.replace(/\/+$/, '') === '/download' ? 'download' : 'home', false);
+      showView(currentRouteView(), false);
 
       fetch(apiUrl('/api/downloads'))
         .then((response) => response.json())

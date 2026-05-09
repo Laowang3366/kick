@@ -15,5 +15,6 @@ describe('download page platform cards', () => {
     expect(html).toContain("return 'unsupported'");
     expect(html).toContain('仅支持 Windows 和 Android 安装包');
     expect(html).toContain("latestLink.classList.add('hidden')");
+    expect(html).toContain("pathname.endsWith('/download')");
   });
 });
