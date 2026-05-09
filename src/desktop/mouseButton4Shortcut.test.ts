@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { extractMouseButton4ShortcutEvents } from './mouseButton4Shortcut';
+import { describe, expect, it, vi } from 'vitest';
+import { extractMouseButton4ShortcutEvents, startMouseButton4Shortcut } from './mouseButton4Shortcut';
 
 describe('extractMouseButton4ShortcutEvents', () => {
   it('extracts complete mouse button 4 events and keeps partial stdout lines', () => {
@@ -21,5 +21,33 @@ describe('extractMouseButton4ShortcutEvents', () => {
 
     expect(result.eventCount).toBe(1);
     expect(result.remainder).toBe('');
+  });
+
+  it('terminates the hook process tree when stopped', () => {
+    const hookProcess = {
+      pid: 1234,
+      killed: false,
+      kill: vi.fn(),
+      stdout: {
+        setEncoding: vi.fn(),
+        on: vi.fn()
+      },
+      stderr: {
+        setEncoding: vi.fn(),
+        on: vi.fn()
+      },
+      on: vi.fn()
+    };
+    const terminateProcessTree = vi.fn();
+
+    const shortcut = startMouseButton4Shortcut(vi.fn(), {
+      spawnProcess: vi.fn(() => hookProcess as any) as any,
+      terminateProcessTree
+    });
+
+    shortcut.stop();
+
+    expect(terminateProcessTree).toHaveBeenCalledWith(1234);
+    expect(hookProcess.kill).toHaveBeenCalledOnce();
   });
 });

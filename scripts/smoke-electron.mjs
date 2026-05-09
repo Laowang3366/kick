@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const devServerUrl = 'http://127.0.0.1:5173/';
@@ -22,7 +22,7 @@ try {
   console.error(`[桌面冒烟] 失败：${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 } finally {
-  vite?.kill();
+  terminateProcessTree(vite);
 }
 
 async function canFetch(url) {
@@ -63,7 +63,7 @@ function runElectronSmoke() {
       stdio: 'inherit'
     });
     const timeout = setTimeout(() => {
-      child.kill();
+      terminateProcessTree(child);
       reject(new Error('Electron 冒烟超时'));
     }, 30_000);
 
@@ -82,4 +82,21 @@ function runElectronSmoke() {
       reject(error);
     });
   });
+}
+
+function terminateProcessTree(child) {
+  if (!child?.pid) {
+    return;
+  }
+
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      return;
+    } catch {
+      // Fall back to the direct child kill below.
+    }
+  }
+
+  child.kill();
 }

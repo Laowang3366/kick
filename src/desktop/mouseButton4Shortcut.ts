@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -16,6 +16,7 @@ export type MouseButton4ShortcutOptions = {
   scriptPath?: string;
   sideButton?: MouseSideButton;
   spawnProcess?: typeof spawn;
+  terminateProcessTree?: (pid: number) => void;
   logger?: Pick<Console, 'warn'>;
 };
 
@@ -46,6 +47,7 @@ export function startMouseButton4Shortcut(
   writeFileSync(scriptPath, createMouseSideButtonHookScript(sideButton), 'utf8');
 
   const spawnProcess = options.spawnProcess ?? spawn;
+  const terminateProcessTree = options.terminateProcessTree ?? terminateWindowsProcessTree;
   const hookProcess = spawnProcess(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
@@ -74,11 +76,22 @@ export function startMouseButton4Shortcut(
 
   return {
     stop() {
+      if (typeof hookProcess.pid === 'number') {
+        terminateProcessTree(hookProcess.pid);
+      }
       if (!hookProcess.killed) {
         hookProcess.kill();
       }
     }
   };
+}
+
+function terminateWindowsProcessTree(pid: number) {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  execFile('taskkill.exe', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => undefined);
 }
 
 function createMouseSideButtonHookScript(sideButton: MouseSideButton) {
