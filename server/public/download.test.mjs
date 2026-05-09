@@ -1,0 +1,19 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+describe('download page platform cards', () => {
+  it('only exposes currently published Windows and Android installers', async () => {
+    const html = await readFile(path.resolve('server/public/download.html'), 'utf8');
+
+    expect(html).toContain("key: 'windows'");
+    expect(html).toContain("key: 'android'");
+    expect(html).not.toContain("key: 'macos'");
+    expect(html).not.toContain("key: 'ios'");
+    expect(html).not.toContain('Mac 端');
+    expect(html).not.toContain('iPhone / iPad');
+    expect(html).toContain("return 'unsupported'");
+    expect(html).toContain('仅支持 Windows 和 Android 安装包');
+    expect(html).toContain("latestLink.classList.add('hidden')");
+  });
+});

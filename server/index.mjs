@@ -157,6 +157,8 @@ async function serveAppAsset(response, pathname) {
 
 function contentTypeForPath(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
+    case '.html':
+      return 'text/html; charset=utf-8';
     case '.png':
       return 'image/png';
     case '.jpg':

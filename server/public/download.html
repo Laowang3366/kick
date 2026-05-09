@@ -350,7 +350,7 @@
 
       .platform-downloads {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
       }
 
@@ -693,7 +693,7 @@
 
     <section id="download-view" class="hero hidden">
       <div class="hero-inner">
-        <span class="eyebrow">Windows 桌面端 · 悬浮翻译快捷键可自定义</span>
+        <span class="eyebrow">Windows 桌面端 · Android 移动端</span>
         <h1>快捷翻译</h1>
         <p class="hero-copy">面向日常阅读、跨语言沟通和代码命名整理的轻量翻译工具。安装后可使用主窗口、悬浮翻译、历史收藏、本地设置和云端备份。</p>
         <div class="hero-actions">
@@ -1067,13 +1067,10 @@
         if (userAgent.includes('android')) {
           return 'android';
         }
-        if (/iphone|ipad|ipod/.test(userAgent)) {
-          return 'ios';
+        if (userAgent.includes('windows')) {
+          return 'windows';
         }
-        if (userAgent.includes('macintosh') || userAgent.includes('mac os x')) {
-          return 'macos';
-        }
-        return 'windows';
+        return 'unsupported';
       }
 
       function newestReleaseByPlatform(releases) {
@@ -1088,8 +1085,13 @@
       }
 
       function pickPrimaryRelease(releases) {
+        const platform = currentDevicePlatform();
+        if (platform === 'unsupported') {
+          return null;
+        }
+
         const newestByPlatform = newestReleaseByPlatform(releases);
-        return newestByPlatform.get(currentDevicePlatform()) || releases[0];
+        return newestByPlatform.get(platform) || releases[0];
       }
 
       function trackDownload(release) {
@@ -1117,38 +1119,20 @@
       }
 
       function renderPlatformDownloads(releases) {
-        const appUrl = `${backendBase}/app/`;
         const newestByPlatform = newestReleaseByPlatform(releases);
 
         const platforms = [
           {
             key: 'windows',
             title: 'Windows 桌面端',
-          description: '完整桌面安装包，支持托盘、鼠标下侧键、自定义快捷键和悬浮窗。',
+            description: '完整桌面安装包，支持托盘、鼠标下侧键、自定义快捷键和悬浮窗。',
             action: '下载 EXE'
-          },
-          {
-            key: 'macos',
-            title: 'Mac 端',
-            description: '已接入 Mac 桌面构建配置；发布 DMG/ZIP 后会在这里显示。',
-            action: '下载 Mac 包',
-            fallbackHref: appUrl,
-            fallbackAction: '打开 Web 版'
           },
           {
             key: 'android',
             title: 'Android 移动端',
             description: '原生 APK 安装包，登录后可同步历史、收藏和设置。',
-            action: '下载 APK',
-            fallbackHref: appUrl,
-            fallbackAction: '打开 Web 版'
-          },
-          {
-            key: 'ios',
-            title: 'iPhone / iPad',
-            description: 'iOS 端以 Safari 添加到主屏幕使用，历史和设置可登录同步。',
-            action: '打开安装入口',
-            fallbackHref: appUrl
+            action: '下载 APK'
           }
         ];
 
@@ -1166,11 +1150,9 @@
           const meta = document.createElement('small');
           meta.textContent = release
             ? `${release.version} · ${formatSize(release.size)}`
-            : platform.key === 'macos'
-              ? '原生安装包待 macOS 构建生成'
-              : platform.key === 'android'
-                ? 'APK 待发布'
-                : '使用移动端 Web App';
+            : platform.key === 'android'
+              ? 'APK 待发布'
+              : 'EXE 待发布';
           const link = document.createElement(href ? 'a' : 'button');
           link.textContent = release ? platform.action : platform.fallbackAction || platform.action;
           if (href) {
@@ -1202,9 +1184,13 @@
           const latestLink = document.querySelector('#latest-link');
 
           if (!latest) {
-            latestTitle.textContent = '暂无版本';
+            latestTitle.textContent = manifest.latestVersion || releases[0]?.version || '暂无版本';
+            latestFile.textContent = releases.length > 0 ? '仅支持 Windows 和 Android 安装包' : '暂无安装包';
+            latestSize.textContent = releases.length > 0 ? '请在下方选择安装包' : '未知大小';
+            latestDate.textContent = releases[0]?.releaseDate ? formatDate(releases[0].releaseDate) : '未知时间';
             latestLink.hidden = true;
-            renderPlatformDownloads([]);
+            latestLink.classList.add('hidden');
+            renderPlatformDownloads(releases);
             return;
           }
 
@@ -1213,12 +1199,16 @@
           latestSize.textContent = formatSize(latest.size);
           latestDate.textContent = formatDate(latest.releaseDate);
           latestLink.href = latest.url;
+          latestLink.hidden = false;
+          latestLink.classList.remove('hidden');
           latestLink.addEventListener('click', () => trackDownload(latest));
           renderPlatformDownloads(releases);
         })
         .catch(() => {
           document.querySelector('#latest-title').textContent = '版本信息读取失败';
-          document.querySelector('#latest-link').hidden = true;
+          const latestLink = document.querySelector('#latest-link');
+          latestLink.hidden = true;
+          latestLink.classList.add('hidden');
           renderPlatformDownloads([]);
         });
     </script>
