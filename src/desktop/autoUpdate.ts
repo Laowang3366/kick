@@ -55,8 +55,7 @@ type OpenInstallerOptions = {
   shellOpenPath?: (filePath: string) => Promise<string>;
 };
 
-type DelayedInstallerOptions = OpenInstallerOptions & {
-  currentProcessId?: number;
+type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
   powershellPath?: string;
 };
 
@@ -235,7 +234,7 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     logger: console,
     onProgress,
     stageDownloadedUpdate: copyDownloadedUpdateToDownloads,
-    openDownloadedUpdate: process.platform === 'win32' ? openInstallerAfterAppExit : openInstallerDetached,
+    openDownloadedUpdate: process.platform === 'win32' ? openInstallerBeforeAppQuit : openInstallerDetached,
     quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined
   });
 }
@@ -266,7 +265,7 @@ export async function openInstallerDetached(filePath: string, options: OpenInsta
   }
 }
 
-export async function openInstallerAfterAppExit(filePath: string, options: DelayedInstallerOptions = {}) {
+export async function openInstallerBeforeAppQuit(filePath: string, options: WindowsInstallerLaunchOptions = {}) {
   const platform = options.platform ?? process.platform;
   if (platform !== 'win32') {
     await openInstallerDetached(filePath, options);
@@ -274,21 +273,19 @@ export async function openInstallerAfterAppExit(filePath: string, options: Delay
   }
 
   const launcher = options.launcher ?? spawn;
-  const currentProcessId = options.currentProcessId ?? process.pid;
   const powershellPath =
     options.powershellPath ??
     path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const installerPath = escapePowerShellSingleQuotedString(filePath);
+  const installerDirectory = escapePowerShellSingleQuotedString(path.dirname(filePath));
   const command = [
     '$ErrorActionPreference = "SilentlyContinue";',
-    `$targetPid = ${currentProcessId};`,
-    'if ($targetPid -gt 0) { Wait-Process -Id $targetPid -Timeout 45 -ErrorAction SilentlyContinue; }',
-    `Start-Process -FilePath '${installerPath}';`
+    `Start-Process -FilePath '${installerPath}' -WorkingDirectory '${installerDirectory}';`
   ].join(' ');
 
   const child = launcher(
     powershellPath,
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', command],
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
     {
       detached: true,
       stdio: 'ignore',
