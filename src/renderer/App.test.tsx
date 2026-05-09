@@ -930,7 +930,7 @@ describe('App', () => {
 
     expect(windowControl).toHaveBeenNthCalledWith(1, 'minimize');
     expect(windowControl).toHaveBeenNthCalledWith(2, 'toggle-maximize');
-    expect(windowControl).toHaveBeenNthCalledWith(3, 'hide-main-window');
+    expect(windowControl).toHaveBeenNthCalledWith(3, 'quit-app');
   });
 
   it('toggles always-on-top from the title bar and defaults to not pinned', async () => {

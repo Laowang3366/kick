@@ -322,7 +322,7 @@ describe('auto update channel', () => {
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('opens the Windows installer through the system shell before the current app quits', async () => {
+  it('uses a detached handoff helper before the current app quits', async () => {
     const child = {
       unref: vi.fn()
     };
@@ -335,12 +335,20 @@ describe('auto update channel', () => {
       shellOpenPath
     });
 
-    expect(shellOpenPath).toHaveBeenCalledWith('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe');
-    expect(launcher).not.toHaveBeenCalled();
-    expect(child.unref).not.toHaveBeenCalled();
+    expect(shellOpenPath).not.toHaveBeenCalled();
+    expect(launcher).toHaveBeenCalledWith(
+      'powershell.exe',
+      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']),
+      {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      }
+    );
+    expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('passes the current install directory to the Windows installer before quitting', async () => {
+  it('launches a detached handoff helper that waits for the app to exit before opening the Windows installer', async () => {
     const child = {
       unref: vi.fn()
     };
@@ -351,23 +359,54 @@ describe('auto update channel', () => {
       platform: 'win32',
       launcher,
       shellOpenPath,
-      installDirectory: 'D:\\Tools\\快捷翻译'
+      installDirectory: 'D:\\Tools\\快捷翻译',
+      currentProcessId: 4321
+    });
+
+    expect(shellOpenPath).not.toHaveBeenCalled();
+    const [command, args, options] = launcher.mock.calls[0];
+    expect(command).toBe('powershell.exe');
+    expect(args).toEqual(expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']));
+    expect(args.at(-1)).toContain('$processId = 4321');
+    expect(args.at(-1)).toContain("$filePath = 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe'");
+    expect(args.at(-1)).toContain('Start-Process @startOptions');
+    expect(args.at(-1)).toContain("'/D=D:\\Tools\\快捷翻译'");
+    expect(options).toEqual({
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    expect(child.unref).toHaveBeenCalledOnce();
+  });
+
+  it('uses the handoff helper even when the install directory is unavailable', async () => {
+    const child = {
+      unref: vi.fn()
+    };
+    const launcher = vi.fn(() => child);
+    const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
+
+    await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
+      platform: 'win32',
+      launcher,
+      shellOpenPath,
+      currentProcessId: 4321
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe',
-      ['/D=D:\\Tools\\快捷翻译'],
+      'powershell.exe',
+      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']),
       {
         detached: true,
         stdio: 'ignore',
-        windowsHide: false
+        windowsHide: true
       }
     );
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('falls back to a detached process when shell opening the installer fails before quit', async () => {
+  it('does not use the shell opener when launching the installer before quit', async () => {
     const child = {
       unref: vi.fn()
     };
@@ -380,13 +419,14 @@ describe('auto update channel', () => {
       shellOpenPath
     });
 
+    expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
-      [],
+      'powershell.exe',
+      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']),
       {
         detached: true,
         stdio: 'ignore',
-        windowsHide: false
+        windowsHide: true
       }
     );
     expect(child.unref).toHaveBeenCalledOnce();

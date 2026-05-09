@@ -55,6 +55,7 @@ type OpenInstallerOptions = {
   launcher?: InstallerLauncher;
   shellOpenPath?: (filePath: string) => Promise<string>;
   installDirectory?: string;
+  currentProcessId?: number;
 };
 
 type WindowsInstallerLaunchOptions = OpenInstallerOptions;
@@ -283,18 +284,7 @@ export async function openInstallerBeforeAppQuit(filePath: string, options: Wind
   }
 
   const installerArgs = getWindowsInstallerArgs(options.installDirectory);
-  if (installerArgs.length > 0) {
-    launchInstallerProcess(filePath, installerArgs, false, options.launcher);
-    return;
-  }
-
-  const shellOpenPath = options.shellOpenPath ?? shell.openPath;
-  const errorMessage = await shellOpenPath(filePath);
-  if (!errorMessage) {
-    return;
-  }
-
-  launchInstallerProcess(filePath, [], false, options.launcher);
+  launchInstallerAfterAppExit(filePath, installerArgs, options.currentProcessId ?? process.pid, options.launcher);
 }
 
 function launchInstallerProcess(filePath: string, args: string[], windowsHide: boolean, launcher: InstallerLauncher = spawn) {
@@ -304,6 +294,39 @@ function launchInstallerProcess(filePath: string, args: string[], windowsHide: b
     windowsHide
   });
   child.unref();
+}
+
+function launchInstallerAfterAppExit(
+  filePath: string,
+  args: string[],
+  currentProcessId: number,
+  launcher: InstallerLauncher = spawn
+) {
+  const command = [
+    '$ErrorActionPreference = "SilentlyContinue";',
+    `$processId = ${Math.max(0, Math.floor(currentProcessId))};`,
+    'while (Get-Process -Id $processId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250 }',
+    `$filePath = ${toPowerShellSingleQuotedString(filePath)};`,
+    `$arguments = @(${args.map(toPowerShellSingleQuotedString).join(', ')});`,
+    '$startOptions = @{ FilePath = $filePath; WorkingDirectory = (Split-Path -Parent $filePath) };',
+    'if ($arguments.Count -gt 0) { $startOptions.ArgumentList = $arguments }',
+    'Start-Process @startOptions;'
+  ].join(' ');
+
+  const child = launcher(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+    {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    }
+  );
+  child.unref();
+}
+
+function toPowerShellSingleQuotedString(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
 }
 
 function getWindowsInstallerArgs(installDirectory: string | undefined) {

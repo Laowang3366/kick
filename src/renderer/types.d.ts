@@ -49,6 +49,7 @@ declare global {
           | 'minimize'
           | 'toggle-maximize'
           | 'close'
+          | 'quit-app'
           | 'hide-main-window'
           | 'toggle-always-on-top'
           | 'toggle-floating-always-on-top'

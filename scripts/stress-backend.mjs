@@ -70,7 +70,7 @@ try {
   }
 } finally {
   await close(server);
-  await rm(tempDir, { recursive: true, force: true });
+  await rm(tempDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 });
 }
 
 async function runBatch(name, count, task) {

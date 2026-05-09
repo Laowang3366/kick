@@ -13,6 +13,7 @@ describe('Windows installer script', () => {
     expect(script).toContain('Stop-Process -Id $$_.ProcessId -Force');
     expect(script).toContain('taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"');
     expect(script).toContain('taskkill /T /F /IM "快捷翻译.exe"');
+    expect(script).toContain('RMDir /r "$INSTDIR"');
   });
 
   it('bypasses incompatible old uninstallers by removing the registered app directory directly', () => {

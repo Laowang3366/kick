@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, clipboard, globalShortcut, ipcMain, nativeImage, screen, shell } from 'electron';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -50,6 +50,7 @@ applyLightweightRuntime(app);
 
 if (isSmokeTest) {
   const smokeUserDataPath = path.join(tmpdir(), 'quick-translate-electron-smoke');
+  rmSync(smokeUserDataPath, { recursive: true, force: true });
   mkdirSync(smokeUserDataPath, { recursive: true });
   app.setPath('userData', smokeUserDataPath);
 }
@@ -94,7 +95,7 @@ async function createWindow() {
       .executeJavaScript(
         `new Promise((resolve) => {
           const startedAt = Date.now();
-          const readText = () => document.body.innerText || '';
+          const readText = () => document.body.textContent || '';
           const check = () => {
             const text = readText();
             if (text.includes('快捷翻译') || Date.now() - startedAt > 10000) {
@@ -165,7 +166,7 @@ async function runFloatingSmokeCheck() {
           return style.getPropertyValue('-webkit-app-region') || style.webkitAppRegion || '';
         };
         const check = async () => {
-          const text = document.body.innerText || '';
+          const text = document.body.textContent || '';
           if (text.includes('自动检测') || Date.now() - startedAt > 10000) {
             const formatSelect = document.querySelector('[aria-label="悬浮翻译格式"]');
             const shellStyle = getComputedStyle(document.querySelector('.floating-shell'));
@@ -478,6 +479,10 @@ function executeWindowControl(command: unknown) {
     case 'close':
       mainWindow?.close();
       break;
+    case 'quit-app':
+      isQuitting = true;
+      app.quit();
+      break;
     case 'hide-main-window':
       if (desktopSettings.hideToTrayOnClose && !isSmokeTest) {
         mainWindow?.hide();
@@ -524,6 +529,7 @@ type WindowControlCommand =
   | 'minimize'
   | 'toggle-maximize'
   | 'close'
+  | 'quit-app'
   | 'hide-main-window'
   | 'toggle-always-on-top'
   | 'toggle-floating-always-on-top'
@@ -539,6 +545,7 @@ function normalizeWindowControlCommand(command: unknown): WindowControlCommand {
     command === 'minimize' ||
     command === 'toggle-maximize' ||
     command === 'close' ||
+    command === 'quit-app' ||
     command === 'hide-main-window' ||
     command === 'toggle-always-on-top' ||
     command === 'toggle-floating-always-on-top' ||

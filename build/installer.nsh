@@ -19,6 +19,12 @@
   nsExec::ExecToLog `"$CmdPath" /C taskkill /T /F /IM "quick-translate.exe"`
   Pop $0
   Sleep 2000
+
+  SetOutPath "$TEMP"
+  IfFileExists "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 QuickTranslateInstallDirCleanupDone
+  DetailPrint "Removing previous Quick Translate install directory before extracting new files: $INSTDIR"
+  RMDir /r "$INSTDIR"
+  QuickTranslateInstallDirCleanupDone:
 !macroend
 
 !macro quickTranslateRemoveRegisteredInstall ROOT_KEY

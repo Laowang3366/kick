@@ -84,6 +84,7 @@ type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 type WindowControlCommand =
   | 'minimize'
   | 'toggle-maximize'
+  | 'quit-app'
   | 'hide-main-window'
   | 'toggle-always-on-top';
 
@@ -1174,7 +1175,7 @@ export function App() {
               className="window-control close"
               type="button"
               aria-label="关闭窗口"
-              onClick={() => runWindowCommand('hide-main-window')}
+              onClick={() => runWindowCommand('quit-app')}
             >
               <X size={18} />
             </button>
