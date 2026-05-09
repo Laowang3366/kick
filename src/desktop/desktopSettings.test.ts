@@ -13,6 +13,7 @@ import {
 
 describe('desktop settings', () => {
   it('uses safe defaults when stored settings are missing or damaged', () => {
+    expect(defaultDesktopSettings.hideToTrayOnClose).toBe(false);
     expect(parseDesktopSettings(undefined)).toEqual(defaultDesktopSettings);
     expect(parseDesktopSettings('{bad json')).toEqual(defaultDesktopSettings);
   });

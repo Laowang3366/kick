@@ -64,7 +64,7 @@ export const defaultDesktopSettings: DesktopSettings = {
   mouseButton4Enabled: true,
   floatingTranslateShortcut: 'mouse-button-4',
   launchAtLogin: false,
-  hideToTrayOnClose: true,
+  hideToTrayOnClose: false,
   defaultTargetLanguage,
   defaultTranslationFormat
 };
