@@ -322,36 +322,46 @@ describe('auto update channel', () => {
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('opens the Windows installer immediately before the current app quits', async () => {
+  it('opens the Windows installer through the system shell before the current app quits', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
+    const shellOpenPath = vi.fn().mockResolvedValue('');
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      powershellPath: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+      shellOpenPath
+    });
+
+    expect(shellOpenPath).toHaveBeenCalledWith('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe');
+    expect(launcher).not.toHaveBeenCalled();
+    expect(child.unref).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a detached process when shell opening the installer fails before quit', async () => {
+    const child = {
+      unref: vi.fn()
+    };
+    const launcher = vi.fn(() => child);
+    const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
+
+    await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
+      platform: 'win32',
+      launcher,
+      shellOpenPath
     });
 
     expect(launcher).toHaveBeenCalledWith(
-      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        expect.stringContaining("Start-Process -FilePath 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe'")
-      ],
+      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      [],
       {
         detached: true,
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: false
       }
     );
-    const command = launcher.mock.calls[0]?.[1]?.at(-1) as string;
-    expect(command).not.toContain('Wait-Process');
-    expect(command).toContain("Start-Process -FilePath 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe'");
     expect(child.unref).toHaveBeenCalledOnce();
   });
 

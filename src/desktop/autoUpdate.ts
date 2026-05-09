@@ -55,9 +55,7 @@ type OpenInstallerOptions = {
   shellOpenPath?: (filePath: string) => Promise<string>;
 };
 
-type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
-  powershellPath?: string;
-};
+type WindowsInstallerLaunchOptions = OpenInstallerOptions;
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
 
@@ -272,26 +270,18 @@ export async function openInstallerBeforeAppQuit(filePath: string, options: Wind
     return;
   }
 
-  const launcher = options.launcher ?? spawn;
-  const powershellPath =
-    options.powershellPath ??
-    path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-  const installerPath = escapePowerShellSingleQuotedString(filePath);
-  const installerDirectory = escapePowerShellSingleQuotedString(path.dirname(filePath));
-  const command = [
-    '$ErrorActionPreference = "SilentlyContinue";',
-    `Start-Process -FilePath '${installerPath}' -WorkingDirectory '${installerDirectory}';`
-  ].join(' ');
+  const shellOpenPath = options.shellOpenPath ?? shell.openPath;
+  const errorMessage = await shellOpenPath(filePath);
+  if (!errorMessage) {
+    return;
+  }
 
-  const child = launcher(
-    powershellPath,
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
-    {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    }
-  );
+  const launcher = options.launcher ?? spawn;
+  const child = launcher(filePath, [], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: false
+  });
   child.unref();
 }
 
@@ -304,10 +294,6 @@ function scheduleQuitAfterOpeningInstaller() {
     forceExitTimer.unref();
   }, 500);
   timer.unref();
-}
-
-function escapePowerShellSingleQuotedString(value: string) {
-  return value.replace(/'/g, "''");
 }
 
 function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, 'warn'>) {
