@@ -53,6 +53,7 @@ type OpenInstallerOptions = {
   platform?: NodeJS.Platform;
   launcher?: InstallerLauncher;
   shellOpenPath?: (filePath: string) => Promise<string>;
+  installDirectory?: string;
 };
 
 type WindowsInstallerLaunchOptions = OpenInstallerOptions;
@@ -232,7 +233,13 @@ export function checkForUpdates(isSmokeTest: boolean, onProgress?: (progress: De
     logger: console,
     onProgress,
     stageDownloadedUpdate: copyDownloadedUpdateToDownloads,
-    openDownloadedUpdate: process.platform === 'win32' ? openInstallerBeforeAppQuit : openInstallerDetached,
+    openDownloadedUpdate:
+      process.platform === 'win32'
+        ? (filePath) =>
+            openInstallerBeforeAppQuit(filePath, {
+              installDirectory: getCurrentInstallDirectory()
+            })
+        : openInstallerDetached,
     quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined
   });
 }
@@ -270,19 +277,41 @@ export async function openInstallerBeforeAppQuit(filePath: string, options: Wind
     return;
   }
 
+  const installerArgs = getWindowsInstallerArgs(options.installDirectory);
+  if (installerArgs.length > 0) {
+    launchInstallerProcess(filePath, installerArgs, false, options.launcher);
+    return;
+  }
+
   const shellOpenPath = options.shellOpenPath ?? shell.openPath;
   const errorMessage = await shellOpenPath(filePath);
   if (!errorMessage) {
     return;
   }
 
-  const launcher = options.launcher ?? spawn;
-  const child = launcher(filePath, [], {
+  launchInstallerProcess(filePath, [], false, options.launcher);
+}
+
+function launchInstallerProcess(filePath: string, args: string[], windowsHide: boolean, launcher: InstallerLauncher = spawn) {
+  const child = launcher(filePath, args, {
     detached: true,
     stdio: 'ignore',
-    windowsHide: false
+    windowsHide
   });
   child.unref();
+}
+
+function getWindowsInstallerArgs(installDirectory: string | undefined) {
+  const normalizedInstallDirectory = installDirectory?.trim();
+  return normalizedInstallDirectory ? [`/D=${normalizedInstallDirectory}`] : [];
+}
+
+function getCurrentInstallDirectory() {
+  try {
+    return path.dirname(app.getPath('exe'));
+  } catch {
+    return path.dirname(process.execPath);
+  }
 }
 
 function scheduleQuitAfterOpeningInstaller() {

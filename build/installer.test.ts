@@ -23,6 +23,14 @@ describe('Windows installer script', () => {
     expect(script).toContain('$SYSDIR\\WindowsPowerShell\\v1.0\\powershell.exe');
     expect(script).toContain('RMDir /r "$3"');
     expect(script).toContain('DeleteRegKey ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}"');
-    expect(script).toContain('DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"');
+    expect(script).not.toContain('DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"');
+  });
+
+  it('keeps the install-location registry key when legacy cleanup runs before installation', () => {
+    const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
+
+    expect(script).toContain('ReadRegStr $3 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation');
+    expect(script).not.toContain('DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"');
+    expect(script).toContain('Keeping Quick Translate install location registry for retryable upgrades.');
   });
 });

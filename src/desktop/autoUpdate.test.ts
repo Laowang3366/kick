@@ -340,6 +340,33 @@ describe('auto update channel', () => {
     expect(child.unref).not.toHaveBeenCalled();
   });
 
+  it('passes the current install directory to the Windows installer before quitting', async () => {
+    const child = {
+      unref: vi.fn()
+    };
+    const launcher = vi.fn(() => child);
+    const shellOpenPath = vi.fn().mockResolvedValue('');
+
+    await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe', {
+      platform: 'win32',
+      launcher,
+      shellOpenPath,
+      installDirectory: 'D:\\Tools\\快捷翻译'
+    });
+
+    expect(shellOpenPath).not.toHaveBeenCalled();
+    expect(launcher).toHaveBeenCalledWith(
+      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe',
+      ['/D=D:\\Tools\\快捷翻译'],
+      {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false
+      }
+    );
+    expect(child.unref).toHaveBeenCalledOnce();
+  });
+
   it('falls back to a detached process when shell opening the installer fails before quit', async () => {
     const child = {
       unref: vi.fn()

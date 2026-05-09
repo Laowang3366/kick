@@ -36,7 +36,7 @@
   !ifdef UNINSTALL_REGISTRY_KEY_2
     DeleteRegKey ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY_2}"
   !endif
-  DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"
+  DetailPrint "Keeping Quick Translate install location registry for retryable upgrades."
 
   QuickTranslateLegacyCleanupDone_${UniqueID}:
   !undef UniqueID
