@@ -1,14 +1,32 @@
 {
-  "latestVersion": "0.1.41",
+  "latestVersion": "0.1.42",
   "releases": [
+    {
+      "version": "0.1.42",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.42.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.42.exe",
+      "size": 106016777,
+      "sha512": "7Rs2F+J3sEdiPA8r3DE8a0zAFoIjcmvW3SaA45ePJdwolhZ2niORMoLDRYw9P5Cb4IVFA4pVd6hVqUMHGVjnXg==",
+      "releaseDate": "2026-05-09T11:22:33.343Z"
+    },
+    {
+      "version": "0.1.42",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.42.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.42.apk",
+      "size": 3264489,
+      "sha512": "JbIq/MRa2s70p4czzcsqWCeBBIraaaRcmq6nkx9+7wo2xg0DJUJ8+Y2sd3wFcTlLvjYaK4rwBOUK7fbWf69zAQ==",
+      "releaseDate": "2026-05-09T11:22:33.343Z"
+    },
     {
       "version": "0.1.41",
       "platform": "windows",
       "fileName": "Quick-Translate-0.1.41.exe",
       "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.41.exe",
-      "size": 106016882,
-      "sha512": "5LBgkTbLTADi3Vh1k0MwKdcIrBMC4SlvHH/oWmjVmz0HO7nQ0ord3vD+0rgOP+OCdjC/+H1LaaDDkNy5vZZUTw==",
-      "releaseDate": "2026-05-09T07:25:02.633Z"
+      "size": 106017055,
+      "sha512": "5t1mCFqkyXTdVAWJwMwQ28rg8bYr4d2PMjDJytgJqOmV2U3lVU2DwnQOY4kYkVeJi/fw0cZDf5EWvhEjWnoTPw==",
+      "releaseDate": "2026-05-09T11:17:30.009Z"
     },
     {
       "version": "0.1.41",
@@ -17,25 +35,7 @@
       "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.41.apk",
       "size": 3264485,
       "sha512": "uscOAdgcfah1sHNZZlYglBPS7FwUssZeYrEEMg2B/uopUAFukJIthCFJACSzwYeGje2UW1UvaEpJhq1hc3M1tQ==",
-      "releaseDate": "2026-05-09T07:25:02.633Z"
-    },
-    {
-      "version": "0.1.40",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.40.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.40.exe",
-      "size": 106016512,
-      "sha512": "yU0dcSwsV9Ttoe0RmVdTRy6+zUmpMDmb9x617LrljXbtbsUwDsCMe59LHHMEzC1BfsVnBxQrwJWHqWwLlRRtXw==",
-      "releaseDate": "2026-05-08T17:42:25.469Z"
-    },
-    {
-      "version": "0.1.40",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.40.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.40.apk",
-      "size": 3264489,
-      "sha512": "0eRHey13Y7o8FzbwCZn2zXen/+CHMhv4BCZ9pQ/q6eoMdvxomJw3gCCbtxqhEUy2CPMVr06g3yahRqXFY43H7A==",
-      "releaseDate": "2026-05-08T17:42:25.469Z"
+      "releaseDate": "2026-05-09T11:17:30.009Z"
     }
   ]
 }
