@@ -13,6 +13,8 @@ const outputPath = path.join(dataDir, 'downloads.json');
 const publicUpdateBaseUrl =
   process.env.QUICK_TRANSLATE_UPDATE_BASE_URL ?? 'https://sg.lwvpscc.top/quick-translate/updates/latest';
 const releaseNotes = (process.env.QUICK_TRANSLATE_RELEASE_NOTES ?? '').trim();
+const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'));
+const releaseNotesVersion = process.env.QUICK_TRANSLATE_RELEASE_NOTES_VERSION ?? packageJson.version;
 
 const latestYmlPath = path.join(releaseDir, 'latest.yml');
 
@@ -35,7 +37,7 @@ const release = {
   size: fileStat.size,
   sha512,
   releaseDate,
-  ...(releaseNotes ? { releaseNotes } : {})
+  ...releaseNotesForVersion(version)
 };
 const additionalReleases = await collectAdditionalReleases({
   releaseDir,
@@ -124,22 +126,19 @@ async function collectAdditionalReleases({ releaseDir, version, skipFileNames, p
       continue;
     }
 
-    const artifactVersion = versionFromFileName(entry.name);
-    if (artifactVersion && artifactVersion !== version) {
-      continue;
-    }
-
     const filePath = path.join(releaseDir, entry.name);
     const fileStat = await stat(filePath);
+    const artifactVersion = versionFromFileName(entry.name);
+    const releaseVersion = artifactVersion || version;
     releases.push({
-      version: artifactVersion || version,
+      version: releaseVersion,
       platform: inferPlatform(entry.name),
       fileName: entry.name,
       url: `${publicUpdateBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(entry.name)}`,
       size: fileStat.size,
       sha512: await sha512Base64(filePath),
-      releaseDate,
-      ...(releaseNotes ? { releaseNotes } : {})
+      releaseDate: artifactVersion && artifactVersion !== version ? fileStat.mtime.toISOString() : releaseDate,
+      ...releaseNotesForVersion(releaseVersion)
     });
   }
 
@@ -160,4 +159,8 @@ function releaseTargetKey(release) {
 
 function versionFromFileName(fileName) {
   return fileName.match(/\d+\.\d+\.\d+/)?.[0] ?? '';
+}
+
+function releaseNotesForVersion(version) {
+  return releaseNotes && version === releaseNotesVersion ? { releaseNotes } : {};
 }

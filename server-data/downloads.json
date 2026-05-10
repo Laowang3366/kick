@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.52",
+  "latestVersion": "0.1.53",
   "releases": [
+    {
+      "version": "0.1.53",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.53.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.53.apk",
+      "size": 3266541,
+      "sha512": "hsTsRC9LruNcd/nXUnPF0RM1oozffmtj25yDul9RcTeHmEo3wcMEKHrd8ODN+UzK2RKst0yr04tzrRYvK1+A/Q==",
+      "releaseDate": "2026-05-10T21:01:03.580Z",
+      "releaseNotes": "修复手机端原文输入框点击清空后误收缩\n清空按钮移动到自动检测左侧\n客户端检测到更新时弹窗展示更新日志"
+    },
     {
       "version": "0.1.52",
       "platform": "windows",
@@ -18,24 +28,6 @@
       "size": 3265701,
       "sha512": "WQI282CjdvwZq6et9JbmzZivgvJMcX8KzIaSV9x3+H8sn2IFxlxim+tF9pB9ZMpVU2U+fj9y53NSj7ntIysguw==",
       "releaseDate": "2026-05-10T09:56:52.599Z"
-    },
-    {
-      "version": "0.1.51",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.51.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.51.exe",
-      "size": 106019489,
-      "sha512": "pshPXTPIp68cSO2BneGb0Ju58pAgmAy0Tgm0XYj2Bi+P6xMVcwoI3aXWbvF8p2vNU89NrvsI+Bukov2Dv9T7rA==",
-      "releaseDate": "2026-05-10T09:21:33.910Z"
-    },
-    {
-      "version": "0.1.51",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.51.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.51.apk",
-      "size": 3265701,
-      "sha512": "VJL3uquimKyVOxAUlNt+hkyBNVMm0pswe6q3kE5Tx1ZCh8N1SqndvE0Rq9WOCZlRCMnVF47EZOAatCWcAgEG+g==",
-      "releaseDate": "2026-05-10T09:21:33.910Z"
     }
   ]
 }
