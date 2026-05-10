@@ -49,7 +49,12 @@ type InstallerLaunchOptions = {
   windowsHide: boolean;
 };
 
-type InstallerLauncher = (command: string, args: string[], options: InstallerLaunchOptions) => { unref(): void };
+type InstallerLauncherProcess = {
+  unref(): void;
+  once?(eventName: 'error' | 'exit', listener: (...args: unknown[]) => void): unknown;
+  removeListener?(eventName: 'error' | 'exit', listener: (...args: unknown[]) => void): unknown;
+};
+type InstallerLauncher = (command: string, args: string[], options: InstallerLaunchOptions) => InstallerLauncherProcess;
 type HandoffScriptWriter = (filePath: string, content: string) => void | Promise<void>;
 
 type OpenInstallerOptions = {
@@ -303,23 +308,24 @@ function launchInstallerProcess(filePath: string, args: string[], windowsHide: b
 async function launchInstallerAfterAppExit(filePath: string, args: string[], currentProcessId: number, options: WindowsInstallerLaunchOptions) {
   const launcher = options.launcher ?? spawn;
   const processId = Math.max(0, Math.floor(currentProcessId));
-  const scriptDirectory = options.tempDirectory ?? tmpdir();
+  const scriptDirectory = options.tempDirectory ?? getUserTempDirectory();
   const scriptPath = path.join(scriptDirectory, `QuickTranslateUpdateLauncher-${processId}.ps1`);
   const scriptContent = createInstallerHandoffScript(filePath, args, processId, scriptDirectory);
   const scriptWriter = options.scriptWriter ?? writePowerShellScript;
 
   await scriptWriter(scriptPath, scriptContent);
 
+  const powershellPath = getWindowsPowerShellPath();
   const child = launcher(
-    'cmd.exe',
-    ['/d', '/s', '/c', createDetachedPowerShellStartCommand(scriptPath)],
+    powershellPath,
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', createPowerShellStartProcessCommand(powershellPath, scriptPath)],
     {
-      detached: true,
+      detached: false,
       stdio: 'ignore',
       windowsHide: true
     }
   );
-  child.unref();
+  await waitForInstallerLauncher(child);
 }
 
 function createInstallerHandoffScript(filePath: string, args: string[], currentProcessId: number, logDirectory: string) {
@@ -352,13 +358,71 @@ function createInstallerHandoffScript(filePath: string, args: string[], currentP
   ].join('\r\n');
 }
 
-function createDetachedPowerShellStartCommand(scriptPath: string) {
-  return `start "" /min "${getWindowsPowerShellPath()}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${scriptPath}"`;
-}
-
 function getWindowsPowerShellPath() {
   const windowsDirectory = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
   return path.join(windowsDirectory, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+}
+
+function createPowerShellStartProcessCommand(powershellPath: string, scriptPath: string) {
+  const argumentsList = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', scriptPath]
+    .map(toPowerShellSingleQuotedString)
+    .join(', ');
+
+  return [
+    '$ErrorActionPreference = "Stop"',
+    `$filePath = ${toPowerShellSingleQuotedString(powershellPath)}`,
+    `$arguments = @(${argumentsList})`,
+    'Start-Process -WindowStyle Hidden -FilePath $filePath -ArgumentList $arguments'
+  ].join('; ');
+}
+
+async function waitForInstallerLauncher(child: InstallerLauncherProcess) {
+  if (!child.once) {
+    child.unref();
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('等待更新安装启动器超时'));
+    }, 5000);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      child.removeListener?.('error', onError);
+      child.removeListener?.('exit', onExit);
+    };
+    const onError = (error: unknown) => {
+      cleanup();
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+    const onExit = (code: unknown) => {
+      cleanup();
+      if (code === 0 || code === null) {
+        resolve();
+        return;
+      }
+      reject(new Error(`更新安装启动器退出异常：${String(code)}`));
+    };
+
+    child.once?.('error', onError);
+    child.once?.('exit', onExit);
+  });
+}
+
+function getUserTempDirectory() {
+  const localAppData = process.env.LOCALAPPDATA?.trim();
+  if (localAppData) {
+    return path.join(localAppData, 'Temp');
+  }
+
+  const userProfile = process.env.USERPROFILE?.trim();
+  if (userProfile) {
+    return path.join(userProfile, 'AppData', 'Local', 'Temp');
+  }
+
+  return tmpdir();
 }
 
 async function writePowerShellScript(filePath: string, content: string) {

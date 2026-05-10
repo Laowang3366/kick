@@ -322,7 +322,7 @@ describe('auto update channel', () => {
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('uses a detached handoff helper before the current app quits', async () => {
+  it('starts an independent handoff helper before the current app quits', async () => {
     const child = {
       unref: vi.fn()
     };
@@ -341,10 +341,10 @@ describe('auto update channel', () => {
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'cmd.exe',
-      expect.arrayContaining(['/d', '/s', '/c', expect.stringContaining('start "" /min')]),
+      expect.stringContaining('powershell.exe'),
+      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command']),
       {
-        detached: true,
+        detached: false,
         stdio: 'ignore',
         windowsHide: true
       }
@@ -352,7 +352,7 @@ describe('auto update channel', () => {
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('launches a detached handoff helper that waits for the app to exit before opening the Windows installer', async () => {
+  it('launches an independent handoff helper that waits for the app to exit before opening the Windows installer', async () => {
     const child = {
       unref: vi.fn()
     };
@@ -372,11 +372,14 @@ describe('auto update channel', () => {
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     const [command, args, options] = launcher.mock.calls[0];
-    expect(command).toBe('cmd.exe');
-    expect(args).toEqual(expect.arrayContaining(['/d', '/s', '/c']));
-    expect(args.at(-1)).toContain('start "" /min');
-    expect(args.at(-1)).toContain('-File "C:\\Temp\\QuickTranslateUpdateLauncher-4321.ps1"');
-    expect(args.at(-1)).not.toContain('-Command');
+    expect(command).toContain('powershell.exe');
+    expect(args).toEqual(
+      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command'])
+    );
+    expect(args).not.toContain('-File');
+    expect(args.at(-1)).toContain('Start-Process -WindowStyle Hidden');
+    expect(args.at(-1)).toContain("'-File'");
+    expect(args.at(-1)).toContain("'C:\\Temp\\QuickTranslateUpdateLauncher-4321.ps1'");
     expect(scriptWriter).toHaveBeenCalledWith(
       'C:\\Temp\\QuickTranslateUpdateLauncher-4321.ps1',
       expect.stringContaining('$processId = 4321')
@@ -388,7 +391,7 @@ describe('auto update channel', () => {
     expect(scriptWriter.mock.calls[0][1]).toContain("'/D=D:\\Tools\\快捷翻译'");
     expect(scriptWriter.mock.calls[0][1]).toContain('Add-Content');
     expect(options).toEqual({
-      detached: true,
+      detached: false,
       stdio: 'ignore',
       windowsHide: true
     });
@@ -414,10 +417,10 @@ describe('auto update channel', () => {
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'cmd.exe',
-      expect.arrayContaining(['/d', '/s', '/c', expect.stringContaining('start "" /min')]),
+      expect.stringContaining('powershell.exe'),
+      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command']),
       {
-        detached: true,
+        detached: false,
         stdio: 'ignore',
         windowsHide: true
       }
@@ -444,10 +447,10 @@ describe('auto update channel', () => {
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'cmd.exe',
-      expect.arrayContaining(['/d', '/s', '/c', expect.stringContaining('start "" /min')]),
+      expect.stringContaining('powershell.exe'),
+      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command']),
       {
-        detached: true,
+        detached: false,
         stdio: 'ignore',
         windowsHide: true
       }
