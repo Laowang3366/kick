@@ -1034,7 +1034,9 @@ function normalizeDownloadManifest(value) {
           url: stringOrEmpty(release.url),
           size: Number.isFinite(release.size) ? release.size : 0,
           sha512: stringOrEmpty(release.sha512),
-          releaseDate: stringOrEmpty(release.releaseDate)
+          releaseDate: stringOrEmpty(release.releaseDate),
+          releaseNotes:
+            stringOrEmpty(release.releaseNotes) || stringOrEmpty(release.changelog) || stringOrEmpty(release.notes)
         }))
         .filter((release) => release.version && release.fileName && release.url)
     : [];

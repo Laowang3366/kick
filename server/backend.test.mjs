@@ -399,7 +399,8 @@ describe('backend app', () => {
           url: '/quick-translate/updates/latest/%E5%BF%AB%E6%8D%B7.exe',
           size: 99,
           sha512: 'hash',
-          releaseDate: '2026-05-07T12:48:37.123Z'
+          releaseDate: '2026-05-07T12:48:37.123Z',
+          releaseNotes: '修复更新弹窗\n展示更新日志'
         }
       ]
     });
@@ -410,6 +411,7 @@ describe('backend app', () => {
     expect(response.body.latestVersion).toBe('0.1.14');
     expect(response.body.releases[0].fileName).toContain('快捷翻译');
     expect(response.body.releases[0].platform).toBe('windows');
+    expect(response.body.releases[0].releaseNotes).toBe('修复更新弹窗\n展示更新日志');
   });
 
   it('tracks download clicks and API call counts for the admin dashboard', async () => {
