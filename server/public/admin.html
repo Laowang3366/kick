@@ -701,6 +701,56 @@
         white-space: nowrap;
       }
 
+      .translation-usage-card {
+        min-height: 380px;
+      }
+
+      .usage-line-chart {
+        min-height: 280px;
+        border: 1px solid #c8d3e5;
+        border-radius: 8px;
+        padding: 14px 16px 10px;
+        background: linear-gradient(180deg, #eef7ff, #ffffff);
+      }
+
+      .usage-line-chart svg {
+        width: 100%;
+        height: 280px;
+        display: block;
+      }
+
+      .usage-grid-line {
+        stroke: #d7e3f3;
+        stroke-width: 1;
+      }
+
+      .usage-axis-label,
+      .usage-day-label {
+        fill: #596579;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .usage-count-label {
+        fill: #005daa;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .usage-line {
+        fill: none;
+        stroke: var(--blue-dark);
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .usage-point {
+        fill: #ffffff;
+        stroke: var(--blue-dark);
+        stroke-width: 4;
+      }
+
       .distribution-list {
         display: grid;
         gap: 18px;
@@ -1102,6 +1152,16 @@
               <div class="distribution-list" id="distribution-list"></div>
             </section>
           </div>
+          <section class="panel-card chart-card translation-usage-card">
+            <div class="chart-head">
+              <div>
+                <h2>过去 7 天翻译调用趋势</h2>
+                <p class="muted">按天统计成功完成的翻译调用次数。</p>
+              </div>
+              <div class="segmented" aria-hidden="true"><span>调用</span></div>
+            </div>
+            <div id="translation-usage-chart" class="usage-line-chart"></div>
+          </section>
           <section class="panel-card">
             <div class="panel-head">
               <div class="panel-title"><div><h2>近期活跃用户</h2><p>按注册时间排序展示最近用户。</p></div></div>
@@ -1586,6 +1646,7 @@
         const todayUsers = users.filter((user) => isToday(user.createdAt)).length;
         const metrics = state.metrics || {};
         const apiCalls = metrics.apiCalls || {};
+        const translations = metrics.translations || {};
         const downloads = metrics.downloads || {};
         const byEndpoint = apiCalls.byEndpoint || {};
         document.querySelector('#stat-users-total').textContent = formatNumber(users.length);
@@ -1597,7 +1658,7 @@
         document.querySelector('#data-favorite-total').textContent = formatNumber(favoriteTotal);
         document.querySelector('#data-download-total').textContent = formatNumber(downloads.total);
         document.querySelector('#data-api-total').textContent = formatNumber(apiCalls.total);
-        document.querySelector('#data-translate-api-total').textContent = formatNumber(byEndpoint['POST /api/translate']);
+        document.querySelector('#data-translate-api-total').textContent = formatNumber(translations.total || byEndpoint['POST /api/translate']);
         document.querySelector('#data-download-api-total').textContent = formatNumber(
           (byEndpoint['GET /api/downloads'] || 0) + (byEndpoint['POST /api/downloads/track'] || 0)
         );
@@ -1701,6 +1762,7 @@
 
       function renderDataView() {
         renderTrend();
+        renderTranslationUsageTrend();
         renderDistribution();
         const rows = state.users.slice(0, 5).map((user) => {
           const isActive = (user.historyCount || 0) + (user.favoriteCount || 0) > 0;
@@ -1735,6 +1797,71 @@
         document.querySelector('#trend-bars').innerHTML = days
           .map((day) => `<div class="trend-bar" style="height:${Math.max(8, Math.round((day.count / max) * 230))}px"><span>${day.label}</span></div>`)
           .join('');
+      }
+
+      function renderTranslationUsageTrend() {
+        const metrics = state.metrics || {};
+        const translations = metrics.translations || {};
+        const byDay = translations.byDay || {};
+        const days = Array.from({ length: 7 }, (_, index) => {
+          const date = new Date();
+          date.setUTCHours(12, 0, 0, 0);
+          date.setUTCDate(date.getUTCDate() - (6 - index));
+          const key = date.toISOString().slice(0, 10);
+          return {
+            key,
+            label: `${date.getUTCMonth() + 1}/${date.getUTCDate()}`,
+            count: Number(byDay[key] || 0)
+          };
+        });
+
+        document.querySelector('#translation-usage-chart').innerHTML = renderTranslationUsageLineChart(days);
+      }
+
+      function renderTranslationUsageLineChart(days) {
+        const width = 720;
+        const height = 280;
+        const left = 56;
+        const right = 24;
+        const top = 34;
+        const bottom = 42;
+        const chartWidth = width - left - right;
+        const chartHeight = height - top - bottom;
+        const max = Math.max(1, ...days.map((day) => day.count));
+        const points = days.map((day, index) => {
+          const x = left + (chartWidth / Math.max(1, days.length - 1)) * index;
+          const y = top + chartHeight - (day.count / max) * chartHeight;
+          return { ...day, x, y };
+        });
+        const polyline = points.map((point) => `${point.x},${point.y}`).join(' ');
+        const area = `${left},${top + chartHeight} ${polyline} ${left + chartWidth},${top + chartHeight}`;
+        const gridLines = [0, 0.5, 1].map((ratio) => {
+          const y = top + chartHeight - chartHeight * ratio;
+          const value = Math.round(max * ratio);
+          return `<line class="usage-grid-line" x1="${left}" y1="${y}" x2="${left + chartWidth}" y2="${y}"></line><text class="usage-axis-label" x="${left - 12}" y="${y + 4}" text-anchor="end">${formatNumber(value)}</text>`;
+        }).join('');
+        const pointMarkup = points.map((point) => `
+          <g>
+            <circle class="usage-point" cx="${point.x}" cy="${point.y}" r="6"></circle>
+            <text class="usage-count-label" x="${point.x}" y="${point.y - 14}" text-anchor="middle">${formatNumber(point.count)}</text>
+            <text class="usage-day-label" x="${point.x}" y="${height - 12}" text-anchor="middle">${point.label}</text>
+          </g>
+        `).join('');
+
+        return `
+          <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="过去 7 天每天翻译调用次数折线图">
+            <defs>
+              <linearGradient id="usage-fill-gradient" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#0b69c8" stop-opacity="0.22"></stop>
+                <stop offset="100%" stop-color="#0b69c8" stop-opacity="0.02"></stop>
+              </linearGradient>
+            </defs>
+            ${gridLines}
+            <polygon points="${area}" fill="url(#usage-fill-gradient)"></polygon>
+            <polyline class="usage-line" points="${polyline}"></polyline>
+            ${pointMarkup}
+          </svg>
+        `;
       }
 
       function renderDistribution() {

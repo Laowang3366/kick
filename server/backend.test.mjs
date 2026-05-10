@@ -19,7 +19,13 @@ beforeEach(async () => {
       baseUrl: 'https://example.test/v1',
       apiKey: 'sk-test',
       model: 'gpt-test'
-    }
+    },
+    translateText: async ({ text, targetLanguage, provider }) => ({
+      sourceText: text,
+      targetLanguage,
+      translatedText: `translated:${text}`,
+      provider: provider.providerType
+    })
   });
 });
 
@@ -359,6 +365,32 @@ describe('backend app', () => {
     expect(statsResponse.body.metrics.apiCalls.total).toBeGreaterThanOrEqual(4);
     expect(statsResponse.body.metrics.apiCalls.byEndpoint['GET /api/downloads']).toBe(1);
     expect(statsResponse.body.metrics.apiCalls.byEndpoint['POST /api/downloads/track']).toBe(1);
+  });
+
+  it('tracks daily translation usage for the admin dashboard', async () => {
+    const adminLoginResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'admin-pass'
+    });
+    const today = new Date().toISOString().slice(0, 10);
+
+    const firstTranslateResponse = await request('POST', '/api/translate', {
+      text: 'hello',
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain'
+    });
+    const secondTranslateResponse = await request('POST', '/api/translate', {
+      text: 'world',
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain'
+    });
+    const statsResponse = await request('GET', '/api/admin/stats', undefined, adminLoginResponse.body.token);
+
+    expect(firstTranslateResponse.status).toBe(200);
+    expect(secondTranslateResponse.status).toBe(200);
+    expect(statsResponse.status).toBe(200);
+    expect(statsResponse.body.metrics.translations.total).toBe(2);
+    expect(statsResponse.body.metrics.translations.byDay[today]).toBe(2);
   });
 
   it('accepts the nginx backend prefix in API paths', async () => {

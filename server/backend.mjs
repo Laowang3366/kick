@@ -30,6 +30,11 @@ const defaultMetrics = {
     byMethod: {},
     latestAt: ''
   },
+  translations: {
+    total: 0,
+    byDay: {},
+    latestAt: ''
+  },
   downloads: {
     total: 0,
     byPlatform: {},
@@ -163,6 +168,7 @@ export function createBackendApp(options = {}) {
           translationFormat: stringOrEmpty(body.translationFormat) || 'plain',
           provider
         });
+        await store.recordTranslationEvent();
         return createJsonResponse(200, result);
       }
 
@@ -459,6 +465,9 @@ export function createJsonStore({ dataDir, defaultProvider }) {
     },
     async recordApiCall(event) {
       return files.metrics.update((value) => incrementApiCallMetrics(value, event));
+    },
+    async recordTranslationEvent(event) {
+      return files.metrics.update((value) => incrementTranslationMetrics(value, event));
     },
     async recordDownloadEvent(event) {
       return files.metrics.update((value) => incrementDownloadMetrics(value, event));
@@ -841,6 +850,7 @@ function redactProviderState(providerState) {
 function normalizeMetrics(value) {
   const record = isRecord(value) ? value : {};
   const apiCalls = isRecord(record.apiCalls) ? record.apiCalls : {};
+  const translations = isRecord(record.translations) ? record.translations : {};
   const downloads = isRecord(record.downloads) ? record.downloads : {};
 
   return {
@@ -849,6 +859,11 @@ function normalizeMetrics(value) {
       byEndpoint: normalizeCounterRecord(apiCalls.byEndpoint),
       byMethod: normalizeCounterRecord(apiCalls.byMethod),
       latestAt: stringOrEmpty(apiCalls.latestAt)
+    },
+    translations: {
+      total: nonNegativeNumber(translations.total),
+      byDay: normalizeCounterRecord(translations.byDay),
+      latestAt: stringOrEmpty(translations.latestAt)
     },
     downloads: {
       total: nonNegativeNumber(downloads.total),
@@ -873,6 +888,17 @@ function incrementApiCallMetrics(value, event) {
   return metrics;
 }
 
+function incrementTranslationMetrics(value, event = {}) {
+  const metrics = normalizeMetrics(value);
+  const now = event.now instanceof Date ? event.now : new Date();
+  const day = formatMetricDay(now);
+
+  metrics.translations.total += 1;
+  incrementCounter(metrics.translations.byDay, day);
+  metrics.translations.latestAt = now.toISOString();
+  return metrics;
+}
+
 function incrementDownloadMetrics(value, event) {
   const metrics = normalizeMetrics(value);
   const record = isRecord(event) ? event : {};
@@ -886,6 +912,10 @@ function incrementDownloadMetrics(value, event) {
   incrementCounter(metrics.downloads.byFileName, fileName);
   metrics.downloads.latestAt = new Date().toISOString();
   return metrics;
+}
+
+function formatMetricDay(date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function normalizeCounterRecord(value) {
