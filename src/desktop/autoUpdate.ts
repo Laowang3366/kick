@@ -1,7 +1,8 @@
 import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { getDefaultUpdatePackageDirectory, normalizeUpdatePackageDirectoryPath } from './updatePackageDirectory.js';
 
@@ -49,6 +50,7 @@ type InstallerLaunchOptions = {
 };
 
 type InstallerLauncher = (command: string, args: string[], options: InstallerLaunchOptions) => { unref(): void };
+type HandoffScriptWriter = (filePath: string, content: string) => void | Promise<void>;
 
 type OpenInstallerOptions = {
   platform?: NodeJS.Platform;
@@ -56,6 +58,8 @@ type OpenInstallerOptions = {
   shellOpenPath?: (filePath: string) => Promise<string>;
   installDirectory?: string;
   currentProcessId?: number;
+  tempDirectory?: string;
+  scriptWriter?: HandoffScriptWriter;
 };
 
 type WindowsInstallerLaunchOptions = OpenInstallerOptions;
@@ -284,7 +288,7 @@ export async function openInstallerBeforeAppQuit(filePath: string, options: Wind
   }
 
   const installerArgs = getWindowsInstallerArgs(options.installDirectory);
-  launchInstallerAfterAppExit(filePath, installerArgs, options.currentProcessId ?? process.pid, options.launcher);
+  await launchInstallerAfterAppExit(filePath, installerArgs, options.currentProcessId ?? process.pid, options);
 }
 
 function launchInstallerProcess(filePath: string, args: string[], windowsHide: boolean, launcher: InstallerLauncher = spawn) {
@@ -296,26 +300,19 @@ function launchInstallerProcess(filePath: string, args: string[], windowsHide: b
   child.unref();
 }
 
-function launchInstallerAfterAppExit(
-  filePath: string,
-  args: string[],
-  currentProcessId: number,
-  launcher: InstallerLauncher = spawn
-) {
-  const command = [
-    '$ErrorActionPreference = "SilentlyContinue";',
-    `$processId = ${Math.max(0, Math.floor(currentProcessId))};`,
-    'while (Get-Process -Id $processId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250 }',
-    `$filePath = ${toPowerShellSingleQuotedString(filePath)};`,
-    `$arguments = @(${args.map(toPowerShellSingleQuotedString).join(', ')});`,
-    '$startOptions = @{ FilePath = $filePath; WorkingDirectory = (Split-Path -Parent $filePath) };',
-    'if ($arguments.Count -gt 0) { $startOptions.ArgumentList = $arguments }',
-    'Start-Process @startOptions;'
-  ].join(' ');
+async function launchInstallerAfterAppExit(filePath: string, args: string[], currentProcessId: number, options: WindowsInstallerLaunchOptions) {
+  const launcher = options.launcher ?? spawn;
+  const processId = Math.max(0, Math.floor(currentProcessId));
+  const scriptDirectory = options.tempDirectory ?? tmpdir();
+  const scriptPath = path.join(scriptDirectory, `QuickTranslateUpdateLauncher-${processId}.ps1`);
+  const scriptContent = createInstallerHandoffScript(filePath, args, processId, scriptDirectory);
+  const scriptWriter = options.scriptWriter ?? writePowerShellScript;
+
+  await scriptWriter(scriptPath, scriptContent);
 
   const child = launcher(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command],
+    'cmd.exe',
+    ['/d', '/s', '/c', createDetachedPowerShellStartCommand(scriptPath)],
     {
       detached: true,
       stdio: 'ignore',
@@ -323,6 +320,49 @@ function launchInstallerAfterAppExit(
     }
   );
   child.unref();
+}
+
+function createInstallerHandoffScript(filePath: string, args: string[], currentProcessId: number, logDirectory: string) {
+  const processId = Math.max(0, Math.floor(currentProcessId));
+  const logPath = path.join(logDirectory, `QuickTranslateUpdateLauncher-${processId}.log`);
+
+  return [
+    '$ErrorActionPreference = "Continue"',
+    `$logPath = ${toPowerShellSingleQuotedString(logPath)}`,
+    'function Write-LaunchLog([string]$message) {',
+    '  try { Add-Content -LiteralPath $logPath -Encoding UTF8 -Value "$(Get-Date -Format o) $message" } catch {}',
+    '}',
+    'try {',
+    `  $processId = ${processId}`,
+    '  Write-LaunchLog "waiting for app process $processId"',
+    '  while (Get-Process -Id $processId -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 250 }',
+    '  Start-Sleep -Milliseconds 500',
+    `  $filePath = ${toPowerShellSingleQuotedString(filePath)}`,
+    `  $arguments = @(${args.map(toPowerShellSingleQuotedString).join(', ')})`,
+    '  $startOptions = @{ FilePath = $filePath; WorkingDirectory = (Split-Path -Parent $filePath) }',
+    '  if ($arguments.Count -gt 0) { $startOptions.ArgumentList = $arguments }',
+    '  Write-LaunchLog "starting installer $filePath"',
+    '  Start-Process @startOptions',
+    '  Write-LaunchLog "installer start requested"',
+    '} catch {',
+    '  Write-LaunchLog ("failed to start installer: " + $_.Exception.Message)',
+    '  exit 1',
+    '}',
+    ''
+  ].join('\r\n');
+}
+
+function createDetachedPowerShellStartCommand(scriptPath: string) {
+  return `start "" /min "${getWindowsPowerShellPath()}" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${scriptPath}"`;
+}
+
+function getWindowsPowerShellPath() {
+  const windowsDirectory = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+  return path.join(windowsDirectory, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+}
+
+async function writePowerShellScript(filePath: string, content: string) {
+  await writeFile(filePath, `\uFEFF${content}`, 'utf8');
 }
 
 function toPowerShellSingleQuotedString(value: string) {

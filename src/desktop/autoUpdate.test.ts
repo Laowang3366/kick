@@ -328,17 +328,21 @@ describe('auto update channel', () => {
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('');
+    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath
+      shellOpenPath,
+      currentProcessId: 4321,
+      tempDirectory: 'C:\\Temp',
+      scriptWriter
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'powershell.exe',
-      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']),
+      'cmd.exe',
+      expect.arrayContaining(['/d', '/s', '/c', expect.stringContaining('start "" /min')]),
       {
         detached: true,
         stdio: 'ignore',
@@ -354,23 +358,35 @@ describe('auto update channel', () => {
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('');
+    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe', {
       platform: 'win32',
       launcher,
       shellOpenPath,
       installDirectory: 'D:\\Tools\\快捷翻译',
-      currentProcessId: 4321
+      currentProcessId: 4321,
+      tempDirectory: 'C:\\Temp',
+      scriptWriter
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     const [command, args, options] = launcher.mock.calls[0];
-    expect(command).toBe('powershell.exe');
-    expect(args).toEqual(expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']));
-    expect(args.at(-1)).toContain('$processId = 4321');
-    expect(args.at(-1)).toContain("$filePath = 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe'");
-    expect(args.at(-1)).toContain('Start-Process @startOptions');
-    expect(args.at(-1)).toContain("'/D=D:\\Tools\\快捷翻译'");
+    expect(command).toBe('cmd.exe');
+    expect(args).toEqual(expect.arrayContaining(['/d', '/s', '/c']));
+    expect(args.at(-1)).toContain('start "" /min');
+    expect(args.at(-1)).toContain('-File "C:\\Temp\\QuickTranslateUpdateLauncher-4321.ps1"');
+    expect(args.at(-1)).not.toContain('-Command');
+    expect(scriptWriter).toHaveBeenCalledWith(
+      'C:\\Temp\\QuickTranslateUpdateLauncher-4321.ps1',
+      expect.stringContaining('$processId = 4321')
+    );
+    expect(scriptWriter.mock.calls[0][1]).toContain(
+      "$filePath = 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe'"
+    );
+    expect(scriptWriter.mock.calls[0][1]).toContain('Start-Process @startOptions');
+    expect(scriptWriter.mock.calls[0][1]).toContain("'/D=D:\\Tools\\快捷翻译'");
+    expect(scriptWriter.mock.calls[0][1]).toContain('Add-Content');
     expect(options).toEqual({
       detached: true,
       stdio: 'ignore',
@@ -385,18 +401,21 @@ describe('auto update channel', () => {
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
+    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
       shellOpenPath,
-      currentProcessId: 4321
+      currentProcessId: 4321,
+      tempDirectory: 'C:\\Temp',
+      scriptWriter
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'powershell.exe',
-      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']),
+      'cmd.exe',
+      expect.arrayContaining(['/d', '/s', '/c', expect.stringContaining('start "" /min')]),
       {
         detached: true,
         stdio: 'ignore',
@@ -412,17 +431,21 @@ describe('auto update channel', () => {
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
+    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath
+      shellOpenPath,
+      currentProcessId: 4321,
+      tempDirectory: 'C:\\Temp',
+      scriptWriter
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      'powershell.exe',
-      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command']),
+      'cmd.exe',
+      expect.arrayContaining(['/d', '/s', '/c', expect.stringContaining('start "" /min')]),
       {
         detached: true,
         stdio: 'ignore',
