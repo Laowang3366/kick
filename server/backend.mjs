@@ -46,13 +46,18 @@ const defaultMetrics = {
 const providerModelListTimeoutMs = 15_000;
 
 export function createBackendApp(options = {}) {
-  const store = createJsonStore({
-    dataDir: options.dataDir ?? path.join(process.cwd(), 'data'),
-    defaultProvider: options.defaultProvider
-  });
   const jwtSecret = options.jwtSecret ?? process.env.QUICK_TRANSLATE_JWT_SECRET ?? 'quick-translate-dev-secret';
   const adminUsername = options.adminUsername ?? process.env.QUICK_TRANSLATE_ADMIN_USER ?? 'admin';
   const adminPassword = options.adminPassword ?? process.env.QUICK_TRANSLATE_ADMIN_PASSWORD ?? 'admin123456';
+  const store = createJsonStore({
+    dataDir: options.dataDir ?? path.join(process.cwd(), 'data'),
+    defaultProvider: options.defaultProvider,
+    defaultAdmin: {
+      username: adminUsername,
+      email: options.adminEmail ?? process.env.QUICK_TRANSLATE_ADMIN_EMAIL ?? '',
+      password: adminPassword
+    }
+  });
   const translateText = options.translateText;
 
   async function handleRequest(request) {
@@ -89,6 +94,17 @@ export function createBackendApp(options = {}) {
         const state = normalizeUserState(await readJsonBody(request));
         await store.saveUserState(auth.subject, state);
         return createJsonResponse(200, { state });
+      }
+
+      if (method === 'GET' && pathname === '/api/admin/profile') {
+        requireAuth(request, jwtSecret, 'admin');
+        return createJsonResponse(200, { admin: publicAdmin(await store.getAdminProfile()) });
+      }
+
+      if (method === 'PUT' && pathname === '/api/admin/profile') {
+        requireAuth(request, jwtSecret, 'admin');
+        const admin = await store.updateAdminProfile(await readJsonBody(request));
+        return createJsonResponse(200, { admin: publicAdmin(admin) });
       }
 
       if (method === 'GET' && pathname === '/api/admin/provider') {
@@ -238,14 +254,15 @@ export function createBackendApp(options = {}) {
   async function adminLogin(body) {
     const username = stringOrEmpty(body.username);
     const password = stringOrEmpty(body.password);
+    const admin = await store.getAdminProfile();
 
-    if (username !== adminUsername || password !== adminPassword) {
+    if (username !== admin.username || !(await verifyAdminPassword(admin, password, adminPassword))) {
       throw new HttpError(401, '管理员账号或密码错误');
     }
 
     return createJsonResponse(200, {
-      admin: { username: adminUsername },
-      token: signToken({ role: 'admin', subject: adminUsername }, jwtSecret)
+      admin: publicAdmin(admin),
+      token: signToken({ role: 'admin', subject: admin.username }, jwtSecret)
     });
   }
 
@@ -258,8 +275,9 @@ function normalizeBackendPath(pathname) {
     : pathname;
 }
 
-export function createJsonStore({ dataDir, defaultProvider }) {
+export function createJsonStore({ dataDir, defaultProvider, defaultAdmin }) {
   const paths = {
+    admin: path.join(dataDir, 'admin.json'),
     users: path.join(dataDir, 'users.json'),
     states: path.join(dataDir, 'states.json'),
     provider: path.join(dataDir, 'provider.json'),
@@ -268,6 +286,7 @@ export function createJsonStore({ dataDir, defaultProvider }) {
   };
 
   const files = {
+    admin: createJsonFile(paths.admin, undefined),
     users: createJsonFile(paths.users, []),
     states: createJsonFile(paths.states, {}),
     provider: createJsonFile(paths.provider, undefined),
@@ -276,6 +295,39 @@ export function createJsonStore({ dataDir, defaultProvider }) {
   };
 
   return {
+    async getAdminProfile() {
+      return normalizeAdminProfile(await files.admin.read(), defaultAdmin);
+    },
+    async updateAdminProfile(update) {
+      let updatedAdmin = null;
+      await files.admin.update(async (value) => {
+        const currentAdmin = normalizeAdminProfile(value, defaultAdmin);
+        const record = isRecord(update) ? update : {};
+        const hasEmailUpdate = Object.prototype.hasOwnProperty.call(record, 'email');
+        const email = hasEmailUpdate ? normalizeEmail(record.email) : currentAdmin.email;
+        const currentPassword = stringOrEmpty(record.currentPassword);
+        const newPassword = stringOrEmpty(record.newPassword);
+
+        if (email && !isValidEmail(email)) {
+          throw new HttpError(400, '邮箱不符合要求');
+        }
+        if (newPassword && newPassword.length < 6) {
+          throw new HttpError(400, '密码至少需要 6 位');
+        }
+        if (newPassword && !(await verifyAdminPassword(currentAdmin, currentPassword, defaultAdmin?.password))) {
+          throw new HttpError(401, '当前密码错误');
+        }
+
+        updatedAdmin = {
+          username: currentAdmin.username,
+          email,
+          passwordHash: newPassword ? await hashPassword(newPassword) : currentAdmin.passwordHash
+        };
+        return updatedAdmin;
+      });
+
+      return updatedAdmin;
+    },
     async findUserByEmail(email) {
       const users = normalizeUsers(await files.users.read());
       return users.find((user) => user.email === email) ?? null;
@@ -656,8 +708,19 @@ function publicUser(user) {
   };
 }
 
+function publicAdmin(admin) {
+  return {
+    username: admin.username,
+    email: admin.email
+  };
+}
+
 function normalizeEmail(value) {
   return stringOrEmpty(value).trim().toLowerCase();
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
 function stringOrEmpty(value) {
@@ -687,6 +750,23 @@ function normalizeUserState(value) {
     favoriteIds: Array.isArray(record.favoriteIds) ? record.favoriteIds.filter((id) => typeof id === 'string') : [],
     settings: isRecord(record.settings) ? record.settings : {}
   };
+}
+
+function normalizeAdminProfile(value, fallback = {}) {
+  const record = isRecord(value) ? value : {};
+  return {
+    username: stringOrEmpty(record.username) || stringOrEmpty(fallback.username) || 'admin',
+    email: stringOrEmpty(record.email).trim().toLowerCase() || stringOrEmpty(fallback.email).trim().toLowerCase(),
+    passwordHash: stringOrEmpty(record.passwordHash)
+  };
+}
+
+async function verifyAdminPassword(admin, password, fallbackPassword) {
+  if (admin.passwordHash) {
+    return verifyPassword(password, admin.passwordHash);
+  }
+
+  return safeEqual(password, stringOrEmpty(fallbackPassword));
 }
 
 async function fetchProviderModels(input, store) {

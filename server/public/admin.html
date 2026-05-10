@@ -1097,6 +1097,12 @@
             </span>
             接口设置
           </button>
+          <button class="nav-button" type="button" data-view="account" aria-pressed="false">
+            <span class="nav-icon" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/><path d="M4 21a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="2"/><path d="M19 8v5M16.5 10.5h5" stroke="currentColor" stroke-width="2"/></svg>
+            </span>
+            账号安全
+          </button>
         </nav>
         <div class="sidebar-footer">
           <button id="logout-button" class="logout-button" type="button">
@@ -1121,8 +1127,8 @@
           <button class="header-icon" type="button" aria-label="帮助">
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 2-3 4M12 17h.01" stroke="currentColor" stroke-width="2"/></svg>
           </button>
-          <span class="avatar" aria-hidden="true">A</span>
-          <span class="admin-name"><strong>Admin User</strong><span>SUPER ADMIN</span></span>
+          <span id="admin-avatar" class="avatar" aria-hidden="true">A</span>
+          <span class="admin-name"><strong id="admin-display-name">Admin User</strong><span id="admin-display-email">SUPER ADMIN</span></span>
         </div>
       </header>
 
@@ -1350,6 +1356,50 @@
             </article>
           </div>
         </section>
+
+        <section id="account-view" class="view-panel hidden">
+          <div class="page-heading">
+            <div>
+              <p class="breadcrumb">控制台 / 账号安全</p>
+              <h1>管理员账号</h1>
+              <p>修改后台管理员邮箱和登录密码，保存后新密码会立即生效。</p>
+            </div>
+          </div>
+          <section class="panel-card">
+            <div class="panel-head">
+              <div class="panel-title">
+                <span class="panel-title-mark" aria-hidden="true">管</span>
+                <div>
+                  <h2>管理员资料</h2>
+                  <p>邮箱用于后台资料展示，管理员账号名保持不变。</p>
+                </div>
+              </div>
+              <span id="admin-profile-state" class="pill">未读取</span>
+            </div>
+            <form id="admin-profile-form" class="provider-form">
+              <label class="form-row">
+                <span>管理员账号</span>
+                <input id="admin-profile-username" disabled />
+              </label>
+              <label class="form-row">
+                <span>管理员邮箱</span>
+                <input id="admin-email" type="email" placeholder="admin@example.com" autocomplete="email" />
+              </label>
+              <label class="form-row">
+                <span>当前密码</span>
+                <input id="admin-current-password" type="password" placeholder="修改密码时必填" autocomplete="current-password" />
+              </label>
+              <label class="form-row">
+                <span>新密码</span>
+                <input id="admin-new-password" type="password" placeholder="不修改请留空，至少 6 位" autocomplete="new-password" />
+              </label>
+              <div class="form-actions">
+                <button class="primary-button" type="submit">保存管理员资料</button>
+              </div>
+              <p id="admin-profile-status" class="status"></p>
+            </form>
+          </section>
+        </section>
       </main>
     </section>
 
@@ -1364,6 +1414,7 @@
         activeProviderId: '',
         editingProviderId: '',
         providerDialogMode: 'create',
+        admin: null,
         keyEditing: false,
         modelOptions: [],
         metrics: null
@@ -1412,6 +1463,8 @@
         }
         token = payload.token;
         localStorage.setItem('quick-translate-admin-token', token);
+        state.admin = payload.admin || null;
+        renderAdminProfile();
         await loadDashboard();
       });
 
@@ -1419,6 +1472,7 @@
       document.querySelector('#refresh-users-button').addEventListener('click', loadUsers);
       document.querySelector('#refresh-data-button').addEventListener('click', loadData);
       document.querySelector('#save-button').addEventListener('click', saveProvider);
+      document.querySelector('#admin-profile-form').addEventListener('submit', saveAdminProfile);
       document.querySelector('#open-provider-dialog-button').addEventListener('click', () => openProviderDialog('create'));
       document.querySelector('#close-provider-dialog-button').addEventListener('click', closeProviderDialog);
       document.querySelector('#cancel-provider-dialog-button').addEventListener('click', closeProviderDialog);
@@ -1457,8 +1511,55 @@
       async function loadDashboard() {
         loginScreen.classList.add('hidden');
         adminShell.classList.remove('hidden');
-        await Promise.all([loadProviders(), loadUsers(), loadStats()]);
+        await Promise.all([loadAdminProfile(), loadProviders(), loadUsers(), loadStats()]);
         setView(state.view);
+      }
+
+      async function loadAdminProfile() {
+        const payload = await authorizedRequest('/api/admin/profile');
+        state.admin = payload.admin || null;
+        renderAdminProfile();
+      }
+
+      async function saveAdminProfile(event) {
+        event.preventDefault();
+        const status = document.querySelector('#admin-profile-status');
+        status.textContent = '正在保存管理员资料...';
+        const response = await fetch(apiUrl('/api/admin/profile'), {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            email: document.querySelector('#admin-email').value,
+            currentPassword: document.querySelector('#admin-current-password').value,
+            newPassword: document.querySelector('#admin-new-password').value
+          })
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          status.textContent = payload.error || '管理员资料保存失败';
+          return;
+        }
+
+        state.admin = payload.admin || null;
+        document.querySelector('#admin-current-password').value = '';
+        document.querySelector('#admin-new-password').value = '';
+        status.textContent = '管理员资料已保存';
+        renderAdminProfile();
+      }
+
+      function renderAdminProfile() {
+        const admin = state.admin || {};
+        const username = admin.username || 'admin';
+        const email = admin.email || '';
+        document.querySelector('#admin-profile-username').value = username;
+        document.querySelector('#admin-email').value = email;
+        document.querySelector('#admin-profile-state').textContent = email ? '已绑定邮箱' : '未绑定邮箱';
+        document.querySelector('#admin-display-name').textContent = username;
+        document.querySelector('#admin-display-email').textContent = email || 'SUPER ADMIN';
+        document.querySelector('#admin-avatar').textContent = username.slice(0, 1).toUpperCase();
       }
 
       async function loadProviders() {
@@ -1778,7 +1879,9 @@
         document.querySelector('#users-view').classList.toggle('hidden', view !== 'users');
         document.querySelector('#data-view').classList.toggle('hidden', view !== 'data');
         document.querySelector('#api-view').classList.toggle('hidden', view !== 'api');
-        document.querySelector('#header-title').textContent = view === 'users' ? 'Dashboard' : view === 'data' ? 'User Data' : 'API Settings';
+        document.querySelector('#account-view').classList.toggle('hidden', view !== 'account');
+        document.querySelector('#header-title').textContent =
+          view === 'users' ? 'Dashboard' : view === 'data' ? 'User Data' : view === 'api' ? 'API Settings' : 'Account Security';
       }
 
       function renderAllData() {

@@ -150,6 +150,50 @@ describe('backend app', () => {
     });
   });
 
+  it('allows the admin account to update its own email and password', async () => {
+    const loginResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'admin-pass'
+    });
+    expect(loginResponse.status).toBe(200);
+
+    const readResponse = await request('GET', '/api/admin/profile', undefined, loginResponse.body.token);
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.admin).toMatchObject({
+      username: 'admin',
+      email: ''
+    });
+
+    const updateResponse = await request(
+      'PUT',
+      '/api/admin/profile',
+      {
+        email: 'owner@example.com',
+        currentPassword: 'admin-pass',
+        newPassword: 'new-admin-pass'
+      },
+      loginResponse.body.token
+    );
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.admin).toMatchObject({
+      username: 'admin',
+      email: 'owner@example.com'
+    });
+
+    const oldPasswordResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'admin-pass'
+    });
+    expect(oldPasswordResponse.status).toBe(401);
+
+    const newPasswordResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'new-admin-pass'
+    });
+    expect(newPasswordResponse.status).toBe(200);
+    expect(newPasswordResponse.body.admin.email).toBe('owner@example.com');
+  });
+
   it('allows the admin account to add engines and switch the active provider', async () => {
     const loginResponse = await request('POST', '/api/admin/login', {
       username: 'admin',

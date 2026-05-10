@@ -24,4 +24,17 @@ describe('admin dashboard translation usage chart', () => {
     expect(html).toContain('function openProviderDialog(');
     expect(html).toContain('function closeProviderDialog()');
   });
+
+  it('exposes an admin account security view for changing email and password', async () => {
+    const html = await readFile(path.resolve('server/public/admin.html'), 'utf8');
+
+    expect(html).toContain('data-view="account"');
+    expect(html).toContain('id="account-view"');
+    expect(html).toContain('id="admin-email"');
+    expect(html).toContain('id="admin-current-password"');
+    expect(html).toContain('id="admin-new-password"');
+    expect(html).toContain('/api/admin/profile');
+    expect(html).toContain('function loadAdminProfile()');
+    expect(html).toContain('function saveAdminProfile(');
+  });
 });
