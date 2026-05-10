@@ -43,7 +43,6 @@ const defaultMetrics = {
     latestAt: ''
   }
 };
-const providerTypes = new Set(['mock', 'openai-compatible']);
 const providerModelListTimeoutMs = 15_000;
 
 export function createBackendApp(options = {}) {
@@ -776,7 +775,12 @@ function normalizeProvider(value, fallback = {}) {
 }
 
 function normalizeProviderType(value) {
-  return typeof value === 'string' && providerTypes.has(value) ? value : '';
+  const normalized = stringOrEmpty(value).trim();
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized.slice(0, 80);
 }
 
 function isAbortError(error) {

@@ -873,18 +873,19 @@
 
       .provider-list {
         display: grid;
-        gap: 12px;
-        padding: 22px 24px 0;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 16px;
+        padding: 22px 24px;
       }
 
       .provider-row {
-        display: grid;
-        grid-template-columns: minmax(190px, 0.85fr) minmax(220px, 1fr) minmax(130px, 0.6fr) minmax(120px, 0.55fr) auto;
-        align-items: center;
-        gap: 16px;
+        min-height: 240px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
         border: 1px solid var(--line);
         border-radius: 8px;
-        padding: 18px;
+        padding: 22px;
         background: linear-gradient(180deg, #ffffff, #f8fbff);
       }
 
@@ -898,6 +899,11 @@
         min-width: 0;
         display: grid;
         gap: 5px;
+      }
+
+      .provider-main {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
       }
 
       .provider-main strong,
@@ -921,6 +927,12 @@
         font-size: 14px;
       }
 
+      .provider-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
       .provider-actions,
       .table-actions,
       .form-actions {
@@ -932,6 +944,26 @@
 
       .table-actions {
         justify-content: flex-start;
+      }
+
+      .provider-actions {
+        margin-top: auto;
+      }
+
+      .provider-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .provider-empty {
+        grid-column: 1 / -1;
+        border: 1px dashed #bfc8d8;
+        border-radius: 8px;
+        padding: 26px;
+        color: var(--muted);
+        background: #ffffff;
+        font-weight: 800;
       }
 
       .text-button {
@@ -962,6 +994,45 @@
 
       .form-actions button {
         flex: 1;
+      }
+
+      .dialog-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: grid;
+        place-items: center;
+        padding: 28px;
+        background: rgba(15, 23, 42, 0.42);
+      }
+
+      .provider-dialog-card {
+        width: min(900px, 100%);
+        max-height: min(860px, calc(100vh - 56px));
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+        overflow: hidden;
+      }
+
+      .dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid var(--line);
+        padding: 20px 24px;
+      }
+
+      .dialog-head h2 {
+        font-size: 24px;
+      }
+
+      .dialog-body {
+        overflow: auto;
       }
 
       @media (max-width: 1180px) {
@@ -1190,23 +1261,45 @@
                 <span class="panel-title-mark" aria-hidden="true">钥</span>
                 <div>
                   <h2>翻译引擎通道</h2>
-                  <p>当前启用的引擎会用于客户端翻译，新增引擎会进入下方列表。</p>
+                  <p>已保存的接口通道以卡片管理，新增或编辑时单独打开配置卡片。</p>
                 </div>
               </div>
-              <span id="provider-state" class="pill">未读取</span>
+              <div class="provider-toolbar">
+                <span id="provider-state" class="pill">未读取</span>
+                <button id="open-provider-dialog-button" class="primary-button" type="button">新增引擎</button>
+              </div>
             </div>
             <div id="provider-list" class="provider-list" aria-label="翻译引擎列表"></div>
-            <div class="provider-form">
+            <div class="secure-note">
+              <span aria-hidden="true">✓</span>
+              <span>所有配置更改都会写入服务器本地配置文件，前端用户不会看到引擎密钥。</span>
+            </div>
+            <p id="provider-status" class="status"></p>
+          </section>
+          <div id="provider-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="provider-dialog-title">
+            <section class="provider-dialog-card">
+              <div class="dialog-head">
+                <div>
+                  <h2 id="provider-dialog-title">新增翻译引擎</h2>
+                  <p class="muted">配置会保存到服务端，本页面只显示加密后的密钥摘要。</p>
+                </div>
+                <button id="close-provider-dialog-button" class="text-button" type="button" aria-label="关闭引擎配置">关闭</button>
+              </div>
+              <div class="dialog-body">
+                <div class="provider-form">
               <label class="form-row">
                 <span>引擎名称</span>
                 <input id="provider-name" placeholder="默认翻译引擎" />
               </label>
               <label class="form-row">
                 <span>引擎类型</span>
-                <select id="provider-type">
+                <input id="provider-type" list="provider-type-suggestions" placeholder="openai-compatible" />
+                <datalist id="provider-type-suggestions">
                   <option value="openai-compatible">OpenAI 兼容接口</option>
                   <option value="mock">离线示例</option>
-                </select>
+                  <option value="deepseek-compatible">DeepSeek 兼容接口</option>
+                  <option value="custom-compatible">自定义兼容接口</option>
+                </datalist>
               </label>
               <label class="form-row">
                 <span>接口地址</span>
@@ -1231,15 +1324,13 @@
               </label>
               <div class="form-actions">
                 <button id="save-button" class="primary-button" type="button">保存当前引擎</button>
-                <button id="create-provider-button" class="outline-button" type="button">添加为新引擎</button>
+                <button id="cancel-provider-dialog-button" class="outline-button" type="button">取消</button>
               </div>
               <p id="status" class="status"></p>
-            </div>
-            <div class="secure-note">
-              <span aria-hidden="true">✓</span>
-              <span>所有配置更改都会写入服务器本地配置文件，前端用户不会看到引擎密钥。</span>
-            </div>
-          </section>
+                </div>
+              </div>
+            </section>
+          </div>
           <div class="api-grid">
             <article class="mini-card">
               <h3>API 密钥管理</h3>
@@ -1272,6 +1363,7 @@
         providers: [],
         activeProviderId: '',
         editingProviderId: '',
+        providerDialogMode: 'create',
         keyEditing: false,
         modelOptions: [],
         metrics: null
@@ -1298,6 +1390,8 @@
       const loginScreen = document.querySelector('#login-screen');
       const adminShell = document.querySelector('#admin-shell');
       const loginStatus = document.querySelector('#login-status');
+      const providerDialog = document.querySelector('#provider-dialog');
+      const providerStatusText = document.querySelector('#provider-status');
       const statusText = document.querySelector('#status');
 
       document.querySelector('#login-card').addEventListener('submit', async (event) => {
@@ -1325,7 +1419,14 @@
       document.querySelector('#refresh-users-button').addEventListener('click', loadUsers);
       document.querySelector('#refresh-data-button').addEventListener('click', loadData);
       document.querySelector('#save-button').addEventListener('click', saveProvider);
-      document.querySelector('#create-provider-button').addEventListener('click', createProvider);
+      document.querySelector('#open-provider-dialog-button').addEventListener('click', () => openProviderDialog('create'));
+      document.querySelector('#close-provider-dialog-button').addEventListener('click', closeProviderDialog);
+      document.querySelector('#cancel-provider-dialog-button').addEventListener('click', closeProviderDialog);
+      providerDialog.addEventListener('click', (event) => {
+        if (event.target === providerDialog) {
+          closeProviderDialog();
+        }
+      });
       document.querySelector('#change-key-button').addEventListener('click', enableKeyEditing);
       document.querySelector('#load-models-button').addEventListener('click', loadModels);
       document.querySelector('#base-url').addEventListener('blur', () => {
@@ -1364,15 +1465,16 @@
         const payload = await authorizedRequest('/api/admin/providers');
         state.providers = Array.isArray(payload.providers) ? payload.providers : [];
         state.activeProviderId = payload.activeProviderId || state.providers[0]?.id || '';
-        state.editingProviderId = state.editingProviderId || state.activeProviderId;
-        const editingProvider = state.providers.find((provider) => provider.id === state.editingProviderId) || state.providers[0];
-        if (editingProvider) {
-          fillProviderForm(editingProvider);
-        }
+        const activeProvider = state.providers.find((provider) => provider.id === state.activeProviderId);
+        updateProviderState(activeProvider);
         renderProviders();
       }
 
       async function saveProvider() {
+        if (state.providerDialogMode === 'create') {
+          await createProvider();
+          return;
+        }
         const providerId = state.editingProviderId || state.activeProviderId;
         if (!providerId) {
           statusText.textContent = '请先添加引擎';
@@ -1396,6 +1498,7 @@
         state.keyEditing = false;
         statusText.textContent = '引擎配置已保存';
         await loadProviders();
+        closeProviderDialog();
       }
 
       async function createProvider() {
@@ -1418,6 +1521,7 @@
         state.keyEditing = false;
         statusText.textContent = '新引擎已添加到列表';
         await loadProviders();
+        closeProviderDialog();
       }
 
       function readProviderForm() {
@@ -1431,10 +1535,13 @@
       }
 
       function fillProviderForm(provider) {
+        document.querySelector('#provider-dialog-title').textContent = '编辑翻译引擎';
+        document.querySelector('#save-button').textContent = '保存当前引擎';
         state.editingProviderId = provider.id;
+        state.providerDialogMode = 'edit';
         state.keyEditing = false;
         document.querySelector('#provider-name').value = provider.name || '';
-        document.querySelector('#provider-type').value = provider.providerType;
+        document.querySelector('#provider-type').value = provider.providerType || 'openai-compatible';
         document.querySelector('#base-url').value = provider.baseUrl || '';
         renderModelOptions(provider.model ? [provider.model] : [], provider.model || '');
         const apiKeyInput = document.querySelector('#api-key');
@@ -1443,37 +1550,79 @@
         apiKeyInput.placeholder = provider.hasApiKey ? '已加密保存，点击更换密钥后输入新密钥' : '未保存密钥，点击更换密钥后输入';
         document.querySelector('#change-key-button').textContent = '更换密钥';
         document.querySelector('#masked-key').textContent = provider.hasApiKey ? `当前密钥：${provider.maskedApiKey || '••••••••'}` : '未保存密钥';
-        document.querySelector('#provider-state').textContent = provider.active
+        statusText.textContent = '';
+        openProviderDialog('edit', provider);
+      }
+
+      function resetProviderForm() {
+        document.querySelector('#provider-dialog-title').textContent = '新增翻译引擎';
+        document.querySelector('#save-button').textContent = '添加为新引擎';
+        state.editingProviderId = '';
+        state.providerDialogMode = 'create';
+        state.keyEditing = true;
+        document.querySelector('#provider-name').value = '';
+        document.querySelector('#provider-type').value = 'openai-compatible';
+        document.querySelector('#base-url').value = '';
+        renderModelOptions(['gpt-5.4-mini'], 'gpt-5.4-mini');
+        const apiKeyInput = document.querySelector('#api-key');
+        apiKeyInput.value = '';
+        apiKeyInput.disabled = false;
+        apiKeyInput.placeholder = '输入接口密钥';
+        document.querySelector('#change-key-button').textContent = '正在更换';
+        document.querySelector('#masked-key').textContent = '新增引擎需要保存接口密钥';
+        statusText.textContent = '';
+      }
+
+      function openProviderDialog(mode, provider) {
+        if (mode === 'create') {
+          resetProviderForm();
+        } else if (provider) {
+          providerDialog.classList.remove('hidden');
+          return;
+        }
+        providerDialog.classList.remove('hidden');
+      }
+
+      function closeProviderDialog() {
+        providerDialog.classList.add('hidden');
+      }
+
+      function updateProviderState(provider) {
+        document.querySelector('#provider-state').textContent = provider
           ? provider.hasApiKey
             ? '当前启用 · 已保存密钥'
             : '当前启用 · 未保存密钥'
-          : provider.hasApiKey
-            ? '备用引擎 · 已保存密钥'
-            : '备用引擎 · 未保存密钥';
+          : '未读取';
       }
 
       function renderProviders() {
         const providerList = document.querySelector('#provider-list');
         providerList.innerHTML = state.providers.length
           ? state.providers.map(renderProviderRow).join('')
-          : '<p class="muted">暂无引擎配置，请在下方添加。</p>';
+          : '<p class="provider-empty">暂无引擎配置，请点击“新增引擎”添加接口通道。</p>';
       }
 
       function renderProviderRow(provider) {
         return `
           <article class="provider-row ${provider.active ? 'active' : ''}">
             <div class="provider-main">
-              <strong>${escapeHtml(provider.name || '未命名引擎')}</strong>
-              <small>${provider.active ? '当前使用' : '备用通道'} · ${escapeHtml(provider.providerType || '--')}</small>
+              <div>
+                <strong>${escapeHtml(provider.name || '未命名引擎')}</strong>
+                <small>${provider.active ? '当前使用' : '备用通道'} · ${escapeHtml(provider.providerType || '--')}</small>
+              </div>
+              ${provider.active ? '<span class="pill">使用中</span>' : '<span class="pill">备用</span>'}
             </div>
-            <div class="provider-meta"><span>接口地址</span><strong>${escapeHtml(provider.baseUrl || '--')}</strong></div>
-            <div class="provider-meta"><span>模型</span><strong>${escapeHtml(provider.model || '--')}</strong></div>
-            <div class="provider-meta"><span>密钥</span><strong>${provider.hasApiKey ? escapeHtml(provider.maskedApiKey || '••••••••') : '未保存'}</strong></div>
+            <div class="provider-meta-grid">
+              <div class="provider-meta"><span>接口地址</span><strong>${escapeHtml(provider.baseUrl || '--')}</strong></div>
+              <div class="provider-meta"><span>模型</span><strong>${escapeHtml(provider.model || '--')}</strong></div>
+              <div class="provider-meta"><span>引擎类型</span><strong>${escapeHtml(provider.providerType || '--')}</strong></div>
+              <div class="provider-meta"><span>密钥</span><strong>${provider.hasApiKey ? escapeHtml(provider.maskedApiKey || '••••••••') : '未保存'}</strong></div>
+            </div>
             <div class="provider-actions">
               <button class="text-button" type="button" data-provider-action="edit" data-provider-id="${escapeHtml(provider.id)}">编辑</button>
               ${
                 provider.active
-                  ? '<span class="pill">使用中</span>'
+                  ? ''
                   : `<button class="text-button" type="button" data-provider-action="activate" data-provider-id="${escapeHtml(provider.id)}">设为启用</button>`
               }
               <button class="text-button danger" type="button" data-provider-action="delete" data-provider-id="${escapeHtml(provider.id)}">删除</button>
@@ -1505,7 +1654,7 @@
       }
 
       async function activateProvider(providerId) {
-        statusText.textContent = '正在切换启用引擎...';
+        providerStatusText.textContent = '正在切换启用引擎...';
         const response = await fetch(apiUrl(`/api/admin/providers/${encodeURIComponent(providerId)}`), {
           method: 'PUT',
           headers: {
@@ -1516,11 +1665,11 @@
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          statusText.textContent = payload.error || '切换失败';
+          providerStatusText.textContent = payload.error || '切换失败';
           return;
         }
         state.editingProviderId = providerId;
-        statusText.textContent = '当前启用引擎已切换';
+        providerStatusText.textContent = '当前启用引擎已切换';
         await loadProviders();
       }
 
@@ -1576,18 +1725,18 @@
           return;
         }
 
-        statusText.textContent = '正在删除引擎...';
+        providerStatusText.textContent = '正在删除引擎...';
         const response = await fetch(apiUrl(`/api/admin/providers/${encodeURIComponent(provider.id)}`), {
           method: 'DELETE',
           headers: { authorization: `Bearer ${token}` }
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
-          statusText.textContent = payload.error || '删除失败';
+          providerStatusText.textContent = payload.error || '删除失败';
           return;
         }
         state.editingProviderId = '';
-        statusText.textContent = '引擎已删除';
+        providerStatusText.textContent = '引擎已删除';
         await loadProviders();
       }
 

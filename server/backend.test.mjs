@@ -188,6 +188,34 @@ describe('backend app', () => {
     expect(deleteResponse.body.providers[0].active).toBe(true);
   });
 
+  it('allows custom provider types for OpenAI-compatible engine channels', async () => {
+    const loginResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'admin-pass'
+    });
+
+    const createResponse = await request(
+      'POST',
+      '/api/admin/providers',
+      {
+        name: 'DeepSeek 通道',
+        providerType: 'deepseek-compatible',
+        baseUrl: 'https://api.deepseek.com',
+        apiKey: 'sk-custom',
+        model: 'deepseek-v4-flash'
+      },
+      loginResponse.body.token
+    );
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.provider).toMatchObject({
+      name: 'DeepSeek 通道',
+      providerType: 'deepseek-compatible',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-v4-flash'
+    });
+  });
+
   it('loads provider models through the admin backend', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (url, options) => {

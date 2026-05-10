@@ -12,4 +12,16 @@ describe('admin dashboard translation usage chart', () => {
     expect(html).toContain('metrics.translations');
     expect(html).toContain('polyline');
   });
+
+  it('keeps provider configuration in a dialog card with a custom type input', async () => {
+    const html = await readFile(path.resolve('server/public/admin.html'), 'utf8');
+
+    expect(html).toContain('id="provider-dialog"');
+    expect(html).toContain('id="open-provider-dialog-button"');
+    expect(html).toContain('id="provider-type-suggestions"');
+    expect(html).toContain('<input id="provider-type"');
+    expect(html).not.toContain('<select id="provider-type"');
+    expect(html).toContain('function openProviderDialog(');
+    expect(html).toContain('function closeProviderDialog()');
+  });
 });
