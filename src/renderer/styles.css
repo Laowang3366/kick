@@ -736,6 +736,12 @@ h1 {
 .source-panel {
   border-color: #0d66d8;
   box-shadow: inset 0 0 0 1px rgba(13, 102, 216, 0.08);
+  transition:
+    min-height 180ms ease,
+    padding 180ms ease,
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .panel-meta {
@@ -798,6 +804,25 @@ textarea {
 
 textarea::placeholder {
   color: #9aa3af;
+}
+
+.source-input-shell {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  position: relative;
+  transition:
+    min-height 180ms ease,
+    max-height 180ms ease,
+    flex-basis 180ms ease;
+}
+
+.source-input-shell textarea {
+  height: 100%;
+}
+
+.mobile-paste-button {
+  display: none;
 }
 
 .panel-footer {
@@ -2499,18 +2524,64 @@ textarea::placeholder {
     display: none;
   }
 
-  .source-panel.mobile-source-collapsed textarea {
+  .source-input-shell {
+    transition:
+      min-height 180ms ease,
+      max-height 180ms ease,
+      flex-basis 180ms ease;
+  }
+
+  .mobile-paste-button {
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border-radius: 8px;
+    padding: 0 10px;
+    color: #0d66d8;
+    background: #ffffff;
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .source-panel.mobile-source-expanded .mobile-paste-button {
+    position: absolute;
+    right: 0;
+    bottom: 8px;
+  }
+
+  .source-panel.mobile-source-expanded .source-input-shell textarea {
+    padding-right: 74px;
+  }
+
+  .source-panel.mobile-source-collapsed .source-input-shell {
     min-height: 40px;
     max-height: 40px;
     flex: 0 0 40px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .source-panel.mobile-source-collapsed textarea {
+    min-height: 40px;
+    max-height: 40px;
+    height: 40px;
     overflow: hidden;
     padding: 8px 0;
     white-space: nowrap;
     line-height: 24px;
   }
 
+  .source-panel.mobile-source-collapsed .mobile-paste-button {
+    position: static;
+    box-shadow: none;
+  }
+
   .source-panel.mobile-source-expanded {
-    min-height: 230px;
+    min-height: 180px;
   }
 
   textarea,
@@ -2531,5 +2602,12 @@ textarea::placeholder {
 @media (hover: none) and (pointer: coarse) {
   .window-controls {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .source-panel,
+  .source-input-shell {
+    transition: none;
   }
 }

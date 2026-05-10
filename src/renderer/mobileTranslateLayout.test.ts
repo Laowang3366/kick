@@ -19,4 +19,14 @@ describe('mobile translate layout styles', () => {
       /@media \(max-width: 640px\)[\s\S]*\.source-panel\.mobile-source-collapsed textarea\s*\{[\s\S]*max-height:\s*40px/
     );
   });
+
+  it('supports mobile paste affordance and animated source expansion', () => {
+    expect(styles).toMatch(/\.source-panel\s*\{[\s\S]*transition:/);
+    expect(styles).toMatch(
+      /@media \(max-width: 640px\)[\s\S]*\.mobile-paste-button\s*\{[\s\S]*display:\s*inline-flex/
+    );
+    expect(styles).toMatch(
+      /@media \(max-width: 640px\)[\s\S]*\.source-panel\.mobile-source-expanded\s*\{[\s\S]*min-height:\s*180px/
+    );
+  });
 });

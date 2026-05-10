@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   ChevronDown,
+  ClipboardPaste,
   CloudDownload,
   CloudUpload,
   Copy,
@@ -274,6 +275,7 @@ export function App() {
   const rememberedAccount = loadRememberedAccount();
   const [sourceText, setSourceText] = useState('');
   const [isSourceInputFocused, setIsSourceInputFocused] = useState(false);
+  const [mobileClipboardText, setMobileClipboardText] = useState('');
   const [targetLanguage, setTargetLanguage] = useState(loadDefaultTargetLanguage);
   const [defaultTargetLanguage, setDefaultTargetLanguage] = useState(loadDefaultTargetLanguage);
   const [translationFormat, setTranslationFormat] = useState<TranslationFormat>(loadDefaultTranslationFormat);
@@ -383,6 +385,7 @@ export function App() {
   const sourcePanelClassName = `text-panel source-panel ${
     isSourceInputFocused ? 'mobile-source-expanded' : 'mobile-source-collapsed'
   }`;
+  const hasMobileClipboardText = mobileClipboardText.trim().length > 0;
   const canTranslate = sourceText.trim().length > 0 && status !== 'loading';
   const canSelectTranslationFormat = canUseTranslationFormat(targetLanguage);
   const activeTranslationFormat = useMemo(
@@ -486,6 +489,27 @@ export function App() {
   }, [sourceText, targetLanguage, translationFormat, providerSettings]);
 
   useEffect(() => {
+    void refreshMobileClipboardText();
+
+    const handleWindowFocus = () => {
+      void refreshMobileClipboardText();
+    };
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        void refreshMobileClipboardText();
+      }
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
     return window.quickTranslate?.onSelectionCaptured?.((text) => {
       const limitedText = limitTranslationText(text);
       setSourceText(limitedText);
@@ -577,6 +601,35 @@ export function App() {
     } catch {
       setCopyNotice({ tone: 'error', message: '复制失败' });
     }
+  }
+
+  async function readMobileClipboardText() {
+    try {
+      const text = await navigator.clipboard?.readText?.();
+      return limitTranslationText(text ?? '');
+    } catch {
+      return '';
+    }
+  }
+
+  async function refreshMobileClipboardText() {
+    const text = await readMobileClipboardText();
+    setMobileClipboardText(text.trim() ? text : '');
+  }
+
+  async function pasteMobileClipboardText() {
+    const latestClipboardText = await readMobileClipboardText();
+    const text = latestClipboardText.trim() ? latestClipboardText : mobileClipboardText;
+    const limitedText = limitTranslationText(text);
+
+    if (!limitedText.trim()) {
+      setMobileClipboardText('');
+      return;
+    }
+
+    setMobileClipboardText(limitedText);
+    setIsSourceInputFocused(false);
+    handleSourceTextChange(limitedText);
   }
 
   function clearText() {
@@ -1266,17 +1319,39 @@ export function App() {
                         <strong>{sourceLanguageLabel}</strong>
                       </span>
                     </div>
-                    <textarea
-                      id="source-text"
-                      value={sourceText}
-                      onChange={(event) => handleSourceTextChange(event.target.value)}
-                      onFocus={() => setIsSourceInputFocused(true)}
-                      onBlur={() => setIsSourceInputFocused(false)}
-                      onKeyDown={handleSourceTextKeyDown}
-                      placeholder="输入要翻译的内容"
-                      maxLength={maxTranslationTextLength}
-                      rows={10}
-                    />
+                    <div className="source-input-shell">
+                      <textarea
+                        id="source-text"
+                        value={sourceText}
+                        onChange={(event) => handleSourceTextChange(event.target.value)}
+                        onPointerDown={() => {
+                          void refreshMobileClipboardText();
+                        }}
+                        onFocus={() => {
+                          setIsSourceInputFocused(true);
+                          void refreshMobileClipboardText();
+                        }}
+                        onBlur={() => setIsSourceInputFocused(false)}
+                        onKeyDown={handleSourceTextKeyDown}
+                        placeholder="输入要翻译的内容"
+                        maxLength={maxTranslationTextLength}
+                        rows={10}
+                      />
+                      {hasMobileClipboardText ? (
+                        <button
+                          className="mobile-paste-button"
+                          type="button"
+                          onPointerDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            void pasteMobileClipboardText();
+                          }}
+                          aria-label="粘贴剪切板内容"
+                        >
+                          <ClipboardPaste size={16} />
+                          <span>粘贴</span>
+                        </button>
+                      ) : null}
+                    </div>
                     <div className="panel-footer">
                       <span>{sourceLength} / {maxTranslationTextLength}</span>
                       <button className="panel-action" type="button" onClick={clearText} aria-label="清空原文">

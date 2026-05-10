@@ -17,6 +17,7 @@ describe('App', () => {
   afterEach(() => {
     window.quickTranslate = undefined;
     delete (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor;
+    delete (navigator as Navigator & { clipboard?: Clipboard }).clipboard;
     vi.restoreAllMocks();
     localStorage.clear();
   });
@@ -1189,6 +1190,36 @@ describe('App', () => {
 
     expect(sourcePanel).toHaveClass('mobile-source-collapsed');
     expect(sourceInput).toHaveValue('hello');
+  });
+
+  it('shows a mobile paste action when clipboard text is available', async () => {
+    const readText = vi.fn().mockResolvedValue('clipboard text');
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText }
+    });
+    render(<App />);
+
+    const pasteButton = await screen.findByRole('button', { name: '粘贴剪切板内容' });
+    fireEvent.click(pasteButton);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('原文')).toHaveValue('clipboard text');
+    });
+  });
+
+  it('hides the mobile paste action when the clipboard has no text', async () => {
+    const readText = vi.fn().mockResolvedValue('   ');
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { readText }
+    });
+    render(<App />);
+
+    await waitFor(() => {
+      expect(readText).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole('button', { name: '粘贴剪切板内容' })).not.toBeInTheDocument();
   });
 
   it('does not handle floating translation shortcuts inside the main window', async () => {
