@@ -2396,7 +2396,6 @@ textarea::placeholder {
   }
 
   .language-row,
-  .translate-settings-summary,
   .command-bar,
   .settings-action-grid,
   .update-card,
@@ -2404,6 +2403,10 @@ textarea::placeholder {
   .path-setting-actions {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .translate-settings-summary {
+    display: none;
   }
 
   .library-toolbar {
@@ -2478,6 +2481,36 @@ textarea::placeholder {
 
   .text-panel {
     min-height: 280px;
+  }
+
+  .source-panel.mobile-source-collapsed {
+    min-height: 58px;
+    height: auto;
+    justify-content: center;
+    border-color: transparent;
+    border-radius: 16px;
+    padding: 9px 15px;
+    background: #f3f7fb;
+    box-shadow: none;
+  }
+
+  .source-panel.mobile-source-collapsed .panel-meta,
+  .source-panel.mobile-source-collapsed .panel-footer {
+    display: none;
+  }
+
+  .source-panel.mobile-source-collapsed textarea {
+    min-height: 40px;
+    max-height: 40px;
+    flex: 0 0 40px;
+    overflow: hidden;
+    padding: 8px 0;
+    white-space: nowrap;
+    line-height: 24px;
+  }
+
+  .source-panel.mobile-source-expanded {
+    min-height: 230px;
   }
 
   textarea,

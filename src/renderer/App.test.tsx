@@ -1169,6 +1169,28 @@ describe('App', () => {
     expect(summary).toHaveTextContent(`当前 ${currentAppVersion}`);
   });
 
+  it('keeps the mobile source input compact until the user edits it', () => {
+    render(<App />);
+
+    const sourcePanel = screen.getByLabelText('原文面板');
+    const sourceInput = screen.getByLabelText('原文');
+
+    expect(sourcePanel).toHaveClass('mobile-source-collapsed');
+    expect(sourcePanel).not.toHaveClass('mobile-source-expanded');
+
+    fireEvent.focus(sourceInput);
+    expect(sourcePanel).toHaveClass('mobile-source-expanded');
+    expect(sourcePanel).not.toHaveClass('mobile-source-collapsed');
+
+    fireEvent.change(sourceInput, {
+      target: { value: 'hello' }
+    });
+    fireEvent.blur(sourceInput);
+
+    expect(sourcePanel).toHaveClass('mobile-source-collapsed');
+    expect(sourceInput).toHaveValue('hello');
+  });
+
   it('does not handle floating translation shortcuts inside the main window', async () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn().mockResolvedValue('Hello world'),

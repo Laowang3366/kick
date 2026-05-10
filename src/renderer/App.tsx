@@ -273,6 +273,7 @@ function NavItem({ active, icon, label, screenReaderLabel, onClick }: NavItemPro
 export function App() {
   const rememberedAccount = loadRememberedAccount();
   const [sourceText, setSourceText] = useState('');
+  const [isSourceInputFocused, setIsSourceInputFocused] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState(loadDefaultTargetLanguage);
   const [defaultTargetLanguage, setDefaultTargetLanguage] = useState(loadDefaultTargetLanguage);
   const [translationFormat, setTranslationFormat] = useState<TranslationFormat>(loadDefaultTranslationFormat);
@@ -379,6 +380,9 @@ export function App() {
   }, []);
 
   const sourceLength = sourceText.length;
+  const sourcePanelClassName = `text-panel source-panel ${
+    isSourceInputFocused ? 'mobile-source-expanded' : 'mobile-source-collapsed'
+  }`;
   const canTranslate = sourceText.trim().length > 0 && status !== 'loading';
   const canSelectTranslationFormat = canUseTranslationFormat(targetLanguage);
   const activeTranslationFormat = useMemo(
@@ -1252,7 +1256,7 @@ export function App() {
             {activeView === 'translate' ? (
               <section className="translate-view" aria-label="翻译">
                 <div className="translate-grid">
-                  <section className="text-panel source-panel" aria-label="原文面板">
+                  <section className={sourcePanelClassName} aria-label="原文面板">
                     <div className="panel-meta">
                       <label className="panel-title" htmlFor="source-text">
                         原文
@@ -1266,8 +1270,10 @@ export function App() {
                       id="source-text"
                       value={sourceText}
                       onChange={(event) => handleSourceTextChange(event.target.value)}
+                      onFocus={() => setIsSourceInputFocused(true)}
+                      onBlur={() => setIsSourceInputFocused(false)}
                       onKeyDown={handleSourceTextKeyDown}
-                      placeholder="输入或粘贴需要翻译的文本"
+                      placeholder="输入要翻译的内容"
                       maxLength={maxTranslationTextLength}
                       rows={10}
                     />
