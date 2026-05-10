@@ -120,9 +120,29 @@ body {
 :root[data-theme="dark"] .entry-card,
 :root[data-theme="dark"] .floating-card,
 :root[data-theme="dark"] .floating-source-card,
-:root[data-theme="dark"] .floating-result-card {
+:root[data-theme="dark"] .floating-result-card,
+:root[data-theme="dark"] .update-dialog {
   border-color: rgba(148, 163, 184, 0.2);
   background: #172234;
+}
+
+:root[data-theme="dark"] .update-dialog-title strong,
+:root[data-theme="dark"] .update-dialog-notes span {
+  color: #edf4ff;
+}
+
+:root[data-theme="dark"] .update-dialog-title span,
+:root[data-theme="dark"] .update-dialog-notes li,
+:root[data-theme="dark"] .update-dialog-progress small {
+  color: #aab7c8;
+}
+
+:root[data-theme="dark"] .update-dialog-backdrop {
+  background: rgba(3, 8, 18, 0.56);
+}
+
+:root[data-theme="dark"] .update-dialog-notes {
+  background: #121d2b;
 }
 
 :root[data-theme="dark"] .language-menu {
@@ -788,6 +808,14 @@ h1 {
   font-weight: 800;
 }
 
+.source-meta-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 textarea {
   width: 100%;
   min-height: 0;
@@ -1183,6 +1211,92 @@ textarea::placeholder {
 
 .copy-toast.error {
   background: #b42318;
+}
+
+.update-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 75;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.36);
+}
+
+.update-dialog {
+  width: min(480px, 100%);
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(31, 45, 66, 0.12);
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.update-dialog-heading,
+.update-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-dialog-title {
+  display: grid;
+  gap: 6px;
+}
+
+.update-dialog-title strong {
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.update-dialog-title span,
+.update-dialog-progress small {
+  color: #697386;
+  font-size: 13px;
+}
+
+.update-dialog-notes {
+  display: grid;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 13px 14px;
+  background: #f6f9fd;
+}
+
+.update-dialog-notes span {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.update-dialog-notes ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  color: #4b5565;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.update-dialog-progress {
+  display: grid;
+  gap: 8px;
+}
+
+.update-dialog-actions {
+  align-items: stretch;
+}
+
+.update-dialog-actions .settings-action {
+  flex: 1 1 0;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 12px;
 }
 
 .library-view {

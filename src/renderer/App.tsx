@@ -68,6 +68,7 @@ import {
   ignoreUpdateVersion,
   installOrOpenUpdate,
   remindLater,
+  type DownloadRelease,
   type UpdateInstallProgress,
   type UpdateCheckResult
 } from './updateCenter';
@@ -171,6 +172,53 @@ function formatUpdateProgressDetail(progress: DesktopUpdateProgress) {
   const sizeText = total && transferred ? `${transferred} / ${total}` : '';
   const speedText = speed ? `${speed}/s` : '';
   return [sizeText, speedText].filter(Boolean).join(' · ') || `下载进度 ${percent}%`;
+}
+
+function getUpdatePlatformLabel(platform: DownloadRelease['platform']) {
+  const labels: Record<DownloadRelease['platform'], string> = {
+    windows: 'Windows',
+    android: 'Android',
+    macos: 'Mac',
+    ios: 'iOS'
+  };
+  return labels[platform];
+}
+
+function formatReleaseDate(value?: string) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function getUpdateReleaseNotes(release: DownloadRelease, currentVersion: string) {
+  const explicitNotes = release.releaseNotes
+    ?.split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (explicitNotes?.length) {
+    return explicitNotes;
+  }
+
+  const releaseDate = formatReleaseDate(release.releaseDate);
+  return [
+    `从 ${currentVersion} 更新到 ${release.version}`,
+    `${getUpdatePlatformLabel(release.platform)} 更新包：${release.fileName}`,
+    releaseDate ? `发布时间：${releaseDate}` : '安装完成后即可使用最新客户端功能'
+  ];
 }
 
 const rememberedAccountStorageKey = 'quick-translate-remembered-account';
@@ -304,6 +352,7 @@ export function App() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<DesktopUpdateProgress | null>(null);
+  const [isUpdateDialogDismissed, setIsUpdateDialogDismissed] = useState(false);
   const [showCustomFloatingShortcutEditor, setShowCustomFloatingShortcutEditor] = useState(false);
   const [isRecordingFloatingShortcut, setIsRecordingFloatingShortcut] = useState(false);
   const [floatingShortcutError, setFloatingShortcutError] = useState('');
@@ -912,7 +961,9 @@ export function App() {
     setIsCheckingUpdate(true);
     setUpdateProgress(null);
     try {
-      setUpdateCheck(await checkForAppUpdates());
+      const nextUpdateCheck = await checkForAppUpdates();
+      setUpdateCheck(nextUpdateCheck);
+      setIsUpdateDialogDismissed(false);
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -968,6 +1019,7 @@ export function App() {
       currentVersion: updateCheck.currentVersion,
       release: updateCheck.release
     });
+    setIsUpdateDialogDismissed(true);
   }
 
   function remindCurrentUpdateLater() {
@@ -977,6 +1029,7 @@ export function App() {
 
     remindLater();
     setUpdateCheck({ ...updateCheck, isSnoozed: true });
+    setIsUpdateDialogDismissed(true);
   }
 
   async function translateWithCloudFallback(text: string, language: string, format: TranslationFormat) {
@@ -1187,6 +1240,13 @@ export function App() {
         : updateCheck?.status === 'failed'
           ? '检查失败'
           : '检查中';
+  const availableUpdateCheck = updateCheck?.status === 'available' ? updateCheck : null;
+  const shouldShowUpdateDialog = Boolean(
+    availableUpdateCheck && !availableUpdateCheck.isSnoozed && !isUpdateDialogDismissed
+  );
+  const updateReleaseNotes = availableUpdateCheck
+    ? getUpdateReleaseNotes(availableUpdateCheck.release, availableUpdateCheck.currentVersion)
+    : [];
   const floatingShortcutLabel = getFloatingTranslateShortcutLabel(normalizedFloatingShortcut);
   const isFloatingShortcutEnabled = normalizedFloatingShortcut !== 'disabled';
   const defaultTargetLanguageLabel = getLanguageLabel(defaultTargetLanguage);
@@ -1314,10 +1374,22 @@ export function App() {
                       <label className="panel-title" htmlFor="source-text">
                         原文
                       </label>
-                      <span className="source-language-chip" aria-label={`检测到的源语言：${sourceLanguageLabel}`}>
-                        <span aria-hidden="true">{sourceLanguageBadge}</span>
-                        <strong>{sourceLanguageLabel}</strong>
-                      </span>
+                      <div className="source-meta-actions">
+                        <button
+                          className="panel-action"
+                          type="button"
+                          onPointerDown={(event) => event.preventDefault()}
+                          onClick={clearText}
+                          aria-label="清空原文"
+                        >
+                          <X size={18} />
+                          <span>清空</span>
+                        </button>
+                        <span className="source-language-chip" aria-label={`检测到的源语言：${sourceLanguageLabel}`}>
+                          <span aria-hidden="true">{sourceLanguageBadge}</span>
+                          <strong>{sourceLanguageLabel}</strong>
+                        </span>
+                      </div>
                     </div>
                     <div className="source-input-shell">
                       <textarea
@@ -1354,10 +1426,6 @@ export function App() {
                     </div>
                     <div className="panel-footer">
                       <span>{sourceLength} / {maxTranslationTextLength}</span>
-                      <button className="panel-action" type="button" onClick={clearText} aria-label="清空原文">
-                        <X size={18} />
-                        <span>清空</span>
-                      </button>
                     </div>
                   </section>
 
@@ -1937,6 +2005,66 @@ export function App() {
             ) : null}
           </section>
         </div>
+        {shouldShowUpdateDialog && availableUpdateCheck ? (
+          <div className="update-dialog-backdrop">
+            <section className="update-dialog" role="dialog" aria-modal="true" aria-label="发现新版本">
+              <div className="update-dialog-heading">
+                <span className="update-status available">可更新</span>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => setIsUpdateDialogDismissed(true)}
+                  aria-label="关闭更新弹窗"
+                >
+                  <X size={19} />
+                </button>
+              </div>
+              <div className="update-dialog-title">
+                <strong>客户端更新</strong>
+                <span>
+                  当前 {availableUpdateCheck.currentVersion} · 最新 {availableUpdateCheck.release.version}
+                </span>
+              </div>
+              <div className="update-dialog-notes">
+                <span>更新日志</span>
+                <ul>
+                  {updateReleaseNotes.map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+              </div>
+              {updateProgress ? (
+                <div className="update-dialog-progress">
+                  <small>弹窗进度：{formatUpdateProgressDetail(updateProgress)}</small>
+                  <div
+                    className={`update-progress ${updateProgress.status}`}
+                    role="progressbar"
+                    aria-label="弹窗更新进度"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={updateProgressPercent}
+                  >
+                    <span style={{ width: `${updateProgressPercent}%` }} />
+                  </div>
+                </div>
+              ) : null}
+              <div className="update-dialog-actions">
+                <button className="settings-action primary-account-action" type="button" onClick={updateNow} disabled={isUpdateBusy}>
+                  <RefreshCw size={20} />
+                  <span>{isDesktopReleaseUpdate ? '开始下载安装' : '开始更新'}</span>
+                </button>
+                <button className="settings-action" type="button" onClick={remindCurrentUpdateLater} disabled={isUpdateBusy}>
+                  <History size={20} />
+                  <span>下次提醒</span>
+                </button>
+                <button className="settings-action" type="button" onClick={ignoreCurrentUpdate} disabled={isUpdateBusy}>
+                  <X size={20} />
+                  <span>忽略此更新</span>
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
         {copyNotice ? (
           <div
             className={`copy-toast ${copyNotice.tone}`}

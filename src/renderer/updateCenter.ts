@@ -12,6 +12,7 @@ export type DownloadRelease = {
   size?: number;
   sha512?: string;
   releaseDate?: string;
+  releaseNotes?: string;
 };
 
 export type UpdateInstallProgress = {
@@ -225,7 +226,9 @@ function normalizeReleases(value: unknown): DownloadRelease[] {
       url: stringOrEmpty(item.url),
       size: typeof item.size === 'number' ? item.size : undefined,
       sha512: stringOrEmpty(item.sha512) || undefined,
-      releaseDate: stringOrEmpty(item.releaseDate) || undefined
+      releaseDate: stringOrEmpty(item.releaseDate) || undefined,
+      releaseNotes:
+        stringOrEmpty(item.releaseNotes) || stringOrEmpty(item.changelog) || stringOrEmpty(item.notes) || undefined
     }))
     .filter((item) => item.version && item.url && item.fileName);
 }

@@ -305,6 +305,28 @@ describe('App', () => {
     expect(screen.getByText('翻译结果会显示在这里')).toBeInTheDocument();
   });
 
+  it('keeps the mobile source panel expanded when clearing from the header action', () => {
+    render(<App />);
+
+    const sourceInput = screen.getByLabelText('原文');
+    fireEvent.focus(sourceInput);
+    fireEvent.change(sourceInput, {
+      target: { value: 'hello' }
+    });
+
+    const clearButton = screen.getByRole('button', { name: '清空原文' });
+    const pointerEvent = new Event('pointerdown', { bubbles: true, cancelable: true });
+    clearButton.dispatchEvent(pointerEvent);
+    fireEvent.click(clearButton);
+
+    expect(pointerEvent.defaultPrevented).toBe(true);
+    expect(sourceInput).toHaveValue('');
+    expect(sourceInput.closest('.source-panel')).toHaveClass('mobile-source-expanded');
+    expect(clearButton.closest('.panel-meta')?.querySelector('.panel-action')?.nextElementSibling).toHaveClass(
+      'source-language-chip'
+    );
+  });
+
   it('renders history entries in a scrollable list region', async () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn(),
@@ -1268,6 +1290,31 @@ describe('App', () => {
     expect(await screen.findByText('发现新版本')).toBeInTheDocument();
     expect(screen.getByText(`版本 ${testUpdateVersion}`)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '下载并安装' })).toBeEnabled();
+  });
+
+  it('shows an in-app update dialog with release notes when a client update is available', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          releases: [
+            {
+              version: testUpdateVersion,
+              platform: 'windows',
+              fileName: testWindowsInstallerName,
+              url: 'https://example.com/quick-translate.exe',
+              releaseNotes: '修复移动端输入框交互\n增加更新弹窗'
+            }
+          ]
+        })
+    } as Response);
+
+    render(<App />);
+
+    expect(await screen.findByRole('dialog', { name: '发现新版本' })).toBeInTheDocument();
+    expect(screen.getByText('更新日志')).toBeInTheDocument();
+    expect(screen.getByText('修复移动端输入框交互')).toBeInTheDocument();
+    expect(screen.getByText('增加更新弹窗')).toBeInTheDocument();
   });
 
   it('keeps an ignored update version in local storage', async () => {

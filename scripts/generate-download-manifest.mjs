@@ -12,6 +12,7 @@ const dataDir = process.env.QUICK_TRANSLATE_DATA_DIR ?? path.join(projectRoot, '
 const outputPath = path.join(dataDir, 'downloads.json');
 const publicUpdateBaseUrl =
   process.env.QUICK_TRANSLATE_UPDATE_BASE_URL ?? 'https://sg.lwvpscc.top/quick-translate/updates/latest';
+const releaseNotes = (process.env.QUICK_TRANSLATE_RELEASE_NOTES ?? '').trim();
 
 const latestYmlPath = path.join(releaseDir, 'latest.yml');
 
@@ -33,7 +34,8 @@ const release = {
   url: `${publicUpdateBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(fileName)}`,
   size: fileStat.size,
   sha512,
-  releaseDate
+  releaseDate,
+  ...(releaseNotes ? { releaseNotes } : {})
 };
 const additionalReleases = await collectAdditionalReleases({
   releaseDir,
@@ -136,7 +138,8 @@ async function collectAdditionalReleases({ releaseDir, version, skipFileNames, p
       url: `${publicUpdateBaseUrl.replace(/\/$/, '')}/${encodeURIComponent(entry.name)}`,
       size: fileStat.size,
       sha512: await sha512Base64(filePath),
-      releaseDate
+      releaseDate,
+      ...(releaseNotes ? { releaseNotes } : {})
     });
   }
 
