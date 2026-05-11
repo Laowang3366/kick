@@ -35,9 +35,9 @@ export function getCampaignLevelStatusLabel(status?: string | null) {
 export function getCampaignQuestionListPath(chapterId?: number | string | null) {
   const normalizedChapterId = chapterId === null || chapterId === undefined ? "" : String(chapterId).trim();
   if (!normalizedChapterId) {
-    return "/practice/chapters";
+    return "/practice";
   }
-  return `/practice/chapters?chapter=${encodeURIComponent(normalizedChapterId)}`;
+  return `/practice?chapter=${encodeURIComponent(normalizedChapterId)}`;
 }
 
 export function getPracticeDetailEditorKey(questionId?: number | string | null) {

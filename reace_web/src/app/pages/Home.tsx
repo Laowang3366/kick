@@ -127,7 +127,7 @@ export function Home() {
               </button>
               <button
                 type="button"
-                onClick={() => navigate("/practice/chapters")}
+                onClick={() => navigate("/practice")}
                 className="inline-flex items-center gap-2 rounded-full border border-white/18 bg-white/8 px-6 py-3 text-sm font-black text-white/82 transition hover:bg-white/14"
               >
                 查看题型章节

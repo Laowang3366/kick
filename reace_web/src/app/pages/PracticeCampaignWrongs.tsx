@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { handleLoginRequiredError } from "../lib/auth-required";
 import { formatDateTime } from "../lib/format";
 import { startCampaignLevel } from "../lib/practice-campaign";
+import { getCampaignQuestionListPath } from "../lib/practice-campaign-ui";
 import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignWrongs() {
@@ -42,7 +43,7 @@ export function PracticeCampaignWrongs() {
       const result = await startCampaignLevel(levelId, level?.questionId || levelDetail?.question?.id);
       navigate(`/practice/question/${result.questionId}`, {
         state: {
-          backTo: chapter?.id ? `/practice/chapters?chapter=${chapter.id}` : "/practice/chapters",
+          backTo: getCampaignQuestionListPath(chapter?.id),
           campaignLevel: level,
           campaignChapter: chapter,
           campaignAttemptId: result.attemptId,

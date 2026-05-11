@@ -463,7 +463,7 @@ export function TutorialCenter() {
                   ) : null}
                   <button
                     type="button"
-                    onClick={() => navigate("/practice/chapters")}
+                    onClick={() => navigate("/practice")}
                     className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
                   >
                     全部章节

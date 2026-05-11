@@ -26,9 +26,9 @@ describe("practice campaign UI helpers", () => {
   });
 
   it("routes campaign returns to the question list instead of the map page", () => {
-    expect(getCampaignQuestionListPath()).toBe("/practice/chapters");
-    expect(getCampaignQuestionListPath(8)).toBe("/practice/chapters?chapter=8");
-    expect(getCampaignQuestionListPath("chapter 1")).toBe("/practice/chapters?chapter=chapter%201");
+    expect(getCampaignQuestionListPath()).toBe("/practice");
+    expect(getCampaignQuestionListPath(8)).toBe("/practice?chapter=8");
+    expect(getCampaignQuestionListPath("chapter 1")).toBe("/practice?chapter=chapter%201");
   });
 
   it("keeps the workbook editor mounted while answers change", () => {

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, useParams } from "react-router";
+import { createBrowserRouter, Navigate, useParams, useSearchParams } from "react-router";
 import { Layout } from "./components/Layout";
 import { ONLINE_LITE_MODE } from "./lib/site-mode";
 import { getCampaignQuestionListPath } from "./lib/practice-campaign-ui";
@@ -21,6 +21,11 @@ function AdminRedirect() {
 function PracticeChapterRedirect() {
   const { id } = useParams();
   return <Navigate to={getCampaignQuestionListPath(id)} replace />;
+}
+
+function PracticeChaptersRedirect() {
+  const [searchParams] = useSearchParams();
+  return <Navigate to={getCampaignQuestionListPath(searchParams.get("chapter"))} replace />;
 }
 
 function pageRoute(path: string, importer: () => Promise<any>, exportName: string, allowedInLite = false) {
@@ -64,7 +69,7 @@ export const router = createBrowserRouter([
       { index: true, lazy: lazyPage(() => import("./pages/Home"), "Home") },
       { path: "chat", Component: LiteRedirect },
       pageRoute("practice", () => import("./pages/PracticeCampaignHub"), "PracticeCampaignHub", true),
-      pageRoute("practice/chapters", () => import("./pages/PracticeCampaignChapters"), "PracticeCampaignChapters", true),
+      { path: "practice/chapters", Component: PracticeChaptersRedirect },
       pageRoute("practice/classic", () => import("./pages/Practice"), "Practice", true),
       { path: "practice/chapter/:id", Component: PracticeChapterRedirect },
       pageRoute("practice/result/:id", () => import("./pages/PracticeCampaignResult"), "PracticeCampaignResult", true),
@@ -83,6 +88,7 @@ export const router = createBrowserRouter([
       pageRoute("mall/redemptions", () => import("./pages/MallRedemptions"), "MallRedemptions", true),
       { path: "messages", Component: LiteRedirect },
       pageRoute("tools", () => import("./pages/Tools"), "Tools", true),
+      pageRoute("assistant", () => import("./pages/Assistant"), "Assistant", true),
       pageRoute("tools/history", () => import("./pages/ToolsHistory"), "ToolsHistory", true),
       pageRoute("notifications", () => import("./pages/Notifications"), "Notifications", true),
       pageRoute("profile", () => import("./pages/ProfileCenter"), "ProfileCenter", true),

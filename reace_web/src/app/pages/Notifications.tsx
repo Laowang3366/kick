@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   MessageSquare,
-  UserPlus,
   Radio,
   CheckCircle2,
   CheckSquare,
@@ -13,7 +12,6 @@ import {
   Star,
   Trash2,
   Shield,
-  Award,
   AlertTriangle,
   ExternalLink,
   ChevronDown,
@@ -31,9 +29,11 @@ import { notificationKeys } from "../lib/query-keys";
 import { openGlobalConfirm, openGlobalPrompt } from "../components/GlobalConfirmPromptDialog";
 import { useSession } from "../lib/session";
 import {
+  getVisibleNotificationTypeFilter,
   getNotificationTabCount,
   normalizeNotificationTab,
   notificationFilterTabs,
+  shouldRenderNotificationItem,
   type NotificationCounts,
   type NotificationTabId,
 } from "../lib/notification-display";
@@ -45,7 +45,6 @@ const typeConfig: Record<string, { icon: any; label: string; color: string; bg: 
   reply: { icon: MessageSquare, label: "回复", color: "text-blue-600", bg: "bg-blue-50 border-blue-100" },
   like: { icon: Heart, label: "点赞", color: "text-rose-500", bg: "bg-rose-50 border-rose-100" },
   favorite: { icon: Star, label: "收藏", color: "text-amber-600", bg: "bg-amber-50 border-amber-100" },
-  follow: { icon: UserPlus, label: "关注", color: "text-teal-600", bg: "bg-teal-50 border-teal-100" },
   MENTION: { icon: MessageSquare, label: "提及", color: "text-violet-600", bg: "bg-violet-50 border-violet-100" },
   message: { icon: MessageSquare, label: "私信", color: "text-blue-600", bg: "bg-blue-50 border-blue-100" },
   site_notification: { icon: Radio, label: "系统公告", color: "text-slate-600", bg: "bg-slate-50 border-slate-100" },
@@ -53,7 +52,6 @@ const typeConfig: Record<string, { icon: any; label: string; color: string; bg: 
   post_deleted: { icon: Trash2, label: "帖子删除", color: "text-red-600", bg: "bg-red-50 border-red-100" },
   reply_deleted: { icon: Trash2, label: "回复删除", color: "text-red-600", bg: "bg-red-50 border-red-100" },
   report_delete: { icon: AlertTriangle, label: "举报处理", color: "text-orange-600", bg: "bg-orange-50 border-orange-100" },
-  level_up: { icon: Award, label: "等级提升", color: "text-amber-600", bg: "bg-amber-50 border-amber-100" },
   post_review: { icon: Shield, label: "审核结果", color: "text-indigo-600", bg: "bg-indigo-50 border-indigo-100" },
   review_request: { icon: Shield, label: "审核请求", color: "text-indigo-600", bg: "bg-indigo-50 border-indigo-100" },
 };
@@ -63,7 +61,6 @@ function getTypeConfig(type: string) {
 }
 
 function hasLink(notification: any): boolean {
-  if (notification.type === "follow" && notification.senderId) return true;
   if (notification.type === "message") return true;
   if (notification.type === "site_notification" && notification.relatedId) return true;
   if (notification.type === "MENTION" && notification.content?.includes("聊天中提到了你")) return true;
@@ -75,8 +72,7 @@ function tabTypeFilter(tab: NotificationTabId): string | undefined {
   switch (tab) {
     case "points": return "system";
     case "announcements": return "site_notification";
-    case "follows": return "follow,level_up";
-    default: return undefined;
+    default: return getVisibleNotificationTypeFilter();
   }
 }
 
@@ -134,6 +130,10 @@ export function Notifications() {
   });
 
   const notifications = notificationsQuery.data?.notifications || [];
+  const visibleNotifications = useMemo(
+    () => notifications.filter((notification) => shouldRenderNotificationItem(notification.type)),
+    [notifications],
+  );
   const total = notificationsQuery.data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -145,7 +145,6 @@ export function Notifications() {
     all: <Bell size={18} strokeWidth={1.5} />,
     points: <Gift size={18} strokeWidth={1.5} />,
     announcements: <Radio size={18} strokeWidth={1.5} />,
-    follows: <UserPlus size={18} strokeWidth={1.5} />,
   };
 
   const tabs = notificationFilterTabs.map((tab) => ({
@@ -157,6 +156,14 @@ export function Notifications() {
   const switchTab = (tabId: NotificationTabId) => {
     setActiveTab(tabId);
     setSearchParams(tabId === "all" ? {} : { tab: tabId });
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate("/");
   };
 
   // 标记全部已读
@@ -231,14 +238,14 @@ export function Notifications() {
   });
 
   // 选择逻辑
-  const allOnPageSelected = notifications.length > 0 && notifications.every((n) => selectedIds.has(n.id));
-  const someOnPageSelected = notifications.some((n) => selectedIds.has(n.id));
+  const allVisibleOnPageSelected = visibleNotifications.length > 0 && visibleNotifications.every((n) => selectedIds.has(n.id));
+  const someOnPageSelected = visibleNotifications.some((n) => selectedIds.has(n.id));
 
   const toggleSelectAll = () => {
-    if (allOnPageSelected) {
+    if (allVisibleOnPageSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(notifications.map((n) => n.id)));
+      setSelectedIds(new Set(visibleNotifications.map((n) => n.id)));
     }
   };
 
@@ -264,8 +271,6 @@ export function Notifications() {
 
   const resolveNotificationLink = (notification: any) => {
     switch (notification.type) {
-      case "follow":
-        return notification.senderId ? `/user/${notification.senderId}` : null;
       case "message":
         return "/messages";
       case "MENTION":
@@ -328,8 +333,18 @@ export function Notifications() {
   return (
     <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 pb-20">
       {/* 顶部标题栏 */}
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-extrabold text-slate-800 tracking-wide">通知中心</h1>
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-900"
+          >
+            <ChevronLeft size={16} strokeWidth={1.8} />
+            返回
+          </button>
+          <h1 className="text-2xl font-extrabold text-slate-800 tracking-wide">通知中心</h1>
+        </div>
         <div className="flex items-center gap-3">
           {selectedIds.size > 0 && (
             <motion.button
@@ -391,20 +406,20 @@ export function Notifications() {
         {/* 右侧通知列表 */}
         <div className="flex-1 w-full bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden">
           {/* 全选栏 */}
-          {notifications.length > 0 && (
+          {visibleNotifications.length > 0 && (
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/50">
               <button
                 onClick={toggleSelectAll}
                 className="flex items-center gap-2 text-[13px] font-bold text-slate-500 hover:text-slate-800 transition-colors"
               >
-                {allOnPageSelected ? (
+                {allVisibleOnPageSelected ? (
                   <CheckSquare size={16} className="text-teal-600" />
                 ) : someOnPageSelected ? (
                   <CheckSquare size={16} className="text-slate-400" />
                 ) : (
                   <Square size={16} />
                 )}
-                {allOnPageSelected ? "取消全选" : "全选本页"}
+                {allVisibleOnPageSelected ? "取消全选" : "全选本页"}
               </button>
               <span className="text-[12px] text-slate-400 font-medium">
                 共 {total} 条通知，第 {page}/{totalPages} 页
@@ -415,8 +430,8 @@ export function Notifications() {
           {/* 通知列表 */}
           <div className="divide-y divide-slate-100">
             <AnimatePresence mode="popLayout">
-              {notifications.length > 0 ? (
-                notifications.map((notification) => {
+              {visibleNotifications.length > 0 ? (
+                visibleNotifications.map((notification) => {
                   const config = getTypeConfig(notification.type);
                   const Icon = config.icon;
                   const linked = hasLink(notification);
@@ -552,12 +567,6 @@ export function Notifications() {
                                   <span className="text-[12px] text-slate-400 ml-auto">{formatDateTime(notification.createTime)}</span>
                                 </div>
                                 <p className="text-[14px] text-slate-600 leading-relaxed">{notification.content}</p>
-                                {notification.type === "level_up" && (
-                                  <div className="mt-3 flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
-                                    <Award size={16} />
-                                    <span className="text-[13px] font-bold">恭喜！你在社区的活跃表现让你获得了等级提升</span>
-                                  </div>
-                                )}
                                 {(notification.type === "post_deleted" || notification.type === "reply_deleted" || notification.type === "report_delete") && (
                                   <div className="mt-3 flex items-center gap-2 text-red-600 bg-red-50 px-3 py-2 rounded-lg border border-red-100">
                                     <AlertTriangle size={16} />

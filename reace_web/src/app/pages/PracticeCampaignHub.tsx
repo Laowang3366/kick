@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Award,
@@ -15,13 +15,14 @@ import {
   Target,
   Trophy,
 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { LitePageFrame } from "../components/LiteSurface";
 import { api } from "../lib/api";
 import { handleLoginRequiredError } from "../lib/auth-required";
 import {
   canExpandChapterQuestions,
+  getCampaignQuestionListPath,
   getCampaignLevelStatusLabel,
   getChapterQuestionToggleLabel,
 } from "../lib/practice-campaign-ui";
@@ -30,7 +31,9 @@ import { practiceKeys } from "../lib/query-keys";
 
 export function PracticeCampaignHub() {
   const navigate = useNavigate();
-  const [expandedChapterId, setExpandedChapterId] = useState<number | string | null>(null);
+  const [searchParams] = useSearchParams();
+  const routeChapterId = searchParams.get("chapter") || null;
+  const [expandedChapterId, setExpandedChapterId] = useState<number | string | null>(routeChapterId);
   const [startingLevelId, setStartingLevelId] = useState<number | string | null>(null);
   const chaptersQuery = useQuery({
     queryKey: practiceKeys.campaignChapters(),
@@ -48,6 +51,12 @@ export function PracticeCampaignHub() {
   const expandedChapter = chapters.find((chapter: any) => String(chapter.id) === String(expandedChapterId)) || null;
   const expandedLevels = chapterDetailQuery.data?.levels || [];
 
+  useEffect(() => {
+    if (routeChapterId) {
+      setExpandedChapterId(routeChapterId);
+    }
+  }, [routeChapterId]);
+
   const handleToggleQuestions = (chapter: any) => {
     if (!canExpandChapterQuestions(chapter)) {
       return;
@@ -64,7 +73,7 @@ export function PracticeCampaignHub() {
       const result = await startCampaignLevel(level.id, level.questionId);
       navigate(`/practice/question/${result.questionId}`, {
         state: {
-          backTo: "/practice",
+          backTo: getCampaignQuestionListPath(chapter?.id),
           campaignLevel: level,
           campaignChapter: chapter,
           campaignAttemptId: result.attemptId,
@@ -94,7 +103,7 @@ export function PracticeCampaignHub() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-              <PracticeActionButton onClick={() => navigate("/practice/chapters")}>
+              <PracticeActionButton onClick={() => navigate("/practice")}>
                 查看所有章节列表
               </PracticeActionButton>
               <PracticeActionButton onClick={() => navigate("/practice/ranking")} icon={<Trophy size={15} />}>
@@ -195,7 +204,7 @@ export function PracticeCampaignHub() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => navigate(`/practice/chapters?chapter=${chapter.id}`)}
+                            onClick={() => navigate(getCampaignQuestionListPath(chapter.id))}
                             disabled={!isUnlocked}
                             className={`inline-flex h-9 items-center justify-center rounded-full px-3 text-xs font-black transition ${
                               isUnlocked

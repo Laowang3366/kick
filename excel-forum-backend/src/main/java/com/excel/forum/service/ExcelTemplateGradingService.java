@@ -29,6 +29,8 @@ public interface ExcelTemplateGradingService {
 
     String buildExpectedSnapshotJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson, String gradingRuleJson);
 
+    String buildExpectedSnapshotJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson, String gradingRuleJson, String previousExpectedSnapshotJson);
+
     String buildExpectedSnapshotJson(String fileUrl, String gradingRuleJson, String expectedSnapshotJson);
 
     ExcelTemplateExpectedSnapshot parseExpectedSnapshot(String json);

@@ -1,5 +1,5 @@
 export type PublicNavItem = {
-  key: "home" | "practice" | "templates" | "tutorials" | "mall" | "tools";
+  key: "home" | "practice" | "templates" | "tutorials" | "mall" | "tools" | "assistant";
   name: string;
   shortName: string;
   path: string;
@@ -57,6 +57,13 @@ export const publicNavItems: PublicNavItem[] = [
     shortName: "工具",
     path: "/tools",
     description: "文件转换与效率工具",
+  },
+  {
+    key: "assistant",
+    name: "AI 助手",
+    shortName: "AI",
+    path: "/assistant",
+    description: "问 Excel 公式、报错和解题思路",
   },
 ];
 

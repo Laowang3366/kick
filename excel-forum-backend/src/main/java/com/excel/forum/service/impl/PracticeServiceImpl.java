@@ -547,7 +547,8 @@ public class PracticeServiceImpl implements PracticeService {
                     request.getAnswerRange(),
                     request.getCheckFormula(),
                     normalizedAnswerSnapshot,
-                    request.getGradingRuleJson()
+                    request.getGradingRuleJson(),
+                    request.getExpectedSnapshotJson()
             ));
             request.setSheetCountLimit(request.getSheetCountLimit() == null || request.getSheetCountLimit() < 1 ? 5 : request.getSheetCountLimit());
             request.setVersion(request.getVersion() == null || request.getVersion() < 1 ? 1 : request.getVersion());
@@ -765,10 +766,20 @@ public class PracticeServiceImpl implements PracticeService {
 
         ExcelWorkbookSnapshot submission = objectMapper.convertValue(userAnswer, ExcelWorkbookSnapshot.class);
         ExcelWorkbookSnapshot materializedSubmission = excelTemplateGradingService.materializeSubmission(template.getTemplateFileUrl(), submission);
-        ExcelTemplateEvaluation evaluation = excelTemplateGradingService.grade(
-                materializedSubmission,
+        String expectedSnapshotJson = excelTemplateGradingService.buildExpectedSnapshotJson(
+                template.getTemplateFileUrl(),
+                template.getAnswerSheet(),
+                template.getAnswerRange(),
+                template.getCheckFormula(),
+                template.getAnswerSnapshotJson(),
                 template.getGradingRuleJson(),
                 template.getExpectedSnapshotJson()
+        );
+        ExcelWorkbookSnapshot gradingSubmission = materializedSubmission == null ? submission : submission;
+        ExcelTemplateEvaluation evaluation = excelTemplateGradingService.grade(
+                gradingSubmission,
+                template.getGradingRuleJson(),
+                expectedSnapshotJson
         );
         int finalScore = questionScore > 0 && evaluation.getTotalScore() > 0
                 ? Math.min(questionScore, Math.round((evaluation.getScore() * questionScore) / (float) evaluation.getTotalScore()))

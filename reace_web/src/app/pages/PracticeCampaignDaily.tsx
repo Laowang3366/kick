@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "../lib/api";
 import { handleLoginRequiredError, showLoginRequiredToast } from "../lib/auth-required";
 import { startCampaignLevel } from "../lib/practice-campaign";
+import { getCampaignQuestionListPath } from "../lib/practice-campaign-ui";
 import { practiceKeys } from "../lib/query-keys";
 import { useSession } from "../lib/session";
 
@@ -33,7 +34,7 @@ export function PracticeCampaignDaily() {
       const result = await startCampaignLevel(challenge.levelId, level?.questionId || levelDetail?.question?.id);
       navigate(`/practice/question/${result.questionId}`, {
         state: {
-          backTo: chapter?.id ? `/practice/chapters?chapter=${chapter.id}` : "/practice/chapters",
+          backTo: getCampaignQuestionListPath(chapter?.id),
           campaignLevel: level,
           campaignChapter: chapter,
           campaignAttemptId: result.attemptId,

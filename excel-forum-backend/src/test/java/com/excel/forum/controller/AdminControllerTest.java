@@ -75,6 +75,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doAnswer;
@@ -528,12 +530,13 @@ class AdminControllerTest {
         when(excelTemplateGradingService.buildRuleJson("/uploads/demo.xlsx", "Sheet1", "B2", true, null))
                 .thenReturn("{\"answerSheet\":\"Sheet1\",\"answerRange\":\"B2\",\"checkFormula\":true,\"score\":1}");
         when(excelTemplateGradingService.buildExpectedSnapshotJson(
-                "/uploads/demo.xlsx",
-                "Sheet1",
-                "B2",
-                true,
-                "{\"values\":[[\"100\"]],\"formulas\":[]}",
-                "{\"answerSheet\":\"Sheet1\",\"answerRange\":\"B2\",\"checkFormula\":true,\"score\":1}"
+                eq("/uploads/demo.xlsx"),
+                eq("Sheet1"),
+                eq("B2"),
+                eq(true),
+                eq("{\"values\":[[\"100\"]],\"formulas\":[]}"),
+                eq("{\"answerSheet\":\"Sheet1\",\"answerRange\":\"B2\",\"checkFormula\":true,\"score\":1}"),
+                isNull()
         ))
                 .thenReturn("{\"rangeValues\":{\"Sheet1!B2\":[[\"100\"]]},\"rangeFormulas\":{\"Sheet1!B2\":[[\"\"]]}}");
         when(excelTemplateGradingService.normalizeRuleJson(anyString())).thenAnswer(invocation -> invocation.getArgument(0));

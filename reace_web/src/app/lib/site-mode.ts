@@ -13,6 +13,7 @@ const LITE_ALLOWED_PREFIXES = [
   "/notifications",
   "/notification",
   "/tools",
+  "/assistant",
   "/points-history",
   "/task-center",
 ];

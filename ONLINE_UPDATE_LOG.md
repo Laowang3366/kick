@@ -13,6 +13,86 @@
 - 备注：
 ```
 
+## 2026-05-11 09:06 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀题目列表回退与 AI 助手视觉收口；删除旧 `PracticeCampaignChapters` 源码页，所有入口改到 `/practice` 深色章节界面；保留旧 `/practice/chapters` 前端重定向兼容历史链接；AI 助手入口/面板切换取消局部动效，移除展开面板中的额外人物素材，避免点击人物时残影位移。
+- 验证：服务器前端 `cd /www/wwwroot/kick-deploy/repo/reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/`、`/practice`、`/practice/chapters?chapter=1` 均返回 200；服务器源码确认旧页面文件已删除，旧页面预加载引用已移除，AI 面板不再包含 `assistantAvatarSrc` 和入口/面板 key 动效。
+- 部署：直接编辑服务器前端源码，构建后同步静态文件到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-practice-ai-cleanup-20260511-010221`，`/www/wwwroot/kick-deploy/backups/manual-practice-ai-cleanup-20260511-010615`
+- 备注：本次只处理小试牛刀旧题目列表页删除、返回目标和 AI 助手人物残影/素材问题。
+
+## 2026-05-11 08:59 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀返回链路与 AI 助手视觉修正；结果页“返回题目列表”直接返回深色章节地图 `/practice?chapter=...` 并自动展开对应章节；旧 `/practice/chapters` 题目列表页改为前端重定向到章节地图；AI 助手入口点击展开时去除入口退出残影，删除空状态提示区中间的半透明人物素材。
+- 验证：服务器前端 `cd /www/wwwroot/kick-deploy/repo/reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/`、`/practice`、`/practice/chapters?chapter=1` 均返回 200；服务器源码确认包含 `PracticeChaptersRedirect`、`/practice?chapter` 返回路径与 AI 助手默认位置回归逻辑；线上构建产物包含新返回路径和 AI 助手入口逻辑。
+- 部署：直接编辑服务器前端源码，构建后同步静态文件到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-practice-return-ai-polish-20260511-005425`，`/www/wwwroot/kick-deploy/backups/manual-practice-return-ai-polish-20260511-005831`
+- 备注：本次只处理小试牛刀返回目标、旧题目列表页入口和 AI 助手空状态/残影。
+
+## 2026-05-11 08:49 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手默认位置回归修复；默认入口位置点击展开后关闭时不再转换为数值坐标，回到原 CSS 默认定位；保留拖动过入口后的自定义位置恢复；同时包含 `-top-3` 标签位置和人物镜像入口。
+- 验证：服务器前端 `cd /www/wwwroot/kick-deploy/repo/reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/` 返回 200；服务器源码确认包含 `assistantEntryHadCustomPositionRef`、默认位置 `setAssistantDragPosition(null)`、`-top-3` 标签位置。
+- 部署：直接编辑服务器前端源码，构建后同步静态文件到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-ai-widget-return-position-20260511-004751`，`/www/wwwroot/kick-deploy/backups/manual-ai-widget-return-position-20260511-004921`
+- 备注：本次只处理 AI 助手入口打开/关闭后位置漂移问题。
+
+## 2026-05-11 08:36 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手入口与展开定位修正；右侧边缘打开时按面板实际宽度重新夹到视口内，避免面板半截遮盖或越界；“AI助手”文字继续上移；入口人物水平镜像，使视线朝页面内部。
+- 验证：服务器前端 `cd /www/wwwroot/kick-deploy/repo/reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/` 返回 200；服务器源码确认包含面板宽度定位、`-top-4` 标签位置与 `-scale-x-100` 人物镜像。
+- 部署：直接编辑服务器前端源码，构建后同步静态文件到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-ai-widget-edge-open-20260511-003257`，`/www/wwwroot/kick-deploy/backups/manual-ai-widget-edge-open-20260511-003550`
+- 备注：本次只处理 AI 助手入口视觉和展开定位。
+
+## 2026-05-11 08:29 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手入口布局调整；将“AI助手”文字从人物左侧改为悬浮在人物头顶，保留入口拖动热区与动态人物素材。
+- 验证：服务器前端 `cd /www/wwwroot/kick-deploy/repo/reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/` 返回 200。
+- 部署：直接编辑服务器前端源码，构建后同步静态文件到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-ai-widget-label-top-20260511-002741`，`/www/wwwroot/kick-deploy/backups/manual-ai-widget-label-top-20260511-002924`
+- 备注：本次只调整 AI 助手入口文字位置。
+
+## 2026-05-11 08:23 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手拖动热区优化；扩大入口可抓取区域，降低拖动触发阈值，并关闭人物素材的原生拖拽，减少“拖不动”的手感问题。
+- 验证：服务器前端 `cd /www/wwwroot/kick-deploy/repo/reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/` 返回 200。
+- 部署：直接编辑服务器前端源码，构建后同步静态文件到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-ai-widget-drag-hitbox-20260511-002134`，`/www/wwwroot/kick-deploy/backups/manual-ai-widget-drag-hitbox-20260511-002256`
+- 备注：这次只做拖动手感优化。
+
+## 2026-05-11 08:17 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手浮窗拖动支持；入口状态可拖动，展开后可按住顶部蓝色区域拖动，拖动位置限制在视口内；关闭、附件、输入和发送区域不触发拖动，避免误操作。
+- 验证：服务器前端 `cd /www/wwwroot/kick-deploy/repo/reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/` 返回 200；线上构建产物包含 `setPointerCapture`、`cursor-grab` 与 `data-assistant-no-drag` 拖动逻辑。
+- 部署：直接编辑服务器前端源码，构建后同步静态文件到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-ai-widget-drag-20260511-001335`，`/www/wwwroot/kick-deploy/backups/manual-ai-widget-drag-20260511-001649`
+- 备注：本次只改 AI 助手浮层拖动交互。
+
+## 2026-05-11 07:55 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手输出格式约束修正；补强后端 `api/assistant/chat` 的系统提示，明确禁止 Markdown 排版符号，并在返回前清理 `#`、`**`、反引号、`---` 等残留标记，避免聊天气泡里出现大量不相关符号。
+- 验证：服务器后端 `cd /www/wwwroot/kick-deploy/repo/excel-forum-backend && mvn -q -DskipTests package` 通过；`systemctl is-active kick-backend.service` 返回 `active`；`/www/wwwroot/kick-backend/forum-1.0.0.jar` 已替换为新包并完成重启。
+- 部署：直接编辑服务器后端源码，打包后替换运行中的 `forum-1.0.0.jar` 并重启 `kick-backend.service`；未改动前端静态文件。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-assistant-output-format-20260510-235057`，`/www/wwwroot/kick-deploy/backups/runtime-assistant-output-format-20260510-235304`
+- 备注：当前 AI 助手回答会更偏纯文本，公式本身仍保留原样。
+
+## 2026-05-11 07:41 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手浮窗与入口样式优化；明确去掉的是“附件”按钮旁边的表情入口，未动其它表情相关能力；AI 助手入口改为透明人物素材并保留动态效果，浮窗位置调整为屏幕右侧垂直居中；补充前端文件附件能力，文本类附件可直接带入内容，二进制附件仅发送文件名、大小与类型说明。
+- 验证：`cd reace_web && npm run build` 通过；线上 `https://www.excelcc.cn/` 返回 200；`https://www.excelcc.cn/assistant-ikun-animated.webp` 返回 200；线上构建产物包含 `添加附件` 文案且不再包含附件旁的表情入口。
+- 部署：直接编辑服务器代码后同步静态前端到 `/www/wwwroot/kick-web`；未重启后端服务。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/source-ai-widget-attachment-20260511-073641`，`/www/wwwroot/kick-deploy/backups/manual-ai-widget-attachment-20260511-073817`
+- 备注：本次只做 AI 助手入口、位置和附件交互修正，未改动其他模块。
+
+## 2026-05-07 20:52 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` Excel 编辑器删除与动态数组溢出修复；修复快照编辑器在框选/选区模式下 `Delete` / `Backspace` 无法清空选区内容的问题；修复 Univer 编辑器选中区域后删除键未同步工作簿快照的问题；后台 Excel 模板题动态数组判题加载标准答案时清理溢出子单元格，避免 `=SEQUENCE(...)` 等数组公式因旧值占位显示 `#SPILL!`。
+- 验证：本地 `npx vitest run src/app/lib/excel-selection-clear.test.ts src/app/lib/excel-dynamic-array-hydration.test.ts src/app/lib/univer-workbook.test.ts src/app/lib/excel-answer-preview.test.ts src/app/lib/excel-formula-detection.test.ts` 通过；本地 `npx vitest run` 通过 17 个测试文件、60 个测试；本地 `npm run build` 通过；本地 `git diff --check` 无空白错误；生产部署后服务器仓库 `6d1e808` 且 worktree clean，`kick-backend.service`、`nginx`、`mysql`、`redis-server` 均为 `active`；服务器本机后端与 Nginx `/api/public/home-overview` 均返回 200；公网 `https://www.excelcc.cn/`、`/admin/questions`、`/practice`、`/api/public/home-overview` 均返回 200。
+- 部署：本地提交 `6d1e808` 通过 `scripts/deploy/export-git-bundle.sh` 导出 `kick-excel-editor-6d1e808.bundle`，上传到新生产机 `/www/wwwroot/kick-deploy/bundles/kick-excel-editor-6d1e808.bundle`；服务器 `/www/wwwroot/kick-deploy/repo` 使用 `bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/kick-excel-editor-6d1e808.bundle` 快进到本次提交并复用标准 `production-deploy.sh` 发布；首次发布输出采集遇到 Windows GBK 编码中断后，确认仓库 clean、服务 active，再以 `GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh` 复用同一标准脚本完成发布；本次不是 LAN `lan.excelcc.cn` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260507-124606`
+- 备注：发布脚本重启后端后健康检查第 6 次通过；新服务器仍存在 `react-router` 要求 Node >=20 的 npm engine 警告，当前 Node 18 下构建、发布和线上复验均通过；Codex in-app Browser 后端未发现，本轮浏览器可视化验证未执行，已用回归测试、构建和线上 HTTP/服务状态复验覆盖发布风险。
+
 ## 2026-05-06 11:40 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀入口样式恢复；将顶部导航“小试牛刀”对应的 `/practice` 从浅色章节详情卡片页恢复为深色章节表格入口，保留 `/practice/chapters` 作为章节题目列表入口，`/practice/chapter/:id` 仍重定向到题目列表；按要求不默认展开任何章节题目列表。

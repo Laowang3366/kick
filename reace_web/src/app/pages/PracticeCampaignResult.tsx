@@ -48,7 +48,7 @@ export function PracticeCampaignResult() {
       const result = await startCampaignLevel(levelId, level?.questionId || levelDetail?.question?.id);
       navigate(`/practice/question/${result.questionId}`, {
         state: {
-          backTo: chapter?.id ? `/practice/chapters?chapter=${chapter.id}` : "/practice/chapters",
+          backTo: getCampaignQuestionListPath(chapter?.id),
           campaignLevel: level,
           campaignChapter: chapter,
           campaignAttemptId: result.attemptId,

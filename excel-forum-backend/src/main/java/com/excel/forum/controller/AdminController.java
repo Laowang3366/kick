@@ -2357,7 +2357,8 @@ public class AdminController {
                     request.getAnswerRange(),
                     request.getCheckFormula(),
                     normalizedAnswerSnapshot,
-                    request.getGradingRuleJson()
+                    request.getGradingRuleJson(),
+                    request.getExpectedSnapshotJson()
             ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

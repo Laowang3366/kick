@@ -69,7 +69,7 @@ describe("resolveActiveNavItem", () => {
 
   it("normalizes searchable module urls before prefetching their route chunk", () => {
     expect(resolvePublicRoutePreloadPath("/tutorials?search=SUM")).toBe("/tutorials");
-    expect(resolvePublicRoutePreloadPath("/practice/chapters?search=SUM")).toBe("/practice/chapters");
+    expect(resolvePublicRoutePreloadPath("/practice/chapters?search=SUM")).toBe("/practice");
   });
 
   it("preloads the dark campaign hub for the practice navigation entry", async () => {

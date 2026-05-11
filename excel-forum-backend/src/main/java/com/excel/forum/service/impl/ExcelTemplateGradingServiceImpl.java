@@ -11,6 +11,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.apache.poi.ss.formula.FormulaParseException;
+import org.apache.poi.ss.formula.eval.NotImplementedException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -222,9 +224,14 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
 
     @Override
     public String buildExpectedSnapshotJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson, String gradingRuleJson) {
+        return buildExpectedSnapshotJson(fileUrl, answerSheet, answerRange, checkFormula, answerSnapshotJson, gradingRuleJson, null);
+    }
+
+    @Override
+    public String buildExpectedSnapshotJson(String fileUrl, String answerSheet, String answerRange, Boolean checkFormula, String answerSnapshotJson, String gradingRuleJson, String previousExpectedSnapshotJson) {
         ExcelTemplateRuleConfig ruleConfig = parseRuleConfig(gradingRuleJson);
         if (hasDynamicArrayRules(ruleConfig)) {
-            return buildExpectedSnapshotJson(fileUrl, gradingRuleJson, null);
+            return buildDynamicExpectedSnapshotJson(answerSheet, answerRange, answerSnapshotJson, ruleConfig, previousExpectedSnapshotJson);
         }
         return buildExpectedSnapshotJson(answerSheet, answerRange, checkFormula, answerSnapshotJson);
     }
@@ -277,23 +284,130 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
             expectedSnapshot.getHeaderValues().put(key, getHeaderValues(workbookSnapshot, rule.getSheet(), rule.getRange()));
         }
         for (ExcelTemplateRuleConfig.DynamicArrayRule rule : ruleConfig.getDynamicArrayRules()) {
-            if (!StringUtils.hasText(rule.getSheet()) || !StringUtils.hasText(rule.getSpillRange())) {
-                continue;
-            }
-            String spillKey = buildKey(rule.getSheet(), rule.getSpillRange());
-            expectedSnapshot.getRangeValues().put(spillKey, getRangeValues(workbookSnapshot, rule.getSheet(), rule.getSpillRange()));
-            expectedSnapshot.getRangeFormulas().put(spillKey, getRangeFormulas(workbookSnapshot, rule.getSheet(), rule.getSpillRange()));
-
-            String anchorFormula = getCellFormula(workbookSnapshot, rule.getSheet(), rule.getAnchorCell());
-            if (Boolean.TRUE.equals(rule.getRequireAnchorFormula()) && !hasFormula(anchorFormula)) {
-                throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的锚点单元格未设置公式");
-            }
-            if (!rule.getFormulaKeywords().isEmpty() && !containsFormulaKeywords(anchorFormula, rule.getFormulaKeywords())) {
-                throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的锚点公式未包含指定关键字");
-            }
-            expectedSnapshot.getCellFormulas().put(buildKey(rule.getSheet(), rule.getAnchorCell()), anchorFormula);
+            addDynamicExpectedFromWorkbook(expectedSnapshot, workbookSnapshot, rule);
         }
         return writeJson(expectedSnapshot);
+    }
+
+    private String buildDynamicExpectedSnapshotJson(
+            String answerSheet,
+            String answerRange,
+            String answerSnapshotJson,
+            ExcelTemplateRuleConfig ruleConfig,
+            String previousExpectedSnapshotJson
+    ) {
+        ExcelTemplateAnswerSnapshot answerSnapshot = parseAnswerSnapshot(answerSnapshotJson);
+        ExcelTemplateExpectedSnapshot expectedSnapshot = new ExcelTemplateExpectedSnapshot();
+
+        if (StringUtils.hasText(previousExpectedSnapshotJson)) {
+            ExcelTemplateExpectedSnapshot previous = parseExpectedSnapshot(previousExpectedSnapshotJson);
+            expectedSnapshot.setRequiredSheets(new ArrayList<>(previous.getRequiredSheets()));
+            expectedSnapshot.getCellValues().putAll(previous.getCellValues());
+            expectedSnapshot.getCellFormulas().putAll(previous.getCellFormulas());
+            expectedSnapshot.getRangeValues().putAll(previous.getRangeValues());
+            expectedSnapshot.getRangeFormulas().putAll(previous.getRangeFormulas());
+            expectedSnapshot.getHeaderValues().putAll(previous.getHeaderValues());
+        }
+
+        List<ExcelTemplateRuleConfig.DynamicArrayRule> rules = ruleConfig.getDynamicArrayRules();
+        if (rules == null || rules.isEmpty()) {
+            return writeJson(expectedSnapshot);
+        }
+
+        RangeRef answerRangeRef = parseRange(answerRange);
+        for (ExcelTemplateRuleConfig.DynamicArrayRule rule : rules) {
+            addDynamicExpectedFromAnswerSnapshot(expectedSnapshot, answerSnapshot, rule, answerRangeRef);
+        }
+        return writeJson(expectedSnapshot);
+    }
+
+    private void addDynamicExpectedFromWorkbook(ExcelTemplateExpectedSnapshot expectedSnapshot, ExcelWorkbookSnapshot workbookSnapshot, ExcelTemplateRuleConfig.DynamicArrayRule rule) {
+        if (!StringUtils.hasText(rule.getSheet()) || !StringUtils.hasText(rule.getSpillRange())) {
+            return;
+        }
+        String spillKey = buildKey(rule.getSheet(), rule.getSpillRange());
+        expectedSnapshot.getRangeValues().put(spillKey, getRangeValues(workbookSnapshot, rule.getSheet(), rule.getSpillRange()));
+        expectedSnapshot.getRangeFormulas().put(spillKey, getRangeFormulas(workbookSnapshot, rule.getSheet(), rule.getSpillRange()));
+
+        String anchorFormula = getCellFormula(workbookSnapshot, rule.getSheet(), rule.getAnchorCell());
+        if (Boolean.TRUE.equals(rule.getRequireAnchorFormula()) && !hasFormula(anchorFormula)) {
+            throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的锚点单元格未设置公式");
+        }
+        if (!rule.getFormulaKeywords().isEmpty() && !containsFormulaKeywords(anchorFormula, rule.getFormulaKeywords())) {
+            throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的锚点公式未包含指定关键字");
+        }
+        expectedSnapshot.getCellFormulas().put(buildKey(rule.getSheet(), rule.getAnchorCell()), anchorFormula);
+    }
+
+    private void addDynamicExpectedFromAnswerSnapshot(
+            ExcelTemplateExpectedSnapshot expectedSnapshot,
+            ExcelTemplateAnswerSnapshot answerSnapshot,
+            ExcelTemplateRuleConfig.DynamicArrayRule rule,
+            RangeRef answerRangeRef
+    ) {
+        if (!StringUtils.hasText(rule.getSheet()) || !StringUtils.hasText(rule.getSpillRange())) {
+            return;
+        }
+        RangeRef spill = parseRange(rule.getSpillRange());
+        if (spill == null) {
+            return;
+        }
+        int sourceStartRow = answerRangeRef == null ? 0 : Math.max(0, spill.startRow - answerRangeRef.startRow);
+        int sourceStartCol = answerRangeRef == null ? 0 : Math.max(0, spill.startCol - answerRangeRef.startCol);
+        List<List<Object>> values = sliceObjectMatrix(answerSnapshot.getValues(), sourceStartRow, sourceStartCol, spill.height(), spill.width());
+        List<List<String>> formulas = sliceFormulaMatrix(answerSnapshot.getFormulas(), sourceStartRow, sourceStartCol, spill.height(), spill.width());
+        String spillKey = buildKey(rule.getSheet(), rule.getSpillRange());
+        expectedSnapshot.getRangeValues().put(spillKey, values);
+        expectedSnapshot.getRangeFormulas().put(spillKey, formulas);
+
+        String anchorFormula = getFormulaAt(formulas, spill, rule.getAnchorCell());
+        if (Boolean.TRUE.equals(rule.getRequireAnchorFormula()) && !hasFormula(anchorFormula)) {
+            throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的标准答案锚点单元格未设置公式");
+        }
+        if (!rule.getFormulaKeywords().isEmpty() && !containsFormulaKeywords(anchorFormula, rule.getFormulaKeywords())) {
+            throw new IllegalArgumentException(defaultLabel(rule.getLabel(), rule.getSheet(), rule.getSpillRange()) + " 的标准答案锚点公式未包含指定关键字");
+        }
+        expectedSnapshot.getCellFormulas().put(buildKey(rule.getSheet(), rule.getAnchorCell()), anchorFormula);
+    }
+
+    private List<List<Object>> sliceObjectMatrix(List<List<Object>> matrix, int startRow, int startCol, int height, int width) {
+        List<List<Object>> out = new ArrayList<>();
+        for (int row = 0; row < height; row += 1) {
+            List<Object> sourceRow = matrix == null || startRow + row >= matrix.size() ? List.of() : matrix.get(startRow + row);
+            List<Object> outRow = new ArrayList<>();
+            for (int col = 0; col < width; col += 1) {
+                outRow.add(sourceRow == null || startCol + col >= sourceRow.size() ? null : sourceRow.get(startCol + col));
+            }
+            out.add(outRow);
+        }
+        return out;
+    }
+
+    private List<List<String>> sliceFormulaMatrix(List<List<String>> matrix, int startRow, int startCol, int height, int width) {
+        List<List<String>> out = new ArrayList<>();
+        for (int row = 0; row < height; row += 1) {
+            List<String> sourceRow = matrix == null || startRow + row >= matrix.size() ? List.of() : matrix.get(startRow + row);
+            List<String> outRow = new ArrayList<>();
+            for (int col = 0; col < width; col += 1) {
+                outRow.add(sourceRow == null || startCol + col >= sourceRow.size() || sourceRow.get(startCol + col) == null ? "" : sourceRow.get(startCol + col));
+            }
+            out.add(outRow);
+        }
+        return out;
+    }
+
+    private String getFormulaAt(List<List<String>> formulas, RangeRef spill, String cellRef) {
+        CellRef cell = parseCell(cellRef);
+        if (cell == null || spill == null) {
+            return "";
+        }
+        int row = cell.row() - spill.startRow;
+        int col = cell.col() - spill.startCol;
+        if (row < 0 || col < 0 || row >= formulas.size()) {
+            return "";
+        }
+        List<String> formulaRow = formulas.get(row);
+        return formulaRow == null || col >= formulaRow.size() || formulaRow.get(col) == null ? "" : formulaRow.get(col);
     }
 
     @Override
@@ -339,9 +453,16 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
         ExcelWorkbookSnapshot safeSubmission = submission == null ? new ExcelWorkbookSnapshot() : submission;
         try (InputStream inputStream = Files.newInputStream(filePath);
              Workbook workbook = WorkbookFactory.create(inputStream)) {
-            applySubmissionToWorkbook(workbook, safeSubmission);
-            workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
-            return toWorkbookSnapshot(workbook);
+            try {
+                applySubmissionToWorkbook(workbook, safeSubmission);
+                workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
+                return toWorkbookSnapshot(workbook);
+            } catch (FormulaParseException | NotImplementedException | IllegalArgumentException ignored) {
+                // Apache POI does not fully support newer Excel dynamic-array functions.
+                // Fall back to the client-captured workbook snapshot so grading can still
+                // use submitted values/formulas instead of failing the whole request.
+                return safeSubmission;
+            }
         } catch (IOException e) {
             throw new IllegalArgumentException("模板文件解析失败", e);
         }
@@ -615,7 +736,11 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
                     } else {
                         cellSnapshot.setValue(readPlainCellValue(cell));
                     }
-                    cellSnapshot.setDisplay(formatter.formatCellValue(cell, evaluator));
+                    try {
+                        cellSnapshot.setDisplay(formatter.formatCellValue(cell, evaluator));
+                    } catch (FormulaParseException | NotImplementedException | IllegalArgumentException ignored) {
+                        cellSnapshot.setDisplay(cellSnapshot.getValue() == null ? "" : String.valueOf(cellSnapshot.getValue()));
+                    }
                     sheetSnapshot.getCells().put(cell.getAddress().formatAsString(), cellSnapshot);
                 }
             }
@@ -661,11 +786,37 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
         }
         if (StringUtils.hasText(snapshot.getFormula())) {
             cell.setCellFormula(normalizeFormulaForPoi(snapshot.getFormula()));
+            setFormulaCachedValue(cell, snapshot.getValue());
             return;
         }
         Object value = snapshot.getValue();
         if (value == null || normalizeText(value).isEmpty()) {
             cell.setBlank();
+            return;
+        }
+        if (value instanceof Boolean booleanValue) {
+            cell.setCellValue(booleanValue);
+            return;
+        }
+        if (value instanceof Number number) {
+            cell.setCellValue(number.doubleValue());
+            return;
+        }
+        String text = String.valueOf(value);
+        if ("true".equalsIgnoreCase(text) || "false".equalsIgnoreCase(text)) {
+            cell.setCellValue(Boolean.parseBoolean(text));
+            return;
+        }
+        Double numeric = toDouble(text);
+        if (numeric != null && !text.startsWith("0") && !text.startsWith("+")) {
+            cell.setCellValue(numeric);
+            return;
+        }
+        cell.setCellValue(text);
+    }
+
+    private void setFormulaCachedValue(Cell cell, Object value) {
+        if (value == null || normalizeText(value).isEmpty()) {
             return;
         }
         if (value instanceof Boolean booleanValue) {
@@ -727,13 +878,31 @@ public class ExcelTemplateGradingServiceImpl implements ExcelTemplateGradingServ
     }
 
     private Object readEvaluatedCellValue(Cell cell, FormulaEvaluator evaluator) {
-        return switch (evaluator.evaluateFormulaCell(cell)) {
-            case STRING -> cell.getRichStringCellValue().getString();
-            case BOOLEAN -> cell.getBooleanCellValue();
-            case NUMERIC -> normalizeNumber(cell.getNumericCellValue());
-            case BLANK -> "";
-            default -> cell.toString();
-        };
+        try {
+            return switch (evaluator.evaluateFormulaCell(cell)) {
+                case STRING -> cell.getRichStringCellValue().getString();
+                case BOOLEAN -> cell.getBooleanCellValue();
+                case NUMERIC -> normalizeNumber(cell.getNumericCellValue());
+                case BLANK -> "";
+                default -> cell.toString();
+            };
+        } catch (FormulaParseException | NotImplementedException | IllegalArgumentException ignored) {
+            return readCachedFormulaCellValue(cell);
+        }
+    }
+
+    private Object readCachedFormulaCellValue(Cell cell) {
+        try {
+            return switch (cell.getCachedFormulaResultType()) {
+                case STRING -> cell.getRichStringCellValue().getString();
+                case BOOLEAN -> cell.getBooleanCellValue();
+                case NUMERIC -> normalizeNumber(cell.getNumericCellValue());
+                case BLANK -> "";
+                default -> cell.toString();
+            };
+        } catch (Exception ignored) {
+            return cell.toString();
+        }
     }
 
     private Object normalizeNumber(double value) {

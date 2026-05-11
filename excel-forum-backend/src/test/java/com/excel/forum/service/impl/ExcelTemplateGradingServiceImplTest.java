@@ -44,6 +44,47 @@ class ExcelTemplateGradingServiceImplTest {
                 .containsExactly(true, false);
     }
 
+
+    @Test
+    void buildExpectedSnapshotForDynamicArrayUsesAnswerSnapshotInsteadOfTemplateCells() {
+        String gradingRule = "{\"dynamicArrayRules\":[{\"sheet\":\"练习\",\"anchorCell\":\"J2\",\"spillRange\":\"J2:K3\",\"score\":1,\"label\":\"动态数组\",\"requireAnchorFormula\":true,\"formulaKeywords\":[\"FILTER\"]}]}";
+        String answerSnapshot = "{\"values\":[[\"A\",1],[\"B\",2]],\"formulas\":[[\"FILTER(A1:B9,A1:A9<>\\\"\\\")\",null],[null,null]]}";
+
+        String expectedJson = service.buildExpectedSnapshotJson("/uploads/mock.xlsx", "练习", "J2:K3", true, answerSnapshot, gradingRule);
+
+        assertThat(expectedJson).contains("练习!J2:K3");
+        assertThat(expectedJson).contains("FILTER(A1:B9,A1:A9<>");
+        assertThat(expectedJson).contains("\"A\"");
+        assertThat(expectedJson).contains("\"B\"");
+    }
+
+    @Test
+    void gradeDynamicArrayAcceptsCapturedValuesAndAnchorFormulaWithoutPoiEvaluation() {
+        String gradingRule = "{\"dynamicArrayRules\":[{\"sheet\":\"Sheet1\",\"anchorCell\":\"B2\",\"spillRange\":\"B2:C3\",\"score\":1,\"requireAnchorFormula\":true,\"requireSpillCellsWithoutFormula\":true,\"formulaKeywords\":[\"FILTER\"]}]}";
+        String expectedSnapshot = "{\"cellFormulas\":{\"Sheet1!B2\":\"FILTER(A1:B9,A1:A9<>\\\"\\\")\"},\"rangeValues\":{\"Sheet1!B2:C3\":[[\"A\",1],[\"B\",2]]},\"rangeFormulas\":{\"Sheet1!B2:C3\":[[\"FILTER(A1:B9,A1:A9<>\\\"\\\")\",\"\"],[\"\",\"\"]]}}";
+
+        ExcelWorkbookSnapshot workbook = new ExcelWorkbookSnapshot();
+        ExcelWorkbookSnapshot.SheetSnapshot sheet = new ExcelWorkbookSnapshot.SheetSnapshot();
+        sheet.setName("Sheet1");
+        workbook.getSheets().add(sheet);
+        putCell(sheet, "B2", "A", "FILTER(A1:B9,A1:A9<>\"\")");
+        putCell(sheet, "C2", 1, null);
+        putCell(sheet, "B3", "B", null);
+        putCell(sheet, "C3", 2, null);
+
+        ExcelTemplateEvaluation evaluation = service.grade(workbook, gradingRule, expectedSnapshot);
+
+        assertThat(evaluation.isPassed()).isTrue();
+        assertThat(evaluation.getScore()).isEqualTo(1);
+    }
+
+    private void putCell(ExcelWorkbookSnapshot.SheetSnapshot sheet, String ref, Object value, String formula) {
+        ExcelWorkbookSnapshot.CellSnapshot cell = new ExcelWorkbookSnapshot.CellSnapshot();
+        cell.setValue(value);
+        cell.setFormula(formula);
+        sheet.getCells().put(ref, cell);
+    }
+
     private ExcelWorkbookSnapshot buildSubmission(Object value, String formula) {
         ExcelWorkbookSnapshot.CellSnapshot cell = new ExcelWorkbookSnapshot.CellSnapshot();
         cell.setValue(value);

@@ -10,6 +10,9 @@ import {
   Search,
   User,
   X,
+  Send,
+  LoaderCircle,
+  Paperclip,
   PenSquare,
   MoreVertical,
   Activity,
@@ -57,6 +60,11 @@ import { chatKeys, homeKeys, mallKeys, messageKeys, notificationKeys, pointsKeys
 import { preloadPublicRoute } from "../lib/route-preload";
 import { useSession } from "../lib/session";
 import {
+  getHiddenNotificationTypeFilter,
+  getVisibleNotificationTypeFilter,
+  shouldRenderNotificationItem,
+} from "../lib/notification-display";
+import {
   liteMobileBottomNavItems,
   liteMobileDrawerNavItems,
   publicNavItems,
@@ -66,6 +74,39 @@ import { useIsMobile } from "./ui/use-mobile";
 import { ONLINE_LITE_MODE, isLiteAllowedPath } from "../lib/site-mode";
 
 const OPEN_PROPS_EVENT = "excel-open-props-dialog";
+const ASSISTANT_ENTRY_WIDTH = 104;
+const ASSISTANT_ENTRY_HEIGHT = 132;
+const ASSISTANT_PANEL_MAX_WIDTH = 384;
+const ASSISTANT_PANEL_ESTIMATED_HEIGHT = 620;
+
+type AssistantWidgetResponse = {
+  conversationId: string;
+  answer: string;
+  relatedTutorials: Array<{ id: number; title: string; summary?: string; path: string }>;
+  relatedQuestions: Array<{ id: number; title: string; explanation?: string; path: string }>;
+  model?: string;
+  fallbackUsed?: boolean;
+};
+
+type AssistantWidgetAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  content?: string;
+  readable: boolean;
+};
+
+type AssistantWidgetTurn = {
+  id: string;
+  question: string;
+  answer: string;
+  relatedTutorials: AssistantWidgetResponse["relatedTutorials"];
+  relatedQuestions: AssistantWidgetResponse["relatedQuestions"];
+  attachments?: AssistantWidgetAttachment[];
+  model?: string;
+  fallbackUsed?: boolean;
+};
 
 export function Layout() {
   const location = useLocation();
@@ -77,14 +118,119 @@ export function Layout() {
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [popupNotification, setPopupNotification] = useState<any | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantMessage, setAssistantMessage] = useState("");
+  const [assistantConversationId, setAssistantConversationId] = useState<string | null>(null);
+  const [assistantHistory, setAssistantHistory] = useState<AssistantWidgetTurn[]>([]);
+  const [assistantAttachments, setAssistantAttachments] = useState<AssistantWidgetAttachment[]>([]);
+  const [assistantDragPosition, setAssistantDragPosition] = useState<{ left: number; top: number } | null>(null);
+  const [assistantDragging, setAssistantDragging] = useState(false);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "performance_optimization",
     content: "",
   });
   const notificationRef = useRef<HTMLDivElement>(null);
+  const assistantRef = useRef<HTMLDivElement>(null);
+  const assistantFileInputRef = useRef<HTMLInputElement>(null);
+  const assistantDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originLeft: number;
+    originTop: number;
+    width: number;
+    height: number;
+    moved: boolean;
+  } | null>(null);
+  const assistantSuppressClickRef = useRef(false);
+  const assistantEntryReturnPositionRef = useRef<{ left: number; top: number } | null>(null);
+  const assistantEntryHadCustomPositionRef = useRef(false);
+  const assistantPanelMovedRef = useRef(false);
   const mentionToastIdsRef = useRef<Set<number>>(new Set());
   const mentionBootstrappedRef = useRef(false);
   const popupDismissedIdsRef = useRef<Set<number>>(new Set());
+
+  const clampAssistantPosition = (left: number, top: number, width: number, height: number) => {
+    const padding = 8;
+    const maxLeft = Math.max(padding, window.innerWidth - width - padding);
+    const maxTop = Math.max(padding, window.innerHeight - height - padding);
+    return {
+      left: Math.min(Math.max(padding, left), maxLeft),
+      top: Math.min(Math.max(padding, top), maxTop),
+    };
+  };
+
+  const clampAssistantToViewport = () => {
+    const rect = assistantRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setAssistantDragPosition((current) => {
+      if (!current) return current;
+      const next = clampAssistantPosition(rect.left, rect.top, rect.width, rect.height);
+      if (Math.abs(current.left - next.left) < 0.5 && Math.abs(current.top - next.top) < 0.5) {
+        return current;
+      }
+      return next;
+    });
+  };
+
+  const beginAssistantDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-assistant-no-drag='true'], input, textarea, select, a")) return;
+    const rect = assistantRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    assistantDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originLeft: rect.left,
+      originTop: rect.top,
+      width: rect.width,
+      height: rect.height,
+      moved: false,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setAssistantDragging(true);
+  };
+
+  const moveAssistantDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = assistantDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+      drag.moved = true;
+      assistantSuppressClickRef.current = true;
+      if (assistantOpen) {
+        assistantPanelMovedRef.current = true;
+      }
+    }
+    if (!drag.moved) return;
+    event.preventDefault();
+    setAssistantDragPosition(
+      clampAssistantPosition(
+        drag.originLeft + deltaX,
+        drag.originTop + deltaY,
+        drag.width,
+        drag.height,
+      ),
+    );
+  };
+
+  const endAssistantDrag = (event: React.PointerEvent<HTMLElement>) => {
+    const drag = assistantDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    assistantDragRef.current = null;
+    setAssistantDragging(false);
+    if (drag.moved) {
+      window.setTimeout(() => {
+        assistantSuppressClickRef.current = false;
+      }, 0);
+      return;
+    }
+    assistantSuppressClickRef.current = false;
+  };
 
   useEffect(() => {
     if (!showNotifications) return;
@@ -103,6 +249,38 @@ export function Layout() {
       document.removeEventListener("keydown", handleEsc);
     };
   }, [showNotifications]);
+  useEffect(() => {
+    if (!assistantOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (assistantRef.current && !assistantRef.current.contains(event.target as Node)) {
+        setAssistantOpen(false);
+      }
+    };
+    const handleEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAssistantOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [assistantOpen]);
+
+  useEffect(() => {
+    if (!assistantDragPosition) return;
+    const handleViewportChange = () => clampAssistantToViewport();
+    const frameId = window.requestAnimationFrame(handleViewportChange);
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("orientationchange", handleViewportChange);
+    };
+  }, [assistantOpen, Boolean(assistantDragPosition)]);
   const [searchType, setSearchType] = useState("all");
   const [showSearchTypeDropdown, setShowSearchTypeDropdown] = useState(false);
   const searchTypeDropdownRef = useRef<HTMLDivElement>(null);
@@ -131,6 +309,8 @@ export function Layout() {
   const { user, isAuthenticated, logout } = useSession();
   const canAccessAdmin = hasAdminConsoleAccess(user?.role);
   const forumEnabled = !ONLINE_LITE_MODE;
+  const visibleNotificationTypeFilter = getVisibleNotificationTypeFilter();
+  const hiddenNotificationTypeFilter = getHiddenNotificationTypeFilter();
   const preloadNavigationTarget = (path: string) => {
     if (!path) return;
     void preloadPublicRoute(path);
@@ -224,9 +404,9 @@ export function Layout() {
   }, [searchQuery, searchType]);
 
   const notificationsPreviewQuery = useQuery({
-    queryKey: notificationKeys.list({ page: 1, limit: 5, scope: "layout" }),
+    queryKey: notificationKeys.list({ page: 1, limit: 5, type: visibleNotificationTypeFilter, scope: "layout" }),
     enabled: isAuthenticated,
-    queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=5", { silent: true }),
+    queryFn: () => api.get<{ notifications: any[] }>(`/api/notifications?page=1&limit=5&type=${encodeURIComponent(visibleNotificationTypeFilter)}`, { silent: true }),
   });
   const mentionNotificationsQuery = useQuery({
     queryKey: notificationKeys.list({ page: 1, limit: 10, type: "MENTION", scope: "mention-popup" }),
@@ -240,6 +420,11 @@ export function Layout() {
     enabled: isAuthenticated,
     queryFn: () => api.get<{ count: number }>("/api/notifications/unread-count", { silent: true }),
   });
+  const hiddenNotificationsQuery = useQuery({
+    queryKey: notificationKeys.list({ page: 1, limit: 100, type: hiddenNotificationTypeFilter, scope: "layout-hidden" }),
+    enabled: isAuthenticated,
+    queryFn: () => api.get<{ notifications: any[] }>(`/api/notifications?page=1&limit=100&type=${encodeURIComponent(hiddenNotificationTypeFilter)}`, { silent: true }),
+  });
   const unreadMessagesQuery = useQuery({
     queryKey: messageKeys.unreadCount(),
     enabled: isAuthenticated && forumEnabled,
@@ -252,10 +437,13 @@ export function Layout() {
     refetchOnWindowFocus: true,
     queryFn: () => api.get<{ notifications: any[] }>("/api/notifications?page=1&limit=20&type=site_notification", { silent: true }),
   });
-  const notificationItems = notificationsPreviewQuery.data?.notifications || [];
+  const notificationItems = (notificationsPreviewQuery.data?.notifications || []).filter((item) => shouldRenderNotificationItem(item.type));
   const mentionNotifications = mentionNotificationsQuery.data?.notifications || [];
   const popupNotifications = popupNotificationsQuery.data?.notifications || [];
-  const unreadNotificationCount = unreadNotificationsQuery.data?.count || 0;
+  const hiddenUnreadNotificationCount = (hiddenNotificationsQuery.data?.notifications || []).filter((item) => !item.isRead).length;
+  const unreadNotificationCount = hiddenNotificationsQuery.data
+    ? Math.max(0, (unreadNotificationsQuery.data?.count || 0) - hiddenUnreadNotificationCount)
+    : (unreadNotificationsQuery.data?.count || 0);
   const unreadMessageCount = unreadMessagesQuery.data?.unreadCount || 0;
   const propsQuery = useQuery({
     queryKey: profileKeys.props(),
@@ -336,6 +524,44 @@ export function Layout() {
     mutationFn: (notificationId: number) => api.put(`/api/notifications/${notificationId}/read`, {}),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+  });
+  const assistantChatMutation = useMutation({
+    mutationFn: ({
+      message,
+      conversationId,
+      workbookContext,
+    }: {
+      message: string;
+      conversationId: string | null;
+      workbookContext?: string;
+      attachments?: AssistantWidgetAttachment[];
+    }) =>
+      api.post<AssistantWidgetResponse>("/api/assistant/chat", {
+        message,
+        conversationId,
+        workbookContext,
+      }),
+    onSuccess: (result, variables) => {
+      setAssistantHistory((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}`,
+          question: variables.message,
+          answer: result.answer,
+          relatedTutorials: result.relatedTutorials || [],
+          relatedQuestions: result.relatedQuestions || [],
+          attachments: variables.attachments || [],
+          model: result.model,
+          fallbackUsed: result.fallbackUsed,
+        },
+      ]);
+      setAssistantConversationId(result.conversationId || null);
+      setAssistantMessage("");
+      setAssistantAttachments([]);
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || "AI 助手暂时不可用");
     },
   });
   const feedbackMutation = useMutation({
@@ -496,7 +722,7 @@ export function Layout() {
       navigateToPrefetchedRoute(`/tutorials${query}`);
       return;
     }
-    navigateToPrefetchedRoute(`/practice/chapters${query}`);
+    navigateToPrefetchedRoute(`/practice${query}`);
   };
 
   const navIconMap: Record<string, React.ReactNode> = {
@@ -506,17 +732,20 @@ export function Layout() {
     tutorials: <BookOpen size={18} strokeWidth={1.8} />,
     mall: <ShoppingBag size={18} strokeWidth={1.8} />,
     tools: <ArrowRightLeft size={18} strokeWidth={1.8} />,
+    assistant: <Lightbulb size={18} strokeWidth={1.8} />,
     profile: <User size={18} strokeWidth={1.8} />,
   };
-  const navItems = publicNavItems.map((item) => ({
-    ...item,
-    icon: navIconMap[item.key],
-  }));
+  const navItems = publicNavItems
+    .filter((item) => item.key !== "assistant")
+    .map((item) => ({
+      ...item,
+      icon: navIconMap[item.key],
+    }));
   const primaryLiteNavItems = navItems.filter((item) =>
-    ["home", "practice", "templates", "tutorials"].includes(item.key)
+    ["home", "practice", "tutorials"].includes(item.key)
   );
   const accountLiteNavItems = navItems.filter((item) =>
-    ["mall", "tools"].includes(item.key)
+    ["mall", "tools", "templates"].includes(item.key)
   );
   const activePublicNav = resolveActiveNavItem(location.pathname);
   const activeLiteModule = activePublicNav
@@ -542,6 +771,148 @@ export function Layout() {
         path: item.key === "profile" && !isAuthenticated ? "/auth" : item.path,
         icon: navIconMap[item.key],
       }));
+
+  const showFloatingAssistant = !location.pathname.startsWith("/assistant");
+  const assistantAnimatedAvatarSrc = "/assistant-ikun-animated.webp";
+  const assistantReadableFilePattern = /\.(txt|csv|tsv|json|md|markdown|log|xml|html?|css|js|ts|tsx|sql)$/i;
+  const formatAssistantFileSize = (size: number) => {
+    if (size < 1024) return `${size}B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`;
+    return `${(size / 1024 / 1024).toFixed(1)}MB`;
+  };
+  const readAssistantAttachment = async (file: File): Promise<AssistantWidgetAttachment> => {
+    const readable = file.type.startsWith("text/") || assistantReadableFilePattern.test(file.name);
+    if (!readable) {
+      return {
+        id: `${file.name}-${file.lastModified}-${file.size}`,
+        name: file.name,
+        size: file.size,
+        type: file.type || "unknown",
+        readable: false,
+      };
+    }
+    const text = await file.text();
+    const clipped = text.length > 12000 ? `${text.slice(0, 12000)}\n\n[内容较长，已截取前 12000 字符]` : text;
+    return {
+      id: `${file.name}-${file.lastModified}-${file.size}`,
+      name: file.name,
+      size: file.size,
+      type: file.type || "text/plain",
+      content: clipped,
+      readable: true,
+    };
+  };
+  const handleAssistantFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const picked = Array.from(files).slice(0, 3);
+    try {
+      const nextAttachments = await Promise.all(picked.map(readAssistantAttachment));
+      setAssistantAttachments(nextAttachments);
+      if (picked.length < files.length) {
+        toast.info("一次最多发送 3 个附件，已保留前 3 个");
+      }
+      const unreadableCount = nextAttachments.filter((item) => !item.readable).length;
+      if (unreadableCount > 0) {
+        toast.info("部分附件无法在浏览器内读取内容，将只发送文件名和大小");
+      }
+    } catch {
+      toast.error("附件读取失败，请换一个文件重试");
+    } finally {
+      if (assistantFileInputRef.current) {
+        assistantFileInputRef.current.value = "";
+      }
+    }
+  };
+  const removeAssistantAttachment = (id: string) => {
+    setAssistantAttachments((prev) => prev.filter((item) => item.id !== id));
+  };
+  const buildAssistantAttachmentContext = () => {
+    if (assistantAttachments.length === 0) return "";
+    return assistantAttachments
+      .map((item, index) => {
+        const header = `附件 ${index + 1}: ${item.name} (${formatAssistantFileSize(item.size)}, ${item.type || "unknown"})`;
+        return item.readable && item.content
+          ? `${header}\n内容：\n${item.content}`
+          : `${header}\n说明：该附件已选择，但当前浏览器端无法直接读取二进制内容。`;
+      })
+      .join("\n\n");
+  };
+  const openAssistant = () => {
+    const rect = assistantRef.current?.getBoundingClientRect();
+    if (rect) {
+      const entryPosition = clampAssistantPosition(rect.left, rect.top, rect.width, rect.height);
+      const panelWidth = Math.min(ASSISTANT_PANEL_MAX_WIDTH, window.innerWidth - 16);
+      const panelHeight = Math.min(ASSISTANT_PANEL_ESTIMATED_HEIGHT, window.innerHeight - 16);
+      assistantEntryReturnPositionRef.current = entryPosition;
+      assistantEntryHadCustomPositionRef.current = assistantDragPosition !== null;
+      assistantPanelMovedRef.current = false;
+      setAssistantDragPosition(
+        clampAssistantPosition(
+          rect.left + rect.width / 2 - panelWidth / 2,
+          rect.top,
+          panelWidth,
+          panelHeight,
+        ),
+      );
+    }
+    setAssistantOpen(true);
+    setShowNotifications(false);
+    window.sessionStorage.setItem(
+      "excelAssistantReturnPath",
+      `${location.pathname}${location.search}${location.hash}`,
+    );
+  };
+  const closeAssistant = () => {
+    if (!assistantPanelMovedRef.current && assistantEntryReturnPositionRef.current) {
+      if (assistantEntryHadCustomPositionRef.current) {
+        setAssistantDragPosition(
+          clampAssistantPosition(
+            assistantEntryReturnPositionRef.current.left,
+            assistantEntryReturnPositionRef.current.top,
+            ASSISTANT_ENTRY_WIDTH,
+            ASSISTANT_ENTRY_HEIGHT,
+          ),
+        );
+      } else {
+        setAssistantDragPosition(null);
+      }
+    }
+    assistantEntryReturnPositionRef.current = null;
+    assistantEntryHadCustomPositionRef.current = false;
+    assistantPanelMovedRef.current = false;
+    setAssistantOpen(false);
+  };
+  const submitAssistantMessage = async (text?: string) => {
+    const content = (text ?? assistantMessage).trim();
+    if (assistantChatMutation.isPending) return;
+    if (!isAuthenticated) {
+      toast.info("请先登录后再使用 AI 助手");
+      navigate("/auth");
+      return;
+    }
+    if (!content && assistantAttachments.length === 0) {
+      toast.info("请先输入你的 Excel 问题");
+      return;
+    }
+    await assistantChatMutation.mutateAsync({
+      message: content || "请分析我发送的附件内容",
+      conversationId: assistantConversationId,
+      workbookContext: buildAssistantAttachmentContext(),
+      attachments: assistantAttachments,
+    });
+  };
+  const assistantPromptSnippets = [
+    "VLOOKUP 为什么会返回 #N/A？",
+    "帮我写一个按部门汇总销售额的 SUMIFS 公式",
+    "FILTER 和 SORTBY 怎么组合做排名？",
+  ];
+  const assistantCanSubmit = (assistantMessage.trim().length > 0 || assistantAttachments.length > 0) && !assistantChatMutation.isPending;
+  const assistantFloatingClassName = assistantDragPosition
+    ? "fixed z-50"
+    : "fixed right-3 top-1/2 z-50 -translate-y-1/2 md:right-5";
+  const assistantFloatingStyle = assistantDragPosition
+    ? { left: assistantDragPosition.left, top: assistantDragPosition.top }
+    : undefined;
   const openFeedbackDialog = () => {
     if (!isAuthenticated) {
       navigate("/auth");
@@ -923,9 +1294,6 @@ export function Layout() {
                       </motion.div>
                     ) : null}
                   </AnimatePresence>
-                </div>
-                <div className="hidden min-w-0 text-sm font-semibold text-white/48 2xl:block">
-                  {activeLiteModule?.description}
                 </div>
               </div>
             ) : forumEnabled ? (
@@ -1867,6 +2235,235 @@ export function Layout() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {showFloatingAssistant && (
+        <div ref={assistantRef} className={assistantFloatingClassName} style={assistantFloatingStyle}>
+          <>
+            {assistantOpen ? (
+              <div
+                className="relative w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100vh-1rem)] pb-10"
+              >
+                <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
+                  <div
+                    className={`relative touch-none select-none bg-[#0f91dd] px-5 pb-5 pt-6 text-white shadow-[0_10px_22px_rgba(15,145,221,0.25)] ${
+                      assistantDragging ? "cursor-grabbing" : "cursor-grab"
+                    }`}
+                    onPointerDown={beginAssistantDrag}
+                    onPointerMove={moveAssistantDrag}
+                    onPointerUp={endAssistantDrag}
+                    onPointerCancel={endAssistantDrag}
+                  >
+                    <button
+                      type="button"
+                      onClick={closeAssistant}
+                      data-assistant-no-drag="true"
+                      className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-white/76 transition hover:bg-white/12 hover:text-white"
+                      aria-label="关闭 AI 助手"
+                    >
+                      <X size={18} strokeWidth={2.2} />
+                    </button>
+                    <div className="pr-8">
+                      <div>
+                        <div className="text-xl font-black leading-none">欢迎</div>
+                        <div className="mt-2 text-sm font-bold leading-6 text-white/90">
+                          您好，我是 AI 助手，直接发送消息即可。
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="max-h-[min(46vh,360px)] min-h-[270px] overflow-y-auto bg-white px-4 py-4">
+                    {assistantHistory.length === 0 ? (
+                      <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 text-center">
+                        <div className="flex flex-wrap justify-center gap-2">
+                          {assistantPromptSnippets.map((item) => (
+                            <button
+                              key={item}
+                              type="button"
+                              onClick={() => setAssistantMessage(item)}
+                              className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-500 transition hover:border-[#0f91dd]/40 hover:bg-[#0f91dd]/8 hover:text-[#0f91dd]"
+                            >
+                              {item}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {assistantHistory.map((item) => (
+                          <div key={item.id} className="space-y-3">
+                            <div className="flex justify-end">
+                              <div className="max-w-[86%] rounded-2xl rounded-br-md bg-[#0f91dd] px-3.5 py-2.5 text-sm leading-6 text-white shadow-sm">
+                                <div className="whitespace-pre-wrap">{item.question}</div>
+                                {item.attachments && item.attachments.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/20 pt-2">
+                                    {item.attachments.map((attachment) => (
+                                      <span key={attachment.id} className="inline-flex items-center gap-1 rounded-full bg-white/16 px-2 py-1 text-[11px] font-bold text-white/88">
+                                        <Paperclip size={12} />
+                                        {attachment.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex justify-start">
+                              <div className="max-w-[90%] rounded-2xl rounded-bl-md border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-700">
+                                <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#0f91dd]">
+                                  AI助手
+                                </div>
+                                <div className="whitespace-pre-wrap">{item.answer}</div>
+                                {(item.relatedTutorials.length > 0 || item.relatedQuestions.length > 0) && (
+                                  <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                                    {item.relatedTutorials.map((tutorial) => (
+                                      <button
+                                        key={`tutorial-${tutorial.id}`}
+                                        type="button"
+                                        onClick={() => {
+                                          setAssistantOpen(false);
+                                          navigate(tutorial.path);
+                                        }}
+                                        className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-500 transition hover:border-[#0f91dd]/40 hover:text-[#0f91dd]"
+                                      >
+                                        {tutorial.title}
+                                      </button>
+                                    ))}
+                                    {item.relatedQuestions.map((question) => (
+                                      <button
+                                        key={`question-${question.id}`}
+                                        type="button"
+                                        onClick={() => {
+                                          setAssistantOpen(false);
+                                          navigate(question.path);
+                                        }}
+                                        className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-500 transition hover:border-[#0f91dd]/40 hover:text-[#0f91dd]"
+                                      >
+                                        {question.title}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">
+                    <input
+                      ref={assistantFileInputRef}
+                      type="file"
+                      multiple
+                      accept=".txt,.csv,.tsv,.json,.md,.markdown,.log,.xml,.html,.htm,.css,.js,.ts,.tsx,.sql,.xls,.xlsx"
+                      onChange={(event) => void handleAssistantFiles(event.target.files)}
+                      className="hidden"
+                    />
+                    {assistantAttachments.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {assistantAttachments.map((attachment) => (
+                          <span
+                            key={attachment.id}
+                            className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${
+                              attachment.readable
+                                ? "border-[#0f91dd]/20 bg-[#0f91dd]/8 text-[#0f91dd]"
+                                : "border-amber-200 bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            <Paperclip size={13} />
+                            <span className="max-w-[180px] truncate">{attachment.name}</span>
+                            <span className="text-[10px] opacity-70">{formatAssistantFileSize(attachment.size)}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeAssistantAttachment(attachment.id)}
+                              className="ml-0.5 rounded-full p-0.5 transition hover:bg-black/5"
+                              aria-label={`移除 ${attachment.name}`}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-end gap-2 rounded-[18px] border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                      <textarea
+                        value={assistantMessage}
+                        onChange={(event) => setAssistantMessage(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.shiftKey) {
+                            event.preventDefault();
+                            void submitAssistantMessage();
+                          }
+                        }}
+                        rows={1}
+                        placeholder="输入消息..."
+                        className="min-h-10 flex-1 resize-none bg-transparent py-2 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => assistantFileInputRef.current?.click()}
+                        className="mb-1 inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-[#0f91dd]"
+                        aria-label="添加附件"
+                      >
+                        <Paperclip size={19} strokeWidth={1.8} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void submitAssistantMessage()}
+                        disabled={!assistantCanSubmit}
+                        className="mb-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0f91dd] text-white shadow-sm transition hover:bg-[#0b82c9] disabled:cursor-not-allowed disabled:bg-slate-300"
+                        aria-label="发送"
+                      >
+                        {assistantChatMutation.isPending ? <LoaderCircle size={17} className="animate-spin" /> : <Send size={17} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeAssistant}
+                  data-assistant-no-drag="true"
+                  className="absolute bottom-0 right-1 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#0f91dd] text-white shadow-[0_16px_34px_rgba(15,145,221,0.36)] ring-4 ring-white transition hover:bg-[#0b82c9]"
+                  aria-label="关闭 AI 助手"
+                >
+                  <X size={30} strokeWidth={2.3} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={(event) => {
+                  if (assistantSuppressClickRef.current) {
+                    event.preventDefault();
+                    return;
+                  }
+                  openAssistant();
+                }}
+                onPointerDown={beginAssistantDrag}
+                onPointerMove={moveAssistantDrag}
+                onPointerUp={endAssistantDrag}
+                onPointerCancel={endAssistantDrag}
+                onPointerEnter={() => preloadNavigationTarget("/assistant")}
+                onFocus={() => preloadNavigationTarget("/assistant")}
+                onTouchStart={() => preloadNavigationTarget("/assistant")}
+                className={`group relative inline-flex h-[132px] w-[104px] touch-none select-none items-end justify-center rounded-[32px] p-3 -m-3 ${
+                  assistantDragging ? "cursor-grabbing" : "cursor-grab"
+                }`}
+                aria-label="打开 AI 助手"
+              >
+                <span className="absolute -top-3 left-1/2 z-10 inline-flex h-10 -translate-x-1/2 items-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 text-sm font-black text-[#0f91dd] shadow-[0_10px_28px_rgba(15,23,42,0.14)] transition group-hover:border-[#0f91dd]/30 group-hover:bg-[#f1f9ff]">
+                  AI助手
+                </span>
+                <span className="relative inline-flex h-[86px] w-[78px] items-center justify-center transition group-hover:scale-[1.04]">
+                  <img src={assistantAnimatedAvatarSrc} alt="" draggable={false} className="h-[82px] w-[82px] -scale-x-100 select-none object-contain drop-shadow-[0_13px_16px_rgba(0,55,84,0.30)]" />
+                  <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-[#16c784] ring-2 ring-white" />
+                </span>
+              </button>
+            )}
+          </>
+        </div>
+      )}
 
       <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
         <DialogContent className="sm:max-w-lg">
