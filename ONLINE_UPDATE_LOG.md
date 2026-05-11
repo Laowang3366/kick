@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 19:53 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手回复下方关联教程入口删除；悬浮 AI 助手和独立 `/assistant` 页面均不再渲染“相关教程”，仍保留“相关练习”；后端 AI 助手上游模型请求有效超时下限提升到 60 秒，降低 20 秒超时导致“AI 助手暂时不可用”的概率。
+- 验证：本地前端 `npm run build` 通过；本地后端 `mvn -Dtest=AssistantServiceImplTest test` 通过 3 个测试；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/` 与 `/assistant` 返回 200；线上部署仓确认 `timeoutMs()` 使用 60 秒下限；线上 AI 助手相关前端产物确认不含 `相关教程`。
+- 部署：提交 `6f3c67a89d9cb1ff5467781cc1da11f4c2a5213d` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-assistant-timeout-no-tutorials-6f3c67a.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-115000`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查；未发起真实 AI 对话请求，避免消耗线上模型额度。
+
 ## 2026-05-11 19:38 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手对话定位与后台推理等级配置上线；悬浮 AI 助手和独立 `/assistant` 页面支持新回复到达时显示“最新回复”定位按钮，打开助手时自动定位当前最新对话；后台 AI 助手配置新增推理等级字段，后端在配置后向 OpenAI-compatible chat completions 请求发送 `reasoning_effort`，并新增 Flyway 迁移 `V50__add_reasoning_effort_to_ai_assistant_config.sql`。
