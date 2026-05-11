@@ -254,12 +254,12 @@ export function Layout() {
     if (!assistantOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (assistantRef.current && !assistantRef.current.contains(event.target as Node)) {
-        setAssistantOpen(false);
+        closeAssistant();
       }
     };
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setAssistantOpen(false);
+        closeAssistant();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -2400,7 +2400,7 @@ export function Layout() {
                                         key={`tutorial-${tutorial.id}`}
                                         type="button"
                                         onClick={() => {
-                                          setAssistantOpen(false);
+                                          closeAssistant();
                                           navigate(tutorial.path);
                                         }}
                                         className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-500 transition hover:border-[#0f91dd]/40 hover:text-[#0f91dd]"
@@ -2413,7 +2413,7 @@ export function Layout() {
                                         key={`question-${question.id}`}
                                         type="button"
                                         onClick={() => {
-                                          setAssistantOpen(false);
+                                          closeAssistant();
                                           navigate(question.path);
                                         }}
                                         className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-500 transition hover:border-[#0f91dd]/40 hover:text-[#0f91dd]"
