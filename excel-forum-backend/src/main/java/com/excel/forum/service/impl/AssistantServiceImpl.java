@@ -119,7 +119,7 @@ public class AssistantServiceImpl implements AssistantService {
     }
 
     private int timeoutMs() {
-        return Math.max(3000, environment.getProperty("AI_ASSISTANT_TIMEOUT_MS", Integer.class, 20000));
+        return Math.max(60000, environment.getProperty("AI_ASSISTANT_TIMEOUT_MS", Integer.class, 60000));
     }
 
     private String buildPrompt(String message, String formula, String workbookContext,

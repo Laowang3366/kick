@@ -3,6 +3,7 @@ package com.excel.forum.service.impl;
 import com.excel.forum.entity.dto.AssistantChatRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -52,6 +53,25 @@ class AssistantServiceImplTest {
         assertThatThrownBy(() -> normalizeImages(images))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("一次最多支持 3 张图片");
+    }
+
+    @Test
+    void timeoutUsesSixtySecondsMinimum() {
+        MockEnvironment environment = new MockEnvironment()
+                .withProperty("AI_ASSISTANT_TIMEOUT_MS", "20000");
+        AssistantServiceImpl assistantService = new AssistantServiceImpl(
+                null,
+                null,
+                null,
+                null,
+                null,
+                environment,
+                new ObjectMapper()
+        );
+
+        Integer timeoutMs = ReflectionTestUtils.invokeMethod(assistantService, "timeoutMs");
+
+        assertThat(timeoutMs).isEqualTo(60000);
     }
 
     @SuppressWarnings("unchecked")

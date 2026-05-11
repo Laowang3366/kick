@@ -350,26 +350,8 @@ export function Assistant() {
                         模型：{item.model || "-"}{item.fallbackUsed ? "（已走兜底）" : ""}
                       </div>
 
-                      {(item.relatedTutorials.length > 0 || item.relatedQuestions.length > 0) && (
+                      {item.relatedQuestions.length > 0 && (
                         <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
-                          {item.relatedTutorials.length > 0 && (
-                            <div>
-                              <div className="mb-2 text-xs font-black tracking-wide text-slate-500">相关教程</div>
-                              <div className="flex flex-wrap gap-2">
-                                {item.relatedTutorials.map((tutorial) => (
-                                  <button
-                                    key={tutorial.id}
-                                    type="button"
-                                    onClick={() => navigate(tutorial.path)}
-                                    className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-                                  >
-                                    {tutorial.title}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
                           {item.relatedQuestions.length > 0 && (
                             <div>
                               <div className="mb-2 text-xs font-black tracking-wide text-slate-500">相关练习</div>

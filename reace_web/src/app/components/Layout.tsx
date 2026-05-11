@@ -2432,21 +2432,8 @@ export function Layout() {
                                   AI助手
                                 </div>
                                 <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.answer}</div>
-                                {(item.relatedTutorials.length > 0 || item.relatedQuestions.length > 0) && (
+                                {item.relatedQuestions.length > 0 && (
                                   <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-                                    {item.relatedTutorials.map((tutorial) => (
-                                      <button
-                                        key={`tutorial-${tutorial.id}`}
-                                        type="button"
-                                        onClick={() => {
-                                          closeAssistant();
-                                          navigate(tutorial.path);
-                                        }}
-                                        className="rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-500 transition hover:border-[#0f91dd]/40 hover:text-[#0f91dd]"
-                                      >
-                                        {tutorial.title}
-                                      </button>
-                                    ))}
                                     {item.relatedQuestions.map((question) => (
                                       <button
                                         key={`question-${question.id}`}
