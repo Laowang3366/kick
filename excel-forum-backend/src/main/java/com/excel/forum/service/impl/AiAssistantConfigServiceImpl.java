@@ -9,6 +9,8 @@ import com.excel.forum.service.AiAssistantConfigService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,12 +26,15 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigMapper, AiAssistantConfig> implements AiAssistantConfigService {
     private final ObjectMapper objectMapper;
+    private final Environment environment;
 
     @Override
     public List<Map<String, Object>> listAdminConfigs() {
+        ensureDefaultConfig();
         return list(new QueryWrapper<AiAssistantConfig>().orderByDesc("active").orderByAsc("sort_order").orderByDesc("id"))
                 .stream()
                 .map(this::toAdminMap)
@@ -38,12 +43,45 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
 
     @Override
     public AiAssistantConfig getActiveConfig() {
+        ensureDefaultConfig();
         return getOne(new QueryWrapper<AiAssistantConfig>()
                 .eq("active", true)
                 .eq("enabled", true)
                 .orderByAsc("sort_order")
                 .orderByDesc("id")
                 .last("LIMIT 1"));
+    }
+
+    @Override
+    @Transactional
+    public void ensureDefaultConfig() {
+        if (count() > 0) {
+            return;
+        }
+        if (!environment.getProperty("AI_ASSISTANT_ENABLED", Boolean.class, false)) {
+            return;
+        }
+
+        String baseUrl = normalizeBaseUrl(environment.getProperty("AI_ASSISTANT_BASE_URL"));
+        String apiKey = trimToNull(environment.getProperty("AI_ASSISTANT_API_KEY"));
+        String model = trimToNull(environment.getProperty("AI_ASSISTANT_MODEL"));
+        if (baseUrl == null || apiKey == null || model == null) {
+            log.warn("AI assistant default config skipped because environment config is incomplete");
+            return;
+        }
+
+        AiAssistantConfig config = new AiAssistantConfig();
+        config.setName(defaultIfBlank(environment.getProperty("AI_ASSISTANT_CONFIG_NAME"), "默认配置"));
+        config.setBaseUrl(baseUrl);
+        config.setApiKey(apiKey);
+        config.setModel(model);
+        config.setSystemPrompt(trimToNull(environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT")));
+        config.setPromptFileName(trimToNull(environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT_FILE_NAME")));
+        config.setEnabled(true);
+        config.setActive(true);
+        config.setSortOrder(environment.getProperty("AI_ASSISTANT_SORT_ORDER", Integer.class, -1000));
+        save(config);
+        log.info("AI assistant default config initialized from environment");
     }
 
     @Override
@@ -157,6 +195,10 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
 
     private String defaultString(String value) {
         return value == null ? "" : value;
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return isBlank(value) ? fallback : value.trim();
     }
 
     private String trimToNull(String value) {

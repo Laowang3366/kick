@@ -11,6 +11,8 @@ public interface AiAssistantConfigService extends IService<AiAssistantConfig> {
 
     AiAssistantConfig getActiveConfig();
 
+    void ensureDefaultConfig();
+
     void activate(Long id);
 
     List<String> fetchModels(Long configId, String baseUrl, String apiKey);
