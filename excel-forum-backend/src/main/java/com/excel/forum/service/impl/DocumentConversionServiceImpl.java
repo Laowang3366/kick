@@ -29,9 +29,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -146,17 +148,20 @@ public class DocumentConversionServiceImpl implements DocumentConversionService 
             case EXCEL -> "xlsx";
         };
 
-        Process process = new ProcessBuilder(
-                officeExecutable,
-                "--headless",
-                "--convert-to", filter,
-                "--outdir", outputPath.getParent().toString(),
-                sourcePath.toString()
-        ).redirectErrorStream(true).start();
-
-        String output;
+        Path profileDir = Files.createTempDirectory(sourcePath.getParent(), "lo-profile-");
         try {
-            output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    officeExecutable,
+                    "--headless",
+                    "-env:UserInstallation=" + profileDir.toUri(),
+                    "--convert-to", filter,
+                    "--outdir", outputPath.getParent().toString(),
+                    sourcePath.toString()
+            ).redirectErrorStream(true);
+            processBuilder.directory(sourcePath.getParent().toFile());
+            processBuilder.environment().put("HOME", profileDir.toString());
+            Process process = processBuilder.start();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exitCode = process.waitFor();
             if (exitCode != 0) {
                 throw new IllegalStateException(normalizeLibreOfficeError(output));
@@ -164,6 +169,8 @@ public class DocumentConversionServiceImpl implements DocumentConversionService 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("文件转换被中断");
+        } finally {
+            deleteDirectory(profileDir);
         }
 
         Path generatedPath = outputPath.getParent().resolve(replaceExtension(sourcePath.getFileName().toString(), target.extension));
@@ -204,6 +211,21 @@ public class DocumentConversionServiceImpl implements DocumentConversionService 
             return "当前服务器暂不支持该文件格式组合";
         }
         return StringUtils.hasText(message) ? message : "文件转换失败";
+    }
+
+    private void deleteDirectory(Path path) {
+        if (path == null || !Files.exists(path)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(path)) {
+            paths.sorted(Comparator.reverseOrder()).forEach(item -> {
+                try {
+                    Files.deleteIfExists(item);
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException ignored) {
+        }
     }
 
     private String replaceExtension(String filename, String extension) {
