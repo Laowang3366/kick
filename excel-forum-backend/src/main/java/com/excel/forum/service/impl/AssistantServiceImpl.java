@@ -26,6 +26,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -43,6 +44,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AssistantServiceImpl implements AssistantService {
+    private static final int MAX_IMAGE_COUNT = 3;
+    private static final int MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    private static final int MAX_IMAGE_DATA_URL_LENGTH = 7 * 1024 * 1024;
+    private static final Pattern IMAGE_DATA_URL_PATTERN = Pattern.compile("^data:(image/(?:png|jpeg|jpg|webp|gif));base64,([A-Za-z0-9+/=\\r\\n]+)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern EXCEL_FUNCTION_PATTERN = Pattern.compile("(?i)\\b([A-Z][A-Z0-9_]{1,24})\\s*(?:\\(|$)");
     private static final Pattern CJK_TOKEN_PATTERN = Pattern.compile("[\\p{IsHan}]{2,12}");
     private static final Pattern LATIN_TOKEN_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_-]{1,24}");
@@ -62,25 +67,32 @@ public class AssistantServiceImpl implements AssistantService {
 
     @Override
     public AssistantChatResponse chat(Long userId, AssistantChatRequest request) {
-        if (request == null || isBlank(request.getMessage())) {
+        if (request == null) {
+            throw new IllegalArgumentException("请输入你想咨询的 Excel 问题");
+        }
+        List<AssistantImageInput> images = normalizeImages(request.getImages());
+        if (isBlank(request.getMessage()) && images.isEmpty()) {
             throw new IllegalArgumentException("请输入你想咨询的 Excel 问题");
         }
         AssistantRuntimeConfig runtimeConfig = resolveRuntimeConfig();
 
         String conversationId = isBlank(request.getConversationId()) ? UUID.randomUUID().toString() : request.getConversationId().trim();
         String message = clamp(request.getMessage(), maxInputChars());
+        if (isBlank(message) && !images.isEmpty()) {
+            message = "请分析我发送的图片内容，并结合 Excel 场景给出建议。";
+        }
         String formula = clamp(request.getFormula(), 1200);
         String workbookContext = clamp(request.getWorkbookContext(), Math.max(0, maxInputChars() - message.length()));
 
-        List<String> keywords = buildKeywords(message, formula, workbookContext);
+        List<String> keywords = buildKeywords(message, formula, workbookContext, imageNamesText(images));
         List<Map<String, Object>> relatedTutorials = findRelatedTutorials(keywords, request.getTutorialArticleId());
         List<Map<String, Object>> relatedQuestions = findRelatedQuestions(keywords, request.getPracticeQuestionId());
 
-        String prompt = buildPrompt(message, formula, workbookContext, relatedTutorials, relatedQuestions);
+        String prompt = buildPrompt(message, formula, workbookContext, relatedTutorials, relatedQuestions, images);
         long startedAt = System.currentTimeMillis();
         LlmResult result;
         try {
-            result = askModel(runtimeConfig, prompt);
+            result = askModel(runtimeConfig, prompt, images);
             recordAssistantCall(userId, runtimeConfig.configId(), result.model(), true, result.fallbackUsed(), System.currentTimeMillis() - startedAt, null);
         } catch (RuntimeException e) {
             recordAssistantCall(userId, runtimeConfig.configId(), runtimeConfig.model(), false, false, System.currentTimeMillis() - startedAt, e.getMessage());
@@ -111,7 +123,8 @@ public class AssistantServiceImpl implements AssistantService {
 
     private String buildPrompt(String message, String formula, String workbookContext,
                                List<Map<String, Object>> tutorials,
-                               List<Map<String, Object>> questions) {
+                               List<Map<String, Object>> questions,
+                               List<AssistantImageInput> images) {
         StringBuilder sb = new StringBuilder();
         sb.append("你是 ExcelCC.cn 的 Excel AI 助手。\n");
         sb.append("目标：用简洁、准确、实操导向的中文回答用户 Excel 问题。\n");
@@ -126,6 +139,21 @@ public class AssistantServiceImpl implements AssistantService {
         sb.append("用户问题：\n").append(message).append("\n\n");
         if (!isBlank(formula)) sb.append("用户公式：\n").append(formula).append("\n\n");
         if (!isBlank(workbookContext)) sb.append("用户提供的表格/上下文：\n").append(workbookContext).append("\n\n");
+        if (!images.isEmpty()) {
+            sb.append("用户提供的图片：\n");
+            for (int index = 0; index < images.size(); index += 1) {
+                AssistantImageInput image = images.get(index);
+                sb.append(index + 1)
+                        .append(". ")
+                        .append(image.name())
+                        .append(" | ")
+                        .append(image.mimeType())
+                        .append(" | ")
+                        .append(image.size() == null ? "unknown size" : image.size() + " bytes")
+                        .append("\n");
+            }
+            sb.append("请直接识别图片中的表格、公式、报错、截图信息，并基于识别结果回答。\n\n");
+        }
         if (!tutorials.isEmpty()) {
             sb.append("可参考的站内教程：\n");
             for (Map<String, Object> item : tutorials) {
@@ -196,15 +224,15 @@ public class AssistantServiceImpl implements AssistantService {
         );
     }
 
-    private LlmResult askModel(AssistantRuntimeConfig config, String prompt) {
+    private LlmResult askModel(AssistantRuntimeConfig config, String prompt, List<AssistantImageInput> images) {
         try {
-            return new LlmResult(callOpenAiCompatible(config.baseUrl(), config.apiKey(), config.model(), config.systemPrompt(), prompt), config.model(), false);
+            return new LlmResult(callOpenAiCompatible(config.baseUrl(), config.apiKey(), config.model(), config.systemPrompt(), prompt, images), config.model(), false);
         } catch (Exception e) {
             log.warn("assistant primary model failed: {}", e.toString());
         }
         if (config.fallbackBaseUrl() != null && config.fallbackApiKey() != null && config.fallbackModel() != null) {
             try {
-                return new LlmResult(callOpenAiCompatible(config.fallbackBaseUrl(), config.fallbackApiKey(), config.fallbackModel(), config.systemPrompt(), prompt), config.fallbackModel(), true);
+                return new LlmResult(callOpenAiCompatible(config.fallbackBaseUrl(), config.fallbackApiKey(), config.fallbackModel(), config.systemPrompt(), prompt, images), config.fallbackModel(), true);
             } catch (Exception e) {
                 log.error("assistant fallback model failed: {}", e.toString());
             }
@@ -212,14 +240,14 @@ public class AssistantServiceImpl implements AssistantService {
         throw new IllegalStateException("AI 助手暂时不可用，请稍后再试");
     }
 
-    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String systemPrompt, String prompt) throws IOException, InterruptedException {
+    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String systemPrompt, String prompt, List<AssistantImageInput> images) throws IOException, InterruptedException {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
         payload.put("temperature", 0.3);
         payload.put("max_tokens", maxOutputTokens());
         payload.put("messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
-                Map.of("role", "user", "content", prompt)
+                Map.of("role", "user", "content", buildUserMessageContent(prompt, images))
         ));
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(normalizeBaseUrl(baseUrl) + "/chat/completions"))
@@ -237,6 +265,24 @@ public class AssistantServiceImpl implements AssistantService {
         String answer = normalizeAnswer(choices.get(0).path("message").path("content").asText(""));
         if (answer.isEmpty()) throw new IOException("empty answer from upstream");
         return answer;
+    }
+
+    private Object buildUserMessageContent(String prompt, List<AssistantImageInput> images) {
+        if (images.isEmpty()) {
+            return prompt;
+        }
+        List<Map<String, Object>> content = new ArrayList<>();
+        content.add(Map.of("type", "text", "text", prompt));
+        for (AssistantImageInput image : images) {
+            content.add(Map.of(
+                    "type", "image_url",
+                    "image_url", Map.of(
+                            "url", image.dataUrl(),
+                            "detail", "auto"
+                    )
+            ));
+        }
+        return content;
     }
 
     private String normalizeAnswer(String answer) {
@@ -288,6 +334,59 @@ public class AssistantServiceImpl implements AssistantService {
         }).collect(Collectors.toList());
     }
 
+    private List<AssistantImageInput> normalizeImages(List<AssistantChatRequest.ImageAttachment> images) {
+        if (images == null || images.isEmpty()) {
+            return List.of();
+        }
+        List<AssistantImageInput> normalized = new ArrayList<>();
+        for (AssistantChatRequest.ImageAttachment image : images) {
+            if (image == null || isBlank(image.getDataUrl())) {
+                continue;
+            }
+            if (normalized.size() >= MAX_IMAGE_COUNT) {
+                throw new IllegalArgumentException("一次最多支持 3 张图片");
+            }
+            String dataUrl = image.getDataUrl().trim();
+            if (dataUrl.length() > MAX_IMAGE_DATA_URL_LENGTH) {
+                throw new IllegalArgumentException("单张图片不能超过 5MB");
+            }
+            Matcher matcher = IMAGE_DATA_URL_PATTERN.matcher(dataUrl);
+            if (!matcher.matches()) {
+                throw new IllegalArgumentException("仅支持 PNG、JPG、WEBP 或 GIF 图片");
+            }
+            String base64 = matcher.group(2).replaceAll("\\s+", "");
+            byte[] bytes;
+            try {
+                bytes = Base64.getDecoder().decode(base64);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("图片内容解析失败");
+            }
+            if (bytes.length > MAX_IMAGE_BYTES) {
+                throw new IllegalArgumentException("单张图片不能超过 5MB");
+            }
+            String mimeType = normalizeImageMimeType(matcher.group(1));
+            normalized.add(new AssistantImageInput(
+                    defaultIfBlank(image.getName(), "图片 " + (normalized.size() + 1)),
+                    mimeType,
+                    image.getSize(),
+                    "data:" + mimeType + ";base64," + base64
+            ));
+        }
+        return normalized;
+    }
+
+    private String normalizeImageMimeType(String mimeType) {
+        String normalized = mimeType.toLowerCase(Locale.ROOT);
+        return "image/jpg".equals(normalized) ? "image/jpeg" : normalized;
+    }
+
+    private String imageNamesText(List<AssistantImageInput> images) {
+        if (images == null || images.isEmpty()) {
+            return "";
+        }
+        return images.stream().map(AssistantImageInput::name).collect(Collectors.joining(" "));
+    }
+
     private int scoreText(List<String> haystacks, List<String> keywords) {
         int score = 0;
         for (String keyword : keywords) {
@@ -319,6 +418,7 @@ public class AssistantServiceImpl implements AssistantService {
     private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
     private String trimToNull(String value) { return isBlank(value) ? null : value.trim(); }
     private String defaultString(Object value) { return value == null ? "" : String.valueOf(value); }
+    private String defaultIfBlank(String value, String fallback) { return isBlank(value) ? fallback : value.trim(); }
     private void recordAssistantCall(Long userId, Long configId, String model, boolean success, boolean fallbackUsed, long latencyMs, String errorMessage) {
         try {
             aiAssistantCallLogService.record(userId, configId, model, success, fallbackUsed, latencyMs, errorMessage);
@@ -334,6 +434,7 @@ public class AssistantServiceImpl implements AssistantService {
         return normalized;
     }
     private record AssistantRuntimeConfig(Long configId, String baseUrl, String apiKey, String model, String fallbackBaseUrl, String fallbackApiKey, String fallbackModel, String systemPrompt) {}
+    private record AssistantImageInput(String name, String mimeType, Long size, String dataUrl) {}
     private record LlmResult(String answer, String model, boolean fallbackUsed) {}
     private record ScoredTutorial(TutorialArticle article, int score) {}
     private record ScoredQuestion(Question question, int score) {}

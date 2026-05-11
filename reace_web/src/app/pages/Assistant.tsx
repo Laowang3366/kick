@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Bot, LoaderCircle, MessageSquareText, Send, User, X } from "lucide-react";
+import { Bot, LoaderCircle, MessageSquareText, Paperclip, Send, User, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { LitePageFrame } from "../components/LiteSurface";
@@ -22,8 +22,17 @@ type ChatTurn = {
   answer: string;
   relatedTutorials: AssistantResponse["relatedTutorials"];
   relatedQuestions: AssistantResponse["relatedQuestions"];
+  attachments?: AssistantImageAttachment[];
   model?: string;
   fallbackUsed?: boolean;
+};
+
+type AssistantImageAttachment = {
+  id: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  dataUrl: string;
 };
 
 const quickPrompts = [
@@ -33,22 +42,79 @@ const quickPrompts = [
   "这个 IFERROR 公式为什么还是报错？",
 ];
 
+const maxAssistantImageCount = 3;
+const maxAssistantImageSize = 5 * 1024 * 1024;
+const assistantImageFilePattern = /\.(png|jpe?g|webp|gif)$/i;
+
+const formatAssistantFileSize = (size: number) => {
+  if (size < 1024) return `${size}B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`;
+  return `${(size / 1024 / 1024).toFixed(1)}MB`;
+};
+
+const isAssistantImageFile = (file: File) => file.type.startsWith("image/") || assistantImageFilePattern.test(file.name);
+
+const getAssistantImageMimeType = (file: File) => {
+  const type = file.type.toLowerCase();
+  if (type === "image/jpg") return "image/jpeg";
+  if (type.startsWith("image/")) return type;
+  const fileName = file.name.toLowerCase();
+  if (/\.jpe?g$/.test(fileName)) return "image/jpeg";
+  if (/\.webp$/.test(fileName)) return "image/webp";
+  if (/\.gif$/.test(fileName)) return "image/gif";
+  return "image/png";
+};
+
+const normalizeAssistantImageDataUrl = (file: File, dataUrl: string) => {
+  const mimeType = getAssistantImageMimeType(file);
+  if (/^data:image\/jpg;base64,/i.test(dataUrl)) {
+    return dataUrl.replace(/^data:image\/jpg;base64,/i, "data:image/jpeg;base64,");
+  }
+  if (/^data:(?:application\/octet-stream)?;base64,/i.test(dataUrl)) {
+    return dataUrl.replace(/^data:(?:application\/octet-stream)?;base64,/i, `data:${mimeType};base64,`);
+  }
+  return dataUrl;
+};
+
+const readAssistantImageDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(normalizeAssistantImageDataUrl(file, String(reader.result || "")));
+    reader.onerror = () => reject(reader.error || new Error("file read failed"));
+    reader.readAsDataURL(file);
+  });
+
 export function Assistant() {
   const navigate = useNavigate();
   const { isAuthenticated } = useSession();
   const [message, setMessage] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatTurn[]>([]);
+  const [attachments, setAttachments] = useState<AssistantImageAttachment[]>([]);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const chatMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: ({
+      content,
+      images,
+    }: {
+      content: string;
+      images: AssistantImageAttachment[];
+    }) =>
       api.post<AssistantResponse>("/api/assistant/chat", {
-        message,
+        message: content,
         conversationId,
+        workbookContext: images.length > 0 ? images.map((item, index) => `图片 ${index + 1}: ${item.name} (${formatAssistantFileSize(item.size)}, ${item.mimeType})`).join("\n") : undefined,
+        images: images.map((item) => ({
+          name: item.name,
+          mimeType: item.mimeType,
+          size: item.size,
+          dataUrl: item.dataUrl,
+        })),
       }),
-    onSuccess: (result) => {
-      const question = message.trim();
+    onSuccess: (result, variables) => {
+      const question = variables.content.trim() || "请分析我发送的图片内容";
       setChatHistory((prev) => [
         ...prev,
         {
@@ -57,12 +123,14 @@ export function Assistant() {
           answer: result.answer,
           relatedTutorials: result.relatedTutorials || [],
           relatedQuestions: result.relatedQuestions || [],
+          attachments: variables.images,
           model: result.model,
           fallbackUsed: result.fallbackUsed,
         },
       ]);
       setConversationId(result.conversationId || null);
       setMessage("");
+      setAttachments([]);
     },
     onError: (error: any) => {
       toast.error(error?.message || "AI 助手暂时不可用");
@@ -99,7 +167,66 @@ export function Assistant() {
     };
   }, []);
 
-  const canSubmit = useMemo(() => message.trim().length > 0 && !chatMutation.isPending, [message, chatMutation.isPending]);
+  const readImageAttachment = async (file: File): Promise<AssistantImageAttachment> => {
+    if (!isAssistantImageFile(file)) {
+      throw new Error("仅支持 PNG、JPG、WEBP 或 GIF 图片");
+    }
+    if (file.size > maxAssistantImageSize) {
+      throw new Error(`图片 ${file.name || "clipboard-image"} 超过 5MB`);
+    }
+    return {
+      id: `${file.name || "clipboard-image"}-${file.lastModified}-${file.size}`,
+      name: file.name || "clipboard-image.png",
+      size: file.size,
+      mimeType: getAssistantImageMimeType(file),
+      dataUrl: await readAssistantImageDataUrl(file),
+    };
+  };
+
+  const handleAssistantImages = async (files: FileList | File[] | null) => {
+    if (!files?.length) return;
+    const imageFiles = Array.from(files).filter(isAssistantImageFile);
+    if (imageFiles.length === 0) {
+      toast.info("请选择图片文件");
+      return;
+    }
+    const remainingSlots = Math.max(0, maxAssistantImageCount - attachments.length);
+    if (remainingSlots <= 0) {
+      toast.info(`一次最多发送 ${maxAssistantImageCount} 张图片`);
+      return;
+    }
+    const picked = imageFiles.slice(0, remainingSlots);
+    try {
+      const nextAttachments = await Promise.all(picked.map(readImageAttachment));
+      setAttachments((prev) => [...prev, ...nextAttachments]);
+      if (picked.length < imageFiles.length) {
+        toast.info(`一次最多发送 ${maxAssistantImageCount} 张图片，已保留前 ${maxAssistantImageCount} 张`);
+      }
+      toast.success(`已添加 ${nextAttachments.length} 张图片`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "图片读取失败，请换一张重试");
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData?.items || [])
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file && isAssistantImageFile(file)));
+    if (files.length === 0) return;
+    event.preventDefault();
+    void handleAssistantImages(files);
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const canSubmit = useMemo(() => (message.trim().length > 0 || attachments.length > 0) && !chatMutation.isPending, [message, attachments.length, chatMutation.isPending]);
 
   const handleSubmit = async () => {
     if (!isAuthenticated) {
@@ -107,11 +234,15 @@ export function Assistant() {
       navigate("/auth");
       return;
     }
-    if (!message.trim()) {
-      toast.info("请先输入你的 Excel 问题");
+    const content = message.trim();
+    if (!content && attachments.length === 0) {
+      toast.info("请先输入你的 Excel 问题或上传图片");
       return;
     }
-    await chatMutation.mutateAsync();
+    await chatMutation.mutateAsync({
+      content: content || "请分析我发送的图片内容",
+      images: attachments,
+    });
   };
 
   return (
@@ -158,6 +289,16 @@ export function Assistant() {
                         你
                       </div>
                       <div className="whitespace-pre-wrap">{item.question}</div>
+                      {item.attachments && item.attachments.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/20 pt-2">
+                          {item.attachments.map((attachment) => (
+                            <span key={attachment.id} className="inline-flex items-center gap-1 rounded-full bg-white/16 px-2 py-1 text-[11px] font-bold text-white/88">
+                              <img src={attachment.dataUrl} alt="" className="h-5 w-5 rounded object-cover" />
+                              {attachment.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -220,14 +361,53 @@ export function Assistant() {
 
           <div className="border-t border-slate-100 bg-white px-4 py-4 sm:px-5">
             <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={(event) => void handleAssistantImages(event.target.files)}
+                className="hidden"
+              />
+              {attachments.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {attachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className="flex max-w-full items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-800"
+                    >
+                      <img src={attachment.dataUrl} alt="" className="h-8 w-8 rounded-lg object-cover" />
+                      <span className="max-w-[220px] truncate">{attachment.name}</span>
+                      <span className="text-[10px] opacity-70">{formatAssistantFileSize(attachment.size)}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(attachment.id)}
+                        className="rounded-full p-1 text-emerald-700 transition hover:bg-emerald-100"
+                        aria-label={`移除 ${attachment.name}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
+                onPaste={handlePaste}
                 placeholder="例如：为什么我的 VLOOKUP 一直返回 #N/A？"
                 className="min-h-[110px] w-full resize-none bg-transparent px-1 py-1 text-sm text-slate-700 outline-none placeholder:text-slate-400"
               />
               <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
-                <div className="text-xs text-slate-400">描述得越具体，回答通常越准。</div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-emerald-700"
+                  aria-label="上传图片"
+                  title="上传图片"
+                >
+                  <Paperclip size={18} strokeWidth={1.8} />
+                </button>
                 <button
                   type="button"
                   onClick={() => void handleSubmit()}

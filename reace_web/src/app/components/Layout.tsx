@@ -95,6 +95,7 @@ type AssistantWidgetAttachment = {
   type: string;
   content?: string;
   readable: boolean;
+  imageDataUrl?: string;
 };
 
 type AssistantWidgetTurn = {
@@ -531,16 +532,19 @@ export function Layout() {
       message,
       conversationId,
       workbookContext,
+      images,
     }: {
       message: string;
       conversationId: string | null;
       workbookContext?: string;
       attachments?: AssistantWidgetAttachment[];
+      images?: Array<{ name: string; mimeType: string; size: number; dataUrl?: string }>;
     }) =>
       api.post<AssistantWidgetResponse>("/api/assistant/chat", {
         message,
         conversationId,
         workbookContext,
+        images,
       }),
     onSuccess: (result, variables) => {
       setAssistantHistory((prev) => [
@@ -775,12 +779,56 @@ export function Layout() {
   const showFloatingAssistant = !location.pathname.startsWith("/assistant");
   const assistantAnimatedAvatarSrc = "/assistant-ikun-animated.webp";
   const assistantReadableFilePattern = /\.(txt|csv|tsv|json|md|markdown|log|xml|html?|css|js|ts|tsx|sql)$/i;
+  const assistantImageFilePattern = /\.(png|jpe?g|webp|gif)$/i;
+  const assistantMaxAttachmentCount = 3;
+  const assistantMaxImageSize = 5 * 1024 * 1024;
   const formatAssistantFileSize = (size: number) => {
     if (size < 1024) return `${size}B`;
     if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`;
     return `${(size / 1024 / 1024).toFixed(1)}MB`;
   };
+  const isAssistantImageFile = (file: File) => file.type.startsWith("image/") || assistantImageFilePattern.test(file.name);
+  const getAssistantImageMimeType = (file: File) => {
+    const type = file.type.toLowerCase();
+    if (type === "image/jpg") return "image/jpeg";
+    if (type.startsWith("image/")) return type;
+    const fileName = file.name.toLowerCase();
+    if (/\.jpe?g$/.test(fileName)) return "image/jpeg";
+    if (/\.webp$/.test(fileName)) return "image/webp";
+    if (/\.gif$/.test(fileName)) return "image/gif";
+    return "image/png";
+  };
+  const normalizeAssistantImageDataUrl = (file: File, dataUrl: string) => {
+    const mimeType = getAssistantImageMimeType(file);
+    if (/^data:image\/jpg;base64,/i.test(dataUrl)) {
+      return dataUrl.replace(/^data:image\/jpg;base64,/i, "data:image/jpeg;base64,");
+    }
+    if (/^data:(?:application\/octet-stream)?;base64,/i.test(dataUrl)) {
+      return dataUrl.replace(/^data:(?:application\/octet-stream)?;base64,/i, `data:${mimeType};base64,`);
+    }
+    return dataUrl;
+  };
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(normalizeAssistantImageDataUrl(file, String(reader.result || "")));
+      reader.onerror = () => reject(reader.error || new Error("file read failed"));
+      reader.readAsDataURL(file);
+    });
   const readAssistantAttachment = async (file: File): Promise<AssistantWidgetAttachment> => {
+    if (isAssistantImageFile(file)) {
+      if (file.size > assistantMaxImageSize) {
+        throw new Error(`图片 ${file.name || "clipboard-image"} 超过 5MB`);
+      }
+      return {
+        id: `${file.name || "clipboard-image"}-${file.lastModified}-${file.size}`,
+        name: file.name || "clipboard-image.png",
+        size: file.size,
+        type: getAssistantImageMimeType(file),
+        readable: true,
+        imageDataUrl: await readFileAsDataUrl(file),
+      };
+    }
     const readable = file.type.startsWith("text/") || assistantReadableFilePattern.test(file.name);
     if (!readable) {
       return {
@@ -802,21 +850,31 @@ export function Layout() {
       readable: true,
     };
   };
-  const handleAssistantFiles = async (files: FileList | null) => {
+  const handleAssistantFiles = async (files: FileList | File[] | null) => {
     if (!files?.length) return;
-    const picked = Array.from(files).slice(0, 3);
+    const incomingFiles = Array.from(files);
+    const remainingSlots = Math.max(0, assistantMaxAttachmentCount - assistantAttachments.length);
+    if (remainingSlots <= 0) {
+      toast.info(`一次最多发送 ${assistantMaxAttachmentCount} 个附件`);
+      return;
+    }
+    const picked = incomingFiles.slice(0, remainingSlots);
     try {
       const nextAttachments = await Promise.all(picked.map(readAssistantAttachment));
-      setAssistantAttachments(nextAttachments);
-      if (picked.length < files.length) {
-        toast.info("一次最多发送 3 个附件，已保留前 3 个");
+      setAssistantAttachments((prev) => [...prev, ...nextAttachments]);
+      if (picked.length < incomingFiles.length) {
+        toast.info(`一次最多发送 ${assistantMaxAttachmentCount} 个附件，已保留前 ${assistantMaxAttachmentCount} 个`);
       }
-      const unreadableCount = nextAttachments.filter((item) => !item.readable).length;
+      const imageCount = nextAttachments.filter((item) => item.imageDataUrl).length;
+      if (imageCount > 0) {
+        toast.success(`已添加 ${imageCount} 张图片`);
+      }
+      const unreadableCount = nextAttachments.filter((item) => !item.readable && !item.imageDataUrl).length;
       if (unreadableCount > 0) {
         toast.info("部分附件无法在浏览器内读取内容，将只发送文件名和大小");
       }
-    } catch {
-      toast.error("附件读取失败，请换一个文件重试");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "附件读取失败，请换一个文件重试");
     } finally {
       if (assistantFileInputRef.current) {
         assistantFileInputRef.current.value = "";
@@ -831,11 +889,32 @@ export function Layout() {
     return assistantAttachments
       .map((item, index) => {
         const header = `附件 ${index + 1}: ${item.name} (${formatAssistantFileSize(item.size)}, ${item.type || "unknown"})`;
+        if (item.imageDataUrl) {
+          return `${header}\n说明：该附件是图片，已作为图片发送给 AI 助手。`;
+        }
         return item.readable && item.content
           ? `${header}\n内容：\n${item.content}`
           : `${header}\n说明：该附件已选择，但当前浏览器端无法直接读取二进制内容。`;
       })
       .join("\n\n");
+  };
+  const buildAssistantImagePayload = () =>
+    assistantAttachments
+      .filter((item) => item.imageDataUrl)
+      .map((item) => ({
+        name: item.name,
+        mimeType: item.type || "image/png",
+        size: item.size,
+        dataUrl: item.imageDataUrl,
+      }));
+  const handleAssistantPaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(event.clipboardData?.items || [])
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file && isAssistantImageFile(file)));
+    if (files.length === 0) return;
+    event.preventDefault();
+    void handleAssistantFiles(files);
   };
   const openAssistant = () => {
     const rect = assistantRef.current?.getBoundingClientRect();
@@ -898,6 +977,7 @@ export function Layout() {
       message: content || "请分析我发送的附件内容",
       conversationId: assistantConversationId,
       workbookContext: buildAssistantAttachmentContext(),
+      images: buildAssistantImagePayload(),
       attachments: assistantAttachments,
     });
   };
@@ -2299,7 +2379,7 @@ export function Layout() {
                                   <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/20 pt-2">
                                     {item.attachments.map((attachment) => (
                                       <span key={attachment.id} className="inline-flex items-center gap-1 rounded-full bg-white/16 px-2 py-1 text-[11px] font-bold text-white/88">
-                                        <Paperclip size={12} />
+                                        {attachment.imageDataUrl ? <img src={attachment.imageDataUrl} alt="" className="h-5 w-5 rounded object-cover" /> : <Paperclip size={12} />}
                                         {attachment.name}
                                       </span>
                                     ))}
@@ -2356,7 +2436,7 @@ export function Layout() {
                       ref={assistantFileInputRef}
                       type="file"
                       multiple
-                      accept=".txt,.csv,.tsv,.json,.md,.markdown,.log,.xml,.html,.htm,.css,.js,.ts,.tsx,.sql,.xls,.xlsx"
+                      accept="image/*,.txt,.csv,.tsv,.json,.md,.markdown,.log,.xml,.html,.htm,.css,.js,.ts,.tsx,.sql,.xls,.xlsx"
                       onChange={(event) => void handleAssistantFiles(event.target.files)}
                       className="hidden"
                     />
@@ -2371,7 +2451,11 @@ export function Layout() {
                                 : "border-amber-200 bg-amber-50 text-amber-700"
                             }`}
                           >
-                            <Paperclip size={13} />
+                            {attachment.imageDataUrl ? (
+                              <img src={attachment.imageDataUrl} alt="" className="h-7 w-7 rounded object-cover" />
+                            ) : (
+                              <Paperclip size={13} />
+                            )}
                             <span className="max-w-[180px] truncate">{attachment.name}</span>
                             <span className="text-[10px] opacity-70">{formatAssistantFileSize(attachment.size)}</span>
                             <button
@@ -2390,6 +2474,7 @@ export function Layout() {
                       <textarea
                         value={assistantMessage}
                         onChange={(event) => setAssistantMessage(event.target.value)}
+                        onPaste={handleAssistantPaste}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" && !event.shiftKey) {
                             event.preventDefault();
