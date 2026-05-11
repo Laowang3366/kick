@@ -1044,8 +1044,16 @@ describe('App', () => {
       deletedCount: 2
     });
     const openUpdatePackageDirectory = vi.fn().mockResolvedValue(true);
+    const chooseUpdatePackageDirectory = vi.fn().mockImplementation(() => {
+      currentDesktopSettings = {
+        ...currentDesktopSettings,
+        updatePackageDirectory: 'F:\\QuickTranslate\\selected'
+      };
+      return Promise.resolve(currentDesktopSettings);
+    });
     window.quickTranslate = {
       captureSelectedText: vi.fn(),
+      chooseUpdatePackageDirectory,
       clearUpdatePackages,
       copyText: vi.fn(),
       onSelectionCaptured: vi.fn(),
@@ -1163,6 +1171,13 @@ describe('App', () => {
         updatePackageDirectory: 'E:\\QuickTranslate\\updates'
       });
     });
+
+    fireEvent.click(screen.getByRole('button', { name: '选择更新包目录' }));
+    await waitFor(() => {
+      expect(chooseUpdatePackageDirectory).toHaveBeenCalledOnce();
+    });
+    expect(screen.getByLabelText('更新包保存路径')).toHaveValue('F:\\QuickTranslate\\selected');
+    expect(screen.getByText('更新包保存路径已选择')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '打开更新包目录' }));
     await waitFor(() => {

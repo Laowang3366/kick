@@ -927,6 +927,26 @@ export function App() {
     }
   }
 
+  async function chooseUpdatePackageDirectory() {
+    if (!window.quickTranslate?.chooseUpdatePackageDirectory) {
+      setUpdatePackageMessage('当前环境不支持选择目录');
+      return;
+    }
+
+    try {
+      const settings = await window.quickTranslate.chooseUpdatePackageDirectory();
+      if (!settings) {
+        return;
+      }
+
+      setDesktopSettingsState(settings);
+      setUpdatePackageDirectoryDraft(settings.updatePackageDirectory || '');
+      setUpdatePackageMessage('更新包保存路径已选择');
+    } catch (error) {
+      setUpdatePackageMessage(error instanceof Error ? error.message : '选择更新包目录失败');
+    }
+  }
+
   async function clearUpdatePackages() {
     try {
       const result = await window.quickTranslate?.clearUpdatePackages?.();
@@ -1822,6 +1842,15 @@ export function App() {
                             >
                               <Settings size={18} />
                               <span>保存路径</span>
+                            </button>
+                            <button
+                              className="settings-action"
+                              type="button"
+                              aria-label="选择更新包目录"
+                              onClick={chooseUpdatePackageDirectory}
+                            >
+                              <FolderOpen size={18} />
+                              <span>选择目录</span>
                             </button>
                             <button
                               className="settings-action"

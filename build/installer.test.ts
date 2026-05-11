@@ -55,6 +55,17 @@ describe('Windows installer script', () => {
     expect(script).toContain('Keeping Quick Translate install location registry for retryable upgrades.');
   });
 
+  it('restores the previous user-selected install directory as the installer default', () => {
+    const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
+
+    expect(script).toContain('!macro quickTranslateRestoreRegisteredInstallDirectory ROOT_KEY');
+    expect(script).toContain('ReadRegStr $5 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation');
+    expect(script).toContain('StrCpy $INSTDIR "$5"');
+    expect(script).toContain('Using previous Quick Translate install directory: $INSTDIR');
+    expect(script).toContain('!insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_CURRENT_USER');
+    expect(script).toContain('!insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_LOCAL_MACHINE');
+  });
+
   it('moves the installer working directory out of the old install path during initialization', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 

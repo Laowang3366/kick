@@ -102,7 +102,35 @@
   ${EndIf}
 !macroend
 
+!macro quickTranslateRestoreRegisteredInstallDirectory ROOT_KEY
+  !define UniqueID ${__LINE__}
+  StrCmp "$9" "1" QuickTranslateRestoreRegisteredInstallDirectoryDone_${UniqueID}
+  ReadRegStr $5 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation
+  StrCmp "$5" "" QuickTranslateRestoreRegisteredInstallDirectoryDone_${UniqueID}
+  IfFileExists "$5\*.*" 0 QuickTranslateRestoreRegisteredInstallDirectoryDone_${UniqueID}
+  StrCpy $INSTDIR "$5"
+  StrCpy $9 "1"
+  DetailPrint "Using previous Quick Translate install directory: $INSTDIR"
+
+  QuickTranslateRestoreRegisteredInstallDirectoryDone_${UniqueID}:
+  !undef UniqueID
+!macroend
+
+!macro quickTranslateRestoreRegisteredInstallDirectoryAllViews ROOT_KEY
+  !insertmacro quickTranslateRestoreRegisteredInstallDirectory ${ROOT_KEY}
+  ${If} ${RunningX64}
+    SetRegView 32
+    !insertmacro quickTranslateRestoreRegisteredInstallDirectory ${ROOT_KEY}
+    SetRegView 64
+    !insertmacro quickTranslateRestoreRegisteredInstallDirectory ${ROOT_KEY}
+  ${EndIf}
+!macroend
+
 !macro customInit
+  StrCpy $9 "0"
+  !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_CURRENT_USER
+  !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_LOCAL_MACHINE
+
   StrCpy $0 "$INSTDIR\"
   StrLen $1 "$0"
   StrCpy $2 "$EXEPATH" $1

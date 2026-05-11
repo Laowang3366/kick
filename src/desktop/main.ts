@@ -1,4 +1,17 @@
-import { app, BrowserWindow, Menu, Tray, clipboard, globalShortcut, ipcMain, nativeImage, screen, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  clipboard,
+  dialog,
+  globalShortcut,
+  ipcMain,
+  nativeImage,
+  screen,
+  shell,
+  type OpenDialogOptions
+} from 'electron';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
@@ -479,6 +492,25 @@ async function openUpdatePackageDirectory() {
   return true;
 }
 
+async function chooseUpdatePackageDirectory() {
+  const options: OpenDialogOptions = {
+    title: '选择更新包保存路径',
+    buttonLabel: '选择目录',
+    defaultPath: getCurrentUpdatePackageDirectory(),
+    properties: ['openDirectory', 'createDirectory']
+  };
+  const result =
+    mainWindow && !mainWindow.isDestroyed() ? await dialog.showOpenDialog(mainWindow, options) : await dialog.showOpenDialog(options);
+
+  if (result.canceled || !result.filePaths[0]) {
+    return null;
+  }
+
+  return updateDesktopSettings({
+    updatePackageDirectory: result.filePaths[0]
+  });
+}
+
 async function clearStoredUpdatePackages() {
   return clearUpdatePackageArtifacts(getCurrentUpdatePackageDirectory());
 }
@@ -724,6 +756,7 @@ app.whenReady().then(async () => {
       mainWindow?.webContents.send('desktop-update-progress', progress);
     }, desktopSettings.updatePackageDirectory)
   );
+  ipcMain.handle('choose-update-package-directory', () => chooseUpdatePackageDirectory());
   ipcMain.handle('open-update-package-directory', () => openUpdatePackageDirectory());
   ipcMain.handle('clear-update-packages', () => clearStoredUpdatePackages());
   ipcMain.handle('set-desktop-settings', (_event, settings: Partial<DesktopSettings>) => updateDesktopSettings(settings));

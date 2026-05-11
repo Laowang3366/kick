@@ -28,6 +28,7 @@ declare global {
     quickTranslate?: {
       captureSelectedText(): Promise<string>;
       checkForUpdates?(): Promise<DesktopUpdateCheckResult>;
+      chooseUpdatePackageDirectory?(): Promise<DesktopSettings | null>;
       clearUpdatePackages?(): Promise<{ directory: string; deletedCount: number }>;
       copyText(text: string): Promise<void>;
       getDesktopSettings?(): Promise<DesktopSettings>;

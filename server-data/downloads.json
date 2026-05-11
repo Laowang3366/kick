@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.58",
+  "latestVersion": "0.1.59",
   "releases": [
+    {
+      "version": "0.1.59",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.59.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.59.exe",
+      "size": 106023591,
+      "sha512": "uQRNNiF1p3YNJ5ugajtWXwNsjDIjAiN+OWqOG8jkQmQ4/cZS76vU/nPX6xhiSegFtn7576LnaV/dxXdQj+Vb2Q==",
+      "releaseDate": "2026-05-11T08:15:48.005Z",
+      "releaseNotes": "修复更新包保存路径无法通过目录选择的问题\n安装器默认安装目录跟随用户上次选择的安装路径"
+    },
     {
       "version": "0.1.58",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "Rfl3Eg40bk1WVsW6WvDSTdDAosS09oLxSajHh4fXzebIYIy3nkufP+v2wnf0vxB4gGdDN3WSPw2hjwVCVHH9qg==",
       "releaseDate": "2026-05-11T07:38:42.542Z",
       "releaseNotes": "修复频繁唤起悬浮窗时旧译文残留，新增翻译中过渡；放开自定义快捷键录入范围；优化桌面端更新安装器拉起和旧进程清理流程。"
-    },
-    {
-      "version": "0.1.57",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.57.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.57.exe",
-      "size": 106023118,
-      "sha512": "zmB18SBFo608r315nVjWeYtL3sBc0D2XxFiK630MSxu/BlOYL1CdWB5NDM0UwVSYuSVTwN7FZ0DjApoh8f0QPw==",
-      "releaseDate": "2026-05-11T07:13:53.596Z",
-      "releaseNotes": "修复多层窗口下快捷键唤起悬浮窗无法置于最顶层的问题"
     },
     {
       "version": "0.1.53",
