@@ -240,13 +240,6 @@ export function AdminAssistant() {
 
   return (
     <AdminPageShell>
-      <AdminStatGrid>
-        <AdminStatCard label="调用总数" value={formatNumber(overview.totalCalls)} />
-        <AdminStatCard label="成功调用" value={formatNumber(overview.successCalls)} />
-        <AdminStatCard label="失败调用" value={formatNumber(overview.failedCalls)} />
-        <AdminStatCard label="使用用户" value={formatNumber(overview.activeUsers)} />
-      </AdminStatGrid>
-
       <AdminSection
         title="AI 助手配置"
         actions={
@@ -315,6 +308,13 @@ export function AdminAssistant() {
           </Table>
         )}
       </AdminSection>
+
+      <AdminStatGrid>
+        <AdminStatCard label="调用总数" value={formatNumber(overview.totalCalls)} />
+        <AdminStatCard label="成功调用" value={formatNumber(overview.successCalls)} />
+        <AdminStatCard label="失败调用" value={formatNumber(overview.failedCalls)} />
+        <AdminStatCard label="使用用户" value={formatNumber(overview.activeUsers)} />
+      </AdminStatGrid>
 
       <AdminSection title="用户调用统计">
         <FilterBar>
