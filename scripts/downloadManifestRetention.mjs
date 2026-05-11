@@ -5,10 +5,14 @@ export function keepLatestVersions(releases, maxVersions) {
   }
 
   const sortedReleases = [...releases].sort((left, right) => compareVersions(stringVersion(right.version), stringVersion(left.version)));
-  const keptVersions = new Set();
+  const keptVersionsByPlatform = new Map();
 
   return sortedReleases.filter((release) => {
     const version = stringVersion(release.version);
+    const platform = stringPlatform(release.platform);
+    const keptVersions = keptVersionsByPlatform.get(platform) ?? new Set();
+    keptVersionsByPlatform.set(platform, keptVersions);
+
     if (keptVersions.has(version)) {
       return true;
     }
@@ -36,4 +40,8 @@ export function compareVersions(left, right) {
 
 function stringVersion(value) {
   return typeof value === 'string' ? value : '';
+}
+
+function stringPlatform(value) {
+  return typeof value === 'string' && value.trim() ? value : 'unknown';
 }
