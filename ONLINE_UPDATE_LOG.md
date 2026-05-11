@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 19:38 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手对话定位与后台推理等级配置上线；悬浮 AI 助手和独立 `/assistant` 页面支持新回复到达时显示“最新回复”定位按钮，打开助手时自动定位当前最新对话；后台 AI 助手配置新增推理等级字段，后端在配置后向 OpenAI-compatible chat completions 请求发送 `reasoning_effort`，并新增 Flyway 迁移 `V50__add_reasoning_effort_to_ai_assistant_config.sql`。
+- 验证：本地前端 `npm run build` 通过；本地后端 `mvn test` 通过 75 个测试；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/`、`/assistant`、`/admin/assistant` 返回 200；线上前端产物确认包含 `最新回复` 与 `推理等级`。
+- 部署：提交 `862d5a64187be53e5abd09a28d931044f4c36144` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-assistant-latest-reasoning-862d5a6.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-113506`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查。
+
 ## 2026-05-11 17:54 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手长文本换行修复；悬浮 AI 助手与独立 `/assistant` 页面均为用户消息和 AI 回复气泡增加最小宽度约束、单词断行和任意位置溢出换行，避免长公式、连续字符或长链接撑开聊天窗口。
