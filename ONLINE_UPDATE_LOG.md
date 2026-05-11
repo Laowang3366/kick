@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 17:31 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀 Excel 动态数组判题修复；前端提交快照补采 Univer live range 的计算值、显示值和公式，确保动态数组 spill 子格完整进入提交数据；后端动态数组规则保留前端捕获结果判题，普通公式题继续使用 POI 物化结果。
+- 验证：本地 `npx vitest run src/app/lib/univer-workbook.test.ts` 通过；本地前端 `npm run build` 通过；本地后端 `mvn -Dtest=PracticeServiceImplTest test` 与 `mvn test` 通过；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/` 与 `/practice` 返回 200。
+- 部署：提交 `810f0d40f0f591cff25ff8688e95f160a7065d34` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-dynamic-array-810f0d4.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-092731`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；部署期间 npm 报告既有 Node 版本与依赖审计提示，未影响构建和健康检查。
+
 ## 2026-05-11 16:48 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手浮窗关闭位置修复；展开聊天框后点击外部区域或按 Esc 关闭时统一走入口回位逻辑，未拖动过入口时恢复默认右侧居中位置；聊天推荐链接跳转关闭也同步使用同一关闭逻辑。
