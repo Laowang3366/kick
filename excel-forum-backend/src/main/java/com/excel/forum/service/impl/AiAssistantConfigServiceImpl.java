@@ -1,0 +1,172 @@
+package com.excel.forum.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.excel.forum.entity.AiAssistantConfig;
+import com.excel.forum.mapper.AiAssistantConfigMapper;
+import com.excel.forum.service.AiAssistantConfigService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
+public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigMapper, AiAssistantConfig> implements AiAssistantConfigService {
+    private final ObjectMapper objectMapper;
+
+    @Override
+    public List<Map<String, Object>> listAdminConfigs() {
+        return list(new QueryWrapper<AiAssistantConfig>().orderByDesc("active").orderByAsc("sort_order").orderByDesc("id"))
+                .stream()
+                .map(this::toAdminMap)
+                .toList();
+    }
+
+    @Override
+    public AiAssistantConfig getActiveConfig() {
+        return getOne(new QueryWrapper<AiAssistantConfig>()
+                .eq("active", true)
+                .eq("enabled", true)
+                .orderByAsc("sort_order")
+                .orderByDesc("id")
+                .last("LIMIT 1"));
+    }
+
+    @Override
+    @Transactional
+    public void activate(Long id) {
+        AiAssistantConfig config = getById(id);
+        if (config == null) {
+            throw new IllegalArgumentException("AI 助手配置不存在");
+        }
+        if (Boolean.FALSE.equals(config.getEnabled())) {
+            throw new IllegalArgumentException("请先启用该配置");
+        }
+        update(new UpdateWrapper<AiAssistantConfig>().set("active", false));
+        config.setActive(true);
+        updateById(config);
+    }
+
+    @Override
+    public List<String> fetchModels(Long configId, String baseUrl, String apiKey) {
+        AiAssistantConfig stored = configId == null ? null : getById(configId);
+        String resolvedBaseUrl = normalizeBaseUrl(firstText(baseUrl, stored == null ? null : stored.getBaseUrl()));
+        String resolvedApiKey = trimToNull(firstText(apiKey, stored == null ? null : stored.getApiKey()));
+        if (resolvedBaseUrl == null || resolvedApiKey == null) {
+            throw new IllegalArgumentException("请填写 URL 和 SK 密钥后再获取模型");
+        }
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(resolvedBaseUrl + "/models"))
+                    .header("Authorization", "Bearer " + resolvedApiKey)
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofMillis(15000))
+                    .GET()
+                    .build();
+            HttpResponse<String> response = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofMillis(15000))
+                    .build()
+                    .send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 400) {
+                throw new IOException("upstream " + response.statusCode());
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            List<String> models = new ArrayList<>();
+            JsonNode data = root.path("data");
+            if (data.isArray()) {
+                for (JsonNode item : data) {
+                    String id = item.path("id").asText("");
+                    if (!id.isBlank()) {
+                        models.add(id);
+                    }
+                }
+            }
+            if (models.isEmpty() && root.isArray()) {
+                for (JsonNode item : root) {
+                    String id = item.path("id").asText(item.asText(""));
+                    if (!id.isBlank()) {
+                        models.add(id);
+                    }
+                }
+            }
+            return models.stream().distinct().sorted().toList();
+        } catch (Exception e) {
+            throw new IllegalStateException("模型获取失败：" + e.getMessage());
+        }
+    }
+
+    private Map<String, Object> toAdminMap(AiAssistantConfig config) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", config.getId());
+        map.put("name", defaultString(config.getName()));
+        map.put("baseUrl", defaultString(config.getBaseUrl()));
+        map.put("apiKeyMasked", maskKey(config.getApiKey()));
+        map.put("hasApiKey", !isBlank(config.getApiKey()));
+        map.put("model", defaultString(config.getModel()));
+        map.put("systemPrompt", defaultString(config.getSystemPrompt()));
+        map.put("promptFileName", defaultString(config.getPromptFileName()));
+        map.put("enabled", !Boolean.FALSE.equals(config.getEnabled()));
+        map.put("active", Boolean.TRUE.equals(config.getActive()));
+        map.put("sortOrder", config.getSortOrder() == null ? 0 : config.getSortOrder());
+        map.put("createTime", config.getCreateTime());
+        map.put("updateTime", config.getUpdateTime());
+        return map;
+    }
+
+    private String normalizeBaseUrl(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        normalized = normalized.replaceAll("/+$", "");
+        if (normalized.endsWith("/chat/completions")) {
+            normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
+        }
+        return normalized;
+    }
+
+    private String firstText(String primary, String fallback) {
+        String normalizedPrimary = trimToNull(primary);
+        return normalizedPrimary == null ? fallback : normalizedPrimary;
+    }
+
+    private String maskKey(String value) {
+        if (isBlank(value)) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() <= 10) {
+            return "****";
+        }
+        return trimmed.substring(0, 4) + "****" + trimmed.substring(trimmed.length() - 4);
+    }
+
+    private String defaultString(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String trimToNull(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+}

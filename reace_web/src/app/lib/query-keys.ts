@@ -31,6 +31,8 @@ export const adminKeys = {
   levelsOverview: () => ["admin", "levels", "overview"] as const,
   levelsUsers: (params: Record<string, unknown>) => ["admin", "levels", "users", params] as const,
   levelsLogs: (params: Record<string, unknown>) => ["admin", "levels", "logs", params] as const,
+  assistantConfigs: () => ["admin", "assistant", "configs"] as const,
+  assistantStats: (params: Record<string, unknown>) => ["admin", "assistant", "stats", params] as const,
 };
 
 export const notificationKeys = {

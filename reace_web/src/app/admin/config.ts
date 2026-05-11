@@ -1,6 +1,7 @@
 import {
   BellRing,
   BookMarked,
+  Bot,
   Coins,
   Gauge,
   Layers3,
@@ -19,7 +20,8 @@ export type AdminModuleKey =
   | "question-categories"
   | "templates"
   | "points"
-  | "levels";
+  | "levels"
+  | "assistant";
 
 export type AdminModule = {
   key: AdminModuleKey;
@@ -39,6 +41,7 @@ export const ADMIN_MODULES: AdminModule[] = [
   { key: "templates", label: "模板中心", path: "/admin/templates", icon: PanelsTopLeft, roles: ["admin"] },
   { key: "points", label: "积分体系", path: "/admin/points", icon: Coins, roles: ["admin"] },
   { key: "levels", label: "等级体系", path: "/admin/levels", icon: Shield, roles: ["admin"] },
+  { key: "assistant", label: "AI助手", path: "/admin/assistant", icon: Bot, roles: ["admin"] },
 ];
 
 export function hasAdminConsoleAccess(role?: string | null): role is AdminRole {

@@ -1,10 +1,13 @@
 package com.excel.forum.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.excel.forum.entity.AiAssistantConfig;
 import com.excel.forum.entity.Question;
 import com.excel.forum.entity.TutorialArticle;
 import com.excel.forum.entity.dto.AssistantChatRequest;
 import com.excel.forum.entity.dto.AssistantChatResponse;
+import com.excel.forum.service.AiAssistantCallLogService;
+import com.excel.forum.service.AiAssistantConfigService;
 import com.excel.forum.service.AssistantService;
 import com.excel.forum.service.QuestionService;
 import com.excel.forum.service.TutorialArticleService;
@@ -57,17 +60,17 @@ public class AssistantServiceImpl implements AssistantService {
 
     private final TutorialArticleService tutorialArticleService;
     private final QuestionService questionService;
+    private final AiAssistantConfigService aiAssistantConfigService;
+    private final AiAssistantCallLogService aiAssistantCallLogService;
     private final Environment environment;
     private final ObjectMapper objectMapper;
 
     @Override
     public AssistantChatResponse chat(Long userId, AssistantChatRequest request) {
-        if (!isEnabled()) {
-            throw new IllegalStateException("AI 助手暂未开启");
-        }
         if (request == null || isBlank(request.getMessage())) {
             throw new IllegalArgumentException("请输入你想咨询的 Excel 问题");
         }
+        AssistantRuntimeConfig runtimeConfig = resolveRuntimeConfig();
 
         String conversationId = isBlank(request.getConversationId()) ? UUID.randomUUID().toString() : request.getConversationId().trim();
         String message = clamp(request.getMessage(), maxInputChars());
@@ -79,7 +82,15 @@ public class AssistantServiceImpl implements AssistantService {
         List<Map<String, Object>> relatedQuestions = findRelatedQuestions(keywords, request.getPracticeQuestionId());
 
         String prompt = buildPrompt(message, formula, workbookContext, relatedTutorials, relatedQuestions);
-        LlmResult result = askModel(prompt);
+        long startedAt = System.currentTimeMillis();
+        LlmResult result;
+        try {
+            result = askModel(runtimeConfig, prompt);
+            recordAssistantCall(userId, runtimeConfig.configId(), result.model(), true, result.fallbackUsed(), System.currentTimeMillis() - startedAt, null);
+        } catch (RuntimeException e) {
+            recordAssistantCall(userId, runtimeConfig.configId(), runtimeConfig.model(), false, false, System.currentTimeMillis() - startedAt, e.getMessage());
+            throw e;
+        }
 
         return new AssistantChatResponse(
                 conversationId,
@@ -89,10 +100,6 @@ public class AssistantServiceImpl implements AssistantService {
                 result.model(),
                 result.fallbackUsed()
         );
-    }
-
-    private boolean isEnabled() {
-        return environment.getProperty("AI_ASSISTANT_ENABLED", Boolean.class, false);
     }
 
     private int maxInputChars() {
@@ -149,22 +156,60 @@ public class AssistantServiceImpl implements AssistantService {
         return sb.toString();
     }
 
-    private LlmResult askModel(String prompt) {
+    private AssistantRuntimeConfig resolveRuntimeConfig() {
+        AiAssistantConfig activeConfig = aiAssistantConfigService.getActiveConfig();
+        if (activeConfig != null) {
+            String baseUrl = trimToNull(activeConfig.getBaseUrl());
+            String apiKey = trimToNull(activeConfig.getApiKey());
+            String model = trimToNull(activeConfig.getModel());
+            if (baseUrl == null || apiKey == null || model == null) {
+                throw new IllegalStateException("AI 助手配置不完整");
+            }
+            return new AssistantRuntimeConfig(
+                    activeConfig.getId(),
+                    normalizeBaseUrl(baseUrl),
+                    apiKey,
+                    model,
+                    null,
+                    null,
+                    null,
+                    trimToNull(activeConfig.getSystemPrompt()) == null ? SYSTEM_PROMPT : activeConfig.getSystemPrompt().trim()
+            );
+        }
+
+        if (!environment.getProperty("AI_ASSISTANT_ENABLED", Boolean.class, false)) {
+            throw new IllegalStateException("AI 助手暂未开启");
+        }
         String primaryBaseUrl = trimToNull(environment.getProperty("AI_ASSISTANT_BASE_URL"));
         String primaryApiKey = trimToNull(environment.getProperty("AI_ASSISTANT_API_KEY"));
         String primaryModel = trimToNull(environment.getProperty("AI_ASSISTANT_MODEL"));
         String fallbackBaseUrl = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_BASE_URL", primaryBaseUrl));
         String fallbackApiKey = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_API_KEY", primaryApiKey));
         String fallbackModel = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_MODEL"));
-        if (primaryBaseUrl == null || primaryApiKey == null || primaryModel == null) throw new IllegalStateException("AI 助手配置不完整");
+        if (primaryBaseUrl == null || primaryApiKey == null || primaryModel == null) {
+            throw new IllegalStateException("AI 助手配置不完整");
+        }
+        return new AssistantRuntimeConfig(
+                null,
+                normalizeBaseUrl(primaryBaseUrl),
+                primaryApiKey,
+                primaryModel,
+                fallbackBaseUrl == null ? null : normalizeBaseUrl(fallbackBaseUrl),
+                fallbackApiKey,
+                fallbackModel,
+                SYSTEM_PROMPT
+        );
+    }
+
+    private LlmResult askModel(AssistantRuntimeConfig config, String prompt) {
         try {
-            return new LlmResult(callOpenAiCompatible(primaryBaseUrl, primaryApiKey, primaryModel, prompt), primaryModel, false);
+            return new LlmResult(callOpenAiCompatible(config.baseUrl(), config.apiKey(), config.model(), config.systemPrompt(), prompt), config.model(), false);
         } catch (Exception e) {
             log.warn("assistant primary model failed: {}", e.toString());
         }
-        if (fallbackBaseUrl != null && fallbackApiKey != null && fallbackModel != null) {
+        if (config.fallbackBaseUrl() != null && config.fallbackApiKey() != null && config.fallbackModel() != null) {
             try {
-                return new LlmResult(callOpenAiCompatible(fallbackBaseUrl, fallbackApiKey, fallbackModel, prompt), fallbackModel, true);
+                return new LlmResult(callOpenAiCompatible(config.fallbackBaseUrl(), config.fallbackApiKey(), config.fallbackModel(), config.systemPrompt(), prompt), config.fallbackModel(), true);
             } catch (Exception e) {
                 log.error("assistant fallback model failed: {}", e.toString());
             }
@@ -172,17 +217,17 @@ public class AssistantServiceImpl implements AssistantService {
         throw new IllegalStateException("AI 助手暂时不可用，请稍后再试");
     }
 
-    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String prompt) throws IOException, InterruptedException {
+    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String systemPrompt, String prompt) throws IOException, InterruptedException {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
         payload.put("temperature", 0.3);
         payload.put("max_tokens", maxOutputTokens());
         payload.put("messages", List.of(
-                Map.of("role", "system", "content", SYSTEM_PROMPT),
+                Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", prompt)
         ));
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl.replaceAll("/+$", "") + "/chat/completions"))
+                .uri(URI.create(normalizeBaseUrl(baseUrl) + "/chat/completions"))
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
                 .timeout(Duration.ofMillis(timeoutMs()))
@@ -279,6 +324,21 @@ public class AssistantServiceImpl implements AssistantService {
     private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
     private String trimToNull(String value) { return isBlank(value) ? null : value.trim(); }
     private String defaultString(Object value) { return value == null ? "" : String.valueOf(value); }
+    private void recordAssistantCall(Long userId, Long configId, String model, boolean success, boolean fallbackUsed, long latencyMs, String errorMessage) {
+        try {
+            aiAssistantCallLogService.record(userId, configId, model, success, fallbackUsed, latencyMs, errorMessage);
+        } catch (Exception e) {
+            log.warn("assistant call stat record failed: {}", e.toString());
+        }
+    }
+    private String normalizeBaseUrl(String value) {
+        String normalized = value.replaceAll("/+$", "");
+        if (normalized.endsWith("/chat/completions")) {
+            normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
+        }
+        return normalized;
+    }
+    private record AssistantRuntimeConfig(Long configId, String baseUrl, String apiKey, String model, String fallbackBaseUrl, String fallbackApiKey, String fallbackModel, String systemPrompt) {}
     private record LlmResult(String answer, String model, boolean fallbackUsed) {}
     private record ScoredTutorial(TutorialArticle article, int score) {}
     private record ScoredQuestion(Question question, int score) {}
