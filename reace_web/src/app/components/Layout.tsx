@@ -126,12 +126,15 @@ export function Layout() {
   const [assistantAttachments, setAssistantAttachments] = useState<AssistantWidgetAttachment[]>([]);
   const [assistantDragPosition, setAssistantDragPosition] = useState<{ left: number; top: number } | null>(null);
   const [assistantDragging, setAssistantDragging] = useState(false);
+  const [assistantShowLatestReply, setAssistantShowLatestReply] = useState(false);
   const [feedbackForm, setFeedbackForm] = useState({
     type: "performance_optimization",
     content: "",
   });
   const notificationRef = useRef<HTMLDivElement>(null);
   const assistantRef = useRef<HTMLDivElement>(null);
+  const assistantMessagesRef = useRef<HTMLDivElement>(null);
+  const assistantLatestReplyRef = useRef<HTMLDivElement>(null);
   const assistantFileInputRef = useRef<HTMLInputElement>(null);
   const assistantDragRef = useRef<{
     pointerId: number;
@@ -147,6 +150,7 @@ export function Layout() {
   const assistantEntryReturnPositionRef = useRef<{ left: number; top: number } | null>(null);
   const assistantEntryHadCustomPositionRef = useRef(false);
   const assistantPanelMovedRef = useRef(false);
+  const assistantShouldScrollLatestRef = useRef(false);
   const mentionToastIdsRef = useRef<Set<number>>(new Set());
   const mentionBootstrappedRef = useRef(false);
   const popupDismissedIdsRef = useRef<Set<number>>(new Set());
@@ -172,6 +176,17 @@ export function Layout() {
       }
       return next;
     });
+  };
+
+  const isAssistantNearLatestReply = () => {
+    const element = assistantMessagesRef.current;
+    if (!element) return true;
+    return element.scrollHeight - element.scrollTop - element.clientHeight < 96;
+  };
+
+  const scrollAssistantToLatestReply = (behavior: ScrollBehavior = "smooth") => {
+    assistantLatestReplyRef.current?.scrollIntoView({ behavior, block: "end" });
+    setAssistantShowLatestReply(false);
   };
 
   const beginAssistantDrag = (event: React.PointerEvent<HTMLElement>) => {
@@ -282,6 +297,13 @@ export function Layout() {
       window.removeEventListener("orientationchange", handleViewportChange);
     };
   }, [assistantOpen, Boolean(assistantDragPosition)]);
+
+  useEffect(() => {
+    if (!assistantOpen || assistantHistory.length === 0) return;
+    if (!assistantShouldScrollLatestRef.current) return;
+    assistantShouldScrollLatestRef.current = false;
+    requestAnimationFrame(() => scrollAssistantToLatestReply("smooth"));
+  }, [assistantOpen, assistantHistory.length]);
   const [searchType, setSearchType] = useState("all");
   const [showSearchTypeDropdown, setShowSearchTypeDropdown] = useState(false);
   const searchTypeDropdownRef = useRef<HTMLDivElement>(null);
@@ -547,6 +569,11 @@ export function Layout() {
         images,
       }),
     onSuccess: (result, variables) => {
+      const shouldScrollToLatest = !assistantOpen || isAssistantNearLatestReply();
+      assistantShouldScrollLatestRef.current = shouldScrollToLatest;
+      if (!shouldScrollToLatest) {
+        setAssistantShowLatestReply(true);
+      }
       setAssistantHistory((prev) => [
         ...prev,
         {
@@ -916,6 +943,11 @@ export function Layout() {
     event.preventDefault();
     void handleAssistantFiles(files);
   };
+  const handleAssistantMessagesScroll = () => {
+    if (isAssistantNearLatestReply()) {
+      setAssistantShowLatestReply(false);
+    }
+  };
   const openAssistant = () => {
     const rect = assistantRef.current?.getBoundingClientRect();
     if (rect) {
@@ -934,6 +966,8 @@ export function Layout() {
         ),
       );
     }
+    assistantShouldScrollLatestRef.current = true;
+    setAssistantShowLatestReply(false);
     setAssistantOpen(true);
     setShowNotifications(false);
     window.sessionStorage.setItem(
@@ -2352,7 +2386,12 @@ export function Layout() {
                     </div>
                   </div>
 
-                  <div className="max-h-[min(46vh,360px)] min-h-[270px] overflow-y-auto bg-white px-4 py-4">
+                  <div className="relative">
+                    <div
+                      ref={assistantMessagesRef}
+                      onScroll={handleAssistantMessagesScroll}
+                      className="max-h-[min(46vh,360px)] min-h-[270px] overflow-y-auto bg-white px-4 py-4"
+                    >
                     {assistantHistory.length === 0 ? (
                       <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 text-center">
                         <div className="flex flex-wrap justify-center gap-2">
@@ -2370,7 +2409,7 @@ export function Layout() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {assistantHistory.map((item) => (
+                        {assistantHistory.map((item, index) => (
                           <div key={item.id} className="space-y-3">
                             <div className="flex justify-end">
                               <div className="min-w-0 max-w-[86%] rounded-2xl rounded-br-md bg-[#0f91dd] px-3.5 py-2.5 text-sm leading-6 text-white shadow-sm">
@@ -2387,7 +2426,7 @@ export function Layout() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex justify-start">
+                            <div ref={index === assistantHistory.length - 1 ? assistantLatestReplyRef : undefined} className="flex justify-start">
                               <div className="min-w-0 max-w-[90%] rounded-2xl rounded-bl-md border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-700">
                                 <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#0f91dd]">
                                   AI助手
@@ -2429,6 +2468,18 @@ export function Layout() {
                         ))}
                       </div>
                     )}
+                    </div>
+                    {assistantShowLatestReply && assistantHistory.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => scrollAssistantToLatestReply()}
+                      data-assistant-no-drag="true"
+                      className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-[#0f91dd] px-3 py-1.5 text-xs font-black text-white shadow-[0_10px_24px_rgba(15,145,221,0.28)] transition hover:bg-[#0b82c9]"
+                    >
+                      <ChevronDown size={14} strokeWidth={2.4} />
+                      最新回复
+                    </button>
+                    ) : null}
                   </div>
 
                   <div className="border-t border-slate-200 bg-slate-50 px-4 py-3">

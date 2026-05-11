@@ -24,12 +24,16 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigMapper, AiAssistantConfig> implements AiAssistantConfigService {
+    private static final Set<String> REASONING_EFFORT_VALUES = Set.of("low", "medium", "high");
+
     private final ObjectMapper objectMapper;
     private final Environment environment;
     private final AiAssistantPromptProvider promptProvider;
@@ -77,6 +81,7 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
         config.setBaseUrl(baseUrl);
         config.setApiKey(apiKey);
         config.setModel(model);
+        config.setReasoningEffort(normalizeReasoningEffort(environment.getProperty("AI_ASSISTANT_REASONING_EFFORT")));
         AiAssistantPromptProvider.PromptSource defaultPrompt = promptProvider.getDefaultPrompt();
         config.setSystemPrompt(defaultPrompt.content());
         config.setPromptFileName(defaultPrompt.fileName());
@@ -184,6 +189,7 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
         map.put("apiKeyMasked", maskKey(config.getApiKey()));
         map.put("hasApiKey", !isBlank(config.getApiKey()));
         map.put("model", defaultString(config.getModel()));
+        map.put("reasoningEffort", defaultString(config.getReasoningEffort()));
         map.put("systemPrompt", defaultString(config.getSystemPrompt()));
         map.put("promptFileName", defaultString(config.getPromptFileName()));
         map.put("enabled", !Boolean.FALSE.equals(config.getEnabled()));
@@ -204,6 +210,15 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
             normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
         }
         return normalized;
+    }
+
+    private String normalizeReasoningEffort(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        normalized = normalized.toLowerCase(Locale.ROOT);
+        return REASONING_EFFORT_VALUES.contains(normalized) ? normalized : null;
     }
 
     private String firstText(String primary, String fallback) {

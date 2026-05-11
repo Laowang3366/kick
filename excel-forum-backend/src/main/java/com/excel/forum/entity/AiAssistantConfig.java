@@ -18,6 +18,7 @@ public class AiAssistantConfig {
     private String baseUrl;
     private String apiKey;
     private String model;
+    private String reasoningEffort;
     private String systemPrompt;
     private String promptFileName;
     private Boolean enabled;

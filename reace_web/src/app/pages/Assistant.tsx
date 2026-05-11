@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Bot, LoaderCircle, MessageSquareText, Paperclip, Send, User, X } from "lucide-react";
+import { Bot, ChevronDown, LoaderCircle, MessageSquareText, Paperclip, Send, User, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { LitePageFrame } from "../components/LiteSurface";
@@ -91,8 +91,23 @@ export function Assistant() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatTurn[]>([]);
   const [attachments, setAttachments] = useState<AssistantImageAttachment[]>([]);
+  const [showLatestReply, setShowLatestReply] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const latestReplyRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const shouldScrollLatestRef = useRef(false);
+
+  const isNearLatestReply = () => {
+    const element = messagesRef.current;
+    if (!element) return true;
+    return element.scrollHeight - element.scrollTop - element.clientHeight < 96;
+  };
+
+  const scrollToLatestReply = (behavior: ScrollBehavior = "smooth") => {
+    latestReplyRef.current?.scrollIntoView({ behavior, block: "end" });
+    setShowLatestReply(false);
+  };
 
   const chatMutation = useMutation({
     mutationFn: ({
@@ -115,6 +130,11 @@ export function Assistant() {
       }),
     onSuccess: (result, variables) => {
       const question = variables.content.trim() || "请分析我发送的图片内容";
+      const shouldScrollToLatest = isNearLatestReply();
+      shouldScrollLatestRef.current = shouldScrollToLatest;
+      if (!shouldScrollToLatest) {
+        setShowLatestReply(true);
+      }
       setChatHistory((prev) => [
         ...prev,
         {
@@ -136,6 +156,12 @@ export function Assistant() {
       toast.error(error?.message || "AI 助手暂时不可用");
     },
   });
+
+  useEffect(() => {
+    if (chatHistory.length === 0 || !shouldScrollLatestRef.current) return;
+    shouldScrollLatestRef.current = false;
+    requestAnimationFrame(() => scrollToLatestReply("smooth"));
+  }, [chatHistory.length]);
 
   const closeAssistant = () => {
     const returnPath = window.sessionStorage.getItem("excelAssistantReturnPath");
@@ -222,6 +248,12 @@ export function Assistant() {
     void handleAssistantImages(files);
   };
 
+  const handleMessagesScroll = () => {
+    if (isNearLatestReply()) {
+      setShowLatestReply(false);
+    }
+  };
+
   const removeAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   };
@@ -256,7 +288,12 @@ export function Assistant() {
             </div>
           </div>
 
-          <div className="min-h-[420px] space-y-5 px-4 py-5 sm:px-5">
+          <div className="relative">
+            <div
+              ref={messagesRef}
+              onScroll={handleMessagesScroll}
+              className="max-h-[min(64vh,720px)] min-h-[420px] space-y-5 overflow-y-auto px-4 py-5 sm:px-5"
+            >
             {chatHistory.length === 0 ? (
               <div className="flex min-h-[360px] flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 px-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-emerald-50 text-emerald-600">
@@ -280,7 +317,7 @@ export function Assistant() {
                 </div>
               </div>
             ) : (
-              chatHistory.map((item) => (
+              chatHistory.map((item, index) => (
                 <div key={item.id} className="space-y-4">
                   <div className="flex justify-end">
                     <div className="min-w-0 max-w-[88%] rounded-[22px] rounded-br-md bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_100%)] px-4 py-3 text-sm leading-6 text-white shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
@@ -302,7 +339,7 @@ export function Assistant() {
                     </div>
                   </div>
 
-                  <div className="flex justify-start">
+                  <div ref={index === chatHistory.length - 1 ? latestReplyRef : undefined} className="flex justify-start">
                     <div className="min-w-0 max-w-[92%] rounded-[22px] rounded-bl-md border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                       <div className="mb-2 flex items-center gap-2 text-xs font-black text-emerald-700">
                         <Bot size={14} />
@@ -357,6 +394,17 @@ export function Assistant() {
                 </div>
               ))
             )}
+            </div>
+            {showLatestReply && chatHistory.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => scrollToLatestReply()}
+              className="absolute bottom-4 right-5 inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-black text-white shadow-[0_12px_28px_rgba(15,23,42,0.2)] transition hover:bg-slate-800"
+            >
+              <ChevronDown size={14} strokeWidth={2.4} />
+              最新回复
+            </button>
+            ) : null}
           </div>
 
           <div className="border-t border-slate-100 bg-white px-4 py-4 sm:px-5">

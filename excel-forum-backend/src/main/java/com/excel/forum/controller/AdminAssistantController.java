@@ -23,11 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/admin/assistant")
 @RequiredArgsConstructor
 public class AdminAssistantController {
+    private static final Set<String> REASONING_EFFORT_VALUES = Set.of("low", "medium", "high");
+
     private final AiAssistantConfigService aiAssistantConfigService;
     private final AiAssistantCallLogService aiAssistantCallLogService;
 
@@ -141,6 +144,9 @@ public class AdminAssistantController {
         if (isBlank(request.getModel())) {
             return "模型不能为空";
         }
+        if (!isBlank(request.getReasoningEffort()) && !REASONING_EFFORT_VALUES.contains(request.getReasoningEffort().trim().toLowerCase())) {
+            return "推理等级不支持";
+        }
         if (Boolean.TRUE.equals(request.getActive()) && Boolean.FALSE.equals(request.getEnabled())) {
             return "生效配置必须保持启用";
         }
@@ -154,6 +160,7 @@ public class AdminAssistantController {
             config.setApiKey(request.getApiKey().trim());
         }
         config.setModel(normalizeText(request.getModel()));
+        config.setReasoningEffort(normalizeReasoningEffort(request.getReasoningEffort()));
         config.setSystemPrompt(normalizeText(request.getSystemPrompt()));
         config.setPromptFileName(normalizeText(request.getPromptFileName()));
         config.setEnabled(request.getEnabled() == null || Boolean.TRUE.equals(request.getEnabled()));
@@ -175,6 +182,11 @@ public class AdminAssistantController {
             normalized = normalized.substring(0, normalized.length() - "/chat/completions".length());
         }
         return normalized;
+    }
+
+    private String normalizeReasoningEffort(String value) {
+        String normalized = normalizeText(value);
+        return normalized == null ? null : normalized.toLowerCase();
     }
 
     private String normalizeText(String value) {

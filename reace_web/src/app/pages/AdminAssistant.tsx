@@ -35,6 +35,7 @@ type AiAssistantConfigRecord = {
   apiKeyMasked: string;
   hasApiKey: boolean;
   model: string;
+  reasoningEffort?: string;
   systemPrompt: string;
   promptFileName: string;
   enabled: boolean;
@@ -56,12 +57,20 @@ const defaultForm = {
   baseUrl: "",
   apiKey: "",
   model: "",
+  reasoningEffort: "",
   systemPrompt: "",
   promptFileName: "",
   enabled: true,
   active: false,
   sortOrder: 0,
 };
+
+const reasoningEffortOptions = [
+  { value: "", label: "默认（不发送）" },
+  { value: "low", label: "低" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "高" },
+];
 
 export function AdminAssistant() {
   const navigate = useNavigate();
@@ -151,6 +160,7 @@ export function AdminAssistant() {
       baseUrl: item.baseUrl || "",
       apiKey: "",
       model: item.model || "",
+      reasoningEffort: item.reasoningEffort || "",
       systemPrompt: item.systemPrompt || "",
       promptFileName: item.promptFileName || "",
       enabled: Boolean(item.enabled),
@@ -326,7 +336,10 @@ export function AdminAssistant() {
                     <div className="mt-1 text-xs text-[#8c8c8c]">排序 {item.sortOrder || 0}</div>
                   </TableCell>
                   <TableCell className="max-w-[260px] truncate">{item.baseUrl}</TableCell>
-                  <TableCell>{item.model || "-"}</TableCell>
+                  <TableCell>
+                    <div>{item.model || "-"}</div>
+                    <div className="mt-1 text-xs text-[#8c8c8c]">推理：{formatReasoningEffort(item.reasoningEffort)}</div>
+                  </TableCell>
                   <TableCell>{item.apiKeyMasked || (item.hasApiKey ? "已配置" : "未配置")}</TableCell>
                   <TableCell className="max-w-[180px] truncate">{item.promptFileName || (item.systemPrompt ? "文本配置" : "默认")}</TableCell>
                   <TableCell>
@@ -475,6 +488,17 @@ export function AdminAssistant() {
               </button>
             </div>
           </Field>
+          <Field label="推理等级">
+            <select
+              value={form.reasoningEffort}
+              onChange={(event) => setForm((prev) => ({ ...prev, reasoningEffort: event.target.value }))}
+              className={inputClassName()}
+            >
+              {reasoningEffortOptions.map((option) => (
+                <option key={option.value || "default"} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="排序">
             <input type="number" value={form.sortOrder} onChange={(event) => setForm((prev) => ({ ...prev, sortOrder: Number(event.target.value || 0) }))} className={inputClassName()} />
           </Field>
@@ -602,6 +626,11 @@ function formatNumber(value: unknown) {
 function formatTime(value: unknown) {
   if (!value) return "-";
   return String(value).replace("T", " ").slice(0, 16);
+}
+
+function formatReasoningEffort(value: unknown) {
+  const normalized = String(value || "").trim();
+  return reasoningEffortOptions.find((item) => item.value === normalized)?.label || "默认";
 }
 
 function normalizeApiKeyInput(value: string) {

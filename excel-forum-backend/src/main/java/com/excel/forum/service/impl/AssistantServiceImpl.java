@@ -56,6 +56,7 @@ public class AssistantServiceImpl implements AssistantService {
     private static final Pattern MARKDOWN_HEADING_LINE_PATTERN = Pattern.compile("(?m)^\\s{0,3}#{1,6}\\s+(.+)$");
     private static final Pattern MARKDOWN_BOLD_PATTERN = Pattern.compile("\\*\\*([^\\n*][^\\n]*?)\\*\\*");
     private static final Pattern MARKDOWN_INLINE_CODE_PATTERN = Pattern.compile("`([^`\\n]+)`");
+    private static final Set<String> REASONING_EFFORT_VALUES = Set.of("low", "medium", "high");
 
     private final TutorialArticleService tutorialArticleService;
     private final QuestionService questionService;
@@ -185,6 +186,7 @@ public class AssistantServiceImpl implements AssistantService {
             String baseUrl = trimToNull(activeConfig.getBaseUrl());
             String apiKey = trimToNull(activeConfig.getApiKey());
             String model = trimToNull(activeConfig.getModel());
+            String reasoningEffort = normalizeReasoningEffort(activeConfig.getReasoningEffort());
             if (baseUrl == null || apiKey == null || model == null) {
                 throw new IllegalStateException("AI 助手配置不完整");
             }
@@ -193,6 +195,7 @@ public class AssistantServiceImpl implements AssistantService {
                     normalizeBaseUrl(baseUrl),
                     apiKey,
                     model,
+                    reasoningEffort,
                     null,
                     null,
                     null,
@@ -206,6 +209,7 @@ public class AssistantServiceImpl implements AssistantService {
         String primaryBaseUrl = trimToNull(environment.getProperty("AI_ASSISTANT_BASE_URL"));
         String primaryApiKey = trimToNull(environment.getProperty("AI_ASSISTANT_API_KEY"));
         String primaryModel = trimToNull(environment.getProperty("AI_ASSISTANT_MODEL"));
+        String reasoningEffort = normalizeReasoningEffort(environment.getProperty("AI_ASSISTANT_REASONING_EFFORT"));
         String fallbackBaseUrl = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_BASE_URL", primaryBaseUrl));
         String fallbackApiKey = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_API_KEY", primaryApiKey));
         String fallbackModel = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_MODEL"));
@@ -217,6 +221,7 @@ public class AssistantServiceImpl implements AssistantService {
                 normalizeBaseUrl(primaryBaseUrl),
                 primaryApiKey,
                 primaryModel,
+                reasoningEffort,
                 fallbackBaseUrl == null ? null : normalizeBaseUrl(fallbackBaseUrl),
                 fallbackApiKey,
                 fallbackModel,
@@ -226,13 +231,13 @@ public class AssistantServiceImpl implements AssistantService {
 
     private LlmResult askModel(AssistantRuntimeConfig config, String prompt, List<AssistantImageInput> images) {
         try {
-            return new LlmResult(callOpenAiCompatible(config.baseUrl(), config.apiKey(), config.model(), config.systemPrompt(), prompt, images), config.model(), false);
+            return new LlmResult(callOpenAiCompatible(config.baseUrl(), config.apiKey(), config.model(), config.reasoningEffort(), config.systemPrompt(), prompt, images), config.model(), false);
         } catch (Exception e) {
             log.warn("assistant primary model failed: {}", e.toString());
         }
         if (config.fallbackBaseUrl() != null && config.fallbackApiKey() != null && config.fallbackModel() != null) {
             try {
-                return new LlmResult(callOpenAiCompatible(config.fallbackBaseUrl(), config.fallbackApiKey(), config.fallbackModel(), config.systemPrompt(), prompt, images), config.fallbackModel(), true);
+                return new LlmResult(callOpenAiCompatible(config.fallbackBaseUrl(), config.fallbackApiKey(), config.fallbackModel(), config.reasoningEffort(), config.systemPrompt(), prompt, images), config.fallbackModel(), true);
             } catch (Exception e) {
                 log.error("assistant fallback model failed: {}", e.toString());
             }
@@ -240,9 +245,12 @@ public class AssistantServiceImpl implements AssistantService {
         throw new IllegalStateException("AI 助手暂时不可用，请稍后再试");
     }
 
-    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String systemPrompt, String prompt, List<AssistantImageInput> images) throws IOException, InterruptedException {
+    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String reasoningEffort, String systemPrompt, String prompt, List<AssistantImageInput> images) throws IOException, InterruptedException {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
+        if (!isBlank(reasoningEffort)) {
+            payload.put("reasoning_effort", reasoningEffort);
+        }
         payload.put("temperature", 0.3);
         payload.put("max_tokens", maxOutputTokens());
         payload.put("messages", List.of(
@@ -417,6 +425,14 @@ public class AssistantServiceImpl implements AssistantService {
     private String clamp(String value, int max) { if (value == null) return ""; String trimmed = value.trim(); return trimmed.length() <= max ? trimmed : trimmed.substring(0, max); }
     private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
     private String trimToNull(String value) { return isBlank(value) ? null : value.trim(); }
+    private String normalizeReasoningEffort(String value) {
+        String normalized = trimToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        normalized = normalized.toLowerCase(Locale.ROOT);
+        return REASONING_EFFORT_VALUES.contains(normalized) ? normalized : null;
+    }
     private String defaultString(Object value) { return value == null ? "" : String.valueOf(value); }
     private String defaultIfBlank(String value, String fallback) { return isBlank(value) ? fallback : value.trim(); }
     private void recordAssistantCall(Long userId, Long configId, String model, boolean success, boolean fallbackUsed, long latencyMs, String errorMessage) {
@@ -433,7 +449,7 @@ public class AssistantServiceImpl implements AssistantService {
         }
         return normalized;
     }
-    private record AssistantRuntimeConfig(Long configId, String baseUrl, String apiKey, String model, String fallbackBaseUrl, String fallbackApiKey, String fallbackModel, String systemPrompt) {}
+    private record AssistantRuntimeConfig(Long configId, String baseUrl, String apiKey, String model, String reasoningEffort, String fallbackBaseUrl, String fallbackApiKey, String fallbackModel, String systemPrompt) {}
     private record AssistantImageInput(String name, String mimeType, Long size, String dataUrl) {}
     private record LlmResult(String answer, String model, boolean fallbackUsed) {}
     private record ScoredTutorial(TutorialArticle article, int score) {}
