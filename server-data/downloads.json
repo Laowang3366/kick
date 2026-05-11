@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.59",
+  "latestVersion": "0.1.60",
   "releases": [
+    {
+      "version": "0.1.60",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.60.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.60.exe",
+      "size": 106024287,
+      "sha512": "fW78E1z0Tq44ja08bK8XXDKGe4u4UwmISXD1NxQ7TKPLLJ5yLfo8llKusnOQtfEy5FzZ9Ziwgp0DidqKoyavhw==",
+      "releaseDate": "2026-05-11T09:05:54.303Z",
+      "releaseNotes": "修复应用内更新安装器启动慢的问题：下载完成后优先启动安装交接流程\n修复旧客户端未彻底退出导致安装器提示无法关闭、需要点重试的问题\n优化更新包副本保存流程，避免阻塞安装器启动"
+    },
     {
       "version": "0.1.59",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "uQRNNiF1p3YNJ5ugajtWXwNsjDIjAiN+OWqOG8jkQmQ4/cZS76vU/nPX6xhiSegFtn7576LnaV/dxXdQj+Vb2Q==",
       "releaseDate": "2026-05-11T08:15:48.005Z",
       "releaseNotes": "修复更新包保存路径无法通过目录选择的问题\n安装器默认安装目录跟随用户上次选择的安装路径"
-    },
-    {
-      "version": "0.1.58",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.58.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.58.exe",
-      "size": 106023000,
-      "sha512": "Rfl3Eg40bk1WVsW6WvDSTdDAosS09oLxSajHh4fXzebIYIy3nkufP+v2wnf0vxB4gGdDN3WSPw2hjwVCVHH9qg==",
-      "releaseDate": "2026-05-11T07:38:42.542Z",
-      "releaseNotes": "修复频繁唤起悬浮窗时旧译文残留，新增翻译中过渡；放开自定义快捷键录入范围；优化桌面端更新安装器拉起和旧进程清理流程。"
     },
     {
       "version": "0.1.53",

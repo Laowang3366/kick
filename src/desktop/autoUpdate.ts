@@ -1,7 +1,8 @@
 import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir } from 'node:fs/promises';
+import { copyFile, link, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { getDefaultUpdatePackageDirectory, normalizeUpdatePackageDirectoryPath } from './updatePackageDirectory.js';
 
@@ -61,7 +62,10 @@ type OpenInstallerOptions = {
   installDirectory?: string;
 };
 
-type WindowsInstallerLaunchOptions = OpenInstallerOptions;
+type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
+  currentProcessId?: number;
+  tempDirectory?: string;
+};
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
 
@@ -179,13 +183,17 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
       });
 
       if (downloadedUpdatePath) {
-        const stagedUpdatePath = await stageDownloadedUpdate(downloadedUpdatePath, availableVersion, options);
+        const stagedUpdatePath =
+          options.platform === 'win32' ? downloadedUpdatePath : await stageDownloadedUpdate(downloadedUpdatePath, availableVersion, options);
         options.onProgress?.({
           status: 'downloaded',
           percent: 100,
           message: '更新已下载，正在打开安装器'
         });
         await openDownloadedUpdate(stagedUpdatePath, options);
+        if (options.platform === 'win32') {
+          void stageDownloadedUpdate(downloadedUpdatePath, availableVersion, options);
+        }
         options.onProgress?.({
           status: 'downloaded',
           percent: 100,
@@ -256,7 +264,9 @@ export function checkForUpdates(
       process.platform === 'win32'
         ? (filePath) =>
             openInstallerBeforeAppQuit(filePath, {
-              installDirectory: getCurrentInstallDirectory()
+              installDirectory: getCurrentInstallDirectory(),
+              currentProcessId: process.pid,
+              tempDirectory: getCurrentTempDirectory()
             })
         : openInstallerDetached,
     quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined
@@ -292,7 +302,7 @@ export async function openInstallerBeforeAppQuit(filePath: string, options: Wind
   }
 
   const installerArgs = getWindowsInstallerArgs(options.installDirectory);
-  launchInstallerProcess(filePath, installerArgs, false, options.launcher ?? spawn);
+  await launchInstallerAfterCurrentProcessExit(filePath, installerArgs, options);
 }
 
 function launchInstallerProcess(filePath: string, args: string[], windowsHide: boolean, launcher: InstallerLauncher = spawn) {
@@ -302,6 +312,49 @@ function launchInstallerProcess(filePath: string, args: string[], windowsHide: b
     stdio: 'ignore',
     windowsHide
   });
+  child.unref();
+}
+
+async function launchInstallerAfterCurrentProcessExit(
+  filePath: string,
+  installerArgs: string[],
+  options: WindowsInstallerLaunchOptions
+) {
+  const currentProcessId = options.currentProcessId ?? process.pid;
+  const tempDirectory = options.tempDirectory ?? getCurrentTempDirectory();
+  const launcherScriptPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.ps1`);
+  const logPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.log`);
+  await mkdir(tempDirectory, { recursive: true });
+  await writeFile(launcherScriptPath, windowsUpdateLauncherScript, 'utf8');
+  const powershellArgs = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    launcherScriptPath,
+    '-InstallerPath',
+    filePath,
+    '-WorkingDirectory',
+    path.dirname(filePath),
+    '-CurrentProcessId',
+    String(currentProcessId),
+    '-LogPath',
+    logPath
+  ];
+  if (installerArgs.length > 0) {
+    powershellArgs.push('-ArgumentList', installerArgs.join(' '));
+  }
+
+  const child = (options.launcher ?? spawn)(
+    getWindowsCmdPath(),
+    ['/d', '/s', '/c', 'start', '""', getWindowsPowerShellPath(), ...powershellArgs],
+    {
+      cwd: tempDirectory,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    }
+  );
   child.unref();
 }
 
@@ -323,11 +376,60 @@ function scheduleQuitAfterOpeningInstaller() {
     app.quit();
     const forceExitTimer = setTimeout(() => {
       app.exit(0);
-    }, 1500);
+    }, 600);
     forceExitTimer.unref();
-  }, 500);
+  }, 100);
   timer.unref();
 }
+
+function getCurrentTempDirectory() {
+  try {
+    return app.getPath('temp');
+  } catch {
+    return process.env.TEMP || process.env.TMP || tmpdir();
+  }
+}
+
+function getWindowsPowerShellPath() {
+  return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+}
+
+function getWindowsCmdPath() {
+  return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
+}
+
+const windowsUpdateLauncherScript = String.raw`param(
+  [string]$InstallerPath,
+  [string]$WorkingDirectory,
+  [int]$CurrentProcessId,
+  [string]$ArgumentList,
+  [string]$LogPath
+)
+
+function Write-QuickTranslateUpdateLog([string]$Message) {
+  try {
+    Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) $Message" -Encoding UTF8
+  } catch {}
+}
+
+Write-QuickTranslateUpdateLog "launcher started"
+$deadline = (Get-Date).AddSeconds(12)
+while ($CurrentProcessId -gt 0 -and (Get-Date) -lt $deadline) {
+  $runningProcess = Get-Process -Id $CurrentProcessId -ErrorAction SilentlyContinue
+  if ($null -eq $runningProcess) {
+    break
+  }
+  Start-Sleep -Milliseconds 100
+}
+
+Start-Sleep -Milliseconds 200
+Write-QuickTranslateUpdateLog "installer start requested"
+if ([string]::IsNullOrWhiteSpace($ArgumentList)) {
+  Start-Process -FilePath $InstallerPath -WorkingDirectory $WorkingDirectory
+} else {
+  Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -WorkingDirectory $WorkingDirectory
+}
+`;
 
 function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, 'warn'>) {
   try {
@@ -416,7 +518,12 @@ async function copyDownloadedUpdateToPackageDirectory(filePath: string, version?
   }
 
   await mkdir(targetDirectory, { recursive: true });
-  await copyFile(filePath, targetPath);
+  await rm(targetPath, { force: true });
+  try {
+    await link(filePath, targetPath);
+  } catch {
+    await copyFile(filePath, targetPath);
+  }
   return targetPath;
 }
 

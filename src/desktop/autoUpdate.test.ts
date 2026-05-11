@@ -1,7 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { checkForDesktopUpdates, configureAutoUpdates, openInstallerBeforeAppQuit, openInstallerDetached } from './autoUpdate';
 
 describe('auto update channel', () => {
+  afterEach(async () => {
+    await rm(getLauncherTempDirectory(), { recursive: true, force: true });
+  });
+
   it('does not check for updates outside packaged production runs', () => {
     const updater = createUpdater();
     const schedule = vi.fn();
@@ -257,11 +264,17 @@ describe('auto update channel', () => {
     expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.22.exe');
   });
 
-  it('falls back to the updater cache installer when staging the copy fails', async () => {
+  it('opens the updater cache installer before saving the Windows package copy', async () => {
     const updater = createUpdater();
-    const openDownloadedUpdate = vi.fn();
-    const stageDownloadedUpdate = vi.fn().mockRejectedValue(new Error('copy failed'));
-    const logger = { warn: vi.fn() };
+    const callOrder: string[] = [];
+    const stageDownloadedUpdate = vi.fn().mockImplementation(() => {
+      callOrder.push('stage');
+      return Promise.resolve('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.22.exe');
+    });
+    const openDownloadedUpdate = vi.fn().mockImplementation(() => {
+      callOrder.push('open');
+      expect(stageDownloadedUpdate).not.toHaveBeenCalled();
+    });
     updater.checkForUpdates.mockResolvedValue({
       updateInfo: {
         version: '0.1.22'
@@ -276,7 +289,6 @@ describe('auto update channel', () => {
         currentVersion: '0.1.21',
         platform: 'win32',
         updater,
-        logger,
         stageDownloadedUpdate,
         openDownloadedUpdate
       })
@@ -286,8 +298,9 @@ describe('auto update channel', () => {
       availableVersion: '0.1.22'
     });
 
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('保存安装包副本失败'));
     expect(openDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe');
+    expect(stageDownloadedUpdate).toHaveBeenCalledWith('C:\\Temp\\installer.exe', '0.1.22');
+    expect(callOrder).toEqual(['open', 'stage']);
   });
 
   it('opens the Windows installer through the system shell', async () => {
@@ -333,111 +346,108 @@ describe('auto update channel', () => {
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('starts the Windows installer immediately before the current app quits', async () => {
+  it('hands off the Windows installer until the current app process exits', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('');
+    const tempDirectory = getLauncherTempDirectory();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath
+      shellOpenPath,
+      currentProcessId: 12345,
+      tempDirectory
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    expect(launcher).toHaveBeenCalledWith(
-      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
-      [],
-      {
-        cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: false
-      }
-    );
+    expectWindowsHandoffLaunch(launcher, {
+      installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      currentProcessId: '12345',
+      tempDirectory,
+      argumentList: ''
+    });
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('passes the previous install directory to the immediately opened Windows installer', async () => {
+  it('passes the previous install directory to the handed-off Windows installer', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('');
+    const tempDirectory = getLauncherTempDirectory();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe', {
       platform: 'win32',
       launcher,
       shellOpenPath,
-      installDirectory: 'D:\\Tools\\快捷翻译'
+      installDirectory: 'D:\\Tools\\快捷翻译',
+      currentProcessId: 12345,
+      tempDirectory
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    const [command, args, options] = launcher.mock.calls[0];
-    expect(command).toBe('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe');
-    expect(args).toEqual(['/D=D:\\Tools\\快捷翻译']);
-    expect(options).toEqual({
-      cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: false
+    expectWindowsHandoffLaunch(launcher, {
+      installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe',
+      currentProcessId: '12345',
+      tempDirectory,
+      argumentList: '/D=D:\\Tools\\快捷翻译'
     });
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('opens the Windows installer immediately even when the install directory is unavailable', async () => {
+  it('hands off the Windows installer even when the install directory is unavailable', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
+    const tempDirectory = getLauncherTempDirectory();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath
+      shellOpenPath,
+      currentProcessId: 12345,
+      tempDirectory
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    expect(launcher).toHaveBeenCalledWith(
-      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
-      [],
-      {
-        cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: false
-      }
-    );
+    expectWindowsHandoffLaunch(launcher, {
+      installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      currentProcessId: '12345',
+      tempDirectory,
+      argumentList: ''
+    });
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('does not use the shell opener when launching the installer before quit', async () => {
+  it('does not use the shell opener when handing off the installer before quit', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
+    const tempDirectory = getLauncherTempDirectory();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath
+      shellOpenPath,
+      currentProcessId: 12345,
+      tempDirectory
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    expect(launcher).toHaveBeenCalledWith(
-      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
-      [],
-      {
-        cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: false
-      }
-    );
+    expectWindowsHandoffLaunch(launcher, {
+      installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      currentProcessId: '12345',
+      tempDirectory,
+      argumentList: ''
+    });
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
@@ -528,4 +538,48 @@ function createUpdater() {
     removeListener: vi.fn(),
     setFeedURL: vi.fn()
   };
+}
+
+function getLauncherTempDirectory() {
+  return path.join(tmpdir(), 'quick-translate-auto-update-test');
+}
+
+function expectWindowsHandoffLaunch(
+  launcher: ReturnType<typeof vi.fn>,
+  expected: {
+    installerPath: string;
+    currentProcessId: string;
+    tempDirectory: string;
+    argumentList: string;
+  }
+) {
+  expect(launcher).toHaveBeenCalledOnce();
+  const [command, args, options] = launcher.mock.calls[0];
+  const expectedPowerShellArgs = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.ps1`),
+    '-InstallerPath',
+    expected.installerPath,
+    '-WorkingDirectory',
+    path.dirname(expected.installerPath),
+    '-CurrentProcessId',
+    expected.currentProcessId,
+    '-LogPath',
+    path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.log`)
+  ];
+  if (expected.argumentList) {
+    expectedPowerShellArgs.push('-ArgumentList', expected.argumentList);
+  }
+
+  expect(command).toMatch(/cmd\.exe$/i);
+  expect(args).toEqual(['/d', '/s', '/c', 'start', '""', expect.stringMatching(/powershell\.exe$/i), ...expectedPowerShellArgs]);
+  expect(options).toEqual({
+    cwd: expected.tempDirectory,
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true
+  });
 }
