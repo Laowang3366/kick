@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 12:35 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 后台 AI 助手管理上线；新增 `/admin/assistant` 管理页，可新增/编辑 AI 助手 URL、SK 密钥、模型、system prompt 文件内容并切换生效配置；前台 AI 助手优先读取后台生效配置，保留原环境变量兜底；新增用户维度 AI 助手调用统计与 API 调用次数记录。
+- 验证：本地后端 `mvn test` 通过 69 个测试；本地 `mvn -q -DskipTests package` 通过；本地与服务器前端 `npm run build` 通过；服务器部署脚本健康检查通过；线上 `https://www.excelcc.cn/`、`/admin/assistant` 返回 200；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；未登录访问 `/api/admin/assistant/configs` 返回 401。
+- 部署：提交 `4b4fb8664b201f89a0bf09850ed41a670c39ac97` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/codex-admin-ai-assistant-management-4b4fb86.bundle` 导入服务器部署仓，执行 `scripts/deploy/deploy-from-git-bundle.sh` 后由 `production-deploy.sh` 构建前端、构建后端、替换运行目录并重启 `kick-backend.service`。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-043155`
+- 备注：本次包含 Flyway 迁移 `V49__create_ai_assistant_management_tables.sql`，上线重启时自动创建 AI 助手配置表与调用日志表；密钥仅保存，不在后台明文回显。
+
 ## 2026-05-11 09:06 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀题目列表回退与 AI 助手视觉收口；删除旧 `PracticeCampaignChapters` 源码页，所有入口改到 `/practice` 深色章节界面；保留旧 `/practice/chapters` 前端重定向兼容历史链接；AI 助手入口/面板切换取消局部动效，移除展开面板中的额外人物素材，避免点击人物时残影位移。
