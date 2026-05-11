@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.excel.forum.entity.AiAssistantConfig;
 import com.excel.forum.mapper.AiAssistantConfigMapper;
 import com.excel.forum.service.AiAssistantConfigService;
+import com.excel.forum.service.AiAssistantPromptProvider;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ import java.util.Map;
 public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigMapper, AiAssistantConfig> implements AiAssistantConfigService {
     private final ObjectMapper objectMapper;
     private final Environment environment;
+    private final AiAssistantPromptProvider promptProvider;
 
     @Override
     public List<Map<String, Object>> listAdminConfigs() {
@@ -75,13 +77,23 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
         config.setBaseUrl(baseUrl);
         config.setApiKey(apiKey);
         config.setModel(model);
-        config.setSystemPrompt(trimToNull(environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT")));
-        config.setPromptFileName(trimToNull(environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT_FILE_NAME")));
+        AiAssistantPromptProvider.PromptSource defaultPrompt = promptProvider.getDefaultPrompt();
+        config.setSystemPrompt(defaultPrompt.content());
+        config.setPromptFileName(defaultPrompt.fileName());
         config.setEnabled(true);
         config.setActive(true);
         config.setSortOrder(environment.getProperty("AI_ASSISTANT_SORT_ORDER", Integer.class, -1000));
         save(config);
         log.info("AI assistant default config initialized from environment");
+    }
+
+    @Override
+    public Map<String, Object> getDefaultPrompt() {
+        AiAssistantPromptProvider.PromptSource promptSource = promptProvider.getDefaultPrompt();
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("promptFileName", promptSource.fileName());
+        map.put("systemPrompt", promptSource.content());
+        return map;
     }
 
     @Override
@@ -100,10 +112,17 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
     }
 
     @Override
-    public List<String> fetchModels(Long configId, String baseUrl, String apiKey) {
+    public List<String> fetchModels(Long configId, String baseUrl, String apiKey, Boolean useSubmittedApiKey) {
         AiAssistantConfig stored = configId == null ? null : getById(configId);
         String resolvedBaseUrl = normalizeBaseUrl(firstText(baseUrl, stored == null ? null : stored.getBaseUrl()));
-        String resolvedApiKey = trimToNull(firstText(apiKey, stored == null ? null : stored.getApiKey()));
+        String submittedApiKey = normalizeSubmittedApiKey(apiKey);
+        String resolvedApiKey = Boolean.TRUE.equals(useSubmittedApiKey) ? submittedApiKey : null;
+        if (resolvedApiKey == null && stored != null) {
+            resolvedApiKey = trimToNull(stored.getApiKey());
+        }
+        if (resolvedApiKey == null) {
+            resolvedApiKey = submittedApiKey;
+        }
         if (resolvedBaseUrl == null || resolvedApiKey == null) {
             throw new IllegalArgumentException("请填写 URL 和 SK 密钥后再获取模型");
         }
@@ -180,6 +199,14 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
     private String firstText(String primary, String fallback) {
         String normalizedPrimary = trimToNull(primary);
         return normalizedPrimary == null ? fallback : normalizedPrimary;
+    }
+
+    private String normalizeSubmittedApiKey(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null || trimmed.contains("****") || trimmed.matches("^[*•●]+$")) {
+            return null;
+        }
+        return trimmed;
     }
 
     private String maskKey(String value) {

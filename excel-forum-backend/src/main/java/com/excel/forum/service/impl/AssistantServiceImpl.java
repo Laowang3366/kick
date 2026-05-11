@@ -8,6 +8,7 @@ import com.excel.forum.entity.dto.AssistantChatRequest;
 import com.excel.forum.entity.dto.AssistantChatResponse;
 import com.excel.forum.service.AiAssistantCallLogService;
 import com.excel.forum.service.AiAssistantConfigService;
+import com.excel.forum.service.AiAssistantPromptProvider;
 import com.excel.forum.service.AssistantService;
 import com.excel.forum.service.QuestionService;
 import com.excel.forum.service.TutorialArticleService;
@@ -42,13 +43,6 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AssistantServiceImpl implements AssistantService {
-    private static final String SYSTEM_PROMPT = String.join("\n",
-            "你是一个专业、可靠、克制的 Excel 中文助手。",
-            "输出必须使用自然中文纯文本。",
-            "不要使用 Markdown 排版标记，包括 #、##、---、```、**、反引号。",
-            "标题直接写成“结论：”“步骤：”“公式：”，列表使用 1. 2. 3. 这样的编号。",
-            "Excel 公式本身必须完整保留，例如 =SUM(A1:A10)。"
-    );
     private static final Pattern EXCEL_FUNCTION_PATTERN = Pattern.compile("(?i)\\b([A-Z][A-Z0-9_]{1,24})\\s*(?:\\(|$)");
     private static final Pattern CJK_TOKEN_PATTERN = Pattern.compile("[\\p{IsHan}]{2,12}");
     private static final Pattern LATIN_TOKEN_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_-]{1,24}");
@@ -62,6 +56,7 @@ public class AssistantServiceImpl implements AssistantService {
     private final QuestionService questionService;
     private final AiAssistantConfigService aiAssistantConfigService;
     private final AiAssistantCallLogService aiAssistantCallLogService;
+    private final AiAssistantPromptProvider promptProvider;
     private final Environment environment;
     private final ObjectMapper objectMapper;
 
@@ -173,7 +168,7 @@ public class AssistantServiceImpl implements AssistantService {
                     null,
                     null,
                     null,
-                    trimToNull(activeConfig.getSystemPrompt()) == null ? SYSTEM_PROMPT : activeConfig.getSystemPrompt().trim()
+                    promptProvider.resolveSystemPrompt(activeConfig.getSystemPrompt())
             );
         }
 
@@ -197,7 +192,7 @@ public class AssistantServiceImpl implements AssistantService {
                 fallbackBaseUrl == null ? null : normalizeBaseUrl(fallbackBaseUrl),
                 fallbackApiKey,
                 fallbackModel,
-                SYSTEM_PROMPT
+                promptProvider.getDefaultPrompt().content()
         );
     }
 

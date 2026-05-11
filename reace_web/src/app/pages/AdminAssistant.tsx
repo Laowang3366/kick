@@ -72,8 +72,10 @@ export function AdminAssistant() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AiAssistantConfigRecord | null>(null);
   const [form, setForm] = useState(defaultForm);
+  const [apiKeyTouched, setApiKeyTouched] = useState(false);
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [loadingDefaultPrompt, setLoadingDefaultPrompt] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -135,6 +137,7 @@ export function AdminAssistant() {
   const openCreate = () => {
     setEditingItem(null);
     setForm(defaultForm);
+    setApiKeyTouched(false);
     setModelOptions([]);
     setDialogOpen(true);
   };
@@ -152,16 +155,18 @@ export function AdminAssistant() {
       active: Boolean(item.active),
       sortOrder: Number(item.sortOrder || 0),
     });
+    setApiKeyTouched(false);
     setModelOptions(item.model ? [item.model] : []);
     setDialogOpen(true);
   };
 
   const submit = async () => {
+    const normalizedApiKey = normalizeApiKeyInput(form.apiKey);
     if (!form.name.trim() || !form.baseUrl.trim() || !form.model.trim()) {
       toast.error("请填写配置名称、URL 和模型");
       return;
     }
-    if (!editingItem && !form.apiKey.trim()) {
+    if (!editingItem && !normalizedApiKey) {
       toast.error("请填写 SK 密钥");
       return;
     }
@@ -169,7 +174,7 @@ export function AdminAssistant() {
       const payload = {
         ...form,
         sortOrder: Number(form.sortOrder || 0),
-        apiKey: form.apiKey.trim(),
+        apiKey: editingItem && !apiKeyTouched ? "" : normalizedApiKey,
       };
       if (editingItem?.id) {
         await api.put(`/api/admin/assistant/configs/${editingItem.id}`, payload);
@@ -208,12 +213,14 @@ export function AdminAssistant() {
   };
 
   const fetchModels = async () => {
+    const normalizedApiKey = normalizeApiKeyInput(form.apiKey);
     setLoadingModels(true);
     try {
       const result = await api.post<{ models: string[] }>("/api/admin/assistant/models", {
         configId: editingItem?.id,
         baseUrl: form.baseUrl,
-        apiKey: form.apiKey,
+        apiKey: normalizedApiKey,
+        useSubmittedApiKey: !editingItem || (apiKeyTouched && Boolean(normalizedApiKey)),
       });
       const models = result.models || [];
       setModelOptions(models);
@@ -225,6 +232,23 @@ export function AdminAssistant() {
       handleAdminError(error, navigate);
     } finally {
       setLoadingModels(false);
+    }
+  };
+
+  const loadSystemDefaultPrompt = async () => {
+    setLoadingDefaultPrompt(true);
+    try {
+      const result = await api.get<{ promptFileName?: string; systemPrompt?: string }>("/api/admin/assistant/default-prompt", { silent: true });
+      setForm((prev) => ({
+        ...prev,
+        promptFileName: result.promptFileName || "system-prompt.txt",
+        systemPrompt: result.systemPrompt || "",
+      }));
+      toast.success("系统默认 prompt 已读取");
+    } catch (error) {
+      handleAdminError(error, navigate);
+    } finally {
+      setLoadingDefaultPrompt(false);
     }
   };
 
@@ -387,7 +411,13 @@ export function AdminAssistant() {
             <input
               type="password"
               value={form.apiKey}
-              onChange={(event) => setForm((prev) => ({ ...prev, apiKey: event.target.value }))}
+              name={editingItem ? `assistant-api-key-${editingItem.id}` : "assistant-api-key-new"}
+              autoComplete="new-password"
+              spellCheck={false}
+              onChange={(event) => {
+                setApiKeyTouched(true);
+                setForm((prev) => ({ ...prev, apiKey: event.target.value }));
+              }}
               className={inputClassName()}
               placeholder={editingItem?.hasApiKey ? `留空保留 ${editingItem.apiKeyMasked}` : "sk-..."}
             />
@@ -424,11 +454,15 @@ export function AdminAssistant() {
         </div>
 
         <Field label="system prompt 文件">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
             <input value={form.promptFileName} onChange={(event) => setForm((prev) => ({ ...prev, promptFileName: event.target.value }))} className={inputClassName()} placeholder="system-prompt.txt" />
+            <button type="button" onClick={() => void loadSystemDefaultPrompt()} disabled={loadingDefaultPrompt} className={secondaryButtonClassName()}>
+              {loadingDefaultPrompt ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+              读取默认
+            </button>
             <button type="button" onClick={() => promptFileRef.current?.click()} className={secondaryButtonClassName()}>
               <UploadCloud size={15} />
-              读取文件
+              读取本地
             </button>
             <input
               ref={promptFileRef}
@@ -531,6 +565,14 @@ function formatNumber(value: unknown) {
 function formatTime(value: unknown) {
   if (!value) return "-";
   return String(value).replace("T", " ").slice(0, 16);
+}
+
+function normalizeApiKeyInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.includes("****") || /^[*•●]+$/.test(trimmed)) {
+    return "";
+  }
+  return trimmed;
 }
 
 function handleAdminError(error: unknown, navigate: ReturnType<typeof useNavigate>) {

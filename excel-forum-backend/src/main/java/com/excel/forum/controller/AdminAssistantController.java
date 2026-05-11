@@ -88,12 +88,18 @@ public class AdminAssistantController {
         return ResponseEntity.ok(Map.of("message", "AI 助手配置已删除"));
     }
 
+    @GetMapping("/default-prompt")
+    public ResponseEntity<?> getDefaultPrompt() {
+        return ResponseEntity.ok(aiAssistantConfigService.getDefaultPrompt());
+    }
+
     @PostMapping("/models")
     public ResponseEntity<?> fetchModels(@RequestBody AdminAiAssistantModelRequest request) {
         return ResponseEntity.ok(Map.of("models", aiAssistantConfigService.fetchModels(
                 request == null ? null : request.getConfigId(),
                 request == null ? null : request.getBaseUrl(),
-                request == null ? null : request.getApiKey()
+                request == null ? null : request.getApiKey(),
+                request == null ? null : request.getUseSubmittedApiKey()
         )));
     }
 

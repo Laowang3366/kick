@@ -7,4 +7,5 @@ public class AdminAiAssistantModelRequest {
     private Long configId;
     private String baseUrl;
     private String apiKey;
+    private Boolean useSubmittedApiKey;
 }
