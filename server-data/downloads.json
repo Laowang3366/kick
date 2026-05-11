@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.61",
+  "latestVersion": "0.1.62",
   "releases": [
+    {
+      "version": "0.1.62",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.62.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.62.exe",
+      "size": 106024072,
+      "sha512": "fnJ1zFb8Uxeyu0YOY6wCo4PM+4vEg+OeBc3woZyK4+4ZM3HRyCxLgEn8JdOUIMB8PoZio1Z4ZtBf45zwQc+tbA==",
+      "releaseDate": "2026-05-11T22:53:06.876Z",
+      "releaseNotes": "修复安装器文件占用时反复弹出“无法关闭，需要重试”的问题，改为自动清理并重试\n优化安装器启动前旧版本清理流程，避免同一路径重复等待导致启动器拉起过慢"
+    },
     {
       "version": "0.1.61",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "VgHuANgBLg1NH2syDjJ0pBXq2M/TdZoiaFeh6g6fvnblDNtPwpENcUhMvRxLyOm3b9VOM7GPlA1CP5jH+HfHZw==",
       "releaseDate": "2026-05-11T22:35:44.939Z",
       "releaseNotes": "移除翻译主页面输入框下方的设置信息提示卡片\n翻译输入区与译文区自适应铺满主页面剩余空间"
-    },
-    {
-      "version": "0.1.60",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.60.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.60.exe",
-      "size": 106024287,
-      "sha512": "fW78E1z0Tq44ja08bK8XXDKGe4u4UwmISXD1NxQ7TKPLLJ5yLfo8llKusnOQtfEy5FzZ9Ziwgp0DidqKoyavhw==",
-      "releaseDate": "2026-05-11T09:05:54.303Z",
-      "releaseNotes": "修复应用内更新安装器启动慢的问题：下载完成后优先启动安装交接流程\n修复旧客户端未彻底退出导致安装器提示无法关闭、需要点重试的问题\n优化更新包副本保存流程，避免阻塞安装器启动"
     },
     {
       "version": "0.1.53",
