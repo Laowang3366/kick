@@ -1289,14 +1289,6 @@ export function App() {
   const customFloatingShortcutLabel = customFloatingShortcutAccelerator
     ? formatShortcutAcceleratorLabel(customFloatingShortcutAccelerator)
     : '点击后按下新的组合键';
-  const latestVersionLabel =
-    updateCheck?.status === 'available' || updateCheck?.status === 'ignored'
-      ? updateCheck.release.version
-      : updateCheck?.status === 'current'
-        ? updateCheck.latestVersion ?? updateCheck.currentVersion
-        : updateCheck?.status === 'failed'
-          ? '检查失败'
-          : '检查中';
   const availableUpdateCheck = updateCheck?.status === 'available' ? updateCheck : null;
   const shouldShowUpdateDialog = Boolean(
     availableUpdateCheck && !availableUpdateCheck.isSnoozed && !isUpdateDialogDismissed
@@ -1304,10 +1296,6 @@ export function App() {
   const updateReleaseNotes = availableUpdateCheck
     ? getUpdateReleaseNotes(availableUpdateCheck.release, availableUpdateCheck.currentVersion)
     : [];
-  const floatingShortcutLabel = getFloatingTranslateShortcutLabel(normalizedFloatingShortcut);
-  const isFloatingShortcutEnabled = normalizedFloatingShortcut !== 'disabled';
-  const defaultTargetLanguageLabel = getLanguageLabel(defaultTargetLanguage);
-  const defaultTranslationFormatLabel = getTranslationFormatLabel(translationFormat);
 
   return (
     <main className="app-shell">
@@ -1557,38 +1545,6 @@ export function App() {
                     </div>
                   </section>
                 </div>
-                <section className="translate-settings-summary" aria-label="当前设置信息">
-                  <article>
-                    <span>悬浮翻译</span>
-                    <strong>{isFloatingShortcutEnabled ? '已开启' : '已关闭'}</strong>
-                    <small>{floatingShortcutLabel}</small>
-                  </article>
-                  <article>
-                    <span>版本</span>
-                    <strong>当前 {currentAppVersion}</strong>
-                    <small>最新 {latestVersionLabel}</small>
-                  </article>
-                  <article>
-                    <span>默认目标语言</span>
-                    <strong>{defaultTargetLanguageLabel}</strong>
-                    <small>设置页保存后同步到翻译页</small>
-                  </article>
-                  <article>
-                    <span>开机自启</span>
-                    <strong>{desktopSettings?.launchAtLogin ? '已开启' : '未开启'}</strong>
-                    <small>{desktopSettings ? '桌面端设置' : '安装版可用'}</small>
-                  </article>
-                  <article>
-                    <span>关闭隐藏到托盘</span>
-                    <strong>{desktopSettings?.hideToTrayOnClose ? '已开启' : '未开启'}</strong>
-                    <small>后台保留快捷翻译</small>
-                  </article>
-                  <article>
-                    <span>默认翻译格式</span>
-                    <strong>{defaultTranslationFormatLabel}</strong>
-                    <small>仅英文目标语言可用</small>
-                  </article>
-                </section>
               </section>
             ) : null}
 

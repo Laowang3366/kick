@@ -1191,7 +1191,7 @@ describe('App', () => {
     expect(screen.getByText('已清理 2 个更新安装包')).toBeInTheDocument();
   });
 
-  it('shows current settings information in the translate view', async () => {
+  it('does not show settings hints below the translate input panels', async () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn(),
       copyText: vi.fn(),
@@ -1209,15 +1209,13 @@ describe('App', () => {
 
     render(<App />);
 
-    const summary = screen.getByLabelText('当前设置信息');
     await waitFor(() => {
-      expect(summary).toHaveTextContent('默认目标语言英语');
+      expect(window.quickTranslate?.getDesktopSettings).toHaveBeenCalled();
     });
-    expect(summary).toHaveTextContent('悬浮翻译已开启Ctrl + Alt + T');
-    expect(summary).toHaveTextContent('开机自启已开启');
-    expect(summary).toHaveTextContent('关闭隐藏到托盘未开启');
-    expect(summary).toHaveTextContent('默认翻译格式Java 驼峰命名');
-    expect(summary).toHaveTextContent(`当前 ${currentAppVersion}`);
+    expect(screen.queryByLabelText('当前设置信息')).not.toBeInTheDocument();
+    expect(screen.queryByText('悬浮翻译')).not.toBeInTheDocument();
+    expect(screen.queryByText('开机自启')).not.toBeInTheDocument();
+    expect(screen.queryByText('默认翻译格式')).not.toBeInTheDocument();
   });
 
   it('keeps the mobile source input compact until the user edits it', () => {

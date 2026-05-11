@@ -57,7 +57,6 @@ body {
 :root[data-theme="dark"] .shortcut-card strong,
 :root[data-theme="dark"] .entry-card strong,
 :root[data-theme="dark"] .settings-field,
-:root[data-theme="dark"] .translate-settings-summary strong,
 :root[data-theme="dark"] .library-toolbar,
 :root[data-theme="dark"] .translated-text,
 :root[data-theme="dark"] textarea,
@@ -91,8 +90,6 @@ body {
 :root[data-theme="dark"] .entry-card span,
 :root[data-theme="dark"] .update-card small,
 :root[data-theme="dark"] .view-heading p,
-:root[data-theme="dark"] .translate-settings-summary span,
-:root[data-theme="dark"] .translate-settings-summary small,
 :root[data-theme="dark"] .toggle-row small {
   color: #aab7c8;
 }
@@ -109,7 +106,6 @@ body {
 :root[data-theme="dark"] .entry-action-button,
 :root[data-theme="dark"] .theme-option,
 :root[data-theme="dark"] .settings-field,
-:root[data-theme="dark"] .translate-settings-summary article,
 :root[data-theme="dark"] .library-toolbar,
 :root[data-theme="dark"] .entry-select,
 :root[data-theme="dark"] .settings-field select,
@@ -475,8 +471,7 @@ h1 {
   min-height: 0;
   display: grid;
   grid-row: 1 / -1;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 16px;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .language-field {
@@ -699,44 +694,6 @@ h1 {
   grid-template-columns: var(--translation-panel-columns);
   gap: var(--translation-column-gap);
   align-items: stretch;
-}
-
-.translate-settings-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.translate-settings-summary article {
-  min-width: 0;
-  min-height: 96px;
-  display: grid;
-  align-content: center;
-  gap: 6px;
-  border: 1px solid rgba(31, 45, 66, 0.11);
-  border-radius: 8px;
-  padding: 14px 16px;
-  background: #ffffff;
-}
-
-.translate-settings-summary span,
-.translate-settings-summary small {
-  overflow: hidden;
-  color: #697386;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 680;
-}
-
-.translate-settings-summary strong {
-  min-width: 0;
-  overflow: hidden;
-  color: #111827;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 16px;
-  line-height: 1.25;
 }
 
 .text-panel {
@@ -2427,10 +2384,6 @@ textarea::placeholder {
     gap: 18px;
   }
 
-  .translate-settings-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .swap-button {
     justify-self: center;
     transform: rotate(90deg);
@@ -2542,10 +2495,6 @@ textarea::placeholder {
   .path-setting-actions {
     grid-template-columns: 1fr;
     gap: 12px;
-  }
-
-  .translate-settings-summary {
-    display: none;
   }
 
   .library-toolbar {
