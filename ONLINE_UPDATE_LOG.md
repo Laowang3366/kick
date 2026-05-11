@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 21:12 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手 system prompt 生效修复；默认 prompt 文件与代码兜底 prompt 移除旧的 `结论/步骤/公式` 固定模板，读取到历史默认 prompt 时自动返回新版默认 prompt；新增 Flyway `52` 刷新仍等于旧默认模板的配置，新增 Flyway `53` 将当前激活配置中的“输出格式要求：结论/公式/说明/步骤/注意”块替换为自然组织回答要求。
+- 验证：本地后端 `mvn -Dtest=AiAssistantPromptProviderTest,AssistantServiceImplTest test` 通过 9 个测试；本地后端 `mvn test` 通过 80 个测试；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/`、`/assistant`、`/admin/assistant` 返回 200；数据库确认 Flyway `52`、`53` 成功，当前激活配置不再包含旧固定输出格式块，已包含 `表达方式要求` 与 `不要固定套用`。
+- 部署：提交 `f95e344e7814b126280da1d40aee9d40d032edb5` 与 `ea259a96f5a72b9e52a91c49914f0ea367af56e6` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-assistant-default-prompt-f95e344.bundle` 与 `/www/wwwroot/kick-deploy/bundles/kick-assistant-relax-format-ea259a9.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-130218`、`/www/wwwroot/kick-deploy/backups/20260511-130855`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查；未发起真实 AI 对话请求，避免消耗线上模型额度。
+
 ## 2026-05-11 20:51 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手后端提示词组装调整；移除 `AssistantServiceImpl` 中硬编码的 ExcelCC 身份、纯文本格式限制和 `结论/步骤/公式` 固定输出模板，用户消息只携带问题、公式、表格、图片和站内上下文，回答角色、格式与风格以后台配置的 system prompt 为准。
