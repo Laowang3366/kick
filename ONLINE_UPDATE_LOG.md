@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 16:18 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 后台 AI 助手模型选择、默认 prompt 编辑与答题页题目要求展示修复；后台模型获取成功后改为显式下拉渲染并兼容字符串或对象模型项；系统默认 prompt 支持读取、编辑并保存到运行期默认 prompt 文件；小试牛刀答题页将题目要求提升到编辑器上方显眼区域展示。
+- 验证：本地前端 `npm run build` 通过；本地后端 `mvn test` 通过 73 个测试；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/`、`/admin/assistant`、`/practice` 返回 200；线上前端产物确认包含 `保存默认`、`请选择模型`、`题目要求`。
+- 部署：提交 `6868535fa138f922667245bea52376404b5c983b` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-admin-assistant-practice-6868535.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-081420`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；未记录任何密钥明文。
+
 ## 2026-05-11 16:01 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手图片能力上线；悬浮 AI 助手与独立 `/assistant` 页面均支持图片上传、输入框直接粘贴图片识别、图片预览与移除；后端 `/api/assistant/chat` 支持 OpenAI-compatible 多模态 `image_url` 请求，限制单次最多 3 张、单张不超过 5MB，并规范化 JPG MIME。
