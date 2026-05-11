@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 22:15 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 实用工具文档转换可用性修复；服务器补安装 LibreOffice Writer/Calc/Java 运行组件与中文字体依赖；后端 Linux 文档转换调用改为每次转换使用独立 LibreOffice profile，并将进程 `HOME` 和工作目录限定到本次转换临时目录，降低权限目录、profile 锁和并发转换互相影响导致的失败概率。
+- 验证：本地后端 `mvn test` 通过 80 个测试；`git diff --check` 通过；服务器 `www` 用户命令级 LibreOffice 转 PDF 成功；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/tools` 与 `https://www.excelcc.cn/api/tools/overview` 返回 200；服务器部署仓确认已包含 `-env:UserInstallation`、独立工作目录和 profile 清理逻辑。
+- 部署：提交 `e97d81e0ea2ad75b1ddf93928e102cf0ff60d336` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-tools-libreoffice-e97d81e.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-141122`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；服务器发布前安装的 LibreOffice 依赖为运行环境修复，不包含业务数据变更；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查；未执行需要真实用户登录与积分扣减的 `/api/tools/convert` 业务请求。
+
 ## 2026-05-11 21:12 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手 system prompt 生效修复；默认 prompt 文件与代码兜底 prompt 移除旧的 `结论/步骤/公式` 固定模板，读取到历史默认 prompt 时自动返回新版默认 prompt；新增 Flyway `52` 刷新仍等于旧默认模板的配置，新增 Flyway `53` 将当前激活配置中的“输出格式要求：结论/公式/说明/步骤/注意”块替换为自然组织回答要求。
