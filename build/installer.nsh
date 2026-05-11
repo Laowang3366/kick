@@ -1,24 +1,20 @@
+!macro quickTranslateTerminateProcesses INSTALL_PATH
+  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$target='${INSTALL_PATH}'; $$names=@('${APP_EXECUTABLE_FILENAME}','快捷翻译.exe','quick-translate.exe'); $$processes=Get-CimInstance -ClassName Win32_Process | ? { (($$target -ne '') -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$target, [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$names -contains $$_.Name) -or ($$_.CommandLine -like '*quick-translate-*hook.ps1*') -or ($$_.CommandLine -like '*quick-translate-copy-shortcut.ps1*') }; $$ids=@($$processes | % { $$_.ProcessId }); if ($$ids.Count -gt 0) { $$ids | % { Stop-Process -Id $$_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 500; $$ids | % { Wait-Process -Id $$_ -Timeout 8 -ErrorAction SilentlyContinue } }; exit 0"`
+  Pop $0
+  nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"`
+  Pop $0
+  nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /IM "快捷翻译.exe"`
+  Pop $0
+  nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /IM "quick-translate.exe"`
+  Pop $0
+!macroend
+
 !macro customCheckAppRunning
   DetailPrint "Closing running Quick Translate before install."
-  nsExec::ExecToLog `"$PowerShellPath" -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance -ClassName Win32_Process | ? { ($$_.ExecutablePath -and $$_.ExecutablePath.StartsWith('$INSTDIR', [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$_.CommandLine -like '*quick-translate-mouse-button*hook.ps1*') } | % { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
-  Pop $0
-  nsExec::ExecToLog `"$CmdPath" /C taskkill /T /IM "${APP_EXECUTABLE_FILENAME}"`
-  Pop $0
-  nsExec::ExecToLog `"$CmdPath" /C taskkill /T /IM "快捷翻译.exe"`
-  Pop $0
-  nsExec::ExecToLog `"$CmdPath" /C taskkill /T /IM "quick-translate.exe"`
-  Pop $0
-  Sleep 2500
-
-  nsExec::ExecToLog `"$PowerShellPath" -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance -ClassName Win32_Process | ? { ($$_.ExecutablePath -and $$_.ExecutablePath.StartsWith('$INSTDIR', [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$_.CommandLine -like '*quick-translate-mouse-button*hook.ps1*') } | % { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
-  Pop $0
-  nsExec::ExecToLog `"$CmdPath" /C taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"`
-  Pop $0
-  nsExec::ExecToLog `"$CmdPath" /C taskkill /T /F /IM "快捷翻译.exe"`
-  Pop $0
-  nsExec::ExecToLog `"$CmdPath" /C taskkill /T /F /IM "quick-translate.exe"`
-  Pop $0
-  Sleep 2000
+  !insertmacro quickTranslateTerminateProcesses "$INSTDIR"
+  Sleep 1000
+  !insertmacro quickTranslateTerminateProcesses "$INSTDIR"
+  Sleep 500
 
   SetOutPath "$TEMP"
   IfFileExists "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 QuickTranslateInstallDirCleanupDone
@@ -30,14 +26,25 @@
 !macro quickTranslateRemoveRegisteredInstall ROOT_KEY
   !define UniqueID ${__LINE__}
   ReadRegStr $3 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation
-  StrCmp "$3" "" QuickTranslateLegacyCleanupDone_${UniqueID}
+  ReadRegStr $4 ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}" UninstallString
+  !ifdef UNINSTALL_REGISTRY_KEY_2
+    StrCmp "$4" "" 0 QuickTranslateHasUninstallString_${UniqueID}
+    ReadRegStr $4 ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY_2}" UninstallString
+    QuickTranslateHasUninstallString_${UniqueID}:
+  !endif
+  StrCmp "$3" "" QuickTranslateRemoveStaleUninstallRegistry_${UniqueID}
 
   DetailPrint "Removing registered Quick Translate install before upgrade: $3"
   SetOutPath "$TEMP"
-  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "Get-CimInstance -ClassName Win32_Process | ? { ($$_.ExecutablePath -and $$_.ExecutablePath.StartsWith('$3', [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$_.CommandLine -like '*quick-translate-mouse-button*hook.ps1*') } | % { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
-  Pop $0
-  Sleep 1000
+  !insertmacro quickTranslateTerminateProcesses "$3"
   RMDir /r "$3"
+  Goto QuickTranslateDeleteUninstallRegistry_${UniqueID}
+
+  QuickTranslateRemoveStaleUninstallRegistry_${UniqueID}:
+  StrCmp "$4" "" QuickTranslateLegacyCleanupDone_${UniqueID}
+  DetailPrint "Removing stale Quick Translate uninstall registry before upgrade."
+
+  QuickTranslateDeleteUninstallRegistry_${UniqueID}:
   DeleteRegKey ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}"
   !ifdef UNINSTALL_REGISTRY_KEY_2
     DeleteRegKey ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY_2}"
@@ -46,6 +53,16 @@
 
   QuickTranslateLegacyCleanupDone_${UniqueID}:
   !undef UniqueID
+!macroend
+
+!macro quickTranslateRemoveRegisteredInstallAllViews ROOT_KEY
+  !insertmacro quickTranslateRemoveRegisteredInstall ${ROOT_KEY}
+  ${If} ${RunningX64}
+    SetRegView 32
+    !insertmacro quickTranslateRemoveRegisteredInstall ${ROOT_KEY}
+    SetRegView 64
+    !insertmacro quickTranslateRemoveRegisteredInstall ${ROOT_KEY}
+  ${EndIf}
 !macroend
 
 !macro customInit
@@ -63,6 +80,7 @@
 
   QuickTranslateSafeInstallerDone:
 
-  !insertmacro quickTranslateRemoveRegisteredInstall HKEY_CURRENT_USER
-  !insertmacro quickTranslateRemoveRegisteredInstall HKEY_LOCAL_MACHINE
+  !insertmacro quickTranslateTerminateProcesses "$INSTDIR"
+  !insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_CURRENT_USER
+  !insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_LOCAL_MACHINE
 !macroend
