@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 17:54 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手长文本换行修复；悬浮 AI 助手与独立 `/assistant` 页面均为用户消息和 AI 回复气泡增加最小宽度约束、单词断行和任意位置溢出换行，避免长公式、连续字符或长链接撑开聊天窗口。
+- 验证：本地前端 `npm run build` 通过；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/` 与 `/assistant` 返回 200。
+- 部署：提交 `00d9682675f8e37b912ac70f83fc2371cbaca823` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-assistant-wrap-00d9682.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-094957`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查。
+
 ## 2026-05-11 17:31 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 小试牛刀 Excel 动态数组判题修复；前端提交快照补采 Univer live range 的计算值、显示值和公式，确保动态数组 spill 子格完整进入提交数据；后端动态数组规则保留前端捕获结果判题，普通公式题继续使用 POI 物化结果。
