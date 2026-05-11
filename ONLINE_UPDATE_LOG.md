@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 15:39 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 后台 AI 助手默认 prompt 与模型获取修复；新增服务器默认 prompt 读取接口和后台“读取默认”按钮，支持从系统默认 prompt 文件回填到编辑弹窗；模型获取在编辑已有配置时默认使用数据库保存的 SK，避免浏览器密码框自动填充值覆盖真实 SK 后触发上游 401。
+- 验证：本地后端 `mvn test` 通过 69 个测试；本地前端 `npm run build` 通过；服务器部署脚本健康检查通过；线上 `https://www.excelcc.cn/admin/assistant` 返回 200；`kick-backend.service` 为 `active`；`/api/admin/assistant/default-prompt` 授权请求返回 200 且读取到 `ai-assistant-system-prompt.txt`；`/api/admin/assistant/models` 授权请求返回 200 并获取到模型列表。
+- 部署：提交 `21b818479b5bbb72e88fb4d76052fa87c85cf589` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-assistant-prompt-models-21b8184.bundle` 导入服务器部署仓并执行标准 `production-deploy.sh` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-073537`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；验证模型接口时未输出 SK 明文。
+
 ## 2026-05-11 14:20 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 后台 AI 助手默认配置初始化修复；当 `ai_assistant_config` 为空且服务器环境变量中存在完整 AI 助手配置时，启动时自动写入一条“默认配置”，设为启用、生效并置顶显示，密钥仍只脱敏展示。
