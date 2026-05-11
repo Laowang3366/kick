@@ -1,7 +1,7 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { createWindowsHelperEnvironment, getWindowsHelperTempDirectory } from './windowsHelperEnvironment.js';
 
 const MOUSE_SIDE_BUTTON_EVENT = 'MOUSE_SIDE_BUTTON';
 const LEGACY_MOUSE_BUTTON_4_EVENT = 'MOUSE_BUTTON_4';
@@ -43,45 +43,63 @@ export function startMouseButton4Shortcut(
   }
 
   const sideButton = options.sideButton === 'mouse-button-5' ? 'mouse-button-5' : 'mouse-button-4';
-  const scriptPath = options.scriptPath ?? path.join(tmpdir(), `quick-translate-${sideButton}-hook.ps1`);
+  const scriptPath = options.scriptPath ?? path.join(getWindowsHelperTempDirectory(), `quick-translate-${sideButton}-hook.ps1`);
+  mkdirSync(path.dirname(scriptPath), { recursive: true });
   writeFileSync(scriptPath, createMouseSideButtonHookScript(sideButton), 'utf8');
 
   const spawnProcess = options.spawnProcess ?? spawn;
   const terminateProcessTree = options.terminateProcessTree ?? terminateWindowsProcessTree;
-  const hookProcess = spawnProcess(
-    'powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
-    { windowsHide: true }
-  ) as ChildProcessWithoutNullStreams;
-
+  let hookProcess: ChildProcessWithoutNullStreams | null = null;
+  let isStopped = false;
   let stdoutRemainder = '';
-  hookProcess.stdout.setEncoding('utf8');
-  hookProcess.stdout.on('data', (chunk: string) => {
-    const result = extractMouseButton4ShortcutEvents(chunk, stdoutRemainder);
-    stdoutRemainder = result.remainder;
 
-    for (let index = 0; index < result.eventCount; index += 1) {
-      onPressed();
-    }
-  });
+  function startHookProcess() {
+    hookProcess = spawnProcess(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', scriptPath],
+      { env: createWindowsHelperEnvironment(), windowsHide: true }
+    ) as ChildProcessWithoutNullStreams;
+    stdoutRemainder = '';
 
-  hookProcess.stderr.setEncoding('utf8');
-  hookProcess.stderr.on('data', (chunk: string) => {
-    options.logger?.warn(`Mouse button 4 hook: ${chunk.trim()}`);
-  });
+    hookProcess.stdout.setEncoding('utf8');
+    hookProcess.stdout.on('data', (chunk: string) => {
+      const result = extractMouseButton4ShortcutEvents(chunk, stdoutRemainder);
+      stdoutRemainder = result.remainder;
 
-  hookProcess.on('error', (error) => {
-    options.logger?.warn(`Mouse button 4 hook failed: ${error.message}`);
-  });
+      for (let index = 0; index < result.eventCount; index += 1) {
+        onPressed();
+      }
+    });
+
+    hookProcess.stderr.setEncoding('utf8');
+    hookProcess.stderr.on('data', (chunk: string) => {
+      options.logger?.warn(`Mouse button 4 hook: ${chunk.trim()}`);
+    });
+
+    hookProcess.on('error', (error) => {
+      options.logger?.warn(`Mouse button 4 hook failed: ${error.message}`);
+    });
+
+    hookProcess.on('close', () => {
+      hookProcess = null;
+      if (!isStopped) {
+        startHookProcess();
+      }
+    });
+  }
+
+  startHookProcess();
 
   return {
     stop() {
-      if (typeof hookProcess.pid === 'number') {
+      isStopped = true;
+      if (typeof hookProcess?.pid === 'number') {
         terminateProcessTree(hookProcess.pid);
       }
-      if (!hookProcess.killed) {
+      if (hookProcess && !hookProcess.killed) {
         hookProcess.kill();
       }
+      hookProcess = null;
     }
   };
 }
@@ -98,7 +116,7 @@ function createMouseSideButtonHookScript(sideButton: MouseSideButton) {
   const xButton = sideButton === 'mouse-button-5' ? 2 : 1;
 
   return String.raw`
-Add-Type -ReferencedAssemblies System.Windows.Forms @"
+Add-Type -ReferencedAssemblies System.Windows.Forms -TypeDefinition @"
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;

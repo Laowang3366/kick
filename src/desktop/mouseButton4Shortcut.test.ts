@@ -50,4 +50,47 @@ describe('extractMouseButton4ShortcutEvents', () => {
     expect(terminateProcessTree).toHaveBeenCalledWith(1234);
     expect(hookProcess.kill).toHaveBeenCalledOnce();
   });
+
+  it('restarts the mouse hook when the helper process exits unexpectedly', () => {
+    const processes: any[] = [];
+    const createHookProcess = (pid: number) => {
+      const listeners = new Map<string, Function>();
+      const process = {
+        pid,
+        killed: false,
+        kill: vi.fn(),
+        stdout: {
+          setEncoding: vi.fn(),
+          on: vi.fn()
+        },
+        stderr: {
+          setEncoding: vi.fn(),
+          on: vi.fn()
+        },
+        on: vi.fn((eventName: string, listener: Function) => {
+          listeners.set(eventName, listener);
+        }),
+        emitClose: () => listeners.get('close')?.(1)
+      };
+      return process;
+    };
+    const spawnProcess = vi.fn(() => {
+      const process = createHookProcess(2000 + processes.length);
+      processes.push(process);
+      return process;
+    });
+
+    const shortcut = startMouseButton4Shortcut(vi.fn(), {
+      spawnProcess: spawnProcess as any
+    });
+
+    processes[0].emitClose();
+
+    expect(spawnProcess).toHaveBeenCalledTimes(2);
+
+    shortcut.stop();
+    processes[1].emitClose();
+
+    expect(spawnProcess).toHaveBeenCalledTimes(2);
+  });
 });

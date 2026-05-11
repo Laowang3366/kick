@@ -8,6 +8,7 @@ export type CaptureSelectedTextInput = {
   sendCopyShortcut(): Promise<void> | void;
   wait(ms: number): Promise<void>;
   copyDelayMs?: number;
+  pollIntervalMs?: number;
 };
 
 export async function captureSelectedText(input: CaptureSelectedTextInput): Promise<string> {
@@ -23,12 +24,7 @@ export async function captureSelectedText(input: CaptureSelectedTextInput): Prom
   let capturedText = '';
   try {
     await input.sendCopyShortcut();
-    await input.wait(input.copyDelayMs ?? 120);
-
-    const copiedText = input.clipboard.readText();
-    if (copiedText !== sentinelText) {
-      capturedText = copiedText.trim();
-    }
+    capturedText = await readCapturedClipboardText(input, sentinelText);
   } finally {
     try {
       input.clipboard.writeText(previousClipboardText);
@@ -38,4 +34,23 @@ export async function captureSelectedText(input: CaptureSelectedTextInput): Prom
   }
 
   return capturedText;
+}
+
+async function readCapturedClipboardText(input: CaptureSelectedTextInput, sentinelText: string) {
+  const timeoutMs = input.copyDelayMs ?? 120;
+  const pollIntervalMs = input.pollIntervalMs ?? 10;
+  const maxAttempts = Math.max(1, Math.ceil(timeoutMs / pollIntervalMs));
+
+  for (let attempt = 0; attempt <= maxAttempts; attempt += 1) {
+    const copiedText = input.clipboard.readText();
+    if (copiedText !== sentinelText) {
+      return copiedText.trim();
+    }
+
+    if (attempt < maxAttempts) {
+      await input.wait(pollIntervalMs);
+    }
+  }
+
+  return '';
 }

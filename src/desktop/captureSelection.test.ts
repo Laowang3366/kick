@@ -20,7 +20,7 @@ describe('captureSelectedText', () => {
     ).resolves.toBe('selected text');
 
     expect(sendCopyShortcut).toHaveBeenCalledOnce();
-    expect(wait).toHaveBeenCalledWith(25);
+    expect(wait).not.toHaveBeenCalled();
     expect(clipboard.writeText).toHaveBeenNthCalledWith(2, 'previous');
     expect(clipboardText).toBe('previous');
   });
@@ -67,6 +67,33 @@ describe('captureSelectedText', () => {
     ).resolves.toBe('');
 
     expect(clipboardText).toBe('previous');
+  });
+
+  it('polls briefly until the copied selection replaces the sentinel text', async () => {
+    let clipboardText = 'previous';
+    let readCount = 0;
+    const clipboard = {
+      readText: vi.fn(() => {
+        readCount += 1;
+        return readCount >= 4 ? 'late selected text' : clipboardText;
+      }),
+      writeText: vi.fn((text: string) => {
+        clipboardText = text;
+      })
+    };
+    const wait = vi.fn().mockResolvedValue(undefined);
+
+    await expect(
+      captureSelectedText({
+        clipboard,
+        sendCopyShortcut: vi.fn().mockResolvedValue(undefined),
+        wait,
+        copyDelayMs: 80,
+        pollIntervalMs: 10
+      })
+    ).resolves.toBe('late selected text');
+
+    expect(wait).toHaveBeenCalledWith(10);
   });
 
   it('returns captured text even when restoring the previous clipboard text fails', async () => {

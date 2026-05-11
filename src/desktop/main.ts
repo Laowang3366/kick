@@ -21,14 +21,14 @@ import {
   type DesktopSettings,
   type FloatingTranslateShortcut
 } from './desktopSettings.js';
-import { destroyExistingFloatingWindow } from './floatingWindowLifecycle.js';
+import { reuseFloatingWindowForShortcut } from './floatingWindowLifecycle.js';
 import { createFloatingWindowBounds } from './floatingWindowBounds.js';
 import {
   readFloatingSessionPreferences,
   updateFloatingSessionPreferences,
   type FloatingSessionPreferenceState
 } from './floatingSessionPreferences.js';
-import { runFloatingTranslateShortcut } from './floatingShortcutHandler.js';
+import { createFloatingShortcutRunner } from './floatingShortcutHandler.js';
 import { startMouseButton4Shortcut, type MouseButton4Shortcut } from './mouseButton4Shortcut.js';
 import { getProviderSettingsPath, loadBackendProviderSettings } from './providerSettings.js';
 import { applyLightweightRuntime } from './runtimeOptimization.js';
@@ -38,6 +38,7 @@ import {
   normalizeUpdatePackageDirectoryPath
 } from './updatePackageDirectory.js';
 import { createFloatingWindowOptions, createMainWindowOptions } from './windowOptions.js';
+import { createWindowsCopyShortcutSender } from './windowsCopyShortcut.js';
 import { createProviderFromSettings } from '../shared/providerSettings.js';
 import { translateText } from '../shared/translator.js';
 import { normalizeTranslationFormat, type TranslationFormat } from '../shared/translationFormats.js';
@@ -63,6 +64,7 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let desktopSettings: DesktopSettings = defaultDesktopSettings;
 let floatingSessionPreferences: FloatingSessionPreferenceState = {};
+const windowsCopyShortcutSender = createWindowsCopyShortcutSender({ logger: console });
 const floatingWindowSizes = {
   compact: { width: 360, height: 300 },
   standard: { width: 420, height: 360 },
@@ -243,7 +245,8 @@ async function readSelectedTextFromSystem() {
     clipboard,
     sendCopyShortcut: sendWindowsCopyShortcut,
     wait,
-    copyDelayMs: 140
+    copyDelayMs: 90,
+    pollIntervalMs: 10
   });
 }
 
@@ -262,14 +265,17 @@ async function captureFromSelection() {
   return text;
 }
 
-async function handleGlobalFloatingTranslateShortcut() {
-  await runFloatingTranslateShortcut({
-    readSelectedText: readSelectedTextFromSystem,
-    showFloatingTranslation
-  });
-}
+const handleGlobalFloatingTranslateShortcut = createFloatingShortcutRunner({
+  readSelectedText: readSelectedTextFromSystem,
+  showFloatingTranslation
+});
 
 async function sendWindowsCopyShortcut() {
+  if (process.platform === 'win32') {
+    await windowsCopyShortcutSender.send();
+    return;
+  }
+
   await execFileAsync('powershell.exe', [
     '-NoProfile',
     '-Command',
@@ -353,6 +359,10 @@ function setFloatingTranslateShortcut(shortcut: FloatingTranslateShortcut) {
   }
 
   const normalizedShortcut = normalizeFloatingTranslateShortcut(shortcut);
+  if (process.platform === 'win32' && normalizedShortcut !== 'disabled') {
+    windowsCopyShortcutSender.warmUp();
+  }
+
   if (normalizedShortcut === 'mouse-button-4' || normalizedShortcut === 'mouse-button-5') {
     mouseButton4Shortcut = startMouseButton4Shortcut(() => {
       void handleGlobalFloatingTranslateShortcut();
@@ -392,23 +402,34 @@ async function createFloatingWindow() {
 }
 
 async function showFloatingTranslation(text: string) {
-  floatingWindow = destroyExistingFloatingWindow(floatingWindow);
+  const canReuseFloatingWindow = Boolean(floatingWindow && !floatingWindow.isDestroyed());
+  floatingWindow = reuseFloatingWindowForShortcut(floatingWindow);
   const window = await createFloatingWindow();
   const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const cursorPoint = screen.getCursorScreenPoint();
   const bounds = window.getBounds();
 
   window.setBounds(createFloatingWindowBounds(workArea, cursorPoint, bounds));
+  if (window.isMinimized()) {
+    window.restore();
+  }
   window.show();
   window.focus();
-  setTimeout(() => {
+  const dispatchCapturedSource = () => {
     const preferences = getFloatingSessionPreferences();
     window.webContents.send('floating-source-captured', {
       text,
       targetLanguage: preferences.targetLanguage,
       translationFormat: preferences.translationFormat
     });
-  }, 50);
+  };
+
+  if (canReuseFloatingWindow) {
+    dispatchCapturedSource();
+    return;
+  }
+
+  setTimeout(dispatchCapturedSource, 50);
 }
 
 function getFloatingSessionPreferences() {
@@ -729,6 +750,7 @@ app.on('before-quit', () => {
 });
 
 app.on('will-quit', () => {
+  windowsCopyShortcutSender.stop();
   mouseButton4Shortcut?.stop();
   mouseButton4Shortcut = null;
   if (keyboardFloatingShortcutAccelerator) {
