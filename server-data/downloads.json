@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.53",
+  "latestVersion": "0.1.54",
   "releases": [
+    {
+      "version": "0.1.54",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.54.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.54.exe",
+      "size": 106022302,
+      "sha512": "OwJGQhYJ1p+6rqXFM56YvtDqLNcELmVeCjeNQYMQVhUFqQ1FPpk+KE7Sg7u3VqTtGpIEyA45t8Go0Dtbhi6l/w==",
+      "releaseDate": "2026-05-11T05:20:36.304Z",
+      "releaseNotes": "优化电脑端悬浮翻译快捷键响应速度；修复鼠标侧键偶发不触发；提升辅助进程稳定性。"
+    },
     {
       "version": "0.1.53",
       "platform": "android",
@@ -8,26 +18,7 @@
       "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.53.apk",
       "size": 3266541,
       "sha512": "hsTsRC9LruNcd/nXUnPF0RM1oozffmtj25yDul9RcTeHmEo3wcMEKHrd8ODN+UzK2RKst0yr04tzrRYvK1+A/Q==",
-      "releaseDate": "2026-05-10T21:01:03.580Z",
-      "releaseNotes": "修复手机端原文输入框点击清空后误收缩\n清空按钮移动到自动检测左侧\n客户端检测到更新时弹窗展示更新日志"
-    },
-    {
-      "version": "0.1.52",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.52.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.52.exe",
-      "size": 106019894,
-      "sha512": "pAyhUeWCT1xAUulZDXoygQj2cNB1tKjRyAgFFhoGkLGKX0CnJA6KQ+S8ZzXQDemLaWMBIoVwK6GyTRH6Rlm+Xg==",
-      "releaseDate": "2026-05-10T09:56:52.599Z"
-    },
-    {
-      "version": "0.1.52",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.52.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.52.apk",
-      "size": 3265701,
-      "sha512": "WQI282CjdvwZq6et9JbmzZivgvJMcX8KzIaSV9x3+H8sn2IFxlxim+tF9pB9ZMpVU2U+fj9y53NSj7ntIysguw==",
-      "releaseDate": "2026-05-10T09:56:52.599Z"
+      "releaseDate": "2026-05-10T21:01:03.580Z"
     }
   ]
 }
