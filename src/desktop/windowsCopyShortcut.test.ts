@@ -70,4 +70,34 @@ describe('windows copy shortcut sender', () => {
     expect(spawnProcess).toHaveBeenCalledTimes(1);
     expect(hookProcess.stdin.write).not.toHaveBeenCalled();
   });
+
+  it('terminates the helper process tree on stop', () => {
+    const hookProcess = {
+      pid: 3456,
+      killed: false,
+      stdin: { write: vi.fn() },
+      stdout: {
+        setEncoding: vi.fn(),
+        on: vi.fn()
+      },
+      stderr: {
+        setEncoding: vi.fn(),
+        on: vi.fn()
+      },
+      on: vi.fn(),
+      kill: vi.fn()
+    };
+    const terminateProcessTree = vi.fn();
+    const sender = createWindowsCopyShortcutSender({
+      spawnProcess: vi.fn(() => hookProcess as any) as any,
+      scriptPath: path.join(tmpdir(), 'quick-translate-copy-helper-stop-test.ps1'),
+      terminateProcessTree
+    });
+
+    sender.warmUp();
+    sender.stop();
+
+    expect(terminateProcessTree).toHaveBeenCalledWith(3456);
+    expect(hookProcess.kill).toHaveBeenCalled();
+  });
 });

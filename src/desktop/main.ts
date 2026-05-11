@@ -63,6 +63,16 @@ const isSmokeTest = process.argv.includes('--smoke-test');
 
 applyLightweightRuntime(app);
 
+const hasSingleInstanceLock = isSmokeTest || app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    showMainWindow();
+  });
+}
+
 if (isSmokeTest) {
   const smokeUserDataPath = path.join(tmpdir(), 'quick-translate-electron-smoke');
   rmSync(smokeUserDataPath, { recursive: true, force: true });
@@ -621,6 +631,9 @@ function showMainWindow() {
     return;
   }
 
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
   mainWindow.show();
   mainWindow.focus();
 }
@@ -743,40 +756,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-app.whenReady().then(async () => {
-  desktopSettings = loadDesktopSettings();
-  Menu.setApplicationMenu(null);
-  ipcMain.handle('capture-selected-text', () => captureFromSelection());
-  ipcMain.handle('copy-text', (_event, text: string) => {
-    clipboard.writeText(text);
-  });
-  ipcMain.handle('get-desktop-settings', () => desktopSettings);
-  ipcMain.handle('check-for-updates', () =>
-    checkForUpdates(isSmokeTest, (progress) => {
-      mainWindow?.webContents.send('desktop-update-progress', progress);
-    }, desktopSettings.updatePackageDirectory)
-  );
-  ipcMain.handle('choose-update-package-directory', () => chooseUpdatePackageDirectory());
-  ipcMain.handle('open-update-package-directory', () => openUpdatePackageDirectory());
-  ipcMain.handle('clear-update-packages', () => clearStoredUpdatePackages());
-  ipcMain.handle('set-desktop-settings', (_event, settings: Partial<DesktopSettings>) => updateDesktopSettings(settings));
-  ipcMain.handle('set-floating-session-preferences', (_event, preferences: unknown) => updateFloatingSessionPreferenceState(preferences));
-  ipcMain.handle('window-control', (_event, command: unknown) => executeWindowControl(command));
-  ipcMain.handle('translate-text', (_event, input: unknown) => {
-    const request = normalizeTranslationIpcInput(input);
-    return translateUsingConfiguredChannel(request);
-  });
-  await createWindow();
-  createTray();
-  applyDesktopSettings(desktopSettings);
-  startAutoUpdates(isSmokeTest);
+if (hasSingleInstanceLock) {
+  app.whenReady().then(async () => {
+    desktopSettings = loadDesktopSettings();
+    Menu.setApplicationMenu(null);
+    ipcMain.handle('capture-selected-text', () => captureFromSelection());
+    ipcMain.handle('copy-text', (_event, text: string) => {
+      clipboard.writeText(text);
+    });
+    ipcMain.handle('get-desktop-settings', () => desktopSettings);
+    ipcMain.handle('check-for-updates', () =>
+      checkForUpdates(isSmokeTest, (progress) => {
+        mainWindow?.webContents.send('desktop-update-progress', progress);
+      }, desktopSettings.updatePackageDirectory)
+    );
+    ipcMain.handle('choose-update-package-directory', () => chooseUpdatePackageDirectory());
+    ipcMain.handle('open-update-package-directory', () => openUpdatePackageDirectory());
+    ipcMain.handle('clear-update-packages', () => clearStoredUpdatePackages());
+    ipcMain.handle('set-desktop-settings', (_event, settings: Partial<DesktopSettings>) => updateDesktopSettings(settings));
+    ipcMain.handle('set-floating-session-preferences', (_event, preferences: unknown) => updateFloatingSessionPreferenceState(preferences));
+    ipcMain.handle('window-control', (_event, command: unknown) => executeWindowControl(command));
+    ipcMain.handle('translate-text', (_event, input: unknown) => {
+      const request = normalizeTranslationIpcInput(input);
+      return translateUsingConfiguredChannel(request);
+    });
+    await createWindow();
+    createTray();
+    applyDesktopSettings(desktopSettings);
+    startAutoUpdates(isSmokeTest);
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      void createWindow();
-    }
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        void createWindow();
+      }
+    });
   });
-});
+}
 
 app.on('before-quit', () => {
   isQuitting = true;

@@ -6,6 +6,7 @@ import { createWindowsHelperEnvironment, getWindowsHelperTempDirectory } from '.
 type CopyShortcutSenderOptions = {
   scriptPath?: string;
   spawnProcess?: typeof spawn;
+  terminateProcessTree?: (pid: number) => void;
   logger?: Pick<Console, 'warn'>;
 };
 
@@ -23,6 +24,7 @@ export type WindowsCopyShortcutSender = {
 export function createWindowsCopyShortcutSender(options: CopyShortcutSenderOptions = {}): WindowsCopyShortcutSender {
   const scriptPath = options.scriptPath ?? path.join(getWindowsHelperTempDirectory(), 'quick-translate-copy-shortcut.ps1');
   const spawnProcess = options.spawnProcess ?? spawn;
+  const terminateProcessTree = options.terminateProcessTree ?? terminateWindowsProcessTree;
   let helperProcess: ChildProcessWithoutNullStreams | null = null;
   let stdoutRemainder = '';
   let pendingRequests: PendingCopyRequest[] = [];
@@ -111,12 +113,26 @@ export function createWindowsCopyShortcutSender(options: CopyShortcutSenderOptio
     },
     stop() {
       rejectPendingRequests(new Error('Copy shortcut helper stopped'));
+      if (typeof helperProcess?.pid === 'number') {
+        terminateProcessTree(helperProcess.pid);
+      }
       if (helperProcess && !helperProcess.killed) {
         helperProcess.kill();
       }
       helperProcess = null;
     }
   };
+}
+
+function terminateWindowsProcessTree(pid: number) {
+  if (process.platform !== 'win32') {
+    return;
+  }
+
+  spawn('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+    windowsHide: true,
+    stdio: 'ignore'
+  }).unref();
 }
 
 function createCopyShortcutHelperScript() {
