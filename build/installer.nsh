@@ -10,25 +10,25 @@
 !macroend
 
 !macro quickTranslateRemoveInstallDirectory INSTALL_PATH
-  !define UniqueID ${__LINE__}
+  !define RemoveDirUniqueID ${__LINE__}
   Push $R7
   SetOutPath "$TEMP"
-  StrCmp "${INSTALL_PATH}" "" QuickTranslateRemoveInstallDirectoryDone_${UniqueID}
+  StrCmp "${INSTALL_PATH}" "" QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}
   StrCpy $R7 0
 
-  QuickTranslateRemoveInstallDirectoryLoop_${UniqueID}:
+  QuickTranslateRemoveInstallDirectoryLoop_${RemoveDirUniqueID}:
     IntOp $R7 $R7 + 1
     !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
     ClearErrors
     RMDir /r "${INSTALL_PATH}"
-    IfFileExists "${INSTALL_PATH}\*.*" 0 QuickTranslateRemoveInstallDirectoryDone_${UniqueID}
+    IfFileExists "${INSTALL_PATH}\*.*" 0 QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}
     DetailPrint "Waiting for previous Quick Translate files to be released: ${INSTALL_PATH}"
     Sleep 1000
-    IntCmp $R7 12 QuickTranslateRemoveInstallDirectoryDone_${UniqueID} QuickTranslateRemoveInstallDirectoryLoop_${UniqueID} QuickTranslateRemoveInstallDirectoryDone_${UniqueID}
+    IntCmp $R7 12 QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID} QuickTranslateRemoveInstallDirectoryLoop_${RemoveDirUniqueID} QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}
 
-  QuickTranslateRemoveInstallDirectoryDone_${UniqueID}:
+  QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}:
   Pop $R7
-  !undef UniqueID
+  !undef RemoveDirUniqueID
 !macroend
 
 !macro preInit
