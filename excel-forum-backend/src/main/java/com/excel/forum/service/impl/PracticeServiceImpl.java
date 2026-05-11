@@ -30,6 +30,7 @@ import com.excel.forum.service.QuestionService;
 import com.excel.forum.service.UserService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -765,7 +766,10 @@ public class PracticeServiceImpl implements PracticeService {
         }
 
         ExcelWorkbookSnapshot submission = objectMapper.convertValue(userAnswer, ExcelWorkbookSnapshot.class);
-        ExcelWorkbookSnapshot materializedSubmission = excelTemplateGradingService.materializeSubmission(template.getTemplateFileUrl(), submission);
+        boolean dynamicArrayGrading = hasDynamicArrayGradingRules(template.getGradingRuleJson());
+        ExcelWorkbookSnapshot materializedSubmission = dynamicArrayGrading
+                ? null
+                : excelTemplateGradingService.materializeSubmission(template.getTemplateFileUrl(), submission);
         String expectedSnapshotJson = excelTemplateGradingService.buildExpectedSnapshotJson(
                 template.getTemplateFileUrl(),
                 template.getAnswerSheet(),
@@ -775,7 +779,7 @@ public class PracticeServiceImpl implements PracticeService {
                 template.getGradingRuleJson(),
                 template.getExpectedSnapshotJson()
         );
-        ExcelWorkbookSnapshot gradingSubmission = materializedSubmission == null ? submission : submission;
+        ExcelWorkbookSnapshot gradingSubmission = materializedSubmission == null ? submission : materializedSubmission;
         ExcelTemplateEvaluation evaluation = excelTemplateGradingService.grade(
                 gradingSubmission,
                 template.getGradingRuleJson(),
@@ -797,6 +801,18 @@ public class PracticeServiceImpl implements PracticeService {
                         "ruleResults", evaluation.getRuleResults()
                 ))
         );
+    }
+
+    private boolean hasDynamicArrayGradingRules(String gradingRuleJson) {
+        if (!StringUtils.hasText(gradingRuleJson)) {
+            return false;
+        }
+        try {
+            JsonNode dynamicArrayRules = objectMapper.readTree(gradingRuleJson).path("dynamicArrayRules");
+            return dynamicArrayRules.isArray() && dynamicArrayRules.size() > 0;
+        } catch (JsonProcessingException ignored) {
+            return false;
+        }
     }
 
     private RewardEvaluation resolveQuestionReward(Long userId, Question question, boolean correct) {

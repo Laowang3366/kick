@@ -12,7 +12,7 @@ import {
   parseSheetAndRange,
   selectionToRangeRef,
 } from "../lib/excel";
-import { univerDataToWorkbookSnapshot, type UniverWorkbookSnapshotOptions } from "../lib/univer-workbook";
+import { captureUniverWorkbookSnapshot, type UniverWorkbookSnapshotOptions } from "../lib/univer-workbook";
 import { getStoredUser } from "../lib/session-store";
 
 type ExcelWorkbookEditorProps = {
@@ -226,13 +226,12 @@ export function ExcelWorkbookEditor({
       const snapshotOptions: UniverWorkbookSnapshotOptions = {
         moveFormulaRefOffset: formulaEngine?.moveFormulaRefOffset?.bind(formulaEngine),
       };
-      const captureSnapshot = () => univerDataToWorkbookSnapshot(univerWorkbook.save(), snapshotOptions);
+      const captureSnapshot = () => captureUniverWorkbookSnapshot(univerWorkbook, snapshotOptions);
       onSnapshotCaptureReady?.(captureSnapshot);
 
       const syncWorkbookSnapshot = () => {
         if (hydratingRef.current) return;
-        const saved = univerWorkbook.save();
-        const nextSnapshot = univerDataToWorkbookSnapshot(saved, snapshotOptions);
+        const nextSnapshot = captureUniverWorkbookSnapshot(univerWorkbook, snapshotOptions);
         const nextKey = JSON.stringify(nextSnapshot);
         lastInternalSnapshotRef.current = nextKey;
         latestOnWorkbookChangeRef.current?.(nextSnapshot);

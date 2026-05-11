@@ -1,5 +1,5 @@
 import type { IWorkbookData } from "@univerjs/preset-sheets-core";
-import { columnIndexToLabel, columnLabelToIndex, toCellRef, type ExcelWorkbookSnapshot } from "./excel";
+import { columnIndexToLabel, columnLabelToIndex, parseCellRef, toCellRef, type ExcelWorkbookSnapshot } from "./excel";
 
 type UniverCellData = {
   v?: unknown;
@@ -17,6 +17,24 @@ export type UniverWorkbookSnapshotOptions = {
   moveFormulaRefOffset?: (formula: string, colOffset: number, rowOffset: number) => string;
 };
 
+type UniverFacadeRange = {
+  getValues?: () => unknown[][];
+  getDisplayValues?: () => string[][];
+  getFormulas?: () => string[][];
+};
+
+type UniverFacadeWorksheet = {
+  getSheetName: () => string;
+  getLastRow?: () => number;
+  getLastColumn?: () => number;
+  getRange: (row: number, column: number, numRows: number, numColumns: number) => UniverFacadeRange;
+};
+
+export type UniverWorkbookSnapshotSource = {
+  save: () => IWorkbookData;
+  getSheets?: () => UniverFacadeWorksheet[];
+};
+
 function normalizeFormula(formula: unknown) {
   if (typeof formula !== "string") return null;
   const normalized = formula.trim().replace(/^=/, "");
@@ -27,6 +45,46 @@ function normalizeFormulaId(formulaId: unknown) {
   if (typeof formulaId !== "string") return null;
   const normalized = formulaId.trim();
   return normalized ? normalized : null;
+}
+
+function normalizeFacadeValue(value: unknown) {
+  return value === undefined ? null : value;
+}
+
+function hasText(value: unknown) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+function readMatrixValue<T>(matrix: T[][] | null | undefined, row: number, col: number) {
+  if (!matrix || !matrix[row]) return undefined;
+  return matrix[row][col];
+}
+
+function safeReadMatrix<T>(reader: (() => T[][]) | undefined) {
+  if (!reader) return null;
+  try {
+    return reader();
+  } catch {
+    return null;
+  }
+}
+
+function maxBoundsFromCells(cells: ExcelWorkbookSnapshot["sheets"][number]["cells"]) {
+  return Object.keys(cells || {}).reduce(
+    (bounds, cellRef) => {
+      const parsed = parseCellRef(cellRef);
+      if (!parsed) return bounds;
+      return {
+        row: Math.max(bounds.row, parsed.row),
+        col: Math.max(bounds.col, parsed.col),
+      };
+    },
+    { row: 0, col: 0 },
+  );
+}
+
+function normalizeCount(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function splitFormulaStringLiterals(formula: string) {
@@ -167,4 +225,95 @@ export function univerDataToWorkbookSnapshot(
       };
     }),
   };
+}
+
+export function mergeFacadeValuesIntoWorkbookSnapshot(
+  snapshot: ExcelWorkbookSnapshot,
+  workbookFacade: Pick<UniverWorkbookSnapshotSource, "getSheets"> | null | undefined,
+): ExcelWorkbookSnapshot {
+  const next: ExcelWorkbookSnapshot = {
+    sheets: (snapshot.sheets || []).map((sheet) => ({
+      ...sheet,
+      cells: { ...(sheet.cells || {}) },
+    })),
+  };
+  const worksheets = workbookFacade?.getSheets?.();
+  if (!worksheets?.length) {
+    return next;
+  }
+
+  next.sheets.forEach((sheetSnapshot, sheetIndex) => {
+    const worksheet = worksheets.find((item) => item.getSheetName() === sheetSnapshot.name) || worksheets[sheetIndex];
+    if (!worksheet) return;
+
+    const cellBounds = maxBoundsFromCells(sheetSnapshot.cells);
+    const rowCount = Math.max(
+      normalizeCount(sheetSnapshot.rowCount),
+      normalizeCount(worksheet.getLastRow?.()) + 1,
+      cellBounds.row,
+      1,
+    );
+    const columnCount = Math.max(
+      normalizeCount(sheetSnapshot.columnCount),
+      normalizeCount(worksheet.getLastColumn?.()) + 1,
+      cellBounds.col,
+      1,
+    );
+
+    let range: UniverFacadeRange;
+    try {
+      range = worksheet.getRange(0, 0, rowCount, columnCount);
+    } catch {
+      return;
+    }
+
+    const values = safeReadMatrix(range.getValues?.bind(range));
+    const displayValues = safeReadMatrix(range.getDisplayValues?.bind(range));
+    const formulas = safeReadMatrix(range.getFormulas?.bind(range));
+
+    for (let row = 0; row < rowCount; row += 1) {
+      for (let col = 0; col < columnCount; col += 1) {
+        const rawValue = normalizeFacadeValue(readMatrixValue(values, row, col));
+        const displayValue = readMatrixValue(displayValues, row, col);
+        const formulaValue = readMatrixValue(formulas, row, col);
+        const cellRef = toCellRef(row + 1, col + 1);
+        const existing = sheetSnapshot.cells[cellRef];
+        const hasFacadeContent = hasText(rawValue) || hasText(displayValue);
+
+        if (!existing && !hasFacadeContent) {
+          continue;
+        }
+
+        const nextCell = {
+          ...(existing || {}),
+        };
+
+        if (rawValue !== null) {
+          nextCell.value = rawValue;
+        } else if (!hasText(nextCell.value) && hasText(displayValue)) {
+          nextCell.value = displayValue;
+        }
+        if (displayValue !== undefined) {
+          nextCell.display = displayValue;
+        }
+        if (existing && hasText(formulaValue)) {
+          nextCell.formula = normalizeFormula(formulaValue);
+        }
+
+        sheetSnapshot.cells[cellRef] = nextCell;
+      }
+    }
+  });
+
+  return next;
+}
+
+export function captureUniverWorkbookSnapshot(
+  workbookFacade: UniverWorkbookSnapshotSource,
+  options: UniverWorkbookSnapshotOptions = {},
+): ExcelWorkbookSnapshot {
+  return mergeFacadeValuesIntoWorkbookSnapshot(
+    univerDataToWorkbookSnapshot(workbookFacade.save(), options),
+    workbookFacade,
+  );
 }

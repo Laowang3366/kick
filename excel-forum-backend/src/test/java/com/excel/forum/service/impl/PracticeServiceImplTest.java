@@ -212,6 +212,79 @@ class PracticeServiceImplTest {
         verify(pointsRecordService, never()).addTaskPointsRecord(any(), any(), any(), any(), any(), any(), any(), any());
     }
 
+    @Test
+    void submitPracticeGradesMaterializedWorkbookForSimpleExcelTemplate() {
+        PracticeServiceImpl service = createService();
+
+        Question question = buildExcelQuestion();
+        QuestionExcelTemplate template = buildTemplate();
+        ExcelWorkbookSnapshot materializedWorkbook = buildWorkbookWithCell("Sheet1", "B2", 10, "SUM(A1:A3)");
+        ExcelTemplateEvaluation evaluation = new ExcelTemplateEvaluation();
+        evaluation.setPassed(false);
+        evaluation.setScore(0);
+        evaluation.setTotalScore(1);
+        evaluation.setFeedback("fail");
+        evaluation.setRuleResults(List.of());
+        evaluation.setNormalizedUserAnswer("{}");
+        evaluation.setNormalizedCorrectAnswer("{}");
+
+        when(questionService.list(any(QueryWrapper.class))).thenReturn(List.of(question));
+        when(questionExcelTemplateService.getByQuestionId(9L)).thenReturn(template);
+        when(excelTemplateGradingService.materializeSubmission(eq("/uploads/practice.xlsx"), any(ExcelWorkbookSnapshot.class))).thenReturn(materializedWorkbook);
+        when(excelTemplateGradingService.grade(any(ExcelWorkbookSnapshot.class), any(), any())).thenReturn(evaluation);
+        when(experienceRuleService.resolveFixedExp(any(), eq(2))).thenReturn(2);
+        when(pointsTaskService.awardTask(any(), any(), any(), any())).thenReturn(null);
+        doAnswer(invocation -> {
+            PracticeRecord record = invocation.getArgument(0);
+            record.setId(90L);
+            return 1;
+        }).when(practiceRecordMapper).insert(any(PracticeRecord.class));
+
+        service.submitPractice(7L, buildSingleExcelSubmitRequest(Map.of("sheets", List.of())));
+
+        ArgumentCaptor<ExcelWorkbookSnapshot> workbookCaptor = ArgumentCaptor.forClass(ExcelWorkbookSnapshot.class);
+        verify(excelTemplateGradingService).grade(workbookCaptor.capture(), any(), any());
+        assertThat(workbookCaptor.getValue()).isSameAs(materializedWorkbook);
+    }
+
+    @Test
+    void submitPracticeKeepsClientCapturedWorkbookForDynamicArrayRules() {
+        PracticeServiceImpl service = createService();
+
+        Question question = buildExcelQuestion();
+        QuestionExcelTemplate template = buildTemplate();
+        template.setGradingRuleJson("{\"dynamicArrayRules\":[{\"sheet\":\"Sheet1\",\"anchorCell\":\"B2\",\"spillRange\":\"B2:C3\",\"score\":1}]}");
+        ExcelWorkbookSnapshot submittedWorkbook = buildWorkbookWithCell("Sheet1", "C3", 2, null);
+        ExcelWorkbookSnapshot incompleteMaterializedWorkbook = buildWorkbookWithCell("Sheet1", "B2", "A", "FILTER(A1:B9,A1:A9<>\"\")");
+        ExcelTemplateEvaluation evaluation = new ExcelTemplateEvaluation();
+        evaluation.setPassed(false);
+        evaluation.setScore(0);
+        evaluation.setTotalScore(1);
+        evaluation.setFeedback("fail");
+        evaluation.setRuleResults(List.of());
+        evaluation.setNormalizedUserAnswer("{}");
+        evaluation.setNormalizedCorrectAnswer("{}");
+
+        when(questionService.list(any(QueryWrapper.class))).thenReturn(List.of(question));
+        when(questionExcelTemplateService.getByQuestionId(9L)).thenReturn(template);
+        when(excelTemplateGradingService.grade(any(ExcelWorkbookSnapshot.class), any(), any())).thenReturn(evaluation);
+        when(experienceRuleService.resolveFixedExp(any(), eq(2))).thenReturn(2);
+        when(pointsTaskService.awardTask(any(), any(), any(), any())).thenReturn(null);
+        doAnswer(invocation -> {
+            PracticeRecord record = invocation.getArgument(0);
+            record.setId(91L);
+            return 1;
+        }).when(practiceRecordMapper).insert(any(PracticeRecord.class));
+
+        service.submitPractice(7L, buildSingleExcelSubmitRequest(submittedWorkbook));
+
+        ArgumentCaptor<ExcelWorkbookSnapshot> workbookCaptor = ArgumentCaptor.forClass(ExcelWorkbookSnapshot.class);
+        verify(excelTemplateGradingService, never()).materializeSubmission(any(), any());
+        verify(excelTemplateGradingService).grade(workbookCaptor.capture(), any(), any());
+        assertThat(workbookCaptor.getValue()).isEqualTo(submittedWorkbook);
+        assertThat(workbookCaptor.getValue()).isNotEqualTo(incompleteMaterializedWorkbook);
+    }
+
     private Question buildExcelQuestion() {
         Question question = new Question();
         question.setId(9L);
@@ -239,6 +312,33 @@ class PracticeServiceImplTest {
                 userService,
                 practiceQuestionSubmissionService
         );
+    }
+
+    private PracticeSubmitRequest buildSingleExcelSubmitRequest(Object userAnswer) {
+        PracticeSubmitRequest request = new PracticeSubmitRequest();
+        request.setQuestionCategoryId(3L);
+        request.setCategoryId(3L);
+        request.setMode("single_question");
+        request.setDurationSeconds(30);
+        PracticeSubmitAnswerRequest answerRequest = new PracticeSubmitAnswerRequest();
+        answerRequest.setQuestionId(9L);
+        answerRequest.setUserAnswer(userAnswer);
+        request.setAnswers(List.of(answerRequest));
+        return request;
+    }
+
+    private ExcelWorkbookSnapshot buildWorkbookWithCell(String sheetName, String cellRef, Object value, String formula) {
+        ExcelWorkbookSnapshot.CellSnapshot cell = new ExcelWorkbookSnapshot.CellSnapshot();
+        cell.setValue(value);
+        cell.setFormula(formula);
+
+        ExcelWorkbookSnapshot.SheetSnapshot sheet = new ExcelWorkbookSnapshot.SheetSnapshot();
+        sheet.setName(sheetName);
+        sheet.getCells().put(cellRef, cell);
+
+        ExcelWorkbookSnapshot workbook = new ExcelWorkbookSnapshot();
+        workbook.getSheets().add(sheet);
+        return workbook;
     }
 
     private QuestionExcelTemplate buildTemplate() {

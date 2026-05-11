@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractRangeAnswerSnapshot } from "./excel";
-import { univerDataToWorkbookSnapshot } from "./univer-workbook";
+import { captureUniverWorkbookSnapshot, univerDataToWorkbookSnapshot } from "./univer-workbook";
 
 describe("univerDataToWorkbookSnapshot", () => {
   it("reconstructs fill-down formulas stored as shared formula ids", () => {
@@ -41,5 +41,64 @@ describe("univerDataToWorkbookSnapshot", () => {
       ["A3*2"],
       ["A4*2"],
     ]);
+  });
+
+  it("captures dynamic array spill values from the live facade range", () => {
+    const values = Array.from({ length: 20 }, () => Array.from({ length: 10 }, () => null as unknown));
+    const displays = Array.from({ length: 20 }, () => Array.from({ length: 10 }, () => ""));
+    const formulas = Array.from({ length: 20 }, () => Array.from({ length: 10 }, () => ""));
+    values[1][1] = "A";
+    values[1][2] = 1;
+    values[2][1] = "B";
+    values[2][2] = 2;
+    displays[1][1] = "A";
+    displays[1][2] = "1";
+    displays[2][1] = "B";
+    displays[2][2] = "2";
+    formulas[1][1] = "=FILTER(A1:B9,A1:A9<>\"\")";
+
+    const snapshot = captureUniverWorkbookSnapshot({
+      save: () => ({
+        sheetOrder: ["sheet-1"],
+        sheets: {
+          "sheet-1": {
+            name: "Sheet1",
+            rowCount: 20,
+            columnCount: 10,
+            cellData: {
+              1: {
+                1: { f: "=FILTER(A1:B9,A1:A9<>\"\")", v: "A" },
+              },
+            },
+          },
+        },
+      } as any),
+      getSheets: () => [
+        {
+          getSheetName: () => "Sheet1",
+          getLastRow: () => 2,
+          getLastColumn: () => 2,
+          getRange: (_row, _column, numRows, numColumns) => {
+            expect(numRows).toBe(20);
+            expect(numColumns).toBe(10);
+            return {
+              getValues: () => values,
+              getDisplayValues: () => displays,
+              getFormulas: () => formulas,
+            };
+          },
+        },
+      ],
+    });
+
+    const sheet = snapshot.sheets[0];
+    expect(extractRangeAnswerSnapshot(snapshot, "Sheet1", "B2:C3").values).toEqual([
+      ["A", 1],
+      ["B", 2],
+    ]);
+    expect(sheet.cells.B2.formula).toBe("FILTER(A1:B9,A1:A9<>\"\")");
+    expect(sheet.cells.C2.formula).toBeUndefined();
+    expect(sheet.cells.B3.formula).toBeUndefined();
+    expect(sheet.cells.C3.formula).toBeUndefined();
   });
 });
