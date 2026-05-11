@@ -56,7 +56,7 @@ class AssistantServiceImplTest {
     }
 
     @Test
-    void timeoutUsesSixtySecondsMinimum() {
+    void timeoutUsesConfiguredValue() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("AI_ASSISTANT_TIMEOUT_MS", "20000");
         AssistantServiceImpl assistantService = new AssistantServiceImpl(
@@ -69,7 +69,24 @@ class AssistantServiceImplTest {
                 new ObjectMapper()
         );
 
-        Integer timeoutMs = ReflectionTestUtils.invokeMethod(assistantService, "timeoutMs");
+        Integer timeoutMs = ReflectionTestUtils.invokeMethod(assistantService, "environmentTimeoutMs");
+
+        assertThat(timeoutMs).isEqualTo(20000);
+    }
+
+    @Test
+    void timeoutFallsBackToSixtySecondsWhenMissing() {
+        AssistantServiceImpl assistantService = new AssistantServiceImpl(
+                null,
+                null,
+                null,
+                null,
+                null,
+                new MockEnvironment(),
+                new ObjectMapper()
+        );
+
+        Integer timeoutMs = ReflectionTestUtils.invokeMethod(assistantService, "environmentTimeoutMs");
 
         assertThat(timeoutMs).isEqualTo(60000);
     }

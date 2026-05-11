@@ -33,6 +33,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigMapper, AiAssistantConfig> implements AiAssistantConfigService {
     private static final Set<String> REASONING_EFFORT_VALUES = Set.of("low", "medium", "high");
+    private static final int MIN_TIMEOUT_MS = 3000;
+    private static final int MAX_TIMEOUT_MS = 300000;
 
     private final ObjectMapper objectMapper;
     private final Environment environment;
@@ -82,6 +84,7 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
         config.setApiKey(apiKey);
         config.setModel(model);
         config.setReasoningEffort(normalizeReasoningEffort(environment.getProperty("AI_ASSISTANT_REASONING_EFFORT")));
+        config.setTimeoutMs(normalizeTimeoutMs(environment.getProperty("AI_ASSISTANT_TIMEOUT_MS", Integer.class, 60000)));
         AiAssistantPromptProvider.PromptSource defaultPrompt = promptProvider.getDefaultPrompt();
         config.setSystemPrompt(defaultPrompt.content());
         config.setPromptFileName(defaultPrompt.fileName());
@@ -190,6 +193,7 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
         map.put("hasApiKey", !isBlank(config.getApiKey()));
         map.put("model", defaultString(config.getModel()));
         map.put("reasoningEffort", defaultString(config.getReasoningEffort()));
+        map.put("timeoutMs", normalizeTimeoutMs(config.getTimeoutMs()));
         map.put("systemPrompt", defaultString(config.getSystemPrompt()));
         map.put("promptFileName", defaultString(config.getPromptFileName()));
         map.put("enabled", !Boolean.FALSE.equals(config.getEnabled()));
@@ -219,6 +223,13 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
         }
         normalized = normalized.toLowerCase(Locale.ROOT);
         return REASONING_EFFORT_VALUES.contains(normalized) ? normalized : null;
+    }
+
+    private Integer normalizeTimeoutMs(Integer value) {
+        if (value == null) {
+            return 60000;
+        }
+        return Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, value));
     }
 
     private String firstText(String primary, String fallback) {

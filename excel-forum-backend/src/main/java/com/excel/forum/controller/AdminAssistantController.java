@@ -30,6 +30,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class AdminAssistantController {
     private static final Set<String> REASONING_EFFORT_VALUES = Set.of("low", "medium", "high");
+    private static final int MIN_TIMEOUT_MS = 3000;
+    private static final int MAX_TIMEOUT_MS = 300000;
 
     private final AiAssistantConfigService aiAssistantConfigService;
     private final AiAssistantCallLogService aiAssistantCallLogService;
@@ -147,6 +149,9 @@ public class AdminAssistantController {
         if (!isBlank(request.getReasoningEffort()) && !REASONING_EFFORT_VALUES.contains(request.getReasoningEffort().trim().toLowerCase())) {
             return "推理等级不支持";
         }
+        if (request.getTimeoutMs() != null && (request.getTimeoutMs() < MIN_TIMEOUT_MS || request.getTimeoutMs() > MAX_TIMEOUT_MS)) {
+            return "模型超时时间需在 3 秒到 300 秒之间";
+        }
         if (Boolean.TRUE.equals(request.getActive()) && Boolean.FALSE.equals(request.getEnabled())) {
             return "生效配置必须保持启用";
         }
@@ -161,6 +166,7 @@ public class AdminAssistantController {
         }
         config.setModel(normalizeText(request.getModel()));
         config.setReasoningEffort(normalizeReasoningEffort(request.getReasoningEffort()));
+        config.setTimeoutMs(normalizeTimeoutMs(request.getTimeoutMs()));
         config.setSystemPrompt(normalizeText(request.getSystemPrompt()));
         config.setPromptFileName(normalizeText(request.getPromptFileName()));
         config.setEnabled(request.getEnabled() == null || Boolean.TRUE.equals(request.getEnabled()));
@@ -187,6 +193,10 @@ public class AdminAssistantController {
     private String normalizeReasoningEffort(String value) {
         String normalized = normalizeText(value);
         return normalized == null ? null : normalized.toLowerCase();
+    }
+
+    private Integer normalizeTimeoutMs(Integer value) {
+        return value == null ? 60000 : value;
     }
 
     private String normalizeText(String value) {

@@ -36,6 +36,7 @@ type AiAssistantConfigRecord = {
   hasApiKey: boolean;
   model: string;
   reasoningEffort?: string;
+  timeoutMs?: number;
   systemPrompt: string;
   promptFileName: string;
   enabled: boolean;
@@ -58,6 +59,7 @@ const defaultForm = {
   apiKey: "",
   model: "",
   reasoningEffort: "",
+  timeoutMs: 60000,
   systemPrompt: "",
   promptFileName: "",
   enabled: true,
@@ -161,6 +163,7 @@ export function AdminAssistant() {
       apiKey: "",
       model: item.model || "",
       reasoningEffort: item.reasoningEffort || "",
+      timeoutMs: Number(item.timeoutMs || 60000),
       systemPrompt: item.systemPrompt || "",
       promptFileName: item.promptFileName || "",
       enabled: Boolean(item.enabled),
@@ -186,6 +189,7 @@ export function AdminAssistant() {
       const payload = {
         ...form,
         sortOrder: Number(form.sortOrder || 0),
+        timeoutMs: Number(form.timeoutMs || 60000),
         apiKey: editingItem && !apiKeyTouched ? "" : normalizedApiKey,
       };
       if (editingItem?.id) {
@@ -339,6 +343,7 @@ export function AdminAssistant() {
                   <TableCell>
                     <div>{item.model || "-"}</div>
                     <div className="mt-1 text-xs text-[#8c8c8c]">推理：{formatReasoningEffort(item.reasoningEffort)}</div>
+                    <div className="mt-1 text-xs text-[#8c8c8c]">超时：{formatTimeoutMs(item.timeoutMs)}</div>
                   </TableCell>
                   <TableCell>{item.apiKeyMasked || (item.hasApiKey ? "已配置" : "未配置")}</TableCell>
                   <TableCell className="max-w-[180px] truncate">{item.promptFileName || (item.systemPrompt ? "文本配置" : "默认")}</TableCell>
@@ -499,6 +504,17 @@ export function AdminAssistant() {
               ))}
             </select>
           </Field>
+          <Field label="模型超时（秒）">
+            <input
+              type="number"
+              min={3}
+              max={300}
+              step={1}
+              value={Math.round(Number(form.timeoutMs || 60000) / 1000)}
+              onChange={(event) => setForm((prev) => ({ ...prev, timeoutMs: Number(event.target.value || 0) * 1000 }))}
+              className={inputClassName()}
+            />
+          </Field>
           <Field label="排序">
             <input type="number" value={form.sortOrder} onChange={(event) => setForm((prev) => ({ ...prev, sortOrder: Number(event.target.value || 0) }))} className={inputClassName()} />
           </Field>
@@ -631,6 +647,11 @@ function formatTime(value: unknown) {
 function formatReasoningEffort(value: unknown) {
   const normalized = String(value || "").trim();
   return reasoningEffortOptions.find((item) => item.value === normalized)?.label || "默认";
+}
+
+function formatTimeoutMs(value: unknown) {
+  const timeoutMs = Number(value || 60000);
+  return `${Math.round(timeoutMs / 1000)} 秒`;
 }
 
 function normalizeApiKeyInput(value: string) {

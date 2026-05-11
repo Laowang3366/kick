@@ -25,6 +25,8 @@ type ChatTurn = {
   attachments?: AssistantImageAttachment[];
   model?: string;
   fallbackUsed?: boolean;
+  pending?: boolean;
+  failed?: boolean;
 };
 
 type AssistantImageAttachment = {
@@ -116,6 +118,7 @@ export function Assistant() {
     }: {
       content: string;
       images: AssistantImageAttachment[];
+      turnId: string;
     }) =>
       api.post<AssistantResponse>("/api/assistant/chat", {
         message: content,
@@ -135,10 +138,9 @@ export function Assistant() {
       if (!shouldScrollToLatest) {
         setShowLatestReply(true);
       }
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}`,
+      setChatHistory((prev) => prev.map((item) => item.id === variables.turnId
+        ? {
+          ...item,
           question,
           answer: result.answer,
           relatedTutorials: result.relatedTutorials || [],
@@ -146,14 +148,28 @@ export function Assistant() {
           attachments: variables.images,
           model: result.model,
           fallbackUsed: result.fallbackUsed,
-        },
-      ]);
+          pending: false,
+          failed: false,
+        }
+        : item));
       setConversationId(result.conversationId || null);
-      setMessage("");
-      setAttachments([]);
+      if (shouldScrollToLatest) {
+        requestAnimationFrame(() => scrollToLatestReply("smooth"));
+      }
     },
-    onError: (error: any) => {
-      toast.error(error?.message || "AI 助手暂时不可用");
+    onError: (error: any, variables) => {
+      const message = error?.message || "AI 助手暂时不可用";
+      setChatHistory((prev) => prev.map((item) => item.id === variables?.turnId
+        ? {
+          ...item,
+          answer: message,
+          relatedTutorials: [],
+          relatedQuestions: [],
+          pending: false,
+          failed: true,
+        }
+        : item));
+      toast.error(message);
     },
   });
 
@@ -271,10 +287,37 @@ export function Assistant() {
       toast.info("请先输入你的 Excel 问题或上传图片");
       return;
     }
-    await chatMutation.mutateAsync({
-      content: content || "请分析我发送的图片内容",
-      images: attachments,
-    });
+    const question = content || "请分析我发送的图片内容";
+    const images = attachments;
+    const turnId = `${Date.now()}`;
+    const shouldScrollToLatest = isNearLatestReply();
+    shouldScrollLatestRef.current = shouldScrollToLatest;
+    if (!shouldScrollToLatest) {
+      setShowLatestReply(true);
+    }
+    setChatHistory((prev) => [
+      ...prev,
+      {
+        id: turnId,
+        question,
+        answer: "",
+        relatedTutorials: [],
+        relatedQuestions: [],
+        attachments: images,
+        pending: true,
+      },
+    ]);
+    setMessage("");
+    setAttachments([]);
+    try {
+      await chatMutation.mutateAsync({
+        turnId,
+        content: question,
+        images,
+      });
+    } catch {
+      // error state is rendered by the mutation handler
+    }
   };
 
   return (
@@ -340,17 +383,32 @@ export function Assistant() {
                   </div>
 
                   <div ref={index === chatHistory.length - 1 ? latestReplyRef : undefined} className="flex justify-start">
-                    <div className="min-w-0 max-w-[92%] rounded-[22px] rounded-bl-md border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                    <div className={`min-w-0 max-w-[92%] rounded-[22px] rounded-bl-md border px-4 py-4 text-sm leading-7 shadow-[0_10px_24px_rgba(15,23,42,0.04)] ${
+                      item.failed
+                        ? "border-rose-200 bg-rose-50 text-rose-700"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}>
                       <div className="mb-2 flex items-center gap-2 text-xs font-black text-emerald-700">
                         <Bot size={14} />
                         AI 助手
                       </div>
-                      <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.answer}</div>
-                      <div className="mt-3 text-xs text-slate-400">
-                        模型：{item.model || "-"}{item.fallbackUsed ? "（已走兜底）" : ""}
-                      </div>
+                      {item.pending ? (
+                        <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-black text-slate-500">
+                          <LoaderCircle size={15} className="animate-spin text-emerald-700" />
+                          正在思考中...
+                        </div>
+                      ) : (
+                        <>
+                          <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.answer}</div>
+                          {!item.failed ? (
+                            <div className="mt-3 text-xs text-slate-400">
+                              模型：{item.model || "-"}{item.fallbackUsed ? "（已走兜底）" : ""}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
 
-                      {item.relatedQuestions.length > 0 && (
+                      {!item.pending && item.relatedQuestions.length > 0 && (
                         <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
                           {item.relatedQuestions.length > 0 && (
                             <div>

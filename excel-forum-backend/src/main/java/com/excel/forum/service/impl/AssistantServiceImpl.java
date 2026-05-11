@@ -44,6 +44,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AssistantServiceImpl implements AssistantService {
+    private static final int DEFAULT_TIMEOUT_MS = 60000;
+    private static final int MIN_TIMEOUT_MS = 3000;
+    private static final int MAX_TIMEOUT_MS = 300000;
     private static final int MAX_IMAGE_COUNT = 3;
     private static final int MAX_IMAGE_BYTES = 5 * 1024 * 1024;
     private static final int MAX_IMAGE_DATA_URL_LENGTH = 7 * 1024 * 1024;
@@ -118,8 +121,15 @@ public class AssistantServiceImpl implements AssistantService {
         return Math.max(256, environment.getProperty("AI_ASSISTANT_MAX_OUTPUT_TOKENS", Integer.class, 1200));
     }
 
-    private int timeoutMs() {
-        return Math.max(60000, environment.getProperty("AI_ASSISTANT_TIMEOUT_MS", Integer.class, 60000));
+    private int environmentTimeoutMs() {
+        return normalizeTimeoutMs(environment.getProperty("AI_ASSISTANT_TIMEOUT_MS", Integer.class, DEFAULT_TIMEOUT_MS));
+    }
+
+    private int normalizeTimeoutMs(Integer timeoutMs) {
+        if (timeoutMs == null) {
+            return DEFAULT_TIMEOUT_MS;
+        }
+        return Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, timeoutMs));
     }
 
     private String buildPrompt(String message, String formula, String workbookContext,
@@ -187,6 +197,7 @@ public class AssistantServiceImpl implements AssistantService {
             String apiKey = trimToNull(activeConfig.getApiKey());
             String model = trimToNull(activeConfig.getModel());
             String reasoningEffort = normalizeReasoningEffort(activeConfig.getReasoningEffort());
+            int timeoutMs = normalizeTimeoutMs(activeConfig.getTimeoutMs());
             if (baseUrl == null || apiKey == null || model == null) {
                 throw new IllegalStateException("AI 助手配置不完整");
             }
@@ -199,6 +210,7 @@ public class AssistantServiceImpl implements AssistantService {
                     null,
                     null,
                     null,
+                    timeoutMs,
                     promptProvider.resolveSystemPrompt(activeConfig.getSystemPrompt())
             );
         }
@@ -213,6 +225,7 @@ public class AssistantServiceImpl implements AssistantService {
         String fallbackBaseUrl = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_BASE_URL", primaryBaseUrl));
         String fallbackApiKey = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_API_KEY", primaryApiKey));
         String fallbackModel = trimToNull(environment.getProperty("AI_ASSISTANT_FALLBACK_MODEL"));
+        int timeoutMs = environmentTimeoutMs();
         if (primaryBaseUrl == null || primaryApiKey == null || primaryModel == null) {
             throw new IllegalStateException("AI 助手配置不完整");
         }
@@ -225,19 +238,20 @@ public class AssistantServiceImpl implements AssistantService {
                 fallbackBaseUrl == null ? null : normalizeBaseUrl(fallbackBaseUrl),
                 fallbackApiKey,
                 fallbackModel,
+                timeoutMs,
                 promptProvider.getDefaultPrompt().content()
         );
     }
 
     private LlmResult askModel(AssistantRuntimeConfig config, String prompt, List<AssistantImageInput> images) {
         try {
-            return new LlmResult(callOpenAiCompatible(config.baseUrl(), config.apiKey(), config.model(), config.reasoningEffort(), config.systemPrompt(), prompt, images), config.model(), false);
+            return new LlmResult(callOpenAiCompatible(config.baseUrl(), config.apiKey(), config.model(), config.reasoningEffort(), config.timeoutMs(), config.systemPrompt(), prompt, images), config.model(), false);
         } catch (Exception e) {
             log.warn("assistant primary model failed: {}", e.toString());
         }
         if (config.fallbackBaseUrl() != null && config.fallbackApiKey() != null && config.fallbackModel() != null) {
             try {
-                return new LlmResult(callOpenAiCompatible(config.fallbackBaseUrl(), config.fallbackApiKey(), config.fallbackModel(), config.reasoningEffort(), config.systemPrompt(), prompt, images), config.fallbackModel(), true);
+                return new LlmResult(callOpenAiCompatible(config.fallbackBaseUrl(), config.fallbackApiKey(), config.fallbackModel(), config.reasoningEffort(), config.timeoutMs(), config.systemPrompt(), prompt, images), config.fallbackModel(), true);
             } catch (Exception e) {
                 log.error("assistant fallback model failed: {}", e.toString());
             }
@@ -245,7 +259,7 @@ public class AssistantServiceImpl implements AssistantService {
         throw new IllegalStateException("AI 助手暂时不可用，请稍后再试");
     }
 
-    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String reasoningEffort, String systemPrompt, String prompt, List<AssistantImageInput> images) throws IOException, InterruptedException {
+    private String callOpenAiCompatible(String baseUrl, String apiKey, String model, String reasoningEffort, int timeoutMs, String systemPrompt, String prompt, List<AssistantImageInput> images) throws IOException, InterruptedException {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", model);
         if (!isBlank(reasoningEffort)) {
@@ -261,10 +275,10 @@ public class AssistantServiceImpl implements AssistantService {
                 .uri(URI.create(normalizeBaseUrl(baseUrl) + "/chat/completions"))
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
-                .timeout(Duration.ofMillis(timeoutMs()))
+                .timeout(Duration.ofMillis(timeoutMs))
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                 .build();
-        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(timeoutMs())).build();
+        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(timeoutMs)).build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() >= 400) throw new IOException("upstream " + response.statusCode() + ": " + response.body());
         JsonNode root = objectMapper.readTree(response.body());
@@ -449,7 +463,7 @@ public class AssistantServiceImpl implements AssistantService {
         }
         return normalized;
     }
-    private record AssistantRuntimeConfig(Long configId, String baseUrl, String apiKey, String model, String reasoningEffort, String fallbackBaseUrl, String fallbackApiKey, String fallbackModel, String systemPrompt) {}
+    private record AssistantRuntimeConfig(Long configId, String baseUrl, String apiKey, String model, String reasoningEffort, String fallbackBaseUrl, String fallbackApiKey, String fallbackModel, int timeoutMs, String systemPrompt) {}
     private record AssistantImageInput(String name, String mimeType, Long size, String dataUrl) {}
     private record LlmResult(String answer, String model, boolean fallbackUsed) {}
     private record ScoredTutorial(TutorialArticle article, int score) {}

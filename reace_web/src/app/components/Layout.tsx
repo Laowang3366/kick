@@ -107,6 +107,8 @@ type AssistantWidgetTurn = {
   attachments?: AssistantWidgetAttachment[];
   model?: string;
   fallbackUsed?: boolean;
+  pending?: boolean;
+  failed?: boolean;
 };
 
 export function Layout() {
@@ -559,6 +561,7 @@ export function Layout() {
       message: string;
       conversationId: string | null;
       workbookContext?: string;
+      turnId: string;
       attachments?: AssistantWidgetAttachment[];
       images?: Array<{ name: string; mimeType: string; size: number; dataUrl?: string }>;
     }) =>
@@ -574,25 +577,37 @@ export function Layout() {
       if (!shouldScrollToLatest) {
         setAssistantShowLatestReply(true);
       }
-      setAssistantHistory((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}`,
-          question: variables.message,
+      setAssistantHistory((prev) => prev.map((item) => item.id === variables.turnId
+        ? {
+          ...item,
           answer: result.answer,
           relatedTutorials: result.relatedTutorials || [],
           relatedQuestions: result.relatedQuestions || [],
           attachments: variables.attachments || [],
           model: result.model,
           fallbackUsed: result.fallbackUsed,
-        },
-      ]);
+          pending: false,
+          failed: false,
+        }
+        : item));
       setAssistantConversationId(result.conversationId || null);
-      setAssistantMessage("");
-      setAssistantAttachments([]);
+      if (shouldScrollToLatest) {
+        requestAnimationFrame(() => scrollAssistantToLatestReply("smooth"));
+      }
     },
-    onError: (error: any) => {
-      toast.error(error?.message || "AI 助手暂时不可用");
+    onError: (error: any, variables) => {
+      const message = error?.message || "AI 助手暂时不可用";
+      setAssistantHistory((prev) => prev.map((item) => item.id === variables?.turnId
+        ? {
+          ...item,
+          answer: message,
+          relatedTutorials: [],
+          relatedQuestions: [],
+          pending: false,
+          failed: true,
+        }
+        : item));
+      toast.error(message);
     },
   });
   const feedbackMutation = useMutation({
@@ -1007,13 +1022,42 @@ export function Layout() {
       toast.info("请先输入你的 Excel 问题");
       return;
     }
-    await assistantChatMutation.mutateAsync({
-      message: content || "请分析我发送的附件内容",
-      conversationId: assistantConversationId,
-      workbookContext: buildAssistantAttachmentContext(),
-      images: buildAssistantImagePayload(),
-      attachments: assistantAttachments,
-    });
+    const question = content || "请分析我发送的附件内容";
+    const attachments = assistantAttachments;
+    const workbookContext = buildAssistantAttachmentContext();
+    const images = buildAssistantImagePayload();
+    const turnId = `${Date.now()}`;
+    const shouldScrollToLatest = !assistantOpen || isAssistantNearLatestReply();
+    assistantShouldScrollLatestRef.current = shouldScrollToLatest;
+    if (!shouldScrollToLatest) {
+      setAssistantShowLatestReply(true);
+    }
+    setAssistantHistory((prev) => [
+      ...prev,
+      {
+        id: turnId,
+        question,
+        answer: "",
+        relatedTutorials: [],
+        relatedQuestions: [],
+        attachments,
+        pending: true,
+      },
+    ]);
+    setAssistantMessage("");
+    setAssistantAttachments([]);
+    try {
+      await assistantChatMutation.mutateAsync({
+        turnId,
+        message: question,
+        conversationId: assistantConversationId,
+        workbookContext,
+        images,
+        attachments,
+      });
+    } catch {
+      // error state is rendered by the mutation handler
+    }
   };
   const assistantPromptSnippets = [
     "VLOOKUP 为什么会返回 #N/A？",
@@ -2427,12 +2471,23 @@ export function Layout() {
                               </div>
                             </div>
                             <div ref={index === assistantHistory.length - 1 ? assistantLatestReplyRef : undefined} className="flex justify-start">
-                              <div className="min-w-0 max-w-[90%] rounded-2xl rounded-bl-md border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-700">
+                              <div className={`min-w-0 max-w-[90%] rounded-2xl rounded-bl-md border px-3.5 py-3 text-sm leading-6 shadow-sm ${
+                                item.failed
+                                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                                  : "border-slate-200 bg-slate-50 text-slate-700"
+                              }`}>
                                 <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#0f91dd]">
                                   AI助手
                                 </div>
-                                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.answer}</div>
-                                {item.relatedQuestions.length > 0 && (
+                                {item.pending ? (
+                                  <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-black text-slate-500">
+                                    <LoaderCircle size={15} className="animate-spin text-[#0f91dd]" />
+                                    正在思考中...
+                                  </div>
+                                ) : (
+                                  <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.answer}</div>
+                                )}
+                                {!item.pending && item.relatedQuestions.length > 0 && (
                                   <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
                                     {item.relatedQuestions.map((question) => (
                                       <button
