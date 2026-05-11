@@ -302,4 +302,71 @@ describe('FloatingTranslateApp', () => {
     expect(screen.queryByText('你好')).not.toBeInTheDocument();
     expect(screen.getByText('翻译结果会显示在这里')).toBeInTheDocument();
   });
+
+  it('clears the previous floating result while a new shortcut translation is loading', async () => {
+    let capturedCallback: ((payload: { text: string; targetLanguage?: string }) => void) | undefined;
+    let resolveSecondTranslation: (value: {
+      provider: 'openai-compatible';
+      sourceText: string;
+      translatedText: string;
+      targetLanguage: string;
+    }) => void = () => {};
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      getDesktopSettings: vi.fn().mockResolvedValue({
+        mouseButton4Enabled: true,
+        launchAtLogin: false,
+        hideToTrayOnClose: true,
+        defaultTargetLanguage: 'zh-CN',
+        defaultTranslationFormat: 'plain'
+      }),
+      onFloatingSourceCaptured: vi.fn((callback) => {
+        capturedCallback = callback as (payload: { text: string; targetLanguage?: string }) => void;
+        return vi.fn();
+      }),
+      onSelectionCaptured: vi.fn(),
+      translateText: vi
+        .fn()
+        .mockResolvedValueOnce({
+          provider: 'openai-compatible',
+          sourceText: 'render',
+          translatedText: '渲染',
+          targetLanguage: 'zh-CN'
+        })
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecondTranslation = resolve;
+            })
+        ),
+      windowControl: vi.fn()
+    } as any;
+
+    render(<FloatingTranslateApp />);
+
+    act(() => {
+      capturedCallback?.({ text: 'render', targetLanguage: 'zh-CN' });
+    });
+
+    expect(await screen.findByText('渲染')).toBeInTheDocument();
+
+    act(() => {
+      capturedCallback?.({ text: 'renders', targetLanguage: 'zh-CN' });
+    });
+
+    expect(screen.queryByText('渲染')).not.toBeInTheDocument();
+    expect(screen.getByText('翻译中...')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveSecondTranslation({
+        provider: 'openai-compatible',
+        sourceText: 'renders',
+        translatedText: '渲染列表',
+        targetLanguage: 'zh-CN'
+      });
+    });
+
+    expect(await screen.findByText('渲染列表')).toBeInTheDocument();
+  });
 });

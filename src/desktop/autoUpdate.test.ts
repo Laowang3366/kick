@@ -211,6 +211,16 @@ describe('auto update channel', () => {
         status: 'downloaded',
         percent: 100,
         message: '更新已下载'
+      },
+      {
+        status: 'downloaded',
+        percent: 100,
+        message: '更新已下载，正在打开安装器'
+      },
+      {
+        status: 'downloaded',
+        percent: 100,
+        message: '安装器已打开，请按安装窗口完成更新'
       }
     ]);
   });
@@ -314,6 +324,7 @@ describe('auto update channel', () => {
       'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.33.exe',
       [],
       {
+        cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
         detached: true,
         stdio: 'ignore',
         windowsHide: true
@@ -322,107 +333,82 @@ describe('auto update channel', () => {
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('starts an independent handoff helper before the current app quits', async () => {
+  it('starts the Windows installer immediately before the current app quits', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('');
-    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath,
-      currentProcessId: 4321,
-      tempDirectory: 'C:\\Temp',
-      scriptWriter
+      shellOpenPath
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      expect.stringContaining('powershell.exe'),
-      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command']),
+      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      [],
       {
-        detached: false,
+        cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
+        detached: true,
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: false
       }
     );
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('launches an independent handoff helper that waits for the app to exit before opening the Windows installer', async () => {
+  it('passes the previous install directory to the immediately opened Windows installer', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('');
-    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe', {
       platform: 'win32',
       launcher,
       shellOpenPath,
-      installDirectory: 'D:\\Tools\\快捷翻译',
-      currentProcessId: 4321,
-      tempDirectory: 'C:\\Temp',
-      scriptWriter
+      installDirectory: 'D:\\Tools\\快捷翻译'
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     const [command, args, options] = launcher.mock.calls[0];
-    expect(command).toContain('powershell.exe');
-    expect(args).toEqual(
-      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command'])
-    );
-    expect(args).not.toContain('-File');
-    expect(args.at(-1)).toContain('Start-Process -WindowStyle Hidden');
-    expect(args.at(-1)).toContain("'-File'");
-    expect(args.at(-1)).toContain("'C:\\Temp\\QuickTranslateUpdateLauncher-4321.ps1'");
-    expect(scriptWriter).toHaveBeenCalledWith(
-      'C:\\Temp\\QuickTranslateUpdateLauncher-4321.ps1',
-      expect.stringContaining('$processId = 4321')
-    );
-    expect(scriptWriter.mock.calls[0][1]).toContain(
-      "$filePath = 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe'"
-    );
-    expect(scriptWriter.mock.calls[0][1]).toContain('Start-Process @startOptions');
-    expect(scriptWriter.mock.calls[0][1]).toContain("'/D=D:\\Tools\\快捷翻译'");
-    expect(scriptWriter.mock.calls[0][1]).toContain('Add-Content');
+    expect(command).toBe('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe');
+    expect(args).toEqual(['/D=D:\\Tools\\快捷翻译']);
     expect(options).toEqual({
-      detached: false,
+      cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
+      detached: true,
       stdio: 'ignore',
-      windowsHide: true
+      windowsHide: false
     });
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
-  it('uses the handoff helper even when the install directory is unavailable', async () => {
+  it('opens the Windows installer immediately even when the install directory is unavailable', async () => {
     const child = {
       unref: vi.fn()
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
-    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath,
-      currentProcessId: 4321,
-      tempDirectory: 'C:\\Temp',
-      scriptWriter
+      shellOpenPath
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      expect.stringContaining('powershell.exe'),
-      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command']),
+      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      [],
       {
-        detached: false,
+        cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
+        detached: true,
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: false
       }
     );
     expect(child.unref).toHaveBeenCalledOnce();
@@ -434,25 +420,22 @@ describe('auto update channel', () => {
     };
     const launcher = vi.fn(() => child);
     const shellOpenPath = vi.fn().mockResolvedValue('shell blocked');
-    const scriptWriter = vi.fn();
 
     await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe', {
       platform: 'win32',
       launcher,
-      shellOpenPath,
-      currentProcessId: 4321,
-      tempDirectory: 'C:\\Temp',
-      scriptWriter
+      shellOpenPath
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
     expect(launcher).toHaveBeenCalledWith(
-      expect.stringContaining('powershell.exe'),
-      expect.arrayContaining(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command']),
+      'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      [],
       {
-        detached: false,
+        cwd: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
+        detached: true,
         stdio: 'ignore',
-        windowsHide: true
+        windowsHide: false
       }
     );
     expect(child.unref).toHaveBeenCalledOnce();

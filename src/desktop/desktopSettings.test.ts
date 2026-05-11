@@ -81,17 +81,25 @@ describe('desktop settings', () => {
   });
 
   it('normalizes custom keyboard shortcuts for the floating translator', () => {
+    expect(normalizeCustomShortcutAccelerator('k')).toBe('K');
+    expect(normalizeCustomShortcutAccelerator('shift+k')).toBe('Shift+K');
     expect(normalizeCustomShortcutAccelerator('ctrl + alt + k')).toBe('CommandOrControl+Alt+K');
+    expect(normalizeCustomShortcutAccelerator('ctrl + semicolon')).toBe('CommandOrControl+;');
     expect(createCustomFloatingTranslateShortcut('Ctrl+Shift+ArrowUp')).toBe('custom:CommandOrControl+Shift+Up');
+    expect(createCustomFloatingTranslateShortcut('K')).toBe('custom:K');
     expect(getFloatingTranslateShortcutAccelerator('custom:CommandOrControl+Alt+K')).toBe('CommandOrControl+Alt+K');
+    expect(getFloatingTranslateShortcutAccelerator('custom:K')).toBe('K');
     expect(getFloatingTranslateShortcutLabel('custom:CommandOrControl+Alt+K')).toBe('自定义：Ctrl + Alt + K');
     expect(formatShortcutAcceleratorLabel('CommandOrControl+Super+Return')).toBe('Ctrl + Win + Enter');
   });
 
   it('rejects unsafe custom keyboard shortcuts', () => {
-    expect(normalizeCustomShortcutAccelerator('k')).toBeUndefined();
-    expect(normalizeCustomShortcutAccelerator('shift+k')).toBeUndefined();
+    expect(normalizeCustomShortcutAccelerator('shift')).toBeUndefined();
     expect(normalizeCustomShortcutAccelerator('ctrl+alt')).toBeUndefined();
-    expect(parseDesktopSettings(JSON.stringify({ floatingTranslateShortcut: 'custom:K' }))).toEqual(defaultDesktopSettings);
+    expect(parseDesktopSettings(JSON.stringify({ floatingTranslateShortcut: 'custom:K' }))).toEqual({
+      ...defaultDesktopSettings,
+      mouseButton4Enabled: false,
+      floatingTranslateShortcut: 'custom:K'
+    });
   });
 });

@@ -1106,6 +1106,19 @@ describe('App', () => {
     expect(screen.getByLabelText('悬浮翻译快捷键')).toHaveValue('custom');
     expect(screen.getByText('Ctrl + Alt + K')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: '录入悬浮翻译快捷键' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: '录入悬浮翻译快捷键' }), {
+      key: ';',
+      code: 'Semicolon'
+    });
+
+    await waitFor(() => {
+      expect(window.quickTranslate?.setDesktopSettings).toHaveBeenCalledWith({
+        floatingTranslateShortcut: 'custom:;'
+      });
+    });
+    expect(screen.getByText(';')).toBeInTheDocument();
+
     fireEvent.click(launchAtLogin);
 
     await waitFor(() => {

@@ -15,10 +15,13 @@ describe('Windows installer script', () => {
     expect(script).toContain('taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"');
     expect(script).toContain('taskkill /T /F /IM "快捷翻译.exe"');
     expect(script).toContain('Wait-Process -Id $$_ -Timeout 8');
+    expect(script).toContain('正在清理旧进程');
+    expect(script).toContain('正在隔离旧版本文件');
+    expect(script).toContain('Rename "${INSTALL_PATH}" "$R6"');
     expect(script).toContain('RMDir /r "${INSTALL_PATH}"');
     expect(script).toContain('!insertmacro quickTranslateRemoveInstallDirectory "$INSTDIR"');
     expect(script).toContain('QuickTranslateRemoveInstallDirectoryLoop_');
-    expect(script).toContain('IntCmp $R7 12');
+    expect(script).toContain('IntCmp $R7 24');
   });
 
   it('bypasses incompatible old uninstallers by removing the registered app directory directly', () => {
@@ -57,5 +60,13 @@ describe('Windows installer script', () => {
 
     expect(script).toContain('!macro preInit');
     expect(script).toContain('SetOutPath "$TEMP"');
+  });
+
+  it('shows installation cleanup progress before replacing files', () => {
+    const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
+
+    expect(script).toContain('SetDetailsPrint both');
+    expect(script).toContain('正在准备安装并清理旧版本');
+    expect(script).toContain('旧版本清理完成，正在替换文件');
   });
 });

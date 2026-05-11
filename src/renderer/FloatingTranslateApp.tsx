@@ -107,6 +107,7 @@ export function FloatingTranslateApp() {
 
     const requestId = translationRequestId.current + 1;
     translationRequestId.current = requestId;
+    setResult(null);
     setStatus('loading');
     setError('');
 
@@ -302,8 +303,9 @@ export function FloatingTranslateApp() {
 
         <section className="floating-result-card" aria-live="polite" aria-label="悬浮译文">
           {status === 'error' ? <p className="error-message">{error}</p> : null}
-          {result ? <p className="translated-text">{result.translatedText}</p> : null}
-          {!result && status !== 'error' ? <p className="empty-state">翻译结果会显示在这里</p> : null}
+          {status === 'loading' ? <p className="empty-state loading-state">翻译中...</p> : null}
+          {result && status !== 'loading' ? <p className="translated-text">{result.translatedText}</p> : null}
+          {!result && status !== 'error' && status !== 'loading' ? <p className="empty-state">翻译结果会显示在这里</p> : null}
           <button type="button" aria-label="复制悬浮译文" disabled={!result?.translatedText} onClick={copyResult}>
             <Copy size={19} />
           </button>

@@ -58,8 +58,21 @@ const supportedNamedKeys = new Set([
   'Home',
   'End',
   'PageUp',
-  'PageDown'
+  'PageDown',
+  'Capslock',
+  'Numlock',
+  'Scrolllock',
+  'PrintScreen',
+  'Pause',
+  'VolumeUp',
+  'VolumeDown',
+  'VolumeMute',
+  'MediaNextTrack',
+  'MediaPreviousTrack',
+  'MediaStop',
+  'MediaPlayPause'
 ]);
+const supportedPunctuationKeys = new Set(['`', '-', '=', '[', ']', '\\', ';', "'", ',', '.', '/', '*']);
 
 export const defaultDesktopSettings: DesktopSettings = {
   mouseButton4Enabled: true,
@@ -154,8 +167,7 @@ export function normalizeCustomShortcutAccelerator(value: unknown): string | und
     key = normalizedPart;
   }
 
-  const hasActivationModifier = modifiers.some((modifier) => modifier !== 'Shift');
-  if (!key || (!hasActivationModifier && !isFunctionKey(key))) {
+  if (!key) {
     return undefined;
   }
 
@@ -230,12 +242,41 @@ function normalizeShortcutPart(value: string) {
     pageup: 'PageUp',
     pagedown: 'PageDown'
   };
+  const punctuationMap: Record<string, string> = {
+    '`': '`',
+    backquote: '`',
+    '-': '-',
+    minus: '-',
+    '=': '=',
+    equal: '=',
+    '[': '[',
+    bracketleft: '[',
+    ']': ']',
+    bracketright: ']',
+    '\\': '\\',
+    backslash: '\\',
+    ';': ';',
+    semicolon: ';',
+    "'": "'",
+    quote: "'",
+    ',': ',',
+    comma: ',',
+    '.': '.',
+    period: '.',
+    '/': '/',
+    slash: '/',
+    '*': '*',
+    multiply: '*'
+  };
 
   if (modifierMap[lowerValue]) {
     return modifierMap[lowerValue];
   }
   if (keyMap[lowerValue]) {
     return keyMap[lowerValue];
+  }
+  if (punctuationMap[lowerValue]) {
+    return punctuationMap[lowerValue];
   }
   if (/^f([1-9]|1\d|2[0-4])$/i.test(trimmedValue)) {
     return trimmedValue.toUpperCase();
@@ -249,6 +290,9 @@ function normalizeShortcutPart(value: string) {
   if (supportedNamedKeys.has(trimmedValue)) {
     return trimmedValue;
   }
+  if (supportedPunctuationKeys.has(trimmedValue)) {
+    return trimmedValue;
+  }
 
   return undefined;
 }
@@ -256,10 +300,6 @@ function normalizeShortcutPart(value: string) {
 function sortShortcutModifiers(modifiers: string[]) {
   const sortOrder = ['CommandOrControl', 'Control', 'Command', 'Super', 'Alt', 'Option', 'AltGr', 'Shift'];
   return [...modifiers].sort((left, right) => sortOrder.indexOf(left) - sortOrder.indexOf(right));
-}
-
-function isFunctionKey(value: string) {
-  return /^F([1-9]|1\d|2[0-4])$/.test(value);
 }
 
 export function normalizeDesktopSettings(value: unknown): DesktopSettings {

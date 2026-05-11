@@ -271,10 +271,32 @@ function normalizeKeyboardShortcutKey(key: string, code: string) {
   if (/^Digit\d$/.test(code)) {
     return code.slice(5);
   }
+  if (/^Numpad\d$/.test(code)) {
+    return code.slice(6);
+  }
   if (/^F([1-9]|1\d|2[0-4])$/.test(key)) {
     return key;
   }
 
+  const codeMap: Record<string, string> = {
+    Backquote: '`',
+    Minus: '-',
+    Equal: '=',
+    BracketLeft: '[',
+    BracketRight: ']',
+    Backslash: '\\',
+    Semicolon: ';',
+    Quote: "'",
+    Comma: ',',
+    Period: '.',
+    Slash: '/',
+    NumpadAdd: 'Plus',
+    NumpadSubtract: '-',
+    NumpadMultiply: '*',
+    NumpadDivide: '/',
+    NumpadDecimal: '.',
+    NumpadEnter: 'Return'
+  };
   const keyMap: Record<string, string> = {
     '+': 'Plus',
     ' ': 'Space',
@@ -291,9 +313,24 @@ function normalizeKeyboardShortcutKey(key: string, code: string) {
     Home: 'Home',
     End: 'End',
     PageUp: 'PageUp',
-    PageDown: 'PageDown'
+    PageDown: 'PageDown',
+    CapsLock: 'Capslock',
+    NumLock: 'Numlock',
+    ScrollLock: 'Scrolllock',
+    PrintScreen: 'PrintScreen',
+    Pause: 'Pause',
+    AudioVolumeUp: 'VolumeUp',
+    AudioVolumeDown: 'VolumeDown',
+    AudioVolumeMute: 'VolumeMute',
+    MediaTrackNext: 'MediaNextTrack',
+    MediaTrackPrevious: 'MediaPreviousTrack',
+    MediaStop: 'MediaStop',
+    MediaPlayPause: 'MediaPlayPause'
   };
 
+  if (codeMap[code]) {
+    return codeMap[code];
+  }
   if (keyMap[key]) {
     return keyMap[key];
   }
@@ -914,7 +951,7 @@ export function App() {
 
     const accelerator = createShortcutAcceleratorFromKeyboardEvent(event);
     if (!accelerator) {
-      setFloatingShortcutError('请按 Ctrl、Alt 或 Win 加字母、数字、方向键，也可直接使用 F1-F24');
+      setFloatingShortcutError('请按任意非修饰键，或按键盘组合键；Esc 取消');
       return;
     }
 
@@ -1762,7 +1799,7 @@ export function App() {
                                 <span>{isRecordingFloatingShortcut ? '请按新的组合键' : customFloatingShortcutLabel}</span>
                               </button>
                               <small className={floatingShortcutError ? 'shortcut-error' : undefined}>
-                                {floatingShortcutError || '推荐使用 Ctrl / Alt / Win 与字母、数字或方向键组合'}
+                                {floatingShortcutError || '可录入单键或任意键盘组合键；Esc 取消录入'}
                               </small>
                             </div>
                           ) : null}
