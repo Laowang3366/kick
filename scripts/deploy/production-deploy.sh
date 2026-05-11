@@ -56,6 +56,90 @@ health_check() {
   return 1
 }
 
+backup_frontend_managed_files() {
+  local dist_dir="$REPO_DIR/reace_web/dist"
+  local source_file file_name rel_path runtime_file backup_file
+
+  mkdir -p "$WEB_BACKUP_DIR"
+
+  if [[ -f "$WEB_RUNTIME_DIR/index.html" ]]; then
+    cp -a "$WEB_RUNTIME_DIR/index.html" "$WEB_BACKUP_DIR/index.html"
+  fi
+
+  mkdir -p "$WEB_BACKUP_DIR/root-files"
+  while IFS= read -r -d '' source_file; do
+    file_name="$(basename "$source_file")"
+    [[ "$file_name" == "index.html" ]] && continue
+    if [[ -f "$WEB_RUNTIME_DIR/$file_name" ]]; then
+      cp -a "$WEB_RUNTIME_DIR/$file_name" "$WEB_BACKUP_DIR/root-files/$file_name"
+    fi
+  done < <(find "$dist_dir" -maxdepth 1 -type f -print0)
+
+  if [[ -d "$dist_dir/assets" && -d "$WEB_RUNTIME_DIR/assets" ]]; then
+    while IFS= read -r -d '' rel_path; do
+      rel_path="${rel_path#./}"
+      runtime_file="$WEB_RUNTIME_DIR/assets/$rel_path"
+      backup_file="$WEB_BACKUP_DIR/assets/$rel_path"
+      if [[ -f "$runtime_file" ]]; then
+        mkdir -p "$(dirname "$backup_file")"
+        cp -a "$runtime_file" "$backup_file"
+      fi
+    done < <(cd "$dist_dir/assets" && find . -type f -print0)
+  fi
+}
+
+publish_frontend_dist() {
+  local dist_dir="$REPO_DIR/reace_web/dist"
+  local source_file file_name rel_path target_path
+
+  install -d -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "$WEB_RUNTIME_DIR"
+  install -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" -m 0644 \
+    "$dist_dir/index.html" \
+    "$WEB_RUNTIME_DIR/index.html"
+
+  if [[ -d "$dist_dir/assets" ]]; then
+    install -d -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "$WEB_RUNTIME_DIR/assets"
+    cp -a "$dist_dir/assets/." "$WEB_RUNTIME_DIR/assets/"
+    while IFS= read -r -d '' rel_path; do
+      rel_path="${rel_path#./}"
+      target_path="$WEB_RUNTIME_DIR/assets/$rel_path"
+      if [[ -e "$target_path" || -L "$target_path" ]]; then
+        chown -h "$DEPLOY_USER:$DEPLOY_GROUP" "$target_path"
+      fi
+    done < <(cd "$dist_dir/assets" && find . -mindepth 1 -print0)
+  fi
+
+  while IFS= read -r -d '' source_file; do
+    file_name="$(basename "$source_file")"
+    [[ "$file_name" == "index.html" ]] && continue
+    cp -a "$source_file" "$WEB_RUNTIME_DIR/$file_name"
+    chown -h "$DEPLOY_USER:$DEPLOY_GROUP" "$WEB_RUNTIME_DIR/$file_name"
+  done < <(find "$dist_dir" -maxdepth 1 -type f -print0)
+}
+
+restore_frontend_managed_files() {
+  if [[ ! -d "${WEB_BACKUP_DIR:-}" ]]; then
+    return 0
+  fi
+
+  install -d -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "$WEB_RUNTIME_DIR"
+
+  if [[ -f "$WEB_BACKUP_DIR/index.html" ]]; then
+    install -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" -m 0644 \
+      "$WEB_BACKUP_DIR/index.html" \
+      "$WEB_RUNTIME_DIR/index.html"
+  fi
+
+  if [[ -d "$WEB_BACKUP_DIR/root-files" ]]; then
+    cp -a "$WEB_BACKUP_DIR/root-files/." "$WEB_RUNTIME_DIR/"
+  fi
+
+  if [[ -d "$WEB_BACKUP_DIR/assets" ]]; then
+    install -d -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" "$WEB_RUNTIME_DIR/assets"
+    cp -a "$WEB_BACKUP_DIR/assets/." "$WEB_RUNTIME_DIR/assets/"
+  fi
+}
+
 rollback() {
   if [[ "${ROLLBACK_READY:-0}" != "1" ]]; then
     return 0
@@ -63,13 +147,7 @@ rollback() {
 
   log "starting rollback"
 
-  if [[ -d "$WEB_RUNTIME_DIR" ]]; then
-    rm -rf "$WEB_RUNTIME_DIR"
-  fi
-
-  if [[ -d "${BACKUP_DIR}/kick-web" ]]; then
-    mv "${BACKUP_DIR}/kick-web" "$WEB_RUNTIME_DIR"
-  fi
+  restore_frontend_managed_files
 
   if [[ -f "${BACKUP_DIR}/forum-1.0.0.jar" ]]; then
     install -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" -m 0644 \
@@ -122,6 +200,7 @@ require_command mvn
 require_command curl
 require_command systemctl
 require_command install
+require_command find
 
 validate_directory "$REPO_DIR"
 validate_directory "$REPO_DIR/reace_web"
@@ -133,9 +212,7 @@ validate_file "$BACKEND_RUNTIME_DIR/forum-1.0.0.jar"
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
 BACKUP_DIR="${BACKUP_ROOT}/${timestamp}"
-WEB_PARENT_DIR="$(dirname "$WEB_RUNTIME_DIR")"
-WEB_RELEASE_DIR="${WEB_PARENT_DIR}/.kick-web-release-${timestamp}"
-WEB_OLD_DIR="${WEB_PARENT_DIR}/.kick-web-old-${timestamp}"
+WEB_BACKUP_DIR="${BACKUP_DIR}/kick-web-managed"
 ROLLBACK_READY=0
 
 mkdir -p "$BACKUP_ROOT"
@@ -198,21 +275,12 @@ validate_file "$REPO_DIR/excel-forum-backend/target/forum-1.0.0.jar"
 
 log "creating backup at $BACKUP_DIR"
 mkdir -p "$BACKUP_DIR"
-cp -a "$WEB_RUNTIME_DIR" "${BACKUP_DIR}/kick-web"
+backup_frontend_managed_files
 cp -a "$BACKEND_RUNTIME_DIR/forum-1.0.0.jar" "${BACKUP_DIR}/forum-1.0.0.jar"
 ROLLBACK_READY=1
 
-log "preparing frontend release directory"
-rm -rf "$WEB_RELEASE_DIR"
-rm -rf "$WEB_OLD_DIR"
-mkdir -p "$WEB_RELEASE_DIR"
-cp -a "$REPO_DIR/reace_web/dist/." "$WEB_RELEASE_DIR/"
-chown -R "$DEPLOY_USER:$DEPLOY_GROUP" "$WEB_RELEASE_DIR"
-
-log "publishing frontend assets"
-mv "$WEB_RUNTIME_DIR" "$WEB_OLD_DIR"
-mv "$WEB_RELEASE_DIR" "$WEB_RUNTIME_DIR"
-rm -rf "$WEB_OLD_DIR"
+log "publishing frontend managed files"
+publish_frontend_dist
 
 log "publishing backend jar"
 install -o "$DEPLOY_USER" -g "$DEPLOY_GROUP" -m 0644 \

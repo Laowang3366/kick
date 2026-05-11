@@ -77,8 +77,8 @@ bash scripts/deploy/production-deploy.sh
 3. 按 `deploy.env` 的 `REPO_URL`、`BRANCH` 和 `GIT_REMOTE` 拉取最新代码
 4. 构建前端 `reace_web/dist`
 5. 构建后端 `excel-forum-backend/target/forum-1.0.0.jar`
-6. 为当前前端目录和后端 JAR 建立时间戳备份
-7. 替换运行时目录
+6. 为将被覆盖的前端受管文件和后端 JAR 建立时间戳备份
+7. 发布前端受管文件，不替换或删除整个前端运行时目录
 8. 重启 `kick-backend.service`
 9. 通过 HTTP 接口进行健康检查
 10. 如失败则自动回滚
@@ -181,15 +181,26 @@ curl -Iks https://www.excelcc.cn
 
 每次标准部署都会在 `/www/wwwroot/kick-deploy/backups/<timestamp>` 下生成：
 
-- `kick-web/`
+- `kick-web-managed/`
 - `forum-1.0.0.jar`
+
+`kick-web-managed/` 只保存本次发布会覆盖的项目文件，例如 `index.html`、构建产物根文件和 `assets` 下同名文件。前端发布与回滚都不会整体删除、移动或替换 `/www/wwwroot/kick-web`，避免影响同一目录里的其它项目。
 
 如果自动回滚没有完成，人工回滚步骤如下：
 
 ```bash
 export ROLLBACK_DIR=/www/wwwroot/kick-deploy/backups/<timestamp>
-rm -rf /www/wwwroot/kick-web
-mv "$ROLLBACK_DIR/kick-web" /www/wwwroot/kick-web
+install -d -o www -g www /www/wwwroot/kick-web
+if [ -f "$ROLLBACK_DIR/kick-web-managed/index.html" ]; then
+  install -o www -g www -m 0644 "$ROLLBACK_DIR/kick-web-managed/index.html" /www/wwwroot/kick-web/index.html
+fi
+if [ -d "$ROLLBACK_DIR/kick-web-managed/root-files" ]; then
+  cp -a "$ROLLBACK_DIR/kick-web-managed/root-files/." /www/wwwroot/kick-web/
+fi
+if [ -d "$ROLLBACK_DIR/kick-web-managed/assets" ]; then
+  install -d -o www -g www /www/wwwroot/kick-web/assets
+  cp -a "$ROLLBACK_DIR/kick-web-managed/assets/." /www/wwwroot/kick-web/assets/
+fi
 install -o www -g www -m 0644 "$ROLLBACK_DIR/forum-1.0.0.jar" /www/wwwroot/kick-backend/forum-1.0.0.jar
 systemctl restart kick-backend.service
 curl -fsS http://127.0.0.1:8080/api/public/home-overview
@@ -204,6 +215,7 @@ ls -lt /www/wwwroot/kick-deploy/backups
 ## 变更约束
 
 - 不要直接在 `/www/wwwroot/kick-web` 手工编辑静态文件
+- 不要整体删除、移动或替换 `/www/wwwroot/kick-web`，发布只能覆盖本项目构建产生的受管文件
 - 不要直接在 `/www/wwwroot/kick-backend` 手工替换源码
 - 不要从 `/www/wwwroot/kick-src/kick` 发版
 - 任何对生产结构的进一步升级，优先在仓库文档与脚本里落地，再执行
