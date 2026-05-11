@@ -50,6 +50,7 @@ export function PracticeDetail() {
   const currentWorkbook = workbook.sheets.length > 0 ? workbook : (question?.templateWorkbook || { sheets: [] });
   const currentSheetName = selectedSheetName || question?.answerSheet || question?.templateWorkbook?.sheets?.[0]?.name || "";
   const editorKey = getPracticeDetailEditorKey(question?.id);
+  const questionRequirement = String(question?.explanation || "").trim();
 
   useEffect(() => {
     if (!question?.templateWorkbook?.sheets?.length) return;
@@ -222,15 +223,23 @@ export function PracticeDetail() {
                   使用函数公式进行答题时，请确保输入法切换为英文状态，避免公式输入异常。
                 </div>
               </div>
-              {question.explanation && (
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 leading-7 text-slate-500">
-                  {question.explanation}
-                </div>
-              )}
             </div>
           </div>
 
           <div className="space-y-4">
+            <div className="rounded-[28px] border border-cyan-200 bg-[linear-gradient(135deg,#ecfeff_0%,#f0fdf4_100%)] p-5 shadow-[0_24px_60px_-36px_rgba(6,95,70,0.45)]">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-cyan-700">
+                <Target size={14} />
+                题目要求
+              </div>
+              <div className="whitespace-pre-wrap text-lg font-black leading-8 text-slate-950">
+                {questionRequirement || `请在 ${question.answerSheet} / ${question.answerRange} 内完成作答。`}
+              </div>
+              <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-white/80 bg-white/70 px-4 py-2 text-sm font-bold text-emerald-800">
+                作答区域
+                <span className="text-slate-950">{question.answerSheet} / {question.answerRange}</span>
+              </div>
+            </div>
             <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.35)]">
               <div className="mb-3 text-sm font-bold text-slate-600">
                 请在 <span className="text-emerald-600">{question.answerSheet} / {question.answerRange}</span> 内作答，系统仅按该区域进行判题。

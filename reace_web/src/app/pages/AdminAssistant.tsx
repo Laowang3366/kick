@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckCircle2, Edit3, LoaderCircle, Power, RefreshCcw, Trash2, UploadCloud } from "lucide-react";
+import { Bot, CheckCircle2, Edit3, LoaderCircle, Power, RefreshCcw, Save, Trash2, UploadCloud } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
@@ -76,6 +76,7 @@ export function AdminAssistant() {
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadingDefaultPrompt, setLoadingDefaultPrompt] = useState(false);
+  const [savingDefaultPrompt, setSavingDefaultPrompt] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -118,6 +119,7 @@ export function AdminAssistant() {
   const stats = statsQuery.data || {};
   const overview = stats.overview || {};
   const statRecords = stats.records || [];
+  const visibleModelOptions = uniqueModels([form.model, ...modelOptions]);
 
   if (!isAdmin) {
     return (
@@ -216,13 +218,13 @@ export function AdminAssistant() {
     const normalizedApiKey = normalizeApiKeyInput(form.apiKey);
     setLoadingModels(true);
     try {
-      const result = await api.post<{ models: string[] }>("/api/admin/assistant/models", {
+      const result = await api.post<{ models: Array<string | { id?: string; name?: string; model?: string }> }>("/api/admin/assistant/models", {
         configId: editingItem?.id,
         baseUrl: form.baseUrl,
         apiKey: normalizedApiKey,
         useSubmittedApiKey: !editingItem || (apiKeyTouched && Boolean(normalizedApiKey)),
       });
-      const models = result.models || [];
+      const models = normalizeModelOptions(result.models || []);
       setModelOptions(models);
       if (models.length > 0 && !form.model) {
         setForm((prev) => ({ ...prev, model: models[0] }));
@@ -249,6 +251,30 @@ export function AdminAssistant() {
       handleAdminError(error, navigate);
     } finally {
       setLoadingDefaultPrompt(false);
+    }
+  };
+
+  const saveSystemDefaultPrompt = async () => {
+    if (!form.systemPrompt.trim()) {
+      toast.error("请先填写 system prompt 内容");
+      return;
+    }
+    setSavingDefaultPrompt(true);
+    try {
+      const result = await api.put<{ promptFileName?: string; systemPrompt?: string }>("/api/admin/assistant/default-prompt", {
+        promptFileName: form.promptFileName,
+        systemPrompt: form.systemPrompt,
+      });
+      setForm((prev) => ({
+        ...prev,
+        promptFileName: result.promptFileName || prev.promptFileName || "system-prompt.txt",
+        systemPrompt: result.systemPrompt || prev.systemPrompt,
+      }));
+      toast.success("系统默认 prompt 已保存");
+    } catch (error) {
+      handleAdminError(error, navigate);
+    } finally {
+      setSavingDefaultPrompt(false);
     }
   };
 
@@ -424,22 +450,29 @@ export function AdminAssistant() {
           </Field>
           <Field label="模型">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <input
-                list="ai-assistant-model-options"
-                value={form.model}
-                onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))}
-                className={inputClassName()}
-                placeholder="gpt-4.1-mini"
-              />
+              {modelOptions.length > 0 ? (
+                <select
+                  value={form.model}
+                  onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))}
+                  className={inputClassName()}
+                >
+                  <option value="">请选择模型</option>
+                  {visibleModelOptions.map((model) => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={form.model}
+                  onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))}
+                  className={inputClassName()}
+                  placeholder="gpt-4.1-mini"
+                />
+              )}
               <button type="button" onClick={() => void fetchModels()} disabled={loadingModels} className={secondaryButtonClassName()}>
                 {loadingModels ? <LoaderCircle size={15} className="animate-spin" /> : <Bot size={15} />}
                 获取模型
               </button>
-              <datalist id="ai-assistant-model-options">
-                {modelOptions.map((model) => (
-                  <option key={model} value={model} />
-                ))}
-              </datalist>
             </div>
           </Field>
           <Field label="排序">
@@ -454,11 +487,15 @@ export function AdminAssistant() {
         </div>
 
         <Field label="system prompt 文件">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
             <input value={form.promptFileName} onChange={(event) => setForm((prev) => ({ ...prev, promptFileName: event.target.value }))} className={inputClassName()} placeholder="system-prompt.txt" />
             <button type="button" onClick={() => void loadSystemDefaultPrompt()} disabled={loadingDefaultPrompt} className={secondaryButtonClassName()}>
               {loadingDefaultPrompt ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
               读取默认
+            </button>
+            <button type="button" onClick={() => void saveSystemDefaultPrompt()} disabled={savingDefaultPrompt} className={secondaryButtonClassName()}>
+              {savingDefaultPrompt ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />}
+              保存默认
             </button>
             <button type="button" onClick={() => promptFileRef.current?.click()} className={secondaryButtonClassName()}>
               <UploadCloud size={15} />
@@ -573,6 +610,17 @@ function normalizeApiKeyInput(value: string) {
     return "";
   }
   return trimmed;
+}
+
+function normalizeModelOptions(models: Array<string | { id?: string; name?: string; model?: string }>) {
+  return uniqueModels(models.map((item) => {
+    if (typeof item === "string") return item;
+    return item.id || item.name || item.model || "";
+  }));
+}
+
+function uniqueModels(models: string[]) {
+  return Array.from(new Set(models.map((item) => item.trim()).filter(Boolean)));
 }
 
 function handleAdminError(error: unknown, navigate: ReturnType<typeof useNavigate>) {

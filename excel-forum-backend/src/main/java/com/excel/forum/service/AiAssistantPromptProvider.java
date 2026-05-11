@@ -7,15 +7,19 @@ import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class AiAssistantPromptProvider {
     private static final String CLASSPATH_DEFAULT_PROMPT = "classpath:prompts/ai-assistant-system-prompt.txt";
+    private static final String DEFAULT_EDITABLE_PROMPT_FILE_NAME = "ai-assistant-system-prompt.txt";
     private static final String BUILTIN_DEFAULT_PROMPT = String.join("\n",
             "你是一个专业、可靠、克制的 Excel 中文助手。",
             "输出必须使用自然中文纯文本。",
@@ -28,6 +32,11 @@ public class AiAssistantPromptProvider {
     private final ResourceLoader resourceLoader;
 
     public PromptSource getDefaultPrompt() {
+        PromptSource editablePrompt = readEditableDefaultPrompt();
+        if (editablePrompt != null) {
+            return editablePrompt;
+        }
+
         PromptSource filePrompt = firstReadableFilePrompt(
                 environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT_FILE"),
                 environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT_PATH"),
@@ -53,9 +62,66 @@ public class AiAssistantPromptProvider {
         return new PromptSource("builtin-default", BUILTIN_DEFAULT_PROMPT);
     }
 
+    public PromptSource saveDefaultPrompt(String fileName, String content) {
+        String prompt = trimToNull(content);
+        if (prompt == null) {
+            throw new IllegalArgumentException("system prompt 内容不能为空");
+        }
+        try {
+            Path promptPath = editablePromptPath(fileName);
+            Path parent = promptPath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(
+                    promptPath,
+                    prompt + System.lineSeparator(),
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING
+            );
+            return new PromptSource(promptPath.getFileName().toString(), prompt);
+        } catch (IOException e) {
+            throw new IllegalStateException("系统默认 prompt 保存失败：" + e.getMessage());
+        }
+    }
+
     public String resolveSystemPrompt(String configuredPrompt) {
         String prompt = trimToNull(configuredPrompt);
         return prompt == null ? getDefaultPrompt().content() : prompt;
+    }
+
+    private PromptSource readEditableDefaultPrompt() {
+        Path promptPath = editablePromptPath(null);
+        if (!Files.isRegularFile(promptPath)) {
+            return null;
+        }
+        try {
+            String content = trimToNull(Files.readString(promptPath, StandardCharsets.UTF_8));
+            return content == null ? null : new PromptSource(promptPath.getFileName().toString(), content);
+        } catch (Exception e) {
+            log.warn("AI assistant editable prompt file read failed: {}", promptPath);
+            return null;
+        }
+    }
+
+    private Path editablePromptPath(String requestedFileName) {
+        String configured = firstText(
+                environment.getProperty("AI_ASSISTANT_EDITABLE_SYSTEM_PROMPT_FILE"),
+                environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT_FILE"),
+                environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT_PATH"),
+                environment.getProperty("AI_ASSISTANT_SYSTEM_PROMPT_FILE_PATH")
+        );
+        if (configured != null && !configured.startsWith("classpath:")) {
+            if (configured.startsWith("file:")) {
+                configured = configured.substring("file:".length());
+            }
+            return Path.of(configured).toAbsolutePath().normalize();
+        }
+
+        return Path.of(System.getProperty("user.dir", "."), "prompts", DEFAULT_EDITABLE_PROMPT_FILE_NAME)
+                .toAbsolutePath()
+                .normalize();
     }
 
     private PromptSource firstReadableFilePrompt(String... locations) {
@@ -112,6 +178,16 @@ public class AiAssistantPromptProvider {
         } catch (Exception ignored) {
             return location;
         }
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            String normalized = trimToNull(value);
+            if (normalized != null) {
+                return normalized;
+            }
+        }
+        return null;
     }
 
     private String defaultIfBlank(String value, String fallback) {

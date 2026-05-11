@@ -2,6 +2,7 @@ package com.excel.forum.controller;
 
 import com.excel.forum.entity.AiAssistantConfig;
 import com.excel.forum.entity.dto.AdminAiAssistantConfigRequest;
+import com.excel.forum.entity.dto.AdminAiAssistantDefaultPromptRequest;
 import com.excel.forum.entity.dto.AdminAiAssistantModelRequest;
 import com.excel.forum.service.AiAssistantCallLogService;
 import com.excel.forum.service.AiAssistantConfigService;
@@ -91,6 +92,17 @@ public class AdminAssistantController {
     @GetMapping("/default-prompt")
     public ResponseEntity<?> getDefaultPrompt() {
         return ResponseEntity.ok(aiAssistantConfigService.getDefaultPrompt());
+    }
+
+    @PutMapping("/default-prompt")
+    public ResponseEntity<?> saveDefaultPrompt(@RequestBody AdminAiAssistantDefaultPromptRequest request) {
+        if (request == null || isBlank(request.getSystemPrompt())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "system prompt 内容不能为空"));
+        }
+        return ResponseEntity.ok(aiAssistantConfigService.saveDefaultPrompt(
+                request.getPromptFileName(),
+                request.getSystemPrompt()
+        ));
     }
 
     @PostMapping("/models")

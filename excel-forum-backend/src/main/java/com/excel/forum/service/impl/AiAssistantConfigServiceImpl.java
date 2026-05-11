@@ -90,6 +90,16 @@ public class AiAssistantConfigServiceImpl extends ServiceImpl<AiAssistantConfigM
     @Override
     public Map<String, Object> getDefaultPrompt() {
         AiAssistantPromptProvider.PromptSource promptSource = promptProvider.getDefaultPrompt();
+        return toPromptMap(promptSource);
+    }
+
+    @Override
+    public Map<String, Object> saveDefaultPrompt(String promptFileName, String systemPrompt) {
+        AiAssistantPromptProvider.PromptSource promptSource = promptProvider.saveDefaultPrompt(promptFileName, systemPrompt);
+        return toPromptMap(promptSource);
+    }
+
+    private Map<String, Object> toPromptMap(AiAssistantPromptProvider.PromptSource promptSource) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("promptFileName", promptSource.fileName());
         map.put("systemPrompt", promptSource.content());

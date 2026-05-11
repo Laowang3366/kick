@@ -15,6 +15,8 @@ public interface AiAssistantConfigService extends IService<AiAssistantConfig> {
 
     Map<String, Object> getDefaultPrompt();
 
+    Map<String, Object> saveDefaultPrompt(String promptFileName, String systemPrompt);
+
     void activate(Long id);
 
     List<String> fetchModels(Long configId, String baseUrl, String apiKey, Boolean useSubmittedApiKey);
