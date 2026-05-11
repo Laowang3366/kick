@@ -2373,8 +2373,8 @@ export function Layout() {
                         {assistantHistory.map((item) => (
                           <div key={item.id} className="space-y-3">
                             <div className="flex justify-end">
-                              <div className="max-w-[86%] rounded-2xl rounded-br-md bg-[#0f91dd] px-3.5 py-2.5 text-sm leading-6 text-white shadow-sm">
-                                <div className="whitespace-pre-wrap">{item.question}</div>
+                              <div className="min-w-0 max-w-[86%] rounded-2xl rounded-br-md bg-[#0f91dd] px-3.5 py-2.5 text-sm leading-6 text-white shadow-sm">
+                                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.question}</div>
                                 {item.attachments && item.attachments.length > 0 && (
                                   <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/20 pt-2">
                                     {item.attachments.map((attachment) => (
@@ -2388,11 +2388,11 @@ export function Layout() {
                               </div>
                             </div>
                             <div className="flex justify-start">
-                              <div className="max-w-[90%] rounded-2xl rounded-bl-md border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-700">
+                              <div className="min-w-0 max-w-[90%] rounded-2xl rounded-bl-md border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-6 text-slate-700">
                                 <div className="mb-2 flex items-center gap-2 text-xs font-black text-[#0f91dd]">
                                   AI助手
                                 </div>
-                                <div className="whitespace-pre-wrap">{item.answer}</div>
+                                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.answer}</div>
                                 {(item.relatedTutorials.length > 0 || item.relatedQuestions.length > 0) && (
                                   <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
                                     {item.relatedTutorials.map((tutorial) => (

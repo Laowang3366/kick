@@ -283,12 +283,12 @@ export function Assistant() {
               chatHistory.map((item) => (
                 <div key={item.id} className="space-y-4">
                   <div className="flex justify-end">
-                    <div className="max-w-[88%] rounded-[22px] rounded-br-md bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_100%)] px-4 py-3 text-sm leading-6 text-white shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
+                    <div className="min-w-0 max-w-[88%] rounded-[22px] rounded-br-md bg-[linear-gradient(135deg,#0f172a_0%,#0f766e_100%)] px-4 py-3 text-sm leading-6 text-white shadow-[0_12px_24px_rgba(15,23,42,0.12)]">
                       <div className="mb-2 flex items-center gap-2 text-xs font-black text-white/75">
                         <User size={14} />
                         你
                       </div>
-                      <div className="whitespace-pre-wrap">{item.question}</div>
+                      <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.question}</div>
                       {item.attachments && item.attachments.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/20 pt-2">
                           {item.attachments.map((attachment) => (
@@ -303,12 +303,12 @@ export function Assistant() {
                   </div>
 
                   <div className="flex justify-start">
-                    <div className="max-w-[92%] rounded-[22px] rounded-bl-md border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                    <div className="min-w-0 max-w-[92%] rounded-[22px] rounded-bl-md border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                       <div className="mb-2 flex items-center gap-2 text-xs font-black text-emerald-700">
                         <Bot size={14} />
                         AI 助手
                       </div>
-                      <div className="whitespace-pre-wrap">{item.answer}</div>
+                      <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{item.answer}</div>
                       <div className="mt-3 text-xs text-slate-400">
                         模型：{item.model || "-"}{item.fallbackUsed ? "（已走兜底）" : ""}
                       </div>
