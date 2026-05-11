@@ -137,21 +137,12 @@ public class AssistantServiceImpl implements AssistantService {
                                List<Map<String, Object>> questions,
                                List<AssistantImageInput> images) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是 ExcelCC.cn 的 Excel AI 助手。\n");
-        sb.append("目标：用简洁、准确、实操导向的中文回答用户 Excel 问题。\n");
-        sb.append("要求：\n");
-        sb.append("1. 优先给出能直接用的公式、排错步骤和原因解释。\n");
-        sb.append("2. 如果用户给了公式，先解释公式结构，再指出错误或改写建议。\n");
-        sb.append("3. 如果信息不足，明确说缺什么，不要瞎编。\n");
-        sb.append("4. 不要编造 ExcelCC 的站内内容，只能引用提供给你的教程/题目线索。\n");
-        sb.append("5. 默认使用中文，必要时保留英文函数名。\n\n");
-        sb.append("6. 输出必须是纯文本，不要使用 Markdown 符号或代码围栏。\n");
-        sb.append("7. 不要输出 #、##、---、```、**、反引号等排版符号；函数名和公式不需要用反引号包裹。\n\n");
+        sb.append("以下是用户问题和可用上下文。请遵循 system prompt 中的角色、格式和风格要求回答。\n\n");
         sb.append("用户问题：\n").append(message).append("\n\n");
         if (!isBlank(formula)) sb.append("用户公式：\n").append(formula).append("\n\n");
         if (!isBlank(workbookContext)) sb.append("用户提供的表格/上下文：\n").append(workbookContext).append("\n\n");
         if (!images.isEmpty()) {
-            sb.append("用户提供的图片：\n");
+            sb.append("用户提供的图片信息：\n");
             for (int index = 0; index < images.size(); index += 1) {
                 AssistantImageInput image = images.get(index);
                 sb.append(index + 1)
@@ -163,7 +154,7 @@ public class AssistantServiceImpl implements AssistantService {
                         .append(image.size() == null ? "unknown size" : image.size() + " bytes")
                         .append("\n");
             }
-            sb.append("请直接识别图片中的表格、公式、报错、截图信息，并基于识别结果回答。\n\n");
+            sb.append("图片内容已随本次请求发送。\n\n");
         }
         if (!tutorials.isEmpty()) {
             sb.append("可参考的站内教程：\n");
@@ -183,10 +174,6 @@ public class AssistantServiceImpl implements AssistantService {
             }
             sb.append("\n");
         }
-        sb.append("输出格式硬性要求：\n");
-        sb.append("结论：先用一句话回答。\n");
-        sb.append("步骤：使用 1. 2. 3. 编号说明。\n");
-        sb.append("公式：如果适用，最后给一个可直接复制的公式；不要包裹 Markdown 符号。\n");
         return sb.toString();
     }
 

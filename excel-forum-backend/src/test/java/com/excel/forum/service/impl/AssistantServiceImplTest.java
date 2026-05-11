@@ -91,6 +91,27 @@ class AssistantServiceImplTest {
         assertThat(timeoutMs).isEqualTo(60000);
     }
 
+    @Test
+    void buildPromptLeavesAnswerFormatToSystemPrompt() {
+        String prompt = ReflectionTestUtils.invokeMethod(
+                service,
+                "buildPrompt",
+                "帮我写一个 SUMIFS 公式",
+                "",
+                "",
+                List.of(),
+                List.of(),
+                List.of()
+        );
+
+        assertThat(prompt)
+                .contains("请遵循 system prompt")
+                .contains("用户问题")
+                .doesNotContain("输出格式硬性要求")
+                .doesNotContain("结论：先用一句话回答")
+                .doesNotContain("你是 ExcelCC.cn 的 Excel AI 助手");
+    }
+
     @SuppressWarnings("unchecked")
     private List<Object> normalizeImages(List<AssistantChatRequest.ImageAttachment> images) {
         return (List<Object>) ReflectionTestUtils.invokeMethod(service, "normalizeImages", images);
