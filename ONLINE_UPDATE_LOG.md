@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 20:13 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手思考态与模型超时配置上线；悬浮 AI 助手和独立 `/assistant` 页面在消息发送后立即把用户消息写入对话区，并在 AI 回复气泡中显示“正在思考中...”，请求成功后回填回复、失败后在对话气泡中显示错误；后台 AI 助手配置新增“模型超时（秒）”，写入 `ai_assistant_config.timeout_ms`，后端调用 OpenAI-compatible chat completions 时使用当前生效配置的超时时间。
+- 验证：本地前端 `npm run build` 通过；本地后端 `mvn -Dtest=AssistantServiceImplTest test` 通过 4 个测试；本地后端 `mvn test` 通过 77 个测试；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/`、`/assistant`、`/admin/assistant` 返回 200；服务器部署仓确认前端包含 `正在思考中...` 与 `模型超时（秒）`；数据库确认 `ai_assistant_config.timeout_ms` 存在且 Flyway `51` 成功。
+- 部署：提交 `6b3e390a6542b350042d7f0a184ab7204f9f1a3b` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-assistant-thinking-timeout-6b3e390.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-120801`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查；未发起真实 AI 对话请求，避免消耗线上模型额度。
+
 ## 2026-05-11 19:53 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手回复下方关联教程入口删除；悬浮 AI 助手和独立 `/assistant` 页面均不再渲染“相关教程”，仍保留“相关练习”；后端 AI 助手上游模型请求有效超时下限提升到 60 秒，降低 20 秒超时导致“AI 助手暂时不可用”的概率。
