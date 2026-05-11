@@ -154,7 +154,7 @@ https://sg.lwvpscc.top/quick-translate/updates/latest/latest.yml
 当前服务器静态目录：
 
 ```text
-/www/wwwroot/kick-web/quick-translate/updates/latest
+/www/wwwroot/quick-translate/updates/latest
 ```
 
 发布新版本时先在本地运行：
@@ -166,8 +166,8 @@ npm run dist:win
 再将以下文件上传到服务器更新目录，安装包和 `.blockmap` 先上传，`latest.yml` 最后覆盖：
 
 - `release/latest.yml`
-- `release/快捷翻译 Setup <版本号>.exe`
-- `release/快捷翻译 Setup <版本号>.exe.blockmap`
+- `release/Quick-Translate-<版本号>.exe`
+- `release/Quick-Translate-<版本号>.exe.blockmap`
 
 当前打包链路未包含代码签名；正式分发前需要接入签名证书。
 

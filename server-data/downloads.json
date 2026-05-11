@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.56",
+  "latestVersion": "0.1.57",
   "releases": [
+    {
+      "version": "0.1.57",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.57.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.57.exe",
+      "size": 106023118,
+      "sha512": "zmB18SBFo608r315nVjWeYtL3sBc0D2XxFiK630MSxu/BlOYL1CdWB5NDM0UwVSYuSVTwN7FZ0DjApoh8f0QPw==",
+      "releaseDate": "2026-05-11T07:13:53.596Z",
+      "releaseNotes": "修复多层窗口下快捷键唤起悬浮窗无法置于最顶层的问题"
+    },
     {
       "version": "0.1.56",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "uK1f0gNcIWm3ic1nbzFe87jsrgNVJW1jzjd4lknRGKgZMAOr1j0yPrzalSGgod22na+IEGXK55XQTGcDB4uNxw==",
       "releaseDate": "2026-05-11T06:46:16.994Z",
       "releaseNotes": "安装测试版：安装器解压前自动切换临时工作目录，并循环清理旧安装目录锁定文件，减少需要手动点击重试的情况。"
-    },
-    {
-      "version": "0.1.55",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.55.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.55.exe",
-      "size": 106022798,
-      "sha512": "grIMfJoGPWzV9AmUO5deP/3T1mBW0LrxPuEuT3oIjLQyxBHdvMgOrX+g/wZj4XqZIuifU16FpwpGxF4ztgMVEQ==",
-      "releaseDate": "2026-05-11T06:22:06.922Z",
-      "releaseNotes": "修复电脑端下载更新安装时首次弹出“无法关闭”提示的问题；安装器会提前关闭旧进程并跳过旧版卸载器弹窗流程。"
     },
     {
       "version": "0.1.53",
