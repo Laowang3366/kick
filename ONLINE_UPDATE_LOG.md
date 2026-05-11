@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 16:48 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` AI 助手浮窗关闭位置修复；展开聊天框后点击外部区域或按 Esc 关闭时统一走入口回位逻辑，未拖动过入口时恢复默认右侧居中位置；聊天推荐链接跳转关闭也同步使用同一关闭逻辑。
+- 验证：本地前端 `npm run build` 通过；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/` 与 `/practice` 返回 200；服务器源码确认外部点击、Esc 和聊天推荐链接均调用 `closeAssistant()`。
+- 部署：提交 `446affc68a2a8a5eaaaf7e6a3b3d620757e8f207` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-assistant-outside-close-446affc.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-084502`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；部署期间 npm 报告既有依赖审计提示，未影响构建和健康检查。
+
 ## 2026-05-11 16:18 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 后台 AI 助手模型选择、默认 prompt 编辑与答题页题目要求展示修复；后台模型获取成功后改为显式下拉渲染并兼容字符串或对象模型项；系统默认 prompt 支持读取、编辑并保存到运行期默认 prompt 文件；小试牛刀答题页将题目要求提升到编辑器上方显眼区域展示。
