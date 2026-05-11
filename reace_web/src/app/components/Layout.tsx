@@ -76,8 +76,6 @@ import { ONLINE_LITE_MODE, isLiteAllowedPath } from "../lib/site-mode";
 const OPEN_PROPS_EVENT = "excel-open-props-dialog";
 const ASSISTANT_ENTRY_WIDTH = 104;
 const ASSISTANT_ENTRY_HEIGHT = 132;
-const ASSISTANT_PANEL_MAX_WIDTH = 384;
-const ASSISTANT_PANEL_ESTIMATED_HEIGHT = 620;
 
 type AssistantWidgetResponse = {
   conversationId: string;
@@ -967,19 +965,19 @@ export function Layout() {
     const rect = assistantRef.current?.getBoundingClientRect();
     if (rect) {
       const entryPosition = clampAssistantPosition(rect.left, rect.top, rect.width, rect.height);
-      const panelWidth = Math.min(ASSISTANT_PANEL_MAX_WIDTH, window.innerWidth - 16);
-      const panelHeight = Math.min(ASSISTANT_PANEL_ESTIMATED_HEIGHT, window.innerHeight - 16);
       assistantEntryReturnPositionRef.current = entryPosition;
       assistantEntryHadCustomPositionRef.current = assistantDragPosition !== null;
       assistantPanelMovedRef.current = false;
-      setAssistantDragPosition(
-        clampAssistantPosition(
-          rect.left + rect.width / 2 - panelWidth / 2,
-          rect.top,
-          panelWidth,
-          panelHeight,
-        ),
-      );
+      if (assistantDragPosition) {
+        setAssistantDragPosition(
+          clampAssistantPosition(
+            entryPosition.left,
+            entryPosition.top,
+            ASSISTANT_ENTRY_WIDTH,
+            ASSISTANT_ENTRY_HEIGHT,
+          ),
+        );
+      }
     }
     assistantShouldScrollLatestRef.current = true;
     setAssistantShowLatestReply(false);
@@ -1066,11 +1064,18 @@ export function Layout() {
   ];
   const assistantCanSubmit = (assistantMessage.trim().length > 0 || assistantAttachments.length > 0) && !assistantChatMutation.isPending;
   const assistantFloatingClassName = assistantDragPosition
-    ? "fixed z-50"
-    : "fixed right-3 top-1/2 z-50 -translate-y-1/2 md:right-5";
+    ? "fixed z-50 h-[132px] w-[104px]"
+    : "fixed right-3 top-1/2 z-50 h-[132px] w-[104px] -translate-y-1/2 md:right-5";
   const assistantFloatingStyle = assistantDragPosition
     ? { left: assistantDragPosition.left, top: assistantDragPosition.top }
     : undefined;
+  const assistantPanelOpensLeft = !assistantDragPosition || assistantDragPosition.left > window.innerWidth / 2;
+  const assistantPanelPositionClassName = assistantPanelOpensLeft
+    ? "right-[88px] origin-bottom-right"
+    : "left-[88px] origin-bottom-left";
+  const assistantPanelArrowClassName = assistantPanelOpensLeft
+    ? "-right-3 border-r border-t"
+    : "-left-3 border-b border-l";
   const openFeedbackDialog = () => {
     if (!isAuthenticated) {
       navigate("/auth");
@@ -2397,11 +2402,13 @@ export function Layout() {
       {showFloatingAssistant && (
         <div ref={assistantRef} className={assistantFloatingClassName} style={assistantFloatingStyle}>
           <>
-            {assistantOpen ? (
+            {assistantOpen && (
               <div
-                className="relative w-[min(24rem,calc(100vw-1rem))] max-h-[calc(100vh-1rem)] pb-10"
+                className={`absolute bottom-6 z-10 w-[min(24rem,calc(100vw-7rem))] max-h-[min(76vh,620px)] animate-in fade-in-0 zoom-in-95 slide-in-from-right-4 duration-200 ${assistantPanelPositionClassName}`}
               >
-                <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
+                <div className="relative">
+                  <span className={`pointer-events-none absolute bottom-12 h-7 w-7 rotate-45 rounded-[7px] border-slate-200 bg-white shadow-[12px_12px_34px_rgba(15,23,42,0.12)] ${assistantPanelArrowClassName}`} />
+                  <div className="relative z-10 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]">
                   <div
                     className={`relative touch-none select-none bg-[#0f91dd] px-5 pb-5 pt-6 text-white shadow-[0_10px_22px_rgba(15,145,221,0.25)] ${
                       assistantDragging ? "cursor-grabbing" : "cursor-grab"
@@ -2597,18 +2604,10 @@ export function Layout() {
                       </button>
                     </div>
                   </div>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={closeAssistant}
-                  data-assistant-no-drag="true"
-                  className="absolute bottom-0 right-1 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[#0f91dd] text-white shadow-[0_16px_34px_rgba(15,145,221,0.36)] ring-4 ring-white transition hover:bg-[#0b82c9]"
-                  aria-label="关闭 AI 助手"
-                >
-                  <X size={30} strokeWidth={2.3} />
-                </button>
               </div>
-            ) : (
+            )}
               <button
                 type="button"
                 onClick={(event) => {
@@ -2616,7 +2615,11 @@ export function Layout() {
                     event.preventDefault();
                     return;
                   }
-                  openAssistant();
+                  if (assistantOpen) {
+                    closeAssistant();
+                  } else {
+                    openAssistant();
+                  }
                 }}
                 onPointerDown={beginAssistantDrag}
                 onPointerMove={moveAssistantDrag}
@@ -2625,10 +2628,11 @@ export function Layout() {
                 onPointerEnter={() => preloadNavigationTarget("/assistant")}
                 onFocus={() => preloadNavigationTarget("/assistant")}
                 onTouchStart={() => preloadNavigationTarget("/assistant")}
-                className={`group relative inline-flex h-[132px] w-[104px] touch-none select-none items-end justify-center rounded-[32px] p-3 -m-3 ${
+                className={`group absolute inset-0 z-20 inline-flex h-[132px] w-[104px] touch-none select-none items-end justify-center rounded-[32px] p-3 -m-3 ${
                   assistantDragging ? "cursor-grabbing" : "cursor-grab"
                 }`}
-                aria-label="打开 AI 助手"
+                aria-label={assistantOpen ? "关闭 AI 助手" : "打开 AI 助手"}
+                aria-expanded={assistantOpen}
               >
                 <span className="absolute -top-3 left-1/2 z-10 inline-flex h-10 -translate-x-1/2 items-center whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 text-sm font-black text-[#0f91dd] shadow-[0_10px_28px_rgba(15,23,42,0.14)] transition group-hover:border-[#0f91dd]/30 group-hover:bg-[#f1f9ff]">
                   AI助手
@@ -2638,7 +2642,6 @@ export function Layout() {
                   <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-[#16c784] ring-2 ring-white" />
                 </span>
               </button>
-            )}
           </>
         </div>
       )}
