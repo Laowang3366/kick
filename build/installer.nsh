@@ -9,17 +9,37 @@
   Pop $0
 !macroend
 
+!macro quickTranslateRemoveInstallDirectory INSTALL_PATH
+  !define UniqueID ${__LINE__}
+  Push $R7
+  SetOutPath "$TEMP"
+  StrCmp "${INSTALL_PATH}" "" QuickTranslateRemoveInstallDirectoryDone_${UniqueID}
+  StrCpy $R7 0
+
+  QuickTranslateRemoveInstallDirectoryLoop_${UniqueID}:
+    IntOp $R7 $R7 + 1
+    !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
+    ClearErrors
+    RMDir /r "${INSTALL_PATH}"
+    IfFileExists "${INSTALL_PATH}\*.*" 0 QuickTranslateRemoveInstallDirectoryDone_${UniqueID}
+    DetailPrint "Waiting for previous Quick Translate files to be released: ${INSTALL_PATH}"
+    Sleep 1000
+    IntCmp $R7 12 QuickTranslateRemoveInstallDirectoryDone_${UniqueID} QuickTranslateRemoveInstallDirectoryLoop_${UniqueID} QuickTranslateRemoveInstallDirectoryDone_${UniqueID}
+
+  QuickTranslateRemoveInstallDirectoryDone_${UniqueID}:
+  Pop $R7
+  !undef UniqueID
+!macroend
+
+!macro preInit
+  SetOutPath "$TEMP"
+!macroend
+
 !macro customCheckAppRunning
   DetailPrint "Closing running Quick Translate before install."
-  !insertmacro quickTranslateTerminateProcesses "$INSTDIR"
-  Sleep 1000
-  !insertmacro quickTranslateTerminateProcesses "$INSTDIR"
-  Sleep 500
-
-  SetOutPath "$TEMP"
   IfFileExists "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 QuickTranslateInstallDirCleanupDone
   DetailPrint "Removing previous Quick Translate install directory before extracting new files: $INSTDIR"
-  RMDir /r "$INSTDIR"
+  !insertmacro quickTranslateRemoveInstallDirectory "$INSTDIR"
   QuickTranslateInstallDirCleanupDone:
 !macroend
 
@@ -35,9 +55,7 @@
   StrCmp "$3" "" QuickTranslateRemoveStaleUninstallRegistry_${UniqueID}
 
   DetailPrint "Removing registered Quick Translate install before upgrade: $3"
-  SetOutPath "$TEMP"
-  !insertmacro quickTranslateTerminateProcesses "$3"
-  RMDir /r "$3"
+  !insertmacro quickTranslateRemoveInstallDirectory "$3"
   Goto QuickTranslateDeleteUninstallRegistry_${UniqueID}
 
   QuickTranslateRemoveStaleUninstallRegistry_${UniqueID}:

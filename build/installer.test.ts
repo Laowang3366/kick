@@ -15,7 +15,10 @@ describe('Windows installer script', () => {
     expect(script).toContain('taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"');
     expect(script).toContain('taskkill /T /F /IM "快捷翻译.exe"');
     expect(script).toContain('Wait-Process -Id $$_ -Timeout 8');
-    expect(script).toContain('RMDir /r "$INSTDIR"');
+    expect(script).toContain('RMDir /r "${INSTALL_PATH}"');
+    expect(script).toContain('!insertmacro quickTranslateRemoveInstallDirectory "$INSTDIR"');
+    expect(script).toContain('QuickTranslateRemoveInstallDirectoryLoop_');
+    expect(script).toContain('IntCmp $R7 12');
   });
 
   it('bypasses incompatible old uninstallers by removing the registered app directory directly', () => {
@@ -25,7 +28,7 @@ describe('Windows installer script', () => {
     expect(script).toContain('ReadRegStr $4 ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}" UninstallString');
     expect(script).toContain('SetOutPath "$TEMP"');
     expect(script).toContain('$SYSDIR\\WindowsPowerShell\\v1.0\\powershell.exe');
-    expect(script).toContain('RMDir /r "$3"');
+    expect(script).toContain('!insertmacro quickTranslateRemoveInstallDirectory "$3"');
     expect(script).toContain('DeleteRegKey ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}"');
     expect(script).not.toContain('DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"');
   });
@@ -47,5 +50,12 @@ describe('Windows installer script', () => {
     expect(script).toContain('ReadRegStr $3 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation');
     expect(script).not.toContain('DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"');
     expect(script).toContain('Keeping Quick Translate install location registry for retryable upgrades.');
+  });
+
+  it('moves the installer working directory out of the old install path during initialization', () => {
+    const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
+
+    expect(script).toContain('!macro preInit');
+    expect(script).toContain('SetOutPath "$TEMP"');
   });
 });
