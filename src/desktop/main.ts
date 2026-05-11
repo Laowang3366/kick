@@ -23,6 +23,7 @@ import {
 } from './desktopSettings.js';
 import { reuseFloatingWindowForShortcut } from './floatingWindowLifecycle.js';
 import { createFloatingWindowBounds } from './floatingWindowBounds.js';
+import { bringFloatingWindowToFront } from './floatingWindowFocus.js';
 import {
   readFloatingSessionPreferences,
   updateFloatingSessionPreferences,
@@ -413,8 +414,7 @@ async function showFloatingTranslation(text: string) {
   if (window.isMinimized()) {
     window.restore();
   }
-  window.show();
-  window.focus();
+  bringFloatingWindowToFront(window);
   const dispatchCapturedSource = () => {
     const preferences = getFloatingSessionPreferences();
     window.webContents.send('floating-source-captured', {
