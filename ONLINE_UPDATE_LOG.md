@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 14:20 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 后台 AI 助手默认配置初始化修复；当 `ai_assistant_config` 为空且服务器环境变量中存在完整 AI 助手配置时，启动时自动写入一条“默认配置”，设为启用、生效并置顶显示，密钥仍只脱敏展示。
+- 验证：本地后端 `mvn test` 通过 69 个测试；本地 `mvn -q -DskipTests package` 通过；服务器部署脚本健康检查通过；线上 `https://www.excelcc.cn/`、`/admin/assistant` 返回 200；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；数据库确认 `ai_assistant_config` 已有 1 条启用且生效的“默认配置”。
+- 部署：提交 `ea42057bbcec896c08b2e44fbafbce3009534d9a` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-default-assistant-config-ea42057.bundle` 导入服务器部署仓并执行标准 `production-deploy.sh` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-061700`
+- 备注：本次继续使用受管文件发布流程，备份目录包含 `kick-web-managed/`，没有整目录 `kick-web/`；未在日志中记录密钥明文。
+
 ## 2026-05-11 12:51 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 部署流程安全修正；`production-deploy.sh` 前端发布改为只覆盖本项目受管文件，不再整体删除、移动或替换 `/www/wwwroot/kick-web`；回滚也改为恢复 `kick-web-managed` 中的受管文件，避免影响同目录其它项目。
