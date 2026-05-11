@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-11 12:51 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 部署流程安全修正；`production-deploy.sh` 前端发布改为只覆盖本项目受管文件，不再整体删除、移动或替换 `/www/wwwroot/kick-web`；回滚也改为恢复 `kick-web-managed` 中的受管文件，避免影响同目录其它项目。
+- 验证：本地 `npm run build` 通过；本地 `mvn -q -DskipTests package` 通过；本地与服务器 `bash -n scripts/deploy/production-deploy.sh` 通过；服务器脚本确认不再包含 `WEB_RELEASE_DIR`、`WEB_OLD_DIR`、`mv "$WEB_RUNTIME_DIR"`、`rm -rf "$WEB_RUNTIME_DIR"`；线上 `https://www.excelcc.cn/`、`/admin/assistant` 返回 200；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200。
+- 部署：提交 `6800b54cdf683f353d73145274c54e3fa7145a9c` 已推送到 `origin/codex/admin-ai-assistant-management`；先通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-safe-web-root-6800b54.bundle` 以 `DEPLOY_AFTER_IMPORT=0` 导入服务器部署仓，确认新脚本后再用 `GIT_PULL_BEFORE_BUILD=0 bash scripts/deploy/production-deploy.sh` 发布。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260511-044829`
+- 备注：本次备份目录包含 `kick-web-managed/` 和 `forum-1.0.0.jar`，没有整目录 `kick-web/`；前端旧 hash 资源会保留在 `assets` 中，后续如需清理应单独按项目文件清单执行。
+
 ## 2026-05-11 12:35 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 后台 AI 助手管理上线；新增 `/admin/assistant` 管理页，可新增/编辑 AI 助手 URL、SK 密钥、模型、system prompt 文件内容并切换生效配置；前台 AI 助手优先读取后台生效配置，保留原环境变量兜底；新增用户维度 AI 助手调用统计与 API 调用次数记录。
