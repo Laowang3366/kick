@@ -14,14 +14,15 @@ describe('Windows installer script', () => {
     expect(script).toContain('Stop-Process -Id $$_ -Force');
     expect(script).toContain('taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"');
     expect(script).toContain('taskkill /T /F /IM "快捷翻译.exe"');
-    expect(script).toContain('Wait-Process -Id $$_ -Timeout 8');
+    expect(script).toContain('Wait-Process -Id $$_ -Timeout 2');
+    expect(script).toContain('QuickTranslateAttemptedInstallCleanupPath');
     expect(script).toContain('正在清理旧进程');
     expect(script).toContain('正在隔离旧版本文件');
     expect(script).toContain('Rename "${INSTALL_PATH}" "$R6"');
     expect(script).toContain('RMDir /r "${INSTALL_PATH}"');
     expect(script).toContain('!insertmacro quickTranslateRemoveInstallDirectory "$INSTDIR"');
     expect(script).toContain('QuickTranslateRemoveInstallDirectoryLoop_');
-    expect(script).toContain('IntCmp $R7 24');
+    expect(script).toContain('IntCmp $R7 5');
   });
 
   it('bypasses incompatible old uninstallers by removing the registered app directory directly', () => {
@@ -79,5 +80,18 @@ describe('Windows installer script', () => {
     expect(script).toContain('SetDetailsPrint both');
     expect(script).toContain('正在准备安装并清理旧版本');
     expect(script).toContain('旧版本清理完成，正在替换文件');
+  });
+
+  it('cleans and retries automatically when extraction copy is blocked', () => {
+    const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(script).toContain('!macro quickTranslateBeforeExtractRetry INSTALL_PATH ATTEMPT');
+    expect(script).toContain('!macro quickTranslateBeforeDirectExtract INSTALL_PATH');
+    expect(script).toContain('安装目录被占用，正在自动释放并重试');
+    expect(script).toContain('正在执行自动兜底替换');
+    expect(packageJson.scripts['dist:win']).toContain('node scripts/patch-nsis-extract.mjs');
   });
 });

@@ -18,7 +18,7 @@
     "desktop:smoke": "node scripts/smoke-electron.mjs",
     "download:manifest": "node scripts/generate-download-manifest.mjs",
     "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never && npm run download:manifest",
-    "dist:win": "npm run build && electron-builder --dir && node scripts/apply-win-icon.mjs && node scripts/write-app-update-config.mjs && electron-builder --win nsis --prepackaged release/win-unpacked --publish never && npm run smoke:update-channel && npm run download:manifest && npm run release:prune",
+    "dist:win": "npm run build && electron-builder --dir && node scripts/apply-win-icon.mjs && node scripts/write-app-update-config.mjs && node scripts/patch-nsis-extract.mjs && electron-builder --win nsis --prepackaged release/win-unpacked --publish never && npm run smoke:update-channel && npm run download:manifest && npm run release:prune",
     "package:dir": "npm run build && electron-builder --dir && node scripts/apply-win-icon.mjs",
     "smoke:api": "node scripts/smoke-api.mjs",
     "smoke:packaged-html": "node scripts/assert-packaged-html.mjs",
