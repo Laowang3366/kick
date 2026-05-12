@@ -67,6 +67,17 @@ type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
   tempDirectory?: string;
 };
 
+type WindowsUpdateTransactionState = {
+  id: string;
+  installerPath: string;
+  installDirectory?: string;
+  currentProcessId: number;
+  status: 'waiting-app-exit' | 'cleaning-processes' | 'launching-installer' | 'installer-started' | 'failed';
+  percent: number;
+  message: string;
+  updatedAt: string;
+};
+
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
 
 export type DesktopUpdateCheckResult = {
@@ -324,14 +335,20 @@ async function launchInstallerAfterCurrentProcessExit(
   const tempDirectory = options.tempDirectory ?? getCurrentTempDirectory();
   const launcherScriptPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.ps1`);
   const logPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.log`);
+  const transactionPath = path.join(tempDirectory, `QuickTranslateUpdateTransaction-${currentProcessId}.json`);
   await mkdir(tempDirectory, { recursive: true });
-  await writeFile(launcherScriptPath, windowsUpdateLauncherScript, 'utf8');
-  const powershellArgs = [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    launcherScriptPath,
+  await writeFile(launcherScriptPath, `\ufeff${windowsUpdateLauncherScript}`, 'utf8');
+  await writeWindowsUpdateTransaction(transactionPath, {
+    id: String(currentProcessId),
+    installerPath: filePath,
+    installDirectory: options.installDirectory,
+    currentProcessId,
+    status: 'waiting-app-exit',
+    percent: 10,
+    message: '正在等待旧版本退出',
+    updatedAt: new Date().toISOString()
+  });
+  const scriptArgs = [
     '-InstallerPath',
     filePath,
     '-WorkingDirectory',
@@ -339,11 +356,23 @@ async function launchInstallerAfterCurrentProcessExit(
     '-CurrentProcessId',
     String(currentProcessId),
     '-LogPath',
-    logPath
+    logPath,
+    '-TransactionPath',
+    transactionPath
   ];
-  if (installerArgs.length > 0) {
-    powershellArgs.push('-ArgumentList', installerArgs.join(' '));
+  if (options.installDirectory?.trim()) {
+    scriptArgs.push('-InstallDirectory', options.installDirectory.trim());
   }
+  if (installerArgs.length > 0) {
+    scriptArgs.push('-ArgumentList', installerArgs.join(' '));
+  }
+  const powershellArgs = [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-EncodedCommand',
+    encodePowerShellCommand(createPowerShellScriptCommand(launcherScriptPath, scriptArgs))
+  ];
 
   const child = (options.launcher ?? spawn)(
     getWindowsCmdPath(),
@@ -356,6 +385,27 @@ async function launchInstallerAfterCurrentProcessExit(
     }
   );
   child.unref();
+}
+
+async function writeWindowsUpdateTransaction(transactionPath: string, state: WindowsUpdateTransactionState) {
+  await writeFile(transactionPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+function createPowerShellScriptCommand(scriptPath: string, args: string[]) {
+  const quotedArgs = args.map(quotePowerShellArgument).join(' ');
+  return `& ${quotePowerShellString(scriptPath)} ${quotedArgs}`;
+}
+
+function quotePowerShellArgument(value: string) {
+  return value.startsWith('-') ? value : quotePowerShellString(value);
+}
+
+function quotePowerShellString(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function encodePowerShellCommand(command: string) {
+  return Buffer.from(command, 'utf16le').toString('base64');
 }
 
 function getWindowsInstallerArgs(installDirectory: string | undefined) {
@@ -403,7 +453,9 @@ const windowsUpdateLauncherScript = String.raw`param(
   [string]$WorkingDirectory,
   [int]$CurrentProcessId,
   [string]$ArgumentList,
-  [string]$LogPath
+  [string]$LogPath,
+  [string]$TransactionPath,
+  [string]$InstallDirectory
 )
 
 function Write-QuickTranslateUpdateLog([string]$Message) {
@@ -412,8 +464,55 @@ function Write-QuickTranslateUpdateLog([string]$Message) {
   } catch {}
 }
 
+function Write-QuickTranslateUpdateState([string]$Status, [int]$Percent, [string]$Message) {
+  try {
+    $state = [ordered]@{
+      id = [string]$CurrentProcessId
+      installerPath = $InstallerPath
+      installDirectory = $InstallDirectory
+      currentProcessId = $CurrentProcessId
+      status = $Status
+      percent = $Percent
+      message = $Message
+      updatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    }
+    $state | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $TransactionPath -Encoding UTF8
+  } catch {}
+}
+
+function Stop-QuickTranslateProcesses {
+  Write-QuickTranslateUpdateState "cleaning-processes" 45 "正在清理旧版本进程"
+  Write-QuickTranslateUpdateLog "cleanup started"
+  try {
+    if ($CurrentProcessId -gt 0) {
+      $current = Get-Process -Id $CurrentProcessId -ErrorAction SilentlyContinue
+      if ($null -ne $current) {
+        & "$env:SystemRoot\System32\taskkill.exe" /PID $CurrentProcessId /T /F | Out-Null
+      }
+    }
+
+    $names = @("快捷翻译.exe", "quick-translate.exe")
+    $processes = Get-CimInstance -ClassName Win32_Process | Where-Object {
+      (($InstallDirectory -ne "") -and $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDirectory, [System.StringComparison]::CurrentCultureIgnoreCase)) -or
+      ($names -contains $_.Name) -or
+      ($_.CommandLine -like "*quick-translate-*hook.ps1*") -or
+      ($_.CommandLine -like "*quick-translate-copy-shortcut.ps1*")
+    }
+    $ids = @($processes | ForEach-Object { $_.ProcessId } | Where-Object { $_ -ne $PID })
+    if ($ids.Count -gt 0) {
+      $ids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+      Start-Sleep -Milliseconds 200
+      $ids | ForEach-Object { Wait-Process -Id $_ -Timeout 2 -ErrorAction SilentlyContinue }
+    }
+  } catch {
+    Write-QuickTranslateUpdateLog ("cleanup warning: " + $_.Exception.Message)
+  }
+  Write-QuickTranslateUpdateLog "cleanup finished"
+}
+
 Write-QuickTranslateUpdateLog "launcher started"
-$deadline = (Get-Date).AddSeconds(12)
+Write-QuickTranslateUpdateState "waiting-app-exit" 15 "正在等待旧版本退出"
+$deadline = (Get-Date).AddSeconds(2)
 while ($CurrentProcessId -gt 0 -and (Get-Date) -lt $deadline) {
   $runningProcess = Get-Process -Id $CurrentProcessId -ErrorAction SilentlyContinue
   if ($null -eq $runningProcess) {
@@ -422,12 +521,22 @@ while ($CurrentProcessId -gt 0 -and (Get-Date) -lt $deadline) {
   Start-Sleep -Milliseconds 100
 }
 
-Start-Sleep -Milliseconds 200
+Stop-QuickTranslateProcesses
+Start-Sleep -Milliseconds 150
 Write-QuickTranslateUpdateLog "installer start requested"
-if ([string]::IsNullOrWhiteSpace($ArgumentList)) {
-  Start-Process -FilePath $InstallerPath -WorkingDirectory $WorkingDirectory
-} else {
-  Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -WorkingDirectory $WorkingDirectory
+Write-QuickTranslateUpdateState "launching-installer" 80 "正在启动安装器"
+try {
+  if ([string]::IsNullOrWhiteSpace($ArgumentList)) {
+    Start-Process -FilePath $InstallerPath -WorkingDirectory $WorkingDirectory
+  } else {
+    Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -WorkingDirectory $WorkingDirectory
+  }
+  Write-QuickTranslateUpdateLog "installer started"
+  Write-QuickTranslateUpdateState "installer-started" 100 "安装器已启动"
+} catch {
+  Write-QuickTranslateUpdateLog ("installer failed: " + $_.Exception.Message)
+  Write-QuickTranslateUpdateState "failed" 100 ("安装器启动失败：" + $_.Exception.Message)
+  exit 1
 }
 `;
 

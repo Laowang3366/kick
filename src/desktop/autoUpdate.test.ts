@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -367,7 +367,13 @@ describe('auto update channel', () => {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
       currentProcessId: '12345',
       tempDirectory,
+      installDirectory: '',
       argumentList: ''
+    });
+    await expect(readTransactionState(tempDirectory, '12345')).resolves.toMatchObject({
+      status: 'waiting-app-exit',
+      installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
+      currentProcessId: 12345
     });
     expect(child.unref).toHaveBeenCalledOnce();
   });
@@ -394,6 +400,7 @@ describe('auto update channel', () => {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe',
       currentProcessId: '12345',
       tempDirectory,
+      installDirectory: 'D:\\Tools\\快捷翻译',
       argumentList: '/D=D:\\Tools\\快捷翻译'
     });
     expect(child.unref).toHaveBeenCalledOnce();
@@ -420,6 +427,7 @@ describe('auto update channel', () => {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
       currentProcessId: '12345',
       tempDirectory,
+      installDirectory: '',
       argumentList: ''
     });
     expect(child.unref).toHaveBeenCalledOnce();
@@ -446,6 +454,7 @@ describe('auto update channel', () => {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
       currentProcessId: '12345',
       tempDirectory,
+      installDirectory: '',
       argumentList: ''
     });
     expect(child.unref).toHaveBeenCalledOnce();
@@ -550,17 +559,13 @@ function expectWindowsHandoffLaunch(
     installerPath: string;
     currentProcessId: string;
     tempDirectory: string;
+    installDirectory: string;
     argumentList: string;
   }
 ) {
   expect(launcher).toHaveBeenCalledOnce();
   const [command, args, options] = launcher.mock.calls[0];
-  const expectedPowerShellArgs = [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-File',
-    path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.ps1`),
+  const expectedScriptArgs = [
     '-InstallerPath',
     expected.installerPath,
     '-WorkingDirectory',
@@ -568,18 +573,56 @@ function expectWindowsHandoffLaunch(
     '-CurrentProcessId',
     expected.currentProcessId,
     '-LogPath',
-    path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.log`)
+    path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.log`),
+    '-TransactionPath',
+    path.join(expected.tempDirectory, `QuickTranslateUpdateTransaction-${expected.currentProcessId}.json`)
   ];
+  if (expected.installDirectory) {
+    expectedScriptArgs.push('-InstallDirectory', expected.installDirectory);
+  }
   if (expected.argumentList) {
-    expectedPowerShellArgs.push('-ArgumentList', expected.argumentList);
+    expectedScriptArgs.push('-ArgumentList', expected.argumentList);
   }
 
   expect(command).toMatch(/cmd\.exe$/i);
-  expect(args).toEqual(['/d', '/s', '/c', 'start', '""', expect.stringMatching(/powershell\.exe$/i), ...expectedPowerShellArgs]);
+  expect(args.slice(0, 9)).toEqual([
+    '/d',
+    '/s',
+    '/c',
+    'start',
+    '""',
+    expect.stringMatching(/powershell\.exe$/i),
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass'
+  ]);
+  expect(args[9]).toBe('-EncodedCommand');
+  expect(Buffer.from(args[10], 'base64').toString('utf16le')).toBe(
+    createExpectedPowerShellScriptCommand(
+      path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.ps1`),
+      expectedScriptArgs
+    )
+  );
   expect(options).toEqual({
     cwd: expected.tempDirectory,
     detached: true,
     stdio: 'ignore',
     windowsHide: true
   });
+}
+
+async function readTransactionState(tempDirectory: string, processId: string) {
+  return JSON.parse(await readFile(path.join(tempDirectory, `QuickTranslateUpdateTransaction-${processId}.json`), 'utf8'));
+}
+
+function createExpectedPowerShellScriptCommand(scriptPath: string, args: string[]) {
+  return `& ${quoteExpectedPowerShellString(scriptPath)} ${args.map(quoteExpectedPowerShellArgument).join(' ')}`;
+}
+
+function quoteExpectedPowerShellArgument(value: string) {
+  return value.startsWith('-') ? value : quoteExpectedPowerShellString(value);
+}
+
+function quoteExpectedPowerShellString(value: string) {
+  return `'${value.replace(/'/g, "''")}'`;
 }
