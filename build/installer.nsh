@@ -2,7 +2,7 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 
 !macro quickTranslateTerminateProcesses INSTALL_PATH
   DetailPrint "正在清理旧进程..."
-  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$target='${INSTALL_PATH}'; $$names=@('${APP_EXECUTABLE_FILENAME}','快捷翻译.exe','quick-translate.exe'); $$processes=Get-CimInstance -ClassName Win32_Process | ? { (($$target -ne '') -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$target, [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$names -contains $$_.Name) -or ($$_.CommandLine -like '*quick-translate-*hook.ps1*') -or ($$_.CommandLine -like '*quick-translate-copy-shortcut.ps1*') }; $$ids=@($$processes | % { $$_.ProcessId }); if ($$ids.Count -gt 0) { $$ids | % { Stop-Process -Id $$_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 200; $$ids | % { Wait-Process -Id $$_ -Timeout 2 -ErrorAction SilentlyContinue } }; exit 0"`
+  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$target='${INSTALL_PATH}'; $$names=@('${APP_EXECUTABLE_FILENAME}','快捷翻译.exe','quick-translate.exe'); $$deadline=(Get-Date).AddSeconds(6); do { $$processes=Get-CimInstance -ClassName Win32_Process | ? { (($$target -ne '') -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$target, [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$names -contains $$_.Name) -or ($$_.CommandLine -like '*quick-translate-*hook.ps1*') -or ($$_.CommandLine -like '*quick-translate-copy-shortcut.ps1*') }; $$ids=@($$processes | % { $$_.ProcessId } | ? { $$_ -ne $$PID }); if ($$ids.Count -eq 0) { exit 0 }; $$ids | % { Stop-Process -Id $$_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 250 } while ((Get-Date) -lt $$deadline); exit 0"`
   Pop $0
   nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"`
   Pop $0
@@ -56,18 +56,19 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   !define ExtractRetryUniqueID ${__LINE__}
   StrCmp "${ATTEMPT}" "1" 0 QuickTranslateBeforeExtractRetryWait_${ExtractRetryUniqueID}
   DetailPrint "安装目录被占用，正在执行安装器兜底清理..."
-  !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
-  SetOutPath "$TEMP"
-  ClearErrors
-  RMDir /r "${INSTALL_PATH}"
-  CreateDirectory "${INSTALL_PATH}"
-  SetOutPath "${INSTALL_PATH}"
   Goto QuickTranslateBeforeExtractRetryDone_${ExtractRetryUniqueID}
 
   QuickTranslateBeforeExtractRetryWait_${ExtractRetryUniqueID}:
   DetailPrint "安装目录仍被占用，正在短暂等待后重试..."
 
   QuickTranslateBeforeExtractRetryDone_${ExtractRetryUniqueID}:
+  !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
+  SetOutPath "$TEMP"
+  ClearErrors
+  RMDir /r "${INSTALL_PATH}"
+  Sleep 500
+  CreateDirectory "${INSTALL_PATH}"
+  SetOutPath "${INSTALL_PATH}"
   !undef ExtractRetryUniqueID
 !macroend
 

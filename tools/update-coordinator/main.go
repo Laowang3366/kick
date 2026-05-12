@@ -149,9 +149,10 @@ func cleanupProcesses(pid int, logPath string, transactionPath string, installer
 	if pid > 0 {
 		runQuiet("taskkill.exe", "/PID", strconv.Itoa(pid), "/T", "/F")
 	}
+	runPowerShellCleanup(pid, installDirectory)
 	runQuiet("taskkill.exe", "/T", "/F", "/IM", "快捷翻译.exe")
 	runQuiet("taskkill.exe", "/T", "/F", "/IM", "quick-translate.exe")
-	time.Sleep(200 * time.Millisecond)
+	waitForProcessNamesToExit(5*time.Second, "快捷翻译.exe", "quick-translate.exe")
 	writeLog(logPath, "cleanup finished")
 }
 
@@ -180,6 +181,63 @@ func installerArgs(arguments []string, legacyArgumentList string) []string {
 func runQuiet(name string, args ...string) {
 	cmd := exec.Command(name, args...)
 	_ = cmd.Run()
+}
+
+func runPowerShellCleanup(pid int, installDirectory string) {
+	script := fmt.Sprintf(`
+$target = %s
+$current = %d
+$names = @('快捷翻译.exe', 'quick-translate.exe')
+$deadline = (Get-Date).AddSeconds(6)
+do {
+  $processes = Get-CimInstance -ClassName Win32_Process | Where-Object {
+    (($current -gt 0) -and ($_.ProcessId -eq $current)) -or
+    (($target -ne '') -and $_.ExecutablePath -and $_.ExecutablePath.StartsWith($target, [System.StringComparison]::CurrentCultureIgnoreCase)) -or
+    ($names -contains $_.Name) -or
+    ($_.CommandLine -like '*quick-translate-*hook.ps1*') -or
+    ($_.CommandLine -like '*quick-translate-copy-shortcut.ps1*')
+  }
+  $ids = @($processes | ForEach-Object { $_.ProcessId } | Where-Object { $_ -ne $PID })
+  if ($ids.Count -eq 0) { exit 0 }
+  $ids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+  Start-Sleep -Milliseconds 250
+} while ((Get-Date) -lt $deadline)
+exit 0
+`, powerShellString(installDirectory), pid)
+	runQuiet("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script)
+}
+
+func waitForProcessNamesToExit(timeout time.Duration, names ...string) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !anyNamedProcessExists(names...) {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+func anyNamedProcessExists(names ...string) bool {
+	for _, name := range names {
+		if processNameExists(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func processNameExists(name string) bool {
+	cmd := exec.Command("tasklist.exe", "/FI", fmt.Sprintf("IMAGENAME eq %s", name), "/FO", "CSV", "/NH")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	text := strings.TrimSpace(string(output))
+	return text != "" && !strings.Contains(text, "INFO:") && strings.Contains(text, name)
+}
+
+func powerShellString(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func writeLog(logPath string, message string) {
