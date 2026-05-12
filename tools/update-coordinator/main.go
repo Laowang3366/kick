@@ -361,16 +361,16 @@ type processEntry32 struct {
 }
 
 func enumerateProcesses(installDirectory string) ([]processSnapshot, error) {
-	handle, _, err := procCreateToolhelp32Snapshot.Call(uintptr(th32csSnapProcess), 0)
+	handle, _, lastErr := procCreateToolhelp32Snapshot.Call(uintptr(th32csSnapProcess), 0)
 	if handle == uintptr(syscall.InvalidHandle) {
-		return nil, err
+		return nil, windowsCallError(lastErr, "CreateToolhelp32Snapshot")
 	}
 	defer closeHandle(handle)
 
 	var entry processEntry32
 	entry.Size = uint32(unsafe.Sizeof(entry))
-	if ok, _, err := procProcess32FirstW.Call(handle, uintptr(unsafe.Pointer(&entry))); ok == 0 {
-		return nil, err
+	if ok, _, lastErr := procProcess32FirstW.Call(handle, uintptr(unsafe.Pointer(&entry))); ok == 0 {
+		return nil, windowsCallError(lastErr, "Process32FirstW")
 	}
 
 	var processes []processSnapshot
@@ -399,24 +399,50 @@ func enumerateProcesses(installDirectory string) ([]processSnapshot, error) {
 }
 
 func queryProcessImagePath(pid uint32) (string, error) {
-	handle, _, err := procOpenProcess.Call(uintptr(processQueryLimitedInformation), 0, uintptr(pid))
+	handle, _, lastErr := procOpenProcess.Call(uintptr(processQueryLimitedInformation), 0, uintptr(pid))
 	if handle == 0 {
-		return "", err
+		return "", windowsCallError(lastErr, "OpenProcess")
 	}
 	defer closeHandle(handle)
 
 	buffer := make([]uint16, 32768)
 	size := uint32(len(buffer))
-	ok, _, err := procQueryFullProcessImageNameW.Call(
+	ok, _, lastErr := procQueryFullProcessImageNameW.Call(
 		handle,
 		0,
 		uintptr(unsafe.Pointer(&buffer[0])),
 		uintptr(unsafe.Pointer(&size)),
 	)
 	if ok == 0 {
-		return "", err
+		return "", windowsCallError(lastErr, "QueryFullProcessImageNameW")
 	}
 	return syscall.UTF16ToString(buffer[:size]), nil
+}
+
+func windowsCallError(lastErr any, fallback string) error {
+	switch value := lastErr.(type) {
+	case nil:
+		return fmt.Errorf("%s failed without last error", fallback)
+	case syscall.Errno:
+		if value != 0 {
+			return value
+		}
+	case uintptr:
+		if value != 0 {
+			return syscall.Errno(value)
+		}
+	case error:
+		if errno, ok := value.(syscall.Errno); ok {
+			if errno != 0 {
+				return errno
+			}
+			break
+		}
+		return value
+	default:
+		return fmt.Errorf("%s failed: %v", fallback, value)
+	}
+	return fmt.Errorf("%s failed without last error", fallback)
 }
 
 func closeHandle(handle uintptr) {

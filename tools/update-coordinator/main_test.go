@@ -2,6 +2,8 @@ package main
 
 import (
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -70,6 +72,18 @@ func TestNormalizeWindowsPathSupportsCaseInsensitiveComparisons(t *testing.T) {
 	}
 	if !pathIsInsideDirectory(`\\?\D:\Tools\快捷翻译\快捷翻译.exe`, `D:\Tools\快捷翻译`) {
 		t.Fatal("expected extended-length path prefix to be ignored")
+	}
+}
+
+func TestWindowsCallErrorNormalizesLazyProcResults(t *testing.T) {
+	if err := windowsCallError(syscall.Errno(5), "OpenProcess"); err != syscall.Errno(5) {
+		t.Fatalf("expected syscall errno, got %v", err)
+	}
+	if err := windowsCallError(uintptr(5), "OpenProcess"); err != syscall.Errno(5) {
+		t.Fatalf("expected uintptr errno to be converted, got %v", err)
+	}
+	if err := windowsCallError(syscall.Errno(0), "OpenProcess"); err == nil || !strings.Contains(err.Error(), "OpenProcess") {
+		t.Fatalf("expected fallback error for errno 0, got %v", err)
 	}
 }
 
