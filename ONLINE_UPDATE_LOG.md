@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-12 19:42 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 教程详情页细节调整上线；移除顶部课程 Hero 右侧“公式预览”卡片，桌面端左侧函数目录新增分类展开/收缩交互并默认收缩，点击当前分类仅展开或收起，不重置正文到该分类第一篇。
+- 验证：本地前端 `npm run build` 通过；`git diff --check` 通过；服务器部署脚本健康检查通过；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；线上 `https://www.excelcc.cn/` 与 `https://www.excelcc.cn/tutorials` 返回 200。
+- 部署：提交 `060f7248798293a1bfd394a4769274f61b957c6a` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-tutorial-sidebar-collapse-060f724.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260512-113851`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；未改后端接口、教程数据结构或练习判题逻辑；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查。
+
 ## 2026-05-12 17:28 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 教程详情页桌面端课程化布局上线；中间正文新增课程 Hero、正文 section 卡片、公式复制块和 Excel 风格示例表格，左侧函数目录改为分类 sticky 导航，右侧精简为配套练习、本篇目录和相关函数，并支持本篇目录锚点滚动与阅读高亮。
