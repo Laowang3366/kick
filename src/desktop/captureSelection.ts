@@ -7,13 +7,36 @@ export type CaptureSelectedTextInput = {
   clipboard: TextClipboard;
   sendCopyShortcut(): Promise<void> | void;
   wait(ms: number): Promise<void>;
+  recoveryStore?: ClipboardRecoveryStore;
   copyDelayMs?: number;
   pollIntervalMs?: number;
+};
+
+export type ClipboardRecoveryRecord = {
+  sentinelText: string;
+  clipboardText: string;
+  createdAt: string;
+};
+
+export type ClipboardRecoveryStore = {
+  read(): ClipboardRecoveryRecord | null | Promise<ClipboardRecoveryRecord | null>;
+  write(record: ClipboardRecoveryRecord): void | Promise<void>;
+  remove(): void | Promise<void>;
 };
 
 export async function captureSelectedText(input: CaptureSelectedTextInput): Promise<string> {
   const previousClipboardText = input.clipboard.readText();
   const sentinelText = `__quick_translate_capture_sentinel_${Date.now()}_${Math.random()}__`;
+
+  try {
+    await input.recoveryStore?.write({
+      sentinelText,
+      clipboardText: previousClipboardText,
+      createdAt: new Date().toISOString()
+    });
+  } catch {
+    // Recovery is best-effort; capture should still work if the recovery file is unavailable.
+  }
 
   try {
     input.clipboard.writeText(sentinelText);
@@ -28,12 +51,37 @@ export async function captureSelectedText(input: CaptureSelectedTextInput): Prom
   } finally {
     try {
       input.clipboard.writeText(previousClipboardText);
+      await input.recoveryStore?.remove();
     } catch {
       // Restoring the clipboard is best-effort and should not hide a successful capture.
     }
   }
 
   return capturedText;
+}
+
+export async function restoreClipboardIfNeeded(input: {
+  clipboard: TextClipboard;
+  recoveryStore: ClipboardRecoveryStore;
+  now?: Date;
+  maxAgeMs?: number;
+}) {
+  const record = await input.recoveryStore.read();
+  if (!record) {
+    return false;
+  }
+
+  const createdAtMs = Date.parse(record.createdAt);
+  const maxAgeMs = input.maxAgeMs ?? 10 * 60 * 1000;
+  const isFresh = Number.isFinite(createdAtMs) && (input.now ?? new Date()).getTime() - createdAtMs <= maxAgeMs;
+  if (isFresh && input.clipboard.readText() === record.sentinelText) {
+    input.clipboard.writeText(record.clipboardText);
+    await input.recoveryStore.remove();
+    return true;
+  }
+
+  await input.recoveryStore.remove();
+  return false;
 }
 
 async function readCapturedClipboardText(input: CaptureSelectedTextInput, sentinelText: string) {

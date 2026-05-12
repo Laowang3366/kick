@@ -97,7 +97,8 @@ describe('desktop update transactions', () => {
     expect(openInstaller).toHaveBeenCalledWith('C:\\Temp\\Quick-Translate-0.1.65.exe', {
       installDirectory: 'D:\\Apps\\快捷翻译',
       currentProcessId: 444,
-      tempDirectory
+      tempDirectory,
+      allowPowerShellFallback: true
     });
   });
 

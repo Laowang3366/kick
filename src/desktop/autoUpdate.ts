@@ -3,9 +3,13 @@ import electronUpdater from 'electron-updater';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, link, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { getDefaultUpdatePackageDirectory, normalizeUpdatePackageDirectoryPath } from './updatePackageDirectory.js';
+
+const require = createRequire(import.meta.url);
+const packageJson = require('../../package.json') as PackageJsonWithPublishConfig;
 
 type AutoUpdaterLike = {
   autoDownload: boolean;
@@ -70,6 +74,15 @@ type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
   allowPowerShellFallback?: boolean;
 };
 
+type PackageJsonWithPublishConfig = {
+  build?: {
+    publish?: Array<{
+      provider?: string;
+      url?: string;
+    }>;
+  };
+};
+
 export type WindowsUpdateTransactionStatus =
   | 'waiting-app-exit'
   | 'cleaning-processes'
@@ -121,7 +134,6 @@ export type DesktopUpdateProgress = {
 };
 
 const updateCheckDelayMs = 8000;
-const desktopUpdateFeedUrl = 'https://sg.lwvpscc.top/quick-translate/updates/latest';
 const staleUpdateTransactionMs = 10 * 60 * 1000;
 const updateTransactionFilePattern = /^QuickTranslateUpdateTransaction-(.+)\.json$/;
 
@@ -300,7 +312,8 @@ export function checkForUpdates(
             openInstallerBeforeAppQuit(filePath, {
               installDirectory: getCurrentInstallDirectory(),
               currentProcessId: process.pid,
-              tempDirectory: getCurrentTempDirectory()
+              tempDirectory: getCurrentTempDirectory(),
+              allowPowerShellFallback: true
             })
         : openInstallerDetached,
     quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined
@@ -409,6 +422,19 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
   }
 
   const launcherScriptPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.ps1`);
+  await writeWindowsUpdateTransaction(transactionPath, {
+    id: String(currentProcessId),
+    installerPath: filePath,
+    installDirectory: options.installDirectory,
+    coordinatorPath,
+    currentProcessId,
+    status: 'waiting-app-exit',
+    percent: 12,
+    message: '更新协调器缺失，正在使用备用启动器',
+    failureCode: 'coordinator-missing-fallback-started',
+    installerExitHint: '备用启动器会在旧版本退出后打开安装器。',
+    updatedAt: new Date().toISOString()
+  });
   await writeFile(launcherScriptPath, `\ufeff${windowsUpdateLauncherScript}`, 'utf8');
   const scriptArgs = [
     '-InstallerPath',
@@ -436,16 +462,35 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
     encodePowerShellCommand(createPowerShellScriptCommand(launcherScriptPath, scriptArgs))
   ];
 
-  const child = (options.launcher ?? spawn)(
-    getWindowsCmdPath(),
-    ['/d', '/s', '/c', 'start', '""', getWindowsPowerShellPath(), ...powershellArgs],
-    {
-      cwd: tempDirectory,
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    }
-  );
+  let child: InstallerLauncherProcess;
+  try {
+    child = (options.launcher ?? spawn)(
+      getWindowsCmdPath(),
+      ['/d', '/s', '/c', 'start', '""', getWindowsPowerShellPath(), ...powershellArgs],
+      {
+        cwd: tempDirectory,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      }
+    );
+  } catch (error) {
+    const message = `备用启动器启动失败：${error instanceof Error ? error.message : String(error)}`;
+    await writeWindowsUpdateTransaction(transactionPath, {
+      id: String(currentProcessId),
+      installerPath: filePath,
+      installDirectory: options.installDirectory,
+      coordinatorPath,
+      currentProcessId,
+      status: 'failed',
+      percent: 100,
+      message,
+      failureCode: 'fallback-start-failed',
+      installerExitHint: '请手动运行已下载的安装包，或重新下载最新安装包。',
+      updatedAt: new Date().toISOString()
+    });
+    throw new Error(message);
+  }
   child.unref();
 }
 
@@ -489,8 +534,25 @@ function getPackagedWindowsUpdateCoordinatorPath() {
     return undefined;
   }
 
+  const candidates = getWindowsUpdateCoordinatorPathCandidates();
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0];
+}
+
+function getWindowsUpdateCoordinatorPathCandidates() {
+  const candidates = new Set<string>();
   const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  return resourcesPath ? path.join(resourcesPath, 'update-helper', 'QuickTranslateUpdateCoordinator.exe') : undefined;
+  if (resourcesPath) {
+    candidates.add(path.join(resourcesPath, 'update-helper', 'QuickTranslateUpdateCoordinator.exe'));
+  }
+
+  try {
+    candidates.add(path.join(path.dirname(app.getAppPath()), 'update-helper', 'QuickTranslateUpdateCoordinator.exe'));
+  } catch {
+    // Keep process.execPath as a reliable packaged fallback.
+  }
+
+  candidates.add(path.join(path.dirname(process.execPath), 'resources', 'update-helper', 'QuickTranslateUpdateCoordinator.exe'));
+  return [...candidates];
 }
 
 async function writeWindowsUpdateTransaction(transactionPath: string, state: WindowsUpdateTransactionState) {
@@ -639,7 +701,8 @@ export async function retryUpdateTransaction(
   await (options.openInstaller ?? openInstallerBeforeAppQuit)(transaction.installerPath, {
     installDirectory: transaction.installDirectory,
     currentProcessId: options.currentProcessId ?? process.pid,
-    tempDirectory
+    tempDirectory,
+    allowPowerShellFallback: true
   });
 
   return (await getLatestUpdateTransaction({ ...options, tempDirectory })) ?? transaction;
@@ -843,6 +906,15 @@ function getWindowsCmdPath() {
   return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
 }
 
+export function getDesktopUpdateFeedUrl(inputPackageJson: PackageJsonWithPublishConfig = packageJson) {
+  const publishEntries = Array.isArray(inputPackageJson?.build?.publish) ? inputPackageJson.build.publish : [];
+  const genericEntry = publishEntries.find((entry) => entry?.provider === 'generic');
+  if (!genericEntry?.url) {
+    throw new Error('缺少 build.publish generic 更新源配置');
+  }
+  return genericEntry.url;
+}
+
 const windowsUpdateLauncherScript = String.raw`param(
   [string]$InstallerPath,
   [string]$WorkingDirectory,
@@ -887,21 +959,13 @@ function Stop-QuickTranslateProcesses {
     }
 
     $names = @("快捷翻译.exe", "quick-translate.exe")
-    $processes = Get-CimInstance -ClassName Win32_Process | Where-Object {
-      (($InstallDirectory -ne "") -and $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDirectory, [System.StringComparison]::CurrentCultureIgnoreCase)) -or
-      ($names -contains $_.Name) -or
-      ($_.CommandLine -like "*quick-translate-*hook.ps1*") -or
-      ($_.CommandLine -like "*quick-translate-copy-shortcut.ps1*")
-    }
-    $ids = @($processes | ForEach-Object { $_.ProcessId } | Where-Object { $_ -ne $PID })
-    if ($ids.Count -gt 0) {
-      $ids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
-      Start-Sleep -Milliseconds 200
-      $ids | ForEach-Object { Wait-Process -Id $_ -Timeout 2 -ErrorAction SilentlyContinue }
+    foreach ($name in $names) {
+      & "$env:SystemRoot\System32\taskkill.exe" /T /F /IM $name | Out-Null
     }
   } catch {
     Write-QuickTranslateUpdateLog ("cleanup warning: " + $_.Exception.Message)
   }
+  Start-Sleep -Milliseconds 500
   Write-QuickTranslateUpdateLog "cleanup finished"
 }
 
@@ -922,6 +986,7 @@ Write-QuickTranslateUpdateLog "installer start requested"
 Write-QuickTranslateUpdateState "launching-installer" 80 "正在启动安装器"
 try {
   $env:QUICK_TRANSLATE_UPDATE_TRANSACTION = $TransactionPath
+  $env:QUICK_TRANSLATE_UPDATE_PROCESS_ID = [string]$CurrentProcessId
   if ([string]::IsNullOrWhiteSpace($ArgumentList)) {
     Start-Process -FilePath $InstallerPath -WorkingDirectory $WorkingDirectory
   } else {
@@ -940,7 +1005,7 @@ function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, '
   try {
     updater.setFeedURL?.({
       provider: 'generic',
-      url: desktopUpdateFeedUrl
+      url: getDesktopUpdateFeedUrl()
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

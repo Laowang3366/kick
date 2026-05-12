@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { captureSelectedText } from './captureSelection';
+import { captureSelectedText, restoreClipboardIfNeeded, type ClipboardRecoveryRecord } from './captureSelection';
 
 describe('captureSelectedText', () => {
   it('returns selected text and restores the previous clipboard text', async () => {
     let clipboardText = 'previous';
+    const recoveryStore = createRecoveryStore();
     const clipboard = {
       readText: vi.fn(() => clipboardText),
       writeText: vi.fn((text: string) => {
@@ -16,13 +17,14 @@ describe('captureSelectedText', () => {
     const wait = vi.fn().mockResolvedValue(undefined);
 
     await expect(
-      captureSelectedText({ clipboard, sendCopyShortcut, wait, copyDelayMs: 25 })
+      captureSelectedText({ clipboard, sendCopyShortcut, wait, recoveryStore, copyDelayMs: 25 })
     ).resolves.toBe('selected text');
 
     expect(sendCopyShortcut).toHaveBeenCalledOnce();
     expect(wait).not.toHaveBeenCalled();
     expect(clipboard.writeText).toHaveBeenNthCalledWith(2, 'previous');
     expect(clipboardText).toBe('previous');
+    expect(recoveryStore.current).toBeNull();
   });
 
   it('captures selected text when it matches the previous clipboard text', async () => {
@@ -118,4 +120,70 @@ describe('captureSelectedText', () => {
       })
     ).resolves.toBe('selected text');
   });
+
+  it('restores the previous clipboard when a stale sentinel is found on startup', async () => {
+    let clipboardText = 'sentinel';
+    const recoveryStore = createRecoveryStore({
+      sentinelText: 'sentinel',
+      clipboardText: 'previous',
+      createdAt: '2026-05-12T00:00:00.000Z'
+    });
+    const clipboard = {
+      readText: vi.fn(() => clipboardText),
+      writeText: vi.fn((text: string) => {
+        clipboardText = text;
+      })
+    };
+
+    await expect(
+      restoreClipboardIfNeeded({
+        clipboard,
+        recoveryStore,
+        now: new Date('2026-05-12T00:01:00.000Z')
+      })
+    ).resolves.toBe(true);
+
+    expect(clipboardText).toBe('previous');
+    expect(recoveryStore.current).toBeNull();
+  });
+
+  it('removes stale recovery data without changing a normal clipboard', async () => {
+    let clipboardText = 'normal clipboard';
+    const recoveryStore = createRecoveryStore({
+      sentinelText: 'sentinel',
+      clipboardText: 'previous',
+      createdAt: '2026-05-12T00:00:00.000Z'
+    });
+    const clipboard = {
+      readText: vi.fn(() => clipboardText),
+      writeText: vi.fn((text: string) => {
+        clipboardText = text;
+      })
+    };
+
+    await expect(
+      restoreClipboardIfNeeded({
+        clipboard,
+        recoveryStore,
+        now: new Date('2026-05-12T00:01:00.000Z')
+      })
+    ).resolves.toBe(false);
+
+    expect(clipboardText).toBe('normal clipboard');
+    expect(recoveryStore.current).toBeNull();
+  });
 });
+
+function createRecoveryStore(initial: ClipboardRecoveryRecord | null = null) {
+  const store = {
+    current: initial as ClipboardRecoveryRecord | null,
+    read: vi.fn(() => Promise.resolve(store.current)),
+    write: vi.fn((record: ClipboardRecoveryRecord) => {
+      store.current = record;
+    }),
+    remove: vi.fn(() => {
+      store.current = null;
+    })
+  };
+  return store;
+}

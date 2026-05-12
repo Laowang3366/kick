@@ -10,9 +10,23 @@ describe('runtime optimization', () => {
       }
     };
 
-    applyLightweightRuntime(app);
+    applyLightweightRuntime(app, 'win32');
 
     expect(app.disableHardwareAcceleration).toHaveBeenCalledTimes(1);
     expect(app.commandLine.appendSwitch).toHaveBeenCalledWith('disable-gpu-shader-disk-cache');
+  });
+
+  it('keeps hardware acceleration enabled on macOS', () => {
+    const app = {
+      disableHardwareAcceleration: vi.fn(),
+      commandLine: {
+        appendSwitch: vi.fn()
+      }
+    };
+
+    applyLightweightRuntime(app, 'darwin');
+
+    expect(app.disableHardwareAcceleration).not.toHaveBeenCalled();
+    expect(app.commandLine.appendSwitch).not.toHaveBeenCalled();
   });
 });

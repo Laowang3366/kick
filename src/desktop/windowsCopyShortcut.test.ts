@@ -11,8 +11,9 @@ describe('windows copy shortcut sender', () => {
       killed: false,
       stdin: {
         write: vi.fn((value: string) => {
-          expect(value).toBe('COPY\n');
-          queueMicrotask(() => stdoutListeners.get('data')?.('DONE\n'));
+          expect(value).toMatch(/^COPY \d+\n$/);
+          const requestId = value.trim().split(' ')[1];
+          queueMicrotask(() => stdoutListeners.get('data')?.(`DONE ${requestId}\n`));
           return true;
         })
       },
@@ -40,6 +41,36 @@ describe('windows copy shortcut sender', () => {
 
     expect(spawnProcess).toHaveBeenCalledTimes(1);
     expect(hookProcess.stdin.write).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects and restarts the helper when a copy request times out', async () => {
+    const hookProcess = {
+      pid: 3456,
+      killed: false,
+      stdin: { write: vi.fn(() => true) },
+      stdout: {
+        setEncoding: vi.fn(),
+        on: vi.fn()
+      },
+      stderr: {
+        setEncoding: vi.fn(),
+        on: vi.fn()
+      },
+      on: vi.fn(),
+      kill: vi.fn()
+    };
+    const terminateProcessTree = vi.fn();
+    const sender = createWindowsCopyShortcutSender({
+      spawnProcess: vi.fn(() => hookProcess as any) as any,
+      scriptPath: path.join(tmpdir(), 'quick-translate-copy-helper-timeout-test.ps1'),
+      terminateProcessTree,
+      requestTimeoutMs: 1
+    });
+
+    await expect(sender.send()).rejects.toThrow('timed out');
+
+    expect(terminateProcessTree).toHaveBeenCalledWith(3456);
+    expect(hookProcess.kill).toHaveBeenCalled();
   });
 
   it('can warm up the helper before the first copy request', async () => {

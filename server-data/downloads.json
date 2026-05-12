@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.69",
+  "latestVersion": "0.1.70",
   "releases": [
+    {
+      "version": "0.1.70",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.70.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.70.exe",
+      "size": 106808494,
+      "sha512": "R4uagDYn3oQJwbnGilCh+3RKOVkchQMmmqmy0LRiBND04C/zFIVQ/6hPCFySncQ+sGdjuNlp5hGwr0hxeZ5YDQ==",
+      "releaseDate": "2026-05-12T03:39:18.385Z",
+      "releaseNotes": "0.1.70：优化 Windows 应用内更新链路，启用备用启动器；收敛 NSIS 旧进程清理；Go 协调器改用原生进程枚举并增强 WoW64/权限兼容；增加剪切板恢复和快捷复制超时保护。"
+    },
     {
       "version": "0.1.69",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "QGsuKavAkH9kdMs+Zzpy6fRf1AyGzLJyrLTCQEA74F8syRH6R2Dw9zY6LFkuwm7w40yERr1FWhPuSgN8zpc2Wg==",
       "releaseDate": "2026-05-12T01:52:23.805Z",
       "releaseNotes": "修复部分环境下安装器临时目录指向系统 Temp 导致无法安装的问题；更新协调器启动安装器时强制使用用户 Temp；卸载列表写入安装路径，避免后续更新丢失用户选择的安装目录"
-    },
-    {
-      "version": "0.1.68",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.68.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.68.exe",
-      "size": 106802367,
-      "sha512": "lyYGjoJzEWwpLMeai4CmOKJBVgJ6KY/mWuFMIZ06PaL3OKcH40BhpbTfGS337Ulev5i7AHQMouySVcAcKdRUPg==",
-      "releaseDate": "2026-05-12T01:30:53.155Z",
-      "releaseNotes": "桌面端应用内更新失败时不再打开浏览器下载安装包；失败原因直接显示在软件内，避免用户被要求保存安装包手动安装"
     },
     {
       "version": "0.1.53",

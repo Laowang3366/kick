@@ -2,8 +2,6 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const expectedUpdateUrl = 'https://sg.lwvpscc.top/quick-translate/updates/latest';
-
 export function validatePublishConfig(packageJson) {
   const publishEntries = Array.isArray(packageJson?.build?.publish) ? packageJson.build.publish : [];
   const genericEntry = publishEntries.find((entry) => entry?.provider === 'generic');
@@ -12,8 +10,8 @@ export function validatePublishConfig(packageJson) {
     throw new Error('缺少 build.publish generic 更新源配置');
   }
 
-  if (genericEntry.url !== expectedUpdateUrl) {
-    throw new Error(`更新源地址不正确：${genericEntry.url ?? '<empty>'}`);
+  if (!genericEntry.url) {
+    throw new Error('更新源地址为空');
   }
 
   return {
@@ -23,6 +21,8 @@ export function validatePublishConfig(packageJson) {
 }
 
 export async function collectUpdateArtifacts(releaseDir = 'release') {
+  const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
+  const { url: expectedUpdateUrl } = validatePublishConfig(packageJson);
   const latestYmlPath = path.join(releaseDir, 'latest.yml');
   const appUpdateYmlPath = path.join(releaseDir, 'win-unpacked', 'resources', 'app-update.yml');
   let latestYml = '';

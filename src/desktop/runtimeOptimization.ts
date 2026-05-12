@@ -5,7 +5,10 @@ type RuntimeApp = {
   };
 };
 
-export function applyLightweightRuntime(app: RuntimeApp) {
+export function applyLightweightRuntime(app: RuntimeApp, platform: NodeJS.Platform = process.platform) {
+  if (platform === 'darwin') {
+    return;
+  }
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 }

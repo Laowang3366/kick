@@ -1,15 +1,25 @@
 Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 
+!include FileFunc.nsh
+!insertmacro GetParameters
+
 !macro quickTranslateTerminateProcesses INSTALL_PATH
+  !define TerminateProcessesUniqueID ${__LINE__}
   DetailPrint "正在清理旧进程..."
-  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$target='${INSTALL_PATH}'; $$names=@('${APP_EXECUTABLE_FILENAME}','快捷翻译.exe','quick-translate.exe'); $$deadline=(Get-Date).AddSeconds(6); do { $$processes=Get-CimInstance -ClassName Win32_Process | ? { (($$target -ne '') -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$target, [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$names -contains $$_.Name) -or ($$_.CommandLine -like '*quick-translate-*hook.ps1*') -or ($$_.CommandLine -like '*quick-translate-copy-shortcut.ps1*') }; $$ids=@($$processes | % { $$_.ProcessId } | ? { $$_ -ne $$PID }); if ($$ids.Count -eq 0) { exit 0 }; $$ids | % { Stop-Process -Id $$_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 250 } while ((Get-Date) -lt $$deadline); exit 0"`
-  Pop $0
+  ReadEnvStr $0 "QUICK_TRANSLATE_UPDATE_PROCESS_ID"
+  StrCmp "$0" "" QuickTranslateTerminateProcessesByName_${TerminateProcessesUniqueID}
+  nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /PID "$0"`
+  Pop $1
+
+  QuickTranslateTerminateProcessesByName_${TerminateProcessesUniqueID}:
   nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"`
-  Pop $0
+  Pop $1
   nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /IM "快捷翻译.exe"`
-  Pop $0
+  Pop $1
   nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /IM "quick-translate.exe"`
-  Pop $0
+  Pop $1
+  Sleep 500
+  !undef TerminateProcessesUniqueID
 !macroend
 
 !macro quickTranslateRemoveInstallDirectory INSTALL_PATH
@@ -178,7 +188,8 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   CreateDirectory "$TEMP\QuickTranslateInstaller"
   CopyFiles /SILENT "$EXEPATH" "$TEMP\QuickTranslateInstaller\Quick-Translate-Update.exe"
   IfErrors QuickTranslateSafeInstallerDone 0
-  Exec '"$TEMP\QuickTranslateInstaller\Quick-Translate-Update.exe"'
+  ${GetParameters} $3
+  Exec '"$SYSDIR\cmd.exe" /D /C start "" "$TEMP\QuickTranslateInstaller\Quick-Translate-Update.exe" $3'
   Quit
 
   QuickTranslateSafeInstallerDone:

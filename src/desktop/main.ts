@@ -28,7 +28,7 @@ import {
   startAutoUpdates
 } from './autoUpdate.js';
 import { resolveDesktopBackendBaseUrl, translateWithBackend } from './backendTranslationClient.js';
-import { captureSelectedText } from './captureSelection.js';
+import { captureSelectedText, restoreClipboardIfNeeded, type ClipboardRecoveryStore } from './captureSelection.js';
 import {
   defaultDesktopSettings,
   floatingTranslateShortcutOptions,
@@ -95,6 +95,7 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let desktopSettings: DesktopSettings = defaultDesktopSettings;
 let floatingSessionPreferences: FloatingSessionPreferenceState = {};
+let clipboardRecoveryStore: ClipboardRecoveryStore | null = null;
 const windowsCopyShortcutSender = createWindowsCopyShortcutSender({ logger: console });
 const floatingWindowSizes = {
   compact: { width: 360, height: 300 },
@@ -276,9 +277,48 @@ async function readSelectedTextFromSystem() {
     clipboard,
     sendCopyShortcut: sendWindowsCopyShortcut,
     wait,
+    recoveryStore: getClipboardRecoveryStore(),
     copyDelayMs: 90,
     pollIntervalMs: 10
   });
+}
+
+function getClipboardRecoveryStore(): ClipboardRecoveryStore {
+  if (clipboardRecoveryStore) {
+    return clipboardRecoveryStore;
+  }
+
+  const filePath = path.join(app.getPath('userData'), 'clipboard-capture-recovery.json');
+  clipboardRecoveryStore = {
+    read() {
+      try {
+        const value = JSON.parse(readFileSync(filePath, 'utf8')) as unknown;
+        if (
+          isRecord(value) &&
+          typeof value.sentinelText === 'string' &&
+          typeof value.clipboardText === 'string' &&
+          typeof value.createdAt === 'string'
+        ) {
+          return {
+            sentinelText: value.sentinelText,
+            clipboardText: value.clipboardText,
+            createdAt: value.createdAt
+          };
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    },
+    write(record) {
+      mkdirSync(path.dirname(filePath), { recursive: true });
+      writeFileSync(filePath, JSON.stringify(record), 'utf8');
+    },
+    remove() {
+      rmSync(filePath, { force: true });
+    }
+  };
+  return clipboardRecoveryStore;
 }
 
 async function captureFromSelection() {
@@ -774,6 +814,12 @@ function readUpdateTransactionIdInput(input: unknown) {
 if (hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     desktopSettings = loadDesktopSettings();
+    await restoreClipboardIfNeeded({
+      clipboard,
+      recoveryStore: getClipboardRecoveryStore()
+    }).catch((error) => {
+      console.warn(`[剪切板恢复] ${error instanceof Error ? error.message : String(error)}`);
+    });
     Menu.setApplicationMenu(null);
     ipcMain.handle('capture-selected-text', () => captureFromSelection());
     ipcMain.handle('copy-text', (_event, text: string) => {

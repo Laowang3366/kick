@@ -8,9 +8,12 @@ type CopyShortcutSenderOptions = {
   spawnProcess?: typeof spawn;
   terminateProcessTree?: (pid: number) => void;
   logger?: Pick<Console, 'warn'>;
+  requestTimeoutMs?: number;
 };
 
 type PendingCopyRequest = {
+  id: number;
+  timeout: NodeJS.Timeout;
   resolve: () => void;
   reject: (error: unknown) => void;
 };
@@ -28,6 +31,7 @@ export function createWindowsCopyShortcutSender(options: CopyShortcutSenderOptio
   let helperProcess: ChildProcessWithoutNullStreams | null = null;
   let stdoutRemainder = '';
   let pendingRequests: PendingCopyRequest[] = [];
+  let nextRequestId = 1;
 
   function ensureHelperProcess() {
     if (helperProcess && !helperProcess.killed) {
@@ -75,11 +79,31 @@ export function createWindowsCopyShortcutSender(options: CopyShortcutSenderOptio
 
     for (const line of completeLines) {
       const output = line.trim();
-      if (output === 'DONE') {
-        pendingRequests.shift()?.resolve();
+      if (output.startsWith('DONE')) {
+        resolvePendingRequest(readResponseId(output), undefined);
       } else if (output.startsWith('ERROR')) {
-        pendingRequests.shift()?.reject(new Error(output));
+        resolvePendingRequest(readResponseId(output), new Error(output));
       }
+    }
+  }
+
+  function readResponseId(output: string) {
+    const [, id] = output.split(/\s+/, 2);
+    const parsed = Number(id);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  }
+
+  function resolvePendingRequest(id: number | undefined, error: unknown) {
+    const index = id ? pendingRequests.findIndex((request) => request.id === id) : 0;
+    if (index < 0) {
+      return;
+    }
+    const [request] = pendingRequests.splice(index, 1);
+    clearTimeout(request.timeout);
+    if (error) {
+      request.reject(error);
+    } else {
+      request.resolve();
     }
   }
 
@@ -87,8 +111,20 @@ export function createWindowsCopyShortcutSender(options: CopyShortcutSenderOptio
     const requests = pendingRequests;
     pendingRequests = [];
     for (const request of requests) {
+      clearTimeout(request.timeout);
       request.reject(error);
     }
+  }
+
+  function restartHelperAfterTimeout() {
+    rejectPendingRequests(new Error('Copy shortcut helper timed out'));
+    if (typeof helperProcess?.pid === 'number') {
+      terminateProcessTree(helperProcess.pid);
+    }
+    if (helperProcess && !helperProcess.killed) {
+      helperProcess.kill();
+    }
+    helperProcess = null;
   }
 
   return {
@@ -102,11 +138,23 @@ export function createWindowsCopyShortcutSender(options: CopyShortcutSenderOptio
     send() {
       return new Promise<void>((resolve, reject) => {
         const process = ensureHelperProcess();
-        pendingRequests.push({ resolve, reject });
+        const id = nextRequestId;
+        nextRequestId += 1;
+        const timeout = setTimeout(() => {
+          restartHelperAfterTimeout();
+        }, options.requestTimeoutMs ?? 1500);
+        timeout.unref();
+        pendingRequests.push({ id, timeout, resolve, reject });
         try {
-          process.stdin.write('COPY\n');
+          process.stdin.write(`COPY ${id}\n`);
         } catch (error) {
-          pendingRequests = pendingRequests.filter((request) => request.resolve !== resolve);
+          pendingRequests = pendingRequests.filter((request) => {
+            if (request.id !== id) {
+              return true;
+            }
+            clearTimeout(request.timeout);
+            return false;
+          });
           reject(error);
         }
       });
@@ -161,12 +209,17 @@ public static class QuickTranslateCopyShortcut
 "@
 
 while (($line = [Console]::In.ReadLine()) -ne $null) {
-    if ($line.Trim() -eq "COPY") {
+    $parts = $line.Trim().Split(" ", 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($parts.Length -gt 0 -and $parts[0] -eq "COPY") {
+        $requestId = ""
+        if ($parts.Length -gt 1) {
+            $requestId = " " + $parts[1]
+        }
         try {
             [QuickTranslateCopyShortcut]::SendCopy()
-            [Console]::Out.WriteLine("DONE")
+            [Console]::Out.WriteLine("DONE" + $requestId)
         } catch {
-            [Console]::Out.WriteLine("ERROR " + $_.Exception.Message)
+            [Console]::Out.WriteLine("ERROR" + $requestId + " " + $_.Exception.Message)
         }
         [Console]::Out.Flush()
     }

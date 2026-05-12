@@ -3,19 +3,18 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 describe('Windows installer script', () => {
-  it('cleans running app processes by install directory and process tree before upgrading', () => {
+  it('keeps installer cleanup to explicit pid and product process names', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 
-    expect(script).toContain(
-      '$$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$target, [System.StringComparison]::CurrentCultureIgnoreCase)'
-    );
-    expect(script).toContain("CommandLine -like '*quick-translate-*hook.ps1*'");
-    expect(script).toContain("CommandLine -like '*quick-translate-copy-shortcut.ps1*'");
-    expect(script).toContain('Stop-Process -Id $$_ -Force');
+    expect(script).toContain('ReadEnvStr $0 "QUICK_TRANSLATE_UPDATE_PROCESS_ID"');
+    expect(script).toContain('taskkill /T /F /PID "$0"');
     expect(script).toContain('taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"');
     expect(script).toContain('taskkill /T /F /IM "快捷翻译.exe"');
-    expect(script).toContain('$$deadline=(Get-Date).AddSeconds(6)');
-    expect(script).toContain("while ((Get-Date) -lt $$deadline)");
+    expect(script).toContain('taskkill /T /F /IM "quick-translate.exe"');
+    expect(script).toContain('Sleep 500');
+    expect(script).not.toContain('Get-CimInstance');
+    expect(script).not.toContain('ExecutablePath.StartsWith');
+    expect(script).not.toContain("CommandLine -like '*quick-translate-*hook.ps1*'");
     expect(script).toContain('QuickTranslateAttemptedInstallCleanupPath');
     expect(script).toContain('正在清理旧进程');
     expect(script).toContain('正在隔离旧版本文件');
@@ -34,7 +33,6 @@ describe('Windows installer script', () => {
     expect(script).toContain('ReadRegStr $3 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation');
     expect(script).toContain('ReadRegStr $4 ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}" UninstallString');
     expect(script).toContain('SetOutPath "$TEMP"');
-    expect(script).toContain('$SYSDIR\\WindowsPowerShell\\v1.0\\powershell.exe');
     expect(script).toContain('!insertmacro quickTranslateRemoveInstallDirectory "$3"');
     expect(script).toContain('DeleteRegKey ${ROOT_KEY} "${UNINSTALL_REGISTRY_KEY}"');
     expect(script).not.toContain('DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"');
@@ -75,6 +73,18 @@ describe('Windows installer script', () => {
 
     expect(script).toContain('!macro preInit');
     expect(script).toContain('SetOutPath "$TEMP"');
+  });
+
+  it('relaunches from temp with original parameters when installer is inside the install directory', () => {
+    const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
+
+    expect(script).toContain('!insertmacro GetParameters');
+    expect(script).toContain('${GetParameters} $3');
+    expect(script).toContain('CopyFiles /SILENT "$EXEPATH" "$TEMP\\QuickTranslateInstaller\\Quick-Translate-Update.exe"');
+    expect(script).toContain(
+      'Exec \'"$SYSDIR\\cmd.exe" /D /C start "" "$TEMP\\QuickTranslateInstaller\\Quick-Translate-Update.exe" $3\''
+    );
+    expect(script).toContain('Quit');
   });
 
   it('shows installation cleanup progress before replacing files', () => {

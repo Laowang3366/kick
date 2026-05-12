@@ -2,7 +2,13 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { checkForDesktopUpdates, configureAutoUpdates, openInstallerBeforeAppQuit, openInstallerDetached } from './autoUpdate';
+import {
+  checkForDesktopUpdates,
+  configureAutoUpdates,
+  getDesktopUpdateFeedUrl,
+  openInstallerBeforeAppQuit,
+  openInstallerDetached
+} from './autoUpdate';
 
 describe('auto update channel', () => {
   afterEach(async () => {
@@ -67,6 +73,21 @@ describe('auto update channel', () => {
     expect(updater.on).toHaveBeenCalledWith('error', expect.any(Function));
     expect(schedule).toHaveBeenCalledWith(expect.any(Function), 8000);
     expect(updater.checkForUpdates).toHaveBeenCalledOnce();
+  });
+
+  it('reads the desktop update feed from package publish config', () => {
+    expect(
+      getDesktopUpdateFeedUrl({
+        build: {
+          publish: [
+            {
+              provider: 'generic',
+              url: 'https://example.test/updates'
+            }
+          ]
+        }
+      })
+    ).toBe('https://example.test/updates');
   });
 
   it('does not run renderer-requested checks outside packaged runs', async () => {
@@ -375,6 +396,9 @@ describe('auto update channel', () => {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
       currentProcessId: 12345
     });
+    await expect(readFile(path.join(tempDirectory, 'QuickTranslateUpdateLauncher-12345.ps1'), 'utf8')).resolves.not.toContain(
+      'Get-CimInstance'
+    );
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
