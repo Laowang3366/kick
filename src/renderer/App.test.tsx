@@ -1413,7 +1413,7 @@ describe('App', () => {
       expect(checkForUpdates).toHaveBeenCalledOnce();
     });
     expect(open).not.toHaveBeenCalled();
-    expect(screen.getByRole('status')).toHaveTextContent("ENOENT: no such file or directory, open 'app-update.yml'");
+    expect(screen.getByRole('alert')).toHaveTextContent("ENOENT: no such file or directory, open 'app-update.yml'");
   });
 
   it('shows desktop update download progress from the desktop bridge', async () => {
