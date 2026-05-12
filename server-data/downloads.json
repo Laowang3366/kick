@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.74",
+  "latestVersion": "0.1.75",
   "releases": [
+    {
+      "version": "0.1.75",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.75.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.75.exe",
+      "size": 106792689,
+      "sha512": "twyV3ulfpCXK3iIiuB0IXBq3o+IUeYFZWYCFjSU4z3GBALg7VJ/xB2RwqrhrQmoUqoGmFAZesOdWnfHUollLJg==",
+      "releaseDate": "2026-05-12T06:52:15.893Z",
+      "releaseNotes": "0.1.75：移除 Windows 更新链路中的 PowerShell 启动器，协调器缺失时直接拉起安装器，避免等待 5-10 分钟；NSIS 安装完成阶段不再启动 PowerShell，减少安装过程卡顿。"
+    },
     {
       "version": "0.1.74",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "3AMsDF2Tn35n+eBgS17mKvAo850Bi3GJePcChYK2Nun87b65CNZf28cDe4p9Goq2Iz/e1ZI02gMxkAMtVwZK5A==",
       "releaseDate": "2026-05-12T06:14:10.766Z",
       "releaseNotes": "0.1.74：新增 Windows 更新失败日志上报后台，便于定位安装器启动失败；本机更新事务、启动日志和更新包缓存统一保留最近版本，减少长期占用；官网/后台代码同步到当前生产版本。"
-    },
-    {
-      "version": "0.1.73",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.73.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.73.exe",
-      "size": 106792940,
-      "sha512": "GGryGlrfNxt3fKETXpkljxr+B4HkPiKY8yLzkPGAazu6+syldZgcyLEmofx25cJocGF2kZeBntSuu7WH+2e+lQ==",
-      "releaseDate": "2026-05-12T05:42:38.135Z",
-      "releaseNotes": "0.1.73：安装模式固定为所有用户安装，不再显示当前用户/所有用户选择；安装器会清理旧的当前用户安装目录和 HKCU 安装记录；应用内更新优先沿用 HKLM 记录的生产安装路径。"
     },
     {
       "version": "0.1.53",

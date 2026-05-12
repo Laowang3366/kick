@@ -65,6 +65,7 @@ type InstallerLaunchOptions = {
   detached: boolean;
   stdio: 'ignore';
   windowsHide: boolean;
+  env?: NodeJS.ProcessEnv;
 };
 
 type InstallerLauncherProcess = {
@@ -83,7 +84,7 @@ type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
   currentProcessId?: number;
   tempDirectory?: string;
   updateCoordinatorPath?: string;
-  allowPowerShellFallback?: boolean;
+  allowDirectInstallerFallback?: boolean;
 };
 
 type PackageJsonWithPublishConfig = {
@@ -342,7 +343,7 @@ export function checkForUpdates(
               installDirectory: getProductionInstallDirectory(),
               currentProcessId: process.pid,
               tempDirectory: getCurrentTempDirectory(),
-              allowPowerShellFallback: true
+              allowDirectInstallerFallback: true
             })
         : openInstallerDetached,
     quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined,
@@ -435,7 +436,7 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
     return;
   }
 
-  if (!options.allowPowerShellFallback) {
+  if (!options.allowDirectInstallerFallback) {
     const message = coordinatorPath
       ? '更新协调器缺失，无法启动安装器。请重新下载安装包后再更新。'
       : '未找到更新协调器，无法启动安装器。请重新下载安装包后再更新。';
@@ -458,64 +459,38 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
     throw new Error(message);
   }
 
-  const launcherScriptPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.ps1`);
   await writeWindowsUpdateTransaction(transactionPath, {
     id: String(currentProcessId),
     installerPath: filePath,
     installDirectory: options.installDirectory,
     coordinatorPath,
     currentProcessId,
-    status: 'waiting-app-exit',
-    percent: 12,
-    message: '更新协调器缺失，正在使用备用启动器',
-    failureCode: 'coordinator-missing-fallback-started',
-    installerExitHint: '备用启动器会在旧版本退出后打开安装器。',
+    status: 'launching-installer',
+    percent: 80,
+    message: '更新协调器缺失，正在直接启动安装器',
+    failureCode: 'coordinator-missing-direct-started',
+    installerExitHint: '安装器已直接打开，会在安装前清理旧版本进程。',
     updatedAt: new Date().toISOString()
   });
-  await writeFile(launcherScriptPath, `\ufeff${windowsUpdateLauncherScript}`, 'utf8');
   await pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
     preserveTransactionIds: [String(currentProcessId)]
   });
-  const scriptArgs = [
-    '-InstallerPath',
-    filePath,
-    '-WorkingDirectory',
-    path.dirname(filePath),
-    '-CurrentProcessId',
-    String(currentProcessId),
-    '-LogPath',
-    logPath,
-    '-TransactionPath',
-    transactionPath
-  ];
-  if (options.installDirectory?.trim()) {
-    scriptArgs.push('-InstallDirectory', options.installDirectory.trim());
-  }
-  if (installerArgs.length > 0) {
-    scriptArgs.push('-ArgumentList', installerArgs.join(' '));
-  }
-  const powershellArgs = [
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass',
-    '-EncodedCommand',
-    encodePowerShellCommand(createPowerShellScriptCommand(launcherScriptPath, scriptArgs))
-  ];
 
   let child: InstallerLauncherProcess;
   try {
-    child = (options.launcher ?? spawn)(
-      getWindowsCmdPath(),
-      ['/d', '/s', '/c', 'start', '""', getWindowsPowerShellPath(), ...powershellArgs],
-      {
-        cwd: tempDirectory,
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true
+    child = (options.launcher ?? spawn)(filePath, installerArgs, {
+      cwd: path.dirname(filePath),
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: false,
+      env: {
+        ...process.env,
+        QUICK_TRANSLATE_UPDATE_TRANSACTION: transactionPath,
+        QUICK_TRANSLATE_UPDATE_PROCESS_ID: String(currentProcessId)
       }
-    );
+    });
   } catch (error) {
-    const message = `备用启动器启动失败：${error instanceof Error ? error.message : String(error)}`;
+    const message = `安装器直接启动失败：${error instanceof Error ? error.message : String(error)}`;
     await writeWindowsUpdateTransaction(transactionPath, {
       id: String(currentProcessId),
       installerPath: filePath,
@@ -525,7 +500,7 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
       status: 'failed',
       percent: 100,
       message,
-      failureCode: 'fallback-start-failed',
+      failureCode: 'direct-installer-start-failed',
       installerExitHint: '请手动运行已下载的安装包，或重新下载最新安装包。',
       updatedAt: new Date().toISOString()
     });
@@ -535,6 +510,19 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
     throw new Error(message);
   }
   child.unref();
+  await writeWindowsUpdateTransaction(transactionPath, {
+    id: String(currentProcessId),
+    installerPath: filePath,
+    installDirectory: options.installDirectory,
+    coordinatorPath,
+    currentProcessId,
+    status: 'installer-started',
+    percent: 100,
+    message: '安装器已启动',
+    failureCode: 'coordinator-missing-direct-started',
+    installerExitHint: '安装器已直接打开，会在安装前清理旧版本进程。',
+    updatedAt: new Date().toISOString()
+  });
 }
 
 function createWindowsUpdateCoordinatorArgs(input: {
@@ -847,7 +835,7 @@ export async function retryUpdateTransaction(
     installDirectory: transaction.installDirectory,
     currentProcessId: options.currentProcessId ?? process.pid,
     tempDirectory,
-    allowPowerShellFallback: true
+    allowDirectInstallerFallback: true
   });
 
   return (await getLatestUpdateTransaction({ ...options, tempDirectory })) ?? transaction;
@@ -1044,23 +1032,6 @@ function pickWindowsUpdateTransactionState(transaction: WindowsUpdateTransaction
   };
 }
 
-function createPowerShellScriptCommand(scriptPath: string, args: string[]) {
-  const quotedArgs = args.map(quotePowerShellArgument).join(' ');
-  return `& ${quotePowerShellString(scriptPath)} ${quotedArgs}`;
-}
-
-function quotePowerShellArgument(value: string) {
-  return value.startsWith('-') ? value : quotePowerShellString(value);
-}
-
-function quotePowerShellString(value: string) {
-  return `'${value.replace(/'/g, "''")}'`;
-}
-
-function encodePowerShellCommand(command: string) {
-  return Buffer.from(command, 'utf16le').toString('base64');
-}
-
 function getWindowsInstallerArgs(installDirectory: string | undefined, transactionPath: string) {
   const normalizedInstallDirectory = installDirectory?.trim();
   const args = [`/QUICK_TRANSLATE_TRANSACTION=${transactionPath}`];
@@ -1223,14 +1194,6 @@ function getCurrentTempDirectory() {
   }
 }
 
-function getWindowsPowerShellPath() {
-  return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-}
-
-function getWindowsCmdPath() {
-  return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
-}
-
 export function getDesktopUpdateFeedUrl(inputPackageJson: PackageJsonWithPublishConfig = packageJson) {
   const publishEntries = Array.isArray(inputPackageJson?.build?.publish) ? inputPackageJson.build.publish : [];
   const genericEntry = publishEntries.find((entry) => entry?.provider === 'generic');
@@ -1239,92 +1202,6 @@ export function getDesktopUpdateFeedUrl(inputPackageJson: PackageJsonWithPublish
   }
   return genericEntry.url;
 }
-
-const windowsUpdateLauncherScript = String.raw`param(
-  [string]$InstallerPath,
-  [string]$WorkingDirectory,
-  [int]$CurrentProcessId,
-  [string]$ArgumentList,
-  [string]$LogPath,
-  [string]$TransactionPath,
-  [string]$InstallDirectory
-)
-
-function Write-QuickTranslateUpdateLog([string]$Message) {
-  try {
-    Add-Content -LiteralPath $LogPath -Value "$(Get-Date -Format o) $Message" -Encoding UTF8
-  } catch {}
-}
-
-function Write-QuickTranslateUpdateState([string]$Status, [int]$Percent, [string]$Message) {
-  try {
-    $state = [ordered]@{
-      id = [string]$CurrentProcessId
-      installerPath = $InstallerPath
-      installDirectory = $InstallDirectory
-      currentProcessId = $CurrentProcessId
-      status = $Status
-      percent = $Percent
-      message = $Message
-      updatedAt = (Get-Date).ToUniversalTime().ToString("o")
-    }
-    $state | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $TransactionPath -Encoding UTF8
-  } catch {}
-}
-
-function Stop-QuickTranslateProcesses {
-  Write-QuickTranslateUpdateState "cleaning-processes" 45 "正在清理旧版本进程"
-  Write-QuickTranslateUpdateLog "cleanup started"
-  try {
-    if ($CurrentProcessId -gt 0) {
-      $current = Get-Process -Id $CurrentProcessId -ErrorAction SilentlyContinue
-      if ($null -ne $current) {
-        & "$env:SystemRoot\System32\taskkill.exe" /PID $CurrentProcessId /T /F | Out-Null
-      }
-    }
-
-    $names = @("快捷翻译.exe", "quick-translate.exe")
-    foreach ($name in $names) {
-      & "$env:SystemRoot\System32\taskkill.exe" /T /F /IM $name | Out-Null
-    }
-  } catch {
-    Write-QuickTranslateUpdateLog ("cleanup warning: " + $_.Exception.Message)
-  }
-  Start-Sleep -Milliseconds 500
-  Write-QuickTranslateUpdateLog "cleanup finished"
-}
-
-Write-QuickTranslateUpdateLog "launcher started"
-Write-QuickTranslateUpdateState "waiting-app-exit" 15 "正在等待旧版本退出"
-$deadline = (Get-Date).AddSeconds(2)
-while ($CurrentProcessId -gt 0 -and (Get-Date) -lt $deadline) {
-  $runningProcess = Get-Process -Id $CurrentProcessId -ErrorAction SilentlyContinue
-  if ($null -eq $runningProcess) {
-    break
-  }
-  Start-Sleep -Milliseconds 100
-}
-
-Stop-QuickTranslateProcesses
-Start-Sleep -Milliseconds 150
-Write-QuickTranslateUpdateLog "installer start requested"
-Write-QuickTranslateUpdateState "launching-installer" 80 "正在启动安装器"
-try {
-  $env:QUICK_TRANSLATE_UPDATE_TRANSACTION = $TransactionPath
-  $env:QUICK_TRANSLATE_UPDATE_PROCESS_ID = [string]$CurrentProcessId
-  if ([string]::IsNullOrWhiteSpace($ArgumentList)) {
-    Start-Process -FilePath $InstallerPath -WorkingDirectory $WorkingDirectory
-  } else {
-    Start-Process -FilePath $InstallerPath -ArgumentList $ArgumentList -WorkingDirectory $WorkingDirectory
-  }
-  Write-QuickTranslateUpdateLog "installer started"
-  Write-QuickTranslateUpdateState "installer-started" 100 "安装器已启动"
-} catch {
-  Write-QuickTranslateUpdateLog ("installer failed: " + $_.Exception.Message)
-  Write-QuickTranslateUpdateState "failed" 100 ("安装器启动失败：" + $_.Exception.Message)
-  exit 1
-}
-`;
 
 function configureUpdaterFeed(updater: AutoUpdaterLike, logger?: Pick<Console, 'warn'>) {
   try {

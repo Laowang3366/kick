@@ -83,9 +83,7 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 !macroend
 
 !macro quickTranslateMarkUpdateTransactionInstalled
-  DetailPrint "正在记录更新安装完成状态..."
-  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$transactionPath=$$env:QUICK_TRANSLATE_UPDATE_TRANSACTION; if ([string]::IsNullOrWhiteSpace($$transactionPath) -or -not (Test-Path -LiteralPath $$transactionPath -PathType Leaf)) { exit 0 }; try { $$state=Get-Content -LiteralPath $$transactionPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $$state=[pscustomobject]@{} }; $$now=(Get-Date).ToUniversalTime().ToString('o'); $$state | Add-Member -NotePropertyName status -NotePropertyValue 'installed' -Force; $$state | Add-Member -NotePropertyName percent -NotePropertyValue 100 -Force; $$state | Add-Member -NotePropertyName message -NotePropertyValue '安装完成' -Force; $$state | Add-Member -NotePropertyName result -NotePropertyValue 'done' -Force; $$state | Add-Member -NotePropertyName installedAt -NotePropertyValue $$now -Force; $$state | Add-Member -NotePropertyName updatedAt -NotePropertyValue $$now -Force; $$state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $$transactionPath -Encoding UTF8; exit 0"`
-  Pop $0
+  DetailPrint "更新安装完成。"
 !macroend
 
 !macro quickTranslateWriteUninstallInstallLocation

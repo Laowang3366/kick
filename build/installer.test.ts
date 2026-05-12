@@ -142,17 +142,17 @@ describe('Windows installer script', () => {
     expect(patchScript).toContain('writeFileSync(templatePath, patched');
   });
 
-  it('marks the exact update transaction as installed after successful install', () => {
+  it('does not spawn PowerShell after successful install', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 
     expect(script).toContain('!macro customInstall');
     expect(script).toContain('quickTranslateWriteUninstallInstallLocation');
     expect(script).toContain('WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"');
     expect(script).toContain('quickTranslateMarkUpdateTransactionInstalled');
-    expect(script).toContain('$$env:QUICK_TRANSLATE_UPDATE_TRANSACTION');
-    expect(script).toContain("NotePropertyName status -NotePropertyValue 'installed'");
-    expect(script).toContain("NotePropertyName result -NotePropertyValue 'done'");
-    expect(script).toContain("NotePropertyName installedAt");
+    expect(script).toContain('DetailPrint "更新安装完成。"');
+    expect(script).not.toContain('WindowsPowerShell');
+    expect(script).not.toContain('ConvertFrom-Json');
+    expect(script).not.toContain('NotePropertyName');
     expect(script).not.toContain("QuickTranslateUpdateTransaction-*.json");
     expect(script).not.toContain("AddHours(-12)");
   });

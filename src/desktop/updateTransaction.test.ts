@@ -99,7 +99,7 @@ describe('desktop update transactions', () => {
       installDirectory: 'D:\\Apps\\快捷翻译',
       currentProcessId: 444,
       tempDirectory,
-      allowPowerShellFallback: true
+      allowDirectInstallerFallback: true
     });
   });
 

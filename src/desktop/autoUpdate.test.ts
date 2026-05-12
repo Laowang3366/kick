@@ -409,24 +409,22 @@ describe('auto update channel', () => {
       shellOpenPath,
       currentProcessId: 12345,
       tempDirectory,
-      allowPowerShellFallback: true
+      allowDirectInstallerFallback: true
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    expectWindowsHandoffLaunch(launcher, {
+    expectDirectInstallerFallbackLaunch(launcher, {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
       currentProcessId: '12345',
       tempDirectory,
       installDirectory: ''
     });
     await expect(readTransactionState(tempDirectory, '12345')).resolves.toMatchObject({
-      status: 'waiting-app-exit',
+      status: 'installer-started',
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
-      currentProcessId: 12345
+      currentProcessId: 12345,
+      failureCode: 'coordinator-missing-direct-started'
     });
-    await expect(readFile(path.join(tempDirectory, 'QuickTranslateUpdateLauncher-12345.ps1'), 'utf8')).resolves.not.toContain(
-      'Get-CimInstance'
-    );
     expect(child.unref).toHaveBeenCalledOnce();
   });
 
@@ -445,11 +443,11 @@ describe('auto update channel', () => {
       installDirectory: 'D:\\Tools\\快捷翻译',
       currentProcessId: 12345,
       tempDirectory,
-      allowPowerShellFallback: true
+      allowDirectInstallerFallback: true
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    expectWindowsHandoffLaunch(launcher, {
+    expectDirectInstallerFallbackLaunch(launcher, {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe',
       currentProcessId: '12345',
       tempDirectory,
@@ -554,11 +552,11 @@ describe('auto update channel', () => {
       shellOpenPath,
       currentProcessId: 12345,
       tempDirectory,
-      allowPowerShellFallback: true
+      allowDirectInstallerFallback: true
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    expectWindowsHandoffLaunch(launcher, {
+    expectDirectInstallerFallbackLaunch(launcher, {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
       currentProcessId: '12345',
       tempDirectory,
@@ -581,11 +579,11 @@ describe('auto update channel', () => {
       shellOpenPath,
       currentProcessId: 12345,
       tempDirectory,
-      allowPowerShellFallback: true
+      allowDirectInstallerFallback: true
     });
 
     expect(shellOpenPath).not.toHaveBeenCalled();
-    expectWindowsHandoffLaunch(launcher, {
+    expectDirectInstallerFallbackLaunch(launcher, {
       installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.39.exe',
       currentProcessId: '12345',
       tempDirectory,
@@ -765,7 +763,7 @@ function getLauncherTempDirectory() {
   return path.join(tmpdir(), 'quick-translate-auto-update-test');
 }
 
-function expectWindowsHandoffLaunch(
+function expectDirectInstallerFallbackLaunch(
   launcher: ReturnType<typeof vi.fn>,
   expected: {
     installerPath: string;
@@ -777,66 +775,24 @@ function expectWindowsHandoffLaunch(
   expect(launcher).toHaveBeenCalledOnce();
   const [command, args, options] = launcher.mock.calls[0];
   const transactionPath = path.join(expected.tempDirectory, `QuickTranslateUpdateTransaction-${expected.currentProcessId}.json`);
-  const expectedScriptArgs = [
-    '-InstallerPath',
-    expected.installerPath,
-    '-WorkingDirectory',
-    path.dirname(expected.installerPath),
-    '-CurrentProcessId',
-    expected.currentProcessId,
-    '-LogPath',
-    path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.log`),
-    '-TransactionPath',
-    transactionPath
-  ];
-  if (expected.installDirectory) {
-    expectedScriptArgs.push('-InstallDirectory', expected.installDirectory);
-  }
   const installerArgs = [`/QUICK_TRANSLATE_TRANSACTION=${transactionPath}`];
   if (expected.installDirectory) {
     installerArgs.push(`/D=${expected.installDirectory}`);
   }
-  expectedScriptArgs.push('-ArgumentList', installerArgs.join(' '));
-
-  expect(command).toMatch(/cmd\.exe$/i);
-  expect(args.slice(0, 9)).toEqual([
-    '/d',
-    '/s',
-    '/c',
-    'start',
-    '""',
-    expect.stringMatching(/powershell\.exe$/i),
-    '-NoProfile',
-    '-ExecutionPolicy',
-    'Bypass'
-  ]);
-  expect(args[9]).toBe('-EncodedCommand');
-  expect(Buffer.from(args[10], 'base64').toString('utf16le')).toBe(
-    createExpectedPowerShellScriptCommand(
-      path.join(expected.tempDirectory, `QuickTranslateUpdateLauncher-${expected.currentProcessId}.ps1`),
-      expectedScriptArgs
-    )
-  );
-  expect(options).toEqual({
-    cwd: expected.tempDirectory,
+  expect(command).toBe(expected.installerPath);
+  expect(args).toEqual(installerArgs);
+  expect(options).toEqual(expect.objectContaining({
+    cwd: path.dirname(expected.installerPath),
     detached: true,
     stdio: 'ignore',
-    windowsHide: true
-  });
+    windowsHide: false,
+    env: expect.objectContaining({
+      QUICK_TRANSLATE_UPDATE_TRANSACTION: transactionPath,
+      QUICK_TRANSLATE_UPDATE_PROCESS_ID: expected.currentProcessId
+    })
+  }));
 }
 
 async function readTransactionState(tempDirectory: string, processId: string) {
   return JSON.parse(await readFile(path.join(tempDirectory, `QuickTranslateUpdateTransaction-${processId}.json`), 'utf8'));
-}
-
-function createExpectedPowerShellScriptCommand(scriptPath: string, args: string[]) {
-  return `& ${quoteExpectedPowerShellString(scriptPath)} ${args.map(quoteExpectedPowerShellArgument).join(' ')}`;
-}
-
-function quoteExpectedPowerShellArgument(value: string) {
-  return value.startsWith('-') ? value : quoteExpectedPowerShellString(value);
-}
-
-function quoteExpectedPowerShellString(value: string) {
-  return `'${value.replace(/'/g, "''")}'`;
 }
