@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -8,6 +8,7 @@ import {
   isRecoverableUpdateTransaction,
   isStaleUpdateTransaction,
   markLatestInstallerStartedTransactionDone,
+  pruneWindowsUpdateTransactionArtifacts,
   retryUpdateTransaction,
   type WindowsUpdateTransactionState
 } from './autoUpdate';
@@ -131,6 +132,55 @@ describe('desktop update transactions', () => {
       updatedAt: '2026-05-12T00:02:00.000Z'
     });
   });
+
+  it('prunes old transaction files and orphan launcher logs while preserving active and recent recoverable transactions', async () => {
+    const tempDirectory = await createTempDirectory();
+    await writeTransactionWithLog(tempDirectory, {
+      id: '100',
+      status: 'failed',
+      updatedAt: '2026-05-12T00:00:00.000Z'
+    });
+    await writeTransactionWithLog(tempDirectory, {
+      id: '200',
+      status: 'failed',
+      updatedAt: '2026-05-12T00:01:00.000Z'
+    });
+    await writeTransactionWithLog(tempDirectory, {
+      id: '300',
+      status: 'failed',
+      updatedAt: '2026-05-12T00:02:00.000Z'
+    });
+    await writeTransactionWithLog(tempDirectory, {
+      id: '400',
+      status: 'waiting-app-exit',
+      updatedAt: '2026-05-12T00:03:00.000Z'
+    });
+    await writeFile(path.join(tempDirectory, 'QuickTranslateUpdateLauncher-orphan.log'), 'orphan', 'utf8');
+
+    await expect(
+      pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
+        preserveTransactionIds: ['400'],
+        now: new Date('2026-05-12T00:03:10.000Z')
+      })
+    ).resolves.toMatchObject({
+      directory: tempDirectory,
+      deletedCount: 3
+    });
+
+    await expect(readdir(tempDirectory)).resolves.toEqual(
+      expect.arrayContaining([
+        'QuickTranslateUpdateTransaction-200.json',
+        'QuickTranslateUpdateLauncher-200.log',
+        'QuickTranslateUpdateTransaction-300.json',
+        'QuickTranslateUpdateLauncher-300.log',
+        'QuickTranslateUpdateTransaction-400.json',
+        'QuickTranslateUpdateLauncher-400.log'
+      ])
+    );
+    await expect(readFile(path.join(tempDirectory, 'QuickTranslateUpdateTransaction-100.json'), 'utf8')).rejects.toThrow();
+    await expect(readFile(path.join(tempDirectory, 'QuickTranslateUpdateLauncher-100.log'), 'utf8')).rejects.toThrow();
+    await expect(readFile(path.join(tempDirectory, 'QuickTranslateUpdateLauncher-orphan.log'), 'utf8')).rejects.toThrow();
+  });
 });
 
 async function createTempDirectory() {
@@ -158,6 +208,18 @@ async function writeTransaction(tempDirectory: string, transaction: WindowsUpdat
     `${JSON.stringify(transaction, null, 2)}\n`,
     'utf8'
   );
+}
+
+async function writeTransactionWithLog(
+  tempDirectory: string,
+  patch: Partial<WindowsUpdateTransactionState> & { id: string }
+) {
+  const transaction = createTransaction({
+    currentProcessId: Number(patch.id),
+    ...patch
+  });
+  await writeTransaction(tempDirectory, transaction);
+  await writeFile(path.join(tempDirectory, `QuickTranslateUpdateLauncher-${transaction.id}.log`), 'log', 'utf8');
 }
 
 async function readTransaction(tempDirectory: string, id: string) {

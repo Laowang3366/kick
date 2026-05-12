@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -14,6 +14,7 @@ beforeEach(async () => {
     jwtSecret: 'test-secret',
     adminUsername: 'admin',
     adminPassword: 'admin-pass',
+    updateReportToken: 'report-token',
     defaultProvider: {
       providerType: 'openai-compatible',
       baseUrl: 'https://example.test/v1',
@@ -439,6 +440,69 @@ describe('backend app', () => {
     expect(statsResponse.body.metrics.apiCalls.total).toBeGreaterThanOrEqual(4);
     expect(statsResponse.body.metrics.apiCalls.byEndpoint['GET /api/downloads']).toBe(1);
     expect(statsResponse.body.metrics.apiCalls.byEndpoint['POST /api/downloads/track']).toBe(1);
+  });
+
+  it('requires the update failure report token and stores accepted reports', async () => {
+    const rejectedResponse = await request('POST', '/api/update-failure-reports', {
+      source: 'desktop-windows-update'
+    });
+    expect(rejectedResponse.status).toBe(401);
+
+    const acceptedResponse = await request(
+      'POST',
+      '/api/update-failure-reports',
+      {
+        source: 'desktop-windows-update',
+        appVersion: '0.1.73',
+        platform: 'win32',
+        failureReason: 'installer-start-failed',
+        transaction: {
+          id: '12345',
+          status: 'failed',
+          message: '安装器启动失败',
+          failureCode: 'fallback-start-failed',
+          installerPath: 'C:\\Temp\\Quick-Translate.exe',
+          currentProcessId: 12345,
+          percent: 100,
+          updatedAt: '2026-05-12T00:00:00.000Z',
+          failed: true,
+          recoverable: true
+        },
+        logSummary: 'launcher started\ninstaller failed: denied',
+        error: 'open failed'
+      },
+      'report-token'
+    );
+
+    expect(acceptedResponse.status).toBe(201);
+    expect(acceptedResponse.body.reportId).toEqual(expect.any(String));
+
+    const reports = JSON.parse(await readFile(path.join(tempDir, 'update-failure-reports.json'), 'utf8'));
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toMatchObject({
+      id: acceptedResponse.body.reportId,
+      source: 'desktop-windows-update',
+      appVersion: '0.1.73',
+      platform: 'win32',
+      failureReason: 'installer-start-failed',
+      transaction: {
+        id: '12345',
+        status: 'failed',
+        failureCode: 'fallback-start-failed',
+        failed: true,
+        recoverable: true
+      },
+      logSummary: 'launcher started\ninstaller failed: denied',
+      error: 'open failed'
+    });
+
+    const logLines = (await readFile(path.join(tempDir, 'update-failure-reports.log'), 'utf8')).trim().split('\n');
+    expect(JSON.parse(logLines[0])).toMatchObject({
+      id: acceptedResponse.body.reportId,
+      transaction: {
+        id: '12345'
+      }
+    });
   });
 
   it('tracks daily translation usage for the admin dashboard', async () => {

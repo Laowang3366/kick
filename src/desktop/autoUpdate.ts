@@ -6,7 +6,16 @@ import { copyFile, link, mkdir, readdir, readFile, rm, writeFile } from 'node:fs
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { getDefaultUpdatePackageDirectory, normalizeUpdatePackageDirectoryPath } from './updatePackageDirectory.js';
+import { defaultQuickTranslateBackendBaseUrl, normalizeBackendBaseUrl } from '../shared/cloudEndpoint.js';
+import {
+  getDefaultUpdatePackageDirectory,
+  normalizeUpdatePackageDirectoryPath,
+  pruneUpdatePackageArtifacts
+} from './updatePackageDirectory.js';
+import {
+  compareRetentionItemsByUpdatedAtDescending,
+  defaultUpdateArtifactRetentionCount
+} from './updateTransaction.js';
 
 const require = createRequire(import.meta.url);
 const packageJson = require('../../package.json') as PackageJsonWithPublishConfig;
@@ -46,6 +55,9 @@ type CheckForUpdatesOptions = {
   stageDownloadedUpdate?: (filePath: string, version?: string) => string | Promise<string>;
   openDownloadedUpdate?: (filePath: string) => void | Promise<void>;
   quitAfterOpenDownloadedUpdate?: () => void;
+  updateFailureReportToken?: string;
+  updateFailureReportBaseUrl?: string;
+  reportUpdateFailure?: (input: WindowsUpdateFailureReportInput) => void | Promise<void>;
 };
 
 type InstallerLaunchOptions = {
@@ -133,12 +145,21 @@ export type DesktopUpdateProgress = {
   message?: string;
 };
 
+export type WindowsUpdateFailureReportInput = {
+  appVersion: string;
+  platform: NodeJS.Platform;
+  failureReason: string;
+  error?: string;
+};
+
 const updateCheckDelayMs = 8000;
 const quickTranslateMachineInstallRegistryKey = 'HKLM\\Software\\c747ef85-e8bd-5ddf-bf80-1c3355114152';
 const quickTranslateMachineUninstallRegistryKey =
   'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\c747ef85-e8bd-5ddf-bf80-1c3355114152';
 const staleUpdateTransactionMs = 10 * 60 * 1000;
 const updateTransactionFilePattern = /^QuickTranslateUpdateTransaction-(.+)\.json$/;
+const updateLauncherLogFilePattern = /^QuickTranslateUpdateLauncher-(.+)\.log$/;
+const defaultUpdateFailureReportToken = 'quick-translate-update-report-v1';
 
 export function configureAutoUpdates(options: ConfigureAutoUpdatesOptions): boolean {
   if (!options.isPackaged || options.isSmokeTest) {
@@ -279,6 +300,11 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
       percent: 0,
       message
     });
+    await reportWindowsUpdateFailure({
+      ...options,
+      failureReason: 'desktop-update-error',
+      error: message
+    });
 
     return {
       status: 'error',
@@ -319,7 +345,9 @@ export function checkForUpdates(
               allowPowerShellFallback: true
             })
         : openInstallerDetached,
-    quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined
+    quitAfterOpenDownloadedUpdate: process.platform === 'win32' ? scheduleQuitAfterOpeningInstaller : undefined,
+    updateFailureReportToken: process.env.QUICK_TRANSLATE_UPDATE_REPORT_TOKEN ?? defaultUpdateFailureReportToken,
+    updateFailureReportBaseUrl: resolveUpdateFailureReportBaseUrl(process.env)
   });
 }
 
@@ -383,6 +411,9 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
     message: '正在等待旧版本退出',
     updatedAt: new Date().toISOString()
   });
+  await pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
+    preserveTransactionIds: [String(currentProcessId)]
+  });
 
   if (coordinatorPath && existsSync(coordinatorPath)) {
     const coordinatorArgs = createWindowsUpdateCoordinatorArgs({
@@ -421,6 +452,9 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
       installerExitHint: '重新下载最新安装包后手动运行安装。',
       updatedAt: new Date().toISOString()
     });
+    await pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
+      preserveTransactionIds: [String(currentProcessId)]
+    });
     throw new Error(message);
   }
 
@@ -439,6 +473,9 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
     updatedAt: new Date().toISOString()
   });
   await writeFile(launcherScriptPath, `\ufeff${windowsUpdateLauncherScript}`, 'utf8');
+  await pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
+    preserveTransactionIds: [String(currentProcessId)]
+  });
   const scriptArgs = [
     '-InstallerPath',
     filePath,
@@ -491,6 +528,9 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
       failureCode: 'fallback-start-failed',
       installerExitHint: '请手动运行已下载的安装包，或重新下载最新安装包。',
       updatedAt: new Date().toISOString()
+    });
+    await pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
+      preserveTransactionIds: [String(currentProcessId)]
     });
     throw new Error(message);
   }
@@ -674,8 +714,110 @@ export async function markLatestInstallerStartedTransactionDone(
     updatedAt: (options.now ?? new Date()).toISOString()
   };
   await writeWindowsUpdateTransaction(latestTransaction.transactionPath, doneState);
+  await pruneWindowsUpdateTransactionArtifacts(path.dirname(latestTransaction.transactionPath), {
+    preserveTransactionIds: [latestTransaction.id],
+    now: options.now,
+    staleAfterMs: options.staleAfterMs
+  });
 
   return createWindowsUpdateTransactionSnapshot(doneState, latestTransaction.transactionPath, options);
+}
+
+export async function pruneWindowsUpdateTransactionArtifacts(
+  tempDirectory: string = getCurrentTempDirectory(),
+  options: {
+    keepRecoverableTransactions?: number;
+    keepLatestTransactions?: number;
+    preserveTransactionIds?: string[];
+    now?: Date;
+    staleAfterMs?: number;
+  } = {}
+) {
+  let fileNames: string[];
+
+  try {
+    fileNames = await readdir(tempDirectory);
+  } catch {
+    return { directory: tempDirectory, deletedCount: 0 };
+  }
+
+  const preservedTransactionIds = new Set((options.preserveTransactionIds ?? []).map((id) => id.trim()).filter(Boolean));
+  const fileNameSet = new Set(fileNames);
+  const transactionCandidates = await Promise.all(
+    fileNames.map(async (fileName) => {
+      const match = updateTransactionFilePattern.exec(fileName);
+      if (!match) {
+        return null;
+      }
+
+      const transactionPath = path.join(tempDirectory, fileName);
+      const state = await readWindowsUpdateTransaction(transactionPath);
+      const id = state?.id ?? match[1];
+      return {
+        id,
+        transactionPath,
+        logPath: getWindowsUpdateLogPath(transactionPath, id),
+        updatedAt: state?.updatedAt,
+        recoverable: state ? isRecoverableUpdateTransaction(state, options) : false,
+        preserve: preservedTransactionIds.has(id)
+      };
+    })
+  );
+  const candidates = transactionCandidates.filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null);
+  const recoverableRetainedIds = new Set(
+    candidates
+      .filter((candidate) => candidate.recoverable)
+      .sort(compareRetentionItemsByUpdatedAtDescending)
+      .slice(0, options.keepRecoverableTransactions ?? defaultUpdateArtifactRetentionCount)
+      .map((candidate) => candidate.id)
+  );
+  const latestRetainedIds = new Set(
+    candidates
+      .sort(compareRetentionItemsByUpdatedAtDescending)
+      .slice(0, options.keepLatestTransactions ?? 1)
+      .map((candidate) => candidate.id)
+  );
+  const retainedIds = new Set([...preservedTransactionIds, ...recoverableRetainedIds, ...latestRetainedIds]);
+  const deletedPaths = new Set<string>();
+  let deletedCount = 0;
+
+  for (const candidate of candidates) {
+    if (retainedIds.has(candidate.id)) {
+      continue;
+    }
+
+    await rm(candidate.transactionPath, { force: true });
+    deletedPaths.add(path.resolve(candidate.transactionPath).toLowerCase());
+    deletedCount += 1;
+
+    if (fileNameSet.has(path.basename(candidate.logPath))) {
+      await rm(candidate.logPath, { force: true });
+      deletedPaths.add(path.resolve(candidate.logPath).toLowerCase());
+      deletedCount += 1;
+    }
+  }
+
+  await Promise.all(
+    fileNames.map(async (fileName) => {
+      const match = updateLauncherLogFilePattern.exec(fileName);
+      if (!match || retainedIds.has(match[1])) {
+        return;
+      }
+
+      const logPath = path.join(tempDirectory, fileName);
+      if (deletedPaths.has(path.resolve(logPath).toLowerCase())) {
+        return;
+      }
+
+      await rm(logPath, { force: true });
+      deletedCount += 1;
+    })
+  );
+
+  return {
+    directory: tempDirectory,
+    deletedCount
+  };
 }
 
 export async function retryUpdateTransaction(
@@ -709,6 +851,60 @@ export async function retryUpdateTransaction(
   });
 
   return (await getLatestUpdateTransaction({ ...options, tempDirectory })) ?? transaction;
+}
+
+export async function uploadLatestWindowsUpdateFailureReport(
+  input: WindowsUpdateFailureReportInput,
+  options: {
+    token?: string;
+    baseUrl?: string;
+    fetcher?: typeof fetch;
+    tempDirectory?: string;
+    now?: Date;
+    staleAfterMs?: number;
+    timeoutMs?: number;
+  } = {}
+) {
+  const token = options.token?.trim();
+  if (!token || input.platform !== 'win32') {
+    return false;
+  }
+
+  const transaction = await getLatestUpdateTransaction(options);
+  if (!transaction || (!transaction.failed && !transaction.stale && !transaction.recoverable)) {
+    return false;
+  }
+
+  const fetcher = options.fetcher ?? fetch;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), normalizeReportTimeout(options.timeoutMs));
+
+  try {
+    const response = await fetcher(
+      `${normalizeBackendBaseUrl(options.baseUrl ?? defaultQuickTranslateBackendBaseUrl)}/api/update-failure-reports`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          source: 'desktop-windows-update',
+          appVersion: input.appVersion,
+          platform: input.platform,
+          failureReason: input.failureReason,
+          error: input.error,
+          transaction: pickWindowsUpdateFailureTransaction(transaction),
+          logSummary: await readWindowsUpdateLogSummary(transaction.logPath)
+        }),
+        signal: controller.signal
+      }
+    );
+
+    return response.ok;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function openUpdateTransactionLogDirectory(
@@ -918,6 +1114,86 @@ function readWindowsRegistryString(registryKey: string, valueName: string, execF
   } catch {
     return undefined;
   }
+}
+
+async function reportWindowsUpdateFailure(
+  options: Pick<
+    CheckForUpdatesOptions,
+    | 'currentVersion'
+    | 'platform'
+    | 'logger'
+    | 'updateFailureReportToken'
+    | 'updateFailureReportBaseUrl'
+    | 'reportUpdateFailure'
+  > & {
+    failureReason: string;
+    error?: string;
+  }
+) {
+  if (options.platform !== 'win32') {
+    return;
+  }
+
+  const input = {
+    appVersion: options.currentVersion,
+    platform: options.platform,
+    failureReason: options.failureReason,
+    error: options.error
+  };
+
+  try {
+    if (options.reportUpdateFailure) {
+      await options.reportUpdateFailure(input);
+      return;
+    }
+
+    await uploadLatestWindowsUpdateFailureReport(input, {
+      token: options.updateFailureReportToken,
+      baseUrl: options.updateFailureReportBaseUrl
+    });
+  } catch (reportError) {
+    const message = reportError instanceof Error ? reportError.message : String(reportError);
+    options.logger?.warn(`[自动更新] 上报失败日志失败：${message}`);
+  }
+}
+
+function pickWindowsUpdateFailureTransaction(transaction: WindowsUpdateTransactionSnapshot) {
+  return {
+    id: transaction.id,
+    status: transaction.status,
+    message: transaction.message,
+    failureCode: transaction.failureCode,
+    installerExitHint: transaction.installerExitHint,
+    installerPath: transaction.installerPath,
+    installDirectory: transaction.installDirectory,
+    coordinatorPath: transaction.coordinatorPath,
+    currentProcessId: transaction.currentProcessId,
+    percent: transaction.percent,
+    updatedAt: transaction.updatedAt,
+    failed: transaction.failed,
+    stale: transaction.stale,
+    recoverable: transaction.recoverable
+  };
+}
+
+async function readWindowsUpdateLogSummary(logPath: string) {
+  try {
+    return tailText(await readFile(logPath, 'utf8'), 12_000);
+  } catch {
+    return '';
+  }
+}
+
+function tailText(value: string, maxLength: number) {
+  return value.length > maxLength ? value.slice(value.length - maxLength) : value;
+}
+
+function normalizeReportTimeout(value: number | undefined) {
+  return Number.isFinite(value) && value !== undefined && value > 0 ? Math.floor(value) : 10_000;
+}
+
+function resolveUpdateFailureReportBaseUrl(env: Record<string, string | undefined>) {
+  return normalizeBackendBaseUrl(env.QUICK_TRANSLATE_BACKEND_URL ?? env.VITE_QUICK_TRANSLATE_API_URL ?? defaultQuickTranslateBackendBaseUrl);
 }
 
 function normalizeWindowsPath(value: string) {
@@ -1143,6 +1419,9 @@ async function copyDownloadedUpdateToPackageDirectory(filePath: string, version?
   } catch {
     await copyFile(filePath, targetPath);
   }
+  await pruneUpdatePackageArtifacts(targetDirectory, {
+    preservePaths: [targetPath]
+  });
   return targetPath;
 }
 

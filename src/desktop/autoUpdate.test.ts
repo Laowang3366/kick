@@ -8,7 +8,8 @@ import {
   getDesktopUpdateFeedUrl,
   getProductionInstallDirectory,
   openInstallerBeforeAppQuit,
-  openInstallerDetached
+  openInstallerDetached,
+  uploadLatestWindowsUpdateFailureReport
 } from './autoUpdate';
 
 describe('auto update channel', () => {
@@ -642,6 +643,7 @@ describe('auto update channel', () => {
     const logger = { warn: vi.fn() };
     const openDownloadedUpdate = vi.fn().mockRejectedValue(new Error('open failed'));
     const quitAfterOpenDownloadedUpdate = vi.fn();
+    const reportUpdateFailure = vi.fn();
     updater.checkForUpdates.mockResolvedValue({
       updateInfo: {
         version: '0.1.22'
@@ -658,7 +660,8 @@ describe('auto update channel', () => {
         updater,
         logger,
         openDownloadedUpdate,
-        quitAfterOpenDownloadedUpdate
+        quitAfterOpenDownloadedUpdate,
+        reportUpdateFailure
       })
     ).resolves.toMatchObject({
       status: 'error',
@@ -667,7 +670,83 @@ describe('auto update channel', () => {
     });
 
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('打开安装包失败'));
+    expect(reportUpdateFailure).toHaveBeenCalledWith({
+      appVersion: '0.1.21',
+      platform: 'win32',
+      failureReason: 'desktop-update-error',
+      error: 'open failed'
+    });
     expect(quitAfterOpenDownloadedUpdate).not.toHaveBeenCalled();
+  });
+
+  it('uploads the latest failed Windows update transaction and log summary', async () => {
+    const tempDirectory = getLauncherTempDirectory();
+    await mkdir(tempDirectory, { recursive: true });
+    await writeFile(
+      path.join(tempDirectory, 'QuickTranslateUpdateTransaction-12345.json'),
+      JSON.stringify({
+        id: '12345',
+        installerPath: 'C:\\Temp\\Quick-Translate-0.1.73.exe',
+        currentProcessId: 12345,
+        status: 'failed',
+        percent: 100,
+        message: '安装器启动失败',
+        failureCode: 'fallback-start-failed',
+        updatedAt: '2026-05-12T00:00:00.000Z'
+      }),
+      'utf8'
+    );
+    await writeFile(path.join(tempDirectory, 'QuickTranslateUpdateLauncher-12345.log'), 'launcher started\ninstaller failed', 'utf8');
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ reportId: 'report-1' }), {
+        status: 201,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+
+    await expect(
+      uploadLatestWindowsUpdateFailureReport(
+        {
+          appVersion: '0.1.73',
+          platform: 'win32',
+          failureReason: 'installer-start-failed',
+          error: 'open failed'
+        },
+        {
+          token: 'report-token',
+          baseUrl: 'https://backend.example/quick-translate/backend',
+          tempDirectory,
+          fetcher
+        }
+      )
+    ).resolves.toBe(true);
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://backend.example/quick-translate/backend/api/update-failure-reports',
+      expect.objectContaining({
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer report-token'
+        }
+      })
+    );
+    const payload = JSON.parse(String(fetcher.mock.calls[0][1].body));
+    expect(payload).toMatchObject({
+      source: 'desktop-windows-update',
+      appVersion: '0.1.73',
+      platform: 'win32',
+      failureReason: 'installer-start-failed',
+      error: 'open failed',
+      transaction: {
+        id: '12345',
+        status: 'failed',
+        failureCode: 'fallback-start-failed',
+        failed: true,
+        recoverable: true
+      },
+      logSummary: 'launcher started\ninstaller failed'
+    });
   });
 });
 

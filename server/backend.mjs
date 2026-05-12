@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -23,6 +23,8 @@ const defaultDownloadManifest = {
   latestVersion: '',
   releases: []
 };
+const defaultUpdateFailureReports = [];
+const defaultUpdateReportToken = 'quick-translate-update-report-v1';
 const defaultMetrics = {
   apiCalls: {
     total: 0,
@@ -49,6 +51,7 @@ export function createBackendApp(options = {}) {
   const jwtSecret = options.jwtSecret ?? process.env.QUICK_TRANSLATE_JWT_SECRET ?? 'quick-translate-dev-secret';
   const adminUsername = options.adminUsername ?? process.env.QUICK_TRANSLATE_ADMIN_USER ?? 'admin';
   const adminPassword = options.adminPassword ?? process.env.QUICK_TRANSLATE_ADMIN_PASSWORD ?? 'admin123456';
+  const updateReportToken = options.updateReportToken ?? process.env.QUICK_TRANSLATE_UPDATE_REPORT_TOKEN ?? defaultUpdateReportToken;
   const store = createJsonStore({
     dataDir: options.dataDir ?? path.join(process.cwd(), 'data'),
     defaultProvider: options.defaultProvider,
@@ -196,6 +199,12 @@ export function createBackendApp(options = {}) {
         return createJsonResponse(200, { metrics: metrics.downloads });
       }
 
+      if (method === 'POST' && pathname === '/api/update-failure-reports') {
+        requireStaticBearerToken(request, updateReportToken, '更新失败日志上报未授权');
+        const report = await store.recordUpdateFailureReport(await readJsonBody(request));
+        return createJsonResponse(201, { reportId: report.id, receivedAt: report.receivedAt });
+      }
+
       return createJsonResponse(404, { error: '接口不存在' });
     } catch (error) {
       if (error instanceof HttpError) {
@@ -282,7 +291,9 @@ export function createJsonStore({ dataDir, defaultProvider, defaultAdmin }) {
     states: path.join(dataDir, 'states.json'),
     provider: path.join(dataDir, 'provider.json'),
     downloads: path.join(dataDir, 'downloads.json'),
-    metrics: path.join(dataDir, 'metrics.json')
+    metrics: path.join(dataDir, 'metrics.json'),
+    updateFailureReports: path.join(dataDir, 'update-failure-reports.json'),
+    updateFailureReportLog: path.join(dataDir, 'update-failure-reports.log')
   };
 
   const files = {
@@ -291,7 +302,8 @@ export function createJsonStore({ dataDir, defaultProvider, defaultAdmin }) {
     states: createJsonFile(paths.states, {}),
     provider: createJsonFile(paths.provider, undefined),
     downloads: createJsonFile(paths.downloads, defaultDownloadManifest),
-    metrics: createJsonFile(paths.metrics, defaultMetrics)
+    metrics: createJsonFile(paths.metrics, defaultMetrics),
+    updateFailureReports: createJsonFile(paths.updateFailureReports, defaultUpdateFailureReports)
   };
 
   return {
@@ -523,6 +535,16 @@ export function createJsonStore({ dataDir, defaultProvider, defaultAdmin }) {
     async recordDownloadEvent(event) {
       return files.metrics.update((value) => incrementDownloadMetrics(value, event));
     },
+    async recordUpdateFailureReport(input) {
+      const report = normalizeUpdateFailureReport(input, {
+        id: randomId(),
+        receivedAt: new Date().toISOString()
+      });
+      await files.updateFailureReports.update((value) => [...normalizeUpdateFailureReports(value), report].slice(-500));
+      await mkdir(path.dirname(paths.updateFailureReportLog), { recursive: true });
+      await appendFile(paths.updateFailureReportLog, `${JSON.stringify(report)}\n`, 'utf8');
+      return report;
+    },
     async getMetrics() {
       return normalizeMetrics(await files.metrics.read());
     },
@@ -640,6 +662,16 @@ function requireAuth(request, secret, role) {
   }
 
   return payload;
+}
+
+function requireStaticBearerToken(request, expectedToken, message) {
+  const authorization = request.headers.authorization ?? request.headers.Authorization ?? '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  const normalizedExpectedToken = stringOrEmpty(expectedToken);
+
+  if (!normalizedExpectedToken || !token || !safeEqual(token, normalizedExpectedToken)) {
+    throw new HttpError(401, message);
+  }
 }
 
 function signToken(payload, secret) {
@@ -1045,6 +1077,49 @@ function normalizeDownloadManifest(value) {
     latestVersion: stringOrEmpty(record.latestVersion) || releases[0]?.version || '',
     releases
   };
+}
+
+function normalizeUpdateFailureReports(value) {
+  return Array.isArray(value) ? value.filter(isRecord).map((report) => normalizeUpdateFailureReport(report)) : [];
+}
+
+function normalizeUpdateFailureReport(value, defaults = {}) {
+  const record = isRecord(value) ? value : {};
+  return {
+    id: boundedString(record.id, 120) || boundedString(defaults.id, 120) || randomId(),
+    receivedAt: boundedString(record.receivedAt, 80) || boundedString(defaults.receivedAt, 80) || new Date().toISOString(),
+    source: boundedString(record.source, 80) || 'desktop-windows-update',
+    appVersion: boundedString(record.appVersion, 80),
+    platform: boundedString(record.platform, 80),
+    failureReason: boundedString(record.failureReason, 500),
+    transaction: normalizeUpdateFailureTransaction(record.transaction),
+    logSummary: boundedString(record.logSummary, 12_000),
+    error: boundedString(record.error, 1_000)
+  };
+}
+
+function normalizeUpdateFailureTransaction(value) {
+  const record = isRecord(value) ? value : {};
+  return {
+    id: boundedString(record.id, 120),
+    status: boundedString(record.status, 80),
+    message: boundedString(record.message, 1_000),
+    failureCode: boundedString(record.failureCode, 200),
+    installerExitHint: boundedString(record.installerExitHint, 1_000),
+    installerPath: boundedString(record.installerPath, 1_000),
+    installDirectory: boundedString(record.installDirectory, 1_000),
+    coordinatorPath: boundedString(record.coordinatorPath, 1_000),
+    currentProcessId: nonNegativeNumber(record.currentProcessId),
+    percent: nonNegativeNumber(record.percent),
+    updatedAt: boundedString(record.updatedAt, 80),
+    failed: Boolean(record.failed),
+    stale: Boolean(record.stale),
+    recoverable: Boolean(record.recoverable)
+  };
+}
+
+function boundedString(value, maxLength) {
+  return stringOrEmpty(value).slice(0, maxLength);
 }
 
 function normalizeReleasePlatform(value) {

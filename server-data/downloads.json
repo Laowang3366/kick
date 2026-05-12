@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.73",
+  "latestVersion": "0.1.74",
   "releases": [
+    {
+      "version": "0.1.74",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.74.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.74.exe",
+      "size": 106794240,
+      "sha512": "3AMsDF2Tn35n+eBgS17mKvAo850Bi3GJePcChYK2Nun87b65CNZf28cDe4p9Goq2Iz/e1ZI02gMxkAMtVwZK5A==",
+      "releaseDate": "2026-05-12T06:14:10.766Z",
+      "releaseNotes": "0.1.74：新增 Windows 更新失败日志上报后台，便于定位安装器启动失败；本机更新事务、启动日志和更新包缓存统一保留最近版本，减少长期占用；官网/后台代码同步到当前生产版本。"
+    },
     {
       "version": "0.1.73",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "GGryGlrfNxt3fKETXpkljxr+B4HkPiKY8yLzkPGAazu6+syldZgcyLEmofx25cJocGF2kZeBntSuu7WH+2e+lQ==",
       "releaseDate": "2026-05-12T05:42:38.135Z",
       "releaseNotes": "0.1.73：安装模式固定为所有用户安装，不再显示当前用户/所有用户选择；安装器会清理旧的当前用户安装目录和 HKCU 安装记录；应用内更新优先沿用 HKLM 记录的生产安装路径。"
-    },
-    {
-      "version": "0.1.72",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.72.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.72.exe",
-      "size": 106809773,
-      "sha512": "WCRKDQU8qYG7w7uKSXUmr39jG/q1Xn6p6/dN9d8B76ahvJFiHIZSzZ0NOVI7cHhXaYVV/3k9bqV+MxUGRiqY0A==",
-      "releaseDate": "2026-05-12T05:17:29.134Z",
-      "releaseNotes": "0.1.72：修复 Windows 更新清理旧进程时 taskkill /T 误杀更新协调器的问题；改为按进程快照逐个清理旧主进程及其子进程，并排除协调器自身。"
     },
     {
       "version": "0.1.53",
