@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.71",
+  "latestVersion": "0.1.72",
   "releases": [
+    {
+      "version": "0.1.72",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.72.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.72.exe",
+      "size": 106809773,
+      "sha512": "WCRKDQU8qYG7w7uKSXUmr39jG/q1Xn6p6/dN9d8B76ahvJFiHIZSzZ0NOVI7cHhXaYVV/3k9bqV+MxUGRiqY0A==",
+      "releaseDate": "2026-05-12T05:17:29.134Z",
+      "releaseNotes": "0.1.72：修复 Windows 更新清理旧进程时 taskkill /T 误杀更新协调器的问题；改为按进程快照逐个清理旧主进程及其子进程，并排除协调器自身。"
+    },
     {
       "version": "0.1.71",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "0QkLIQu3w4WQTtPqu3ZH88x8nJdbReF5d0/ut+M6LyJlwIG3QphgQOA+OEshjFr1wFivJV7h73KnSfgDk3m5Tg==",
       "releaseDate": "2026-05-12T05:04:09.153Z",
       "releaseNotes": "0.1.71：修复 Windows 更新协调器中原生 API 调用错误转换，兼容 LazyProc.Call 返回值差异，避免进程枚举失败时错误信息异常。"
-    },
-    {
-      "version": "0.1.70",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.70.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.70.exe",
-      "size": 106808494,
-      "sha512": "R4uagDYn3oQJwbnGilCh+3RKOVkchQMmmqmy0LRiBND04C/zFIVQ/6hPCFySncQ+sGdjuNlp5hGwr0hxeZ5YDQ==",
-      "releaseDate": "2026-05-12T03:39:18.385Z",
-      "releaseNotes": "0.1.70：优化 Windows 应用内更新链路，启用备用启动器；收敛 NSIS 旧进程清理；Go 协调器改用原生进程枚举并增强 WoW64/权限兼容；增加剪切板恢复和快捷复制超时保护。"
     },
     {
       "version": "0.1.53",

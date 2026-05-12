@@ -8,7 +8,7 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   DetailPrint "正在清理旧进程..."
   ReadEnvStr $0 "QUICK_TRANSLATE_UPDATE_PROCESS_ID"
   StrCmp "$0" "" QuickTranslateTerminateProcessesByName_${TerminateProcessesUniqueID}
-  nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /T /F /PID "$0"`
+  nsExec::ExecToLog `"$SYSDIR\cmd.exe" /C taskkill /F /PID "$0"`
   Pop $1
 
   QuickTranslateTerminateProcessesByName_${TerminateProcessesUniqueID}:

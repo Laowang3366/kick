@@ -39,7 +39,7 @@ func TestUpsertEnvironmentValueIsCaseInsensitive(t *testing.T) {
 }
 
 func TestShouldTerminateProcessMatchesExactPidAndKnownNames(t *testing.T) {
-	criteria := cleanupCriteria{CurrentProcessID: 456, InstallDirectory: `D:\Tools\快捷翻译`}
+	criteria := cleanupCriteria{CurrentProcessID: 456, OwnProcessID: 999, InstallDirectory: `D:\Tools\快捷翻译`}
 
 	if !shouldTerminateProcess(processSnapshot{PID: 456, Name: "node.exe"}, criteria) {
 		t.Fatal("expected current process pid to match")
@@ -53,7 +53,7 @@ func TestShouldTerminateProcessMatchesExactPidAndKnownNames(t *testing.T) {
 }
 
 func TestShouldTerminateProcessMatchesReadableInstallDirectoryPathOnly(t *testing.T) {
-	criteria := cleanupCriteria{InstallDirectory: `D:\Tools\快捷翻译`}
+	criteria := cleanupCriteria{OwnProcessID: 999, InstallDirectory: `D:\Tools\快捷翻译`}
 
 	if !shouldTerminateProcess(processSnapshot{PID: 1, Name: "helper.exe", ImagePath: `D:\Tools\快捷翻译\resources\helper.exe`}, criteria) {
 		t.Fatal("expected readable path inside install directory to match")
@@ -63,6 +63,27 @@ func TestShouldTerminateProcessMatchesReadableInstallDirectoryPathOnly(t *testin
 	}
 	if shouldTerminateProcess(processSnapshot{PID: 3, Name: "helper.exe", ImagePath: `D:\Tools\快捷翻译旧版\helper.exe`}, criteria) {
 		t.Fatal("must not match sibling directories with a shared prefix")
+	}
+}
+
+func TestShouldTerminateProcessMatchesOldProcessDescendantsButKeepsCoordinatorTree(t *testing.T) {
+	processes := []processSnapshot{
+		{PID: 100, ParentPID: 1, Name: "快捷翻译.exe"},
+		{PID: 200, ParentPID: 100, Name: "powershell.exe"},
+		{PID: 300, ParentPID: 100, Name: "QuickTranslateUpdateCoordinator.exe"},
+		{PID: 400, ParentPID: 300, Name: "child-of-coordinator.exe"},
+	}
+	criteria := cleanupCriteria{
+		CurrentProcessID: 100,
+		OwnProcessID:     300,
+		ParentByPID:      processParentMap(processes),
+	}
+
+	if !shouldTerminateProcess(processes[1], criteria) {
+		t.Fatal("expected old app child process to be terminated")
+	}
+	if shouldTerminateProcess(processes[3], criteria) {
+		t.Fatal("must not terminate coordinator descendants")
 	}
 }
 

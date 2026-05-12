@@ -7,7 +7,8 @@ describe('Windows installer script', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 
     expect(script).toContain('ReadEnvStr $0 "QUICK_TRANSLATE_UPDATE_PROCESS_ID"');
-    expect(script).toContain('taskkill /T /F /PID "$0"');
+    expect(script).toContain('taskkill /F /PID "$0"');
+    expect(script).not.toContain('taskkill /T /F /PID "$0"');
     expect(script).toContain('taskkill /T /F /IM "${APP_EXECUTABLE_FILENAME}"');
     expect(script).toContain('taskkill /T /F /IM "快捷翻译.exe"');
     expect(script).toContain('taskkill /T /F /IM "quick-translate.exe"');

@@ -146,9 +146,6 @@ func cleanupProcesses(pid int, logPath string, transactionPath string, installer
 		UpdatedAt:        now(),
 	})
 
-	if pid > 0 {
-		runQuiet("taskkill.exe", "/PID", strconv.Itoa(pid), "/T", "/F")
-	}
 	cleanupMatchedProcesses(pid, installDirectory, logPath)
 	waitForInstallDirectoryRelease(installDirectory, 2*time.Second)
 	waitForProcessNamesToExit(5*time.Second, "快捷翻译.exe", "quick-translate.exe")
@@ -236,23 +233,32 @@ func cleanupMatchedProcesses(currentProcessID int, installDirectory string, logP
 	}
 
 	seen := map[uint32]bool{}
+	parentByPID := processParentMap(processes)
+	criteria := cleanupCriteria{
+		CurrentProcessID: uint32(currentProcessID),
+		OwnProcessID:     uint32(os.Getpid()),
+		InstallDirectory: installDirectory,
+		ParentByPID:      parentByPID,
+	}
 	for _, process := range processes {
-		if process.PID == 0 || int(process.PID) == os.Getpid() || seen[process.PID] {
+		if process.PID == 0 || process.PID == criteria.OwnProcessID || seen[process.PID] {
 			continue
 		}
 		seen[process.PID] = true
 		if process.PathQueryError != "" && strings.TrimSpace(installDirectory) != "" {
 			writeLog(logPath, fmt.Sprintf("path-query-denied pid=%d name=%s error=%s", process.PID, process.Name, process.PathQueryError))
 		}
-		if shouldTerminateProcess(process, cleanupCriteria{CurrentProcessID: currentProcessID, InstallDirectory: installDirectory}) {
-			runQuiet("taskkill.exe", "/PID", strconv.Itoa(int(process.PID)), "/T", "/F")
+		if shouldTerminateProcess(process, criteria) {
+			runQuiet("taskkill.exe", "/PID", strconv.Itoa(int(process.PID)), "/F")
 		}
 	}
 }
 
 type cleanupCriteria struct {
-	CurrentProcessID int
+	CurrentProcessID uint32
+	OwnProcessID     uint32
 	InstallDirectory string
+	ParentByPID      map[uint32]uint32
 }
 
 type processSnapshot struct {
@@ -264,7 +270,10 @@ type processSnapshot struct {
 }
 
 func shouldTerminateProcess(process processSnapshot, criteria cleanupCriteria) bool {
-	if criteria.CurrentProcessID > 0 && int(process.PID) == criteria.CurrentProcessID {
+	if criteria.OwnProcessID > 0 && isDescendantOf(process.PID, criteria.OwnProcessID, criteria.ParentByPID) {
+		return false
+	}
+	if criteria.CurrentProcessID > 0 && (process.PID == criteria.CurrentProcessID || isDescendantOf(process.PID, criteria.CurrentProcessID, criteria.ParentByPID)) {
 		return true
 	}
 	if isQuickTranslateProcessName(process.Name) {
@@ -274,6 +283,35 @@ func shouldTerminateProcess(process processSnapshot, criteria cleanupCriteria) b
 		return false
 	}
 	return pathIsInsideDirectory(process.ImagePath, criteria.InstallDirectory)
+}
+
+func processParentMap(processes []processSnapshot) map[uint32]uint32 {
+	parentByPID := make(map[uint32]uint32, len(processes))
+	for _, process := range processes {
+		if process.PID != 0 && process.ParentPID != 0 {
+			parentByPID[process.PID] = process.ParentPID
+		}
+	}
+	return parentByPID
+}
+
+func isDescendantOf(pid uint32, ancestorPID uint32, parentByPID map[uint32]uint32) bool {
+	if pid == 0 || ancestorPID == 0 || pid == ancestorPID {
+		return false
+	}
+	seen := map[uint32]bool{}
+	for current := pid; current != 0; {
+		parent, ok := parentByPID[current]
+		if !ok || parent == 0 || seen[parent] {
+			return false
+		}
+		if parent == ancestorPID {
+			return true
+		}
+		seen[parent] = true
+		current = parent
+	}
+	return false
 }
 
 func isQuickTranslateProcessName(name string) bool {
