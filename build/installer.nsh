@@ -78,6 +78,13 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   Pop $0
 !macroend
 
+!macro quickTranslateWriteUninstallInstallLocation
+  WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"
+  !ifdef UNINSTALL_REGISTRY_KEY_2
+    WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY_2}" "InstallLocation" "$INSTDIR"
+  !endif
+!macroend
+
 !macro preInit
   SetOutPath "$TEMP"
 !macroend
@@ -181,5 +188,6 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 !macroend
 
 !macro customInstall
+  !insertmacro quickTranslateWriteUninstallInstallLocation
   !insertmacro quickTranslateMarkUpdateTransactionInstalled
 !macroend

@@ -74,9 +74,7 @@ func main() {
 	args := installerArgs(installerArguments, *argumentList)
 	cmd := exec.Command(*installerPath, args...)
 	cmd.Dir = *workingDirectory
-	if strings.TrimSpace(*transactionPath) != "" {
-		cmd.Env = append(os.Environ(), "QUICK_TRANSLATE_UPDATE_TRANSACTION="+*transactionPath)
-	}
+	cmd.Env = installerEnvironment(os.Environ(), *transactionPath)
 	if err := cmd.Start(); err != nil {
 		message := "安装器启动失败：" + err.Error()
 		writeLog(*logPath, "installer failed: "+err.Error())
@@ -176,6 +174,47 @@ func installerArgs(arguments []string, legacyArgumentList string) []string {
 		return nil
 	}
 	return []string{legacyArgument}
+}
+
+func installerEnvironment(base []string, transactionPath string) []string {
+	environment := append([]string{}, base...)
+	tempDirectory := installerTempDirectory()
+	if tempDirectory != "" {
+		environment = upsertEnvironmentValue(environment, "TEMP", tempDirectory)
+		environment = upsertEnvironmentValue(environment, "TMP", tempDirectory)
+	}
+	if strings.TrimSpace(transactionPath) != "" {
+		environment = upsertEnvironmentValue(environment, "QUICK_TRANSLATE_UPDATE_TRANSACTION", transactionPath)
+	}
+	return environment
+}
+
+func installerTempDirectory() string {
+	if localAppData := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); localAppData != "" {
+		tempDirectory := filepath.Join(localAppData, "Temp")
+		if err := os.MkdirAll(tempDirectory, 0755); err == nil {
+			return tempDirectory
+		}
+	}
+	if tempDirectory := strings.TrimSpace(os.Getenv("TEMP")); tempDirectory != "" {
+		return tempDirectory
+	}
+	if tempDirectory := strings.TrimSpace(os.Getenv("TMP")); tempDirectory != "" {
+		return tempDirectory
+	}
+	return os.TempDir()
+}
+
+func upsertEnvironmentValue(environment []string, key string, value string) []string {
+	prefix := strings.ToUpper(key) + "="
+	entry := key + "=" + value
+	for index, item := range environment {
+		if strings.HasPrefix(strings.ToUpper(item), prefix) {
+			environment[index] = entry
+			return environment
+		}
+	}
+	return append(environment, entry)
 }
 
 func runQuiet(name string, args ...string) {

@@ -116,6 +116,8 @@ describe('Windows installer script', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 
     expect(script).toContain('!macro customInstall');
+    expect(script).toContain('quickTranslateWriteUninstallInstallLocation');
+    expect(script).toContain('WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"');
     expect(script).toContain('quickTranslateMarkUpdateTransactionInstalled');
     expect(script).toContain('$$env:QUICK_TRANSLATE_UPDATE_TRANSACTION');
     expect(script).toContain("NotePropertyName status -NotePropertyValue 'installed'");
