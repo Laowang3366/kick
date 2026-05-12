@@ -1,4 +1,5 @@
 Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
+Var /GLOBAL QuickTranslateExtractCleanupAttempted
 
 !macro quickTranslateTerminateProcesses INSTALL_PATH
   DetailPrint "正在清理旧进程..."
@@ -21,10 +22,10 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   StrCmp "${INSTALL_PATH}" "$QuickTranslateAttemptedInstallCleanupPath" QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}
   StrCpy $QuickTranslateAttemptedInstallCleanupPath "${INSTALL_PATH}"
   StrCpy $R7 0
+  !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
 
   QuickTranslateRemoveInstallDirectoryLoop_${RemoveDirUniqueID}:
     IntOp $R7 $R7 + 1
-    !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
     StrCpy $R6 "$TEMP\QuickTranslateOld-${VERSION}-$R7"
     ClearErrors
     RMDir /r "$R6"
@@ -37,8 +38,8 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
     RMDir /r "${INSTALL_PATH}"
     IfFileExists "${INSTALL_PATH}\*.*" 0 QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}
     DetailPrint "旧版本文件仍被占用，等待释放：${INSTALL_PATH}"
-    Sleep 500
-    IntCmp $R7 5 QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID} QuickTranslateRemoveInstallDirectoryLoop_${RemoveDirUniqueID} QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}
+    Sleep 300
+    IntCmp $R7 2 QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID} QuickTranslateRemoveInstallDirectoryLoop_${RemoveDirUniqueID} QuickTranslateRemoveInstallDirectoryDone_${RemoveDirUniqueID}
 
   QuickTranslateRemoveInstallDirectoryCleanupQuarantine_${RemoveDirUniqueID}:
     DetailPrint "旧版本文件已隔离，正在清理临时文件..."
@@ -53,14 +54,23 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 !macroend
 
 !macro quickTranslateBeforeExtractRetry INSTALL_PATH ATTEMPT
-  DetailPrint "安装目录被占用，正在自动释放并重试..."
+  !define ExtractRetryUniqueID ${__LINE__}
+  StrCmp "$QuickTranslateExtractCleanupAttempted" "1" QuickTranslateBeforeExtractRetryWait_${ExtractRetryUniqueID}
+  StrCpy $QuickTranslateExtractCleanupAttempted "1"
+  DetailPrint "安装目录被占用，正在执行安装器兜底清理..."
   !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
   SetOutPath "$TEMP"
   ClearErrors
   RMDir /r "${INSTALL_PATH}"
   CreateDirectory "${INSTALL_PATH}"
   SetOutPath "${INSTALL_PATH}"
-  Sleep 700
+  Goto QuickTranslateBeforeExtractRetryDone_${ExtractRetryUniqueID}
+
+  QuickTranslateBeforeExtractRetryWait_${ExtractRetryUniqueID}:
+  DetailPrint "安装目录仍被占用，正在短暂等待后重试..."
+
+  QuickTranslateBeforeExtractRetryDone_${ExtractRetryUniqueID}:
+  !undef ExtractRetryUniqueID
 !macroend
 
 !macro quickTranslateBeforeDirectExtract INSTALL_PATH
@@ -71,7 +81,13 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   RMDir /r "${INSTALL_PATH}"
   CreateDirectory "${INSTALL_PATH}"
   SetOutPath "${INSTALL_PATH}"
-  Sleep 1000
+  Sleep 300
+!macroend
+
+!macro quickTranslateMarkLatestUpdateTransactionInstalled
+  DetailPrint "正在记录更新安装完成状态..."
+  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$limit=(Get-Date).ToUniversalTime().AddHours(-12); $$transaction=Get-ChildItem -LiteralPath $$env:TEMP -Filter 'QuickTranslateUpdateTransaction-*.json' -File -ErrorAction SilentlyContinue | ? { $$_.LastWriteTimeUtc -ge $$limit } | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1; if ($$null -ne $$transaction) { try { $$state=Get-Content -LiteralPath $$transaction.FullName -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $$state=[pscustomobject]@{} }; $$now=(Get-Date).ToUniversalTime().ToString('o'); $$state | Add-Member -NotePropertyName status -NotePropertyValue 'installed' -Force; $$state | Add-Member -NotePropertyName percent -NotePropertyValue 100 -Force; $$state | Add-Member -NotePropertyName message -NotePropertyValue '安装完成' -Force; $$state | Add-Member -NotePropertyName result -NotePropertyValue 'done' -Force; $$state | Add-Member -NotePropertyName installedAt -NotePropertyValue $$now -Force; $$state | Add-Member -NotePropertyName updatedAt -NotePropertyValue $$now -Force; $$state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $$transaction.FullName -Encoding UTF8 }; exit 0"`
+  Pop $0
 !macroend
 
 !macro preInit
@@ -154,6 +170,7 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 
 !macro customInit
   StrCpy $QuickTranslateAttemptedInstallCleanupPath ""
+  StrCpy $QuickTranslateExtractCleanupAttempted "0"
   StrCpy $9 "0"
   !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_CURRENT_USER
   !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_LOCAL_MACHINE
@@ -172,7 +189,10 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 
   QuickTranslateSafeInstallerDone:
 
-  !insertmacro quickTranslateTerminateProcesses "$INSTDIR"
   !insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_CURRENT_USER
   !insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_LOCAL_MACHINE
+!macroend
+
+!macro customInstall
+  !insertmacro quickTranslateMarkLatestUpdateTransactionInstalled
 !macroend

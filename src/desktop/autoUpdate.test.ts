@@ -1,4 +1,4 @@
-import { readFile, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -403,6 +403,53 @@ describe('auto update channel', () => {
       installDirectory: 'D:\\Tools\\快捷翻译',
       argumentList: '/D=D:\\Tools\\快捷翻译'
     });
+    expect(child.unref).toHaveBeenCalledOnce();
+  });
+
+  it('uses the packaged update coordinator executable when available', async () => {
+    const child = {
+      unref: vi.fn()
+    };
+    const launcher = vi.fn(() => child);
+    const tempDirectory = getLauncherTempDirectory();
+    const updateCoordinatorPath = path.join(tempDirectory, 'QuickTranslateUpdateCoordinator.exe');
+    await mkdir(tempDirectory, { recursive: true });
+    await writeFile(updateCoordinatorPath, 'helper');
+
+    await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe', {
+      platform: 'win32',
+      launcher,
+      updateCoordinatorPath,
+      installDirectory: 'D:\\Tools\\快捷翻译',
+      currentProcessId: 12345,
+      tempDirectory
+    });
+
+    expect(launcher).toHaveBeenCalledWith(
+      updateCoordinatorPath,
+      [
+        '--installer',
+        'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.46.exe',
+        '--working-dir',
+        'C:\\Users\\wfq\\Downloads\\快捷翻译更新包',
+        '--current-pid',
+        '12345',
+        '--log',
+        path.join(tempDirectory, 'QuickTranslateUpdateLauncher-12345.log'),
+        '--transaction',
+        path.join(tempDirectory, 'QuickTranslateUpdateTransaction-12345.json'),
+        '--install-dir',
+        'D:\\Tools\\快捷翻译',
+        '--argument-list',
+        '/D=D:\\Tools\\快捷翻译'
+      ],
+      {
+        cwd: tempDirectory,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      }
+    );
     expect(child.unref).toHaveBeenCalledOnce();
   });
 

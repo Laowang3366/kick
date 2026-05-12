@@ -1470,6 +1470,83 @@ describe('App', () => {
     expect(screen.getByRole('progressbar', { name: '更新进度' })).toHaveAttribute('aria-valuenow', '48');
   });
 
+  it('shows the latest desktop update transaction and recovery actions', async () => {
+    const getLatestUpdateTransaction = vi.fn().mockResolvedValue({
+      id: 'tx-1',
+      installerPath: 'D:\\QuickTranslate\\Quick-Translate-99.0.0.exe',
+      installDirectory: 'C:\\Program Files\\快捷翻译',
+      currentProcessId: 1234,
+      status: 'waiting-app-exit',
+      percent: 35,
+      message: '正在等待旧版本退出',
+      updatedAt: '2026-05-12T08:00:00.000Z',
+      logPath: 'C:\\Temp\\QuickTranslateUpdateLauncher-1234.log',
+      recoverable: true,
+      stale: false,
+      ageMs: 120_000
+    });
+    const retryUpdateTransaction = vi.fn().mockResolvedValue(true);
+    const openUpdateTransactionLogDirectory = vi.fn().mockResolvedValue(true);
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      getLatestUpdateTransaction,
+      onSelectionCaptured: vi.fn(),
+      openUpdateTransactionLogDirectory,
+      retryUpdateTransaction
+    } as any;
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+
+    expect(await screen.findByLabelText('最近更新事务')).toBeInTheDocument();
+    expect(screen.getByText('等待旧版本退出')).toBeInTheDocument();
+    expect(screen.getByText('最近一次更新事务')).toBeInTheDocument();
+    expect(screen.getByText(/正在等待旧版本退出/)).toBeInTheDocument();
+    expect(screen.getByText(/安装目录：C:\\Program Files\\快捷翻译/)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: '更新事务进度' })).toHaveAttribute('aria-valuenow', '35');
+
+    fireEvent.click(screen.getByRole('button', { name: '重试安装' }));
+    await waitFor(() => {
+      expect(retryUpdateTransaction).toHaveBeenCalledWith({ transactionId: 'tx-1' });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '打开日志' }));
+    await waitFor(() => {
+      expect(openUpdateTransactionLogDirectory).toHaveBeenCalledWith({ transactionId: 'tx-1' });
+    });
+  });
+
+  it('shows failed or stale update transactions as recoverable', async () => {
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      getLatestUpdateTransaction: vi.fn().mockResolvedValue({
+        id: 'tx-failed',
+        installerPath: 'D:\\QuickTranslate\\Quick-Translate-99.0.0.exe',
+        status: 'failed',
+        percent: 72,
+        message: '安装器启动后未完成',
+        updatedAt: '2026-05-12T08:05:00.000Z',
+        recoverable: false,
+        stale: true
+      }),
+      onSelectionCaptured: vi.fn(),
+      openUpdateTransactionLogDirectory: vi.fn().mockResolvedValue(true),
+      retryUpdateTransaction: vi.fn().mockResolvedValue(true)
+    } as any;
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+
+    expect(await screen.findByText('更新失败')).toBeInTheDocument();
+    expect(screen.getByText('安装器启动后未完成')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重试安装' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '打开日志' })).toBeEnabled();
+  });
+
   it('installs Android APK updates through the Capacitor plugin', async () => {
     let progressListener: ((progress: unknown) => void) | undefined;
     let resolveInstall: (() => void) | undefined;

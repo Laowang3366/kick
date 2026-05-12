@@ -19,7 +19,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { checkForUpdates, startAutoUpdates } from './autoUpdate.js';
+import {
+  checkForUpdates,
+  getLatestUpdateTransaction,
+  markLatestInstallerStartedTransactionDone,
+  openUpdateTransactionLogDirectory,
+  retryUpdateTransaction,
+  startAutoUpdates
+} from './autoUpdate.js';
 import { resolveDesktopBackendBaseUrl, translateWithBackend } from './backendTranslationClient.js';
 import { captureSelectedText } from './captureSelection.js';
 import {
@@ -756,6 +763,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function readUpdateTransactionIdInput(input: unknown) {
+  if (!isRecord(input)) {
+    return undefined;
+  }
+
+  return typeof input.transactionId === 'string' ? input.transactionId : undefined;
+}
+
 if (hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     desktopSettings = loadDesktopSettings();
@@ -773,6 +788,24 @@ if (hasSingleInstanceLock) {
     ipcMain.handle('choose-update-package-directory', () => chooseUpdatePackageDirectory());
     ipcMain.handle('open-update-package-directory', () => openUpdatePackageDirectory());
     ipcMain.handle('clear-update-packages', () => clearStoredUpdatePackages());
+    ipcMain.handle('get-latest-update-transaction', () => getLatestUpdateTransaction());
+    ipcMain.handle('open-update-transaction-log-directory', (_event, input: unknown) =>
+      openUpdateTransactionLogDirectory({
+        transactionId: readUpdateTransactionIdInput(input)
+      })
+    );
+    ipcMain.handle('retry-update-transaction', async (_event, input: unknown) => {
+      await retryUpdateTransaction({
+        transactionId: readUpdateTransactionIdInput(input)
+      });
+      isQuitting = true;
+      app.quit();
+      const forceExitTimer = setTimeout(() => {
+        app.exit(0);
+      }, 800);
+      forceExitTimer.unref();
+      return true;
+    });
     ipcMain.handle('set-desktop-settings', (_event, settings: Partial<DesktopSettings>) => updateDesktopSettings(settings));
     ipcMain.handle('set-floating-session-preferences', (_event, preferences: unknown) => updateFloatingSessionPreferenceState(preferences));
     ipcMain.handle('window-control', (_event, command: unknown) => executeWindowControl(command));
@@ -781,6 +814,9 @@ if (hasSingleInstanceLock) {
       return translateUsingConfiguredChannel(request);
     });
     await createWindow();
+    await markLatestInstallerStartedTransactionDone({
+      currentVersion: app.getVersion()
+    });
     createTray();
     applyDesktopSettings(desktopSettings);
     startAutoUpdates(isSmokeTest);

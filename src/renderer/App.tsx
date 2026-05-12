@@ -82,6 +82,25 @@ type CopyNotice = {
   tone: 'success' | 'error';
 };
 type DesktopUpdateProgress = UpdateInstallProgress;
+type DesktopUpdateTransaction = {
+  id: string;
+  installerPath: string;
+  installDirectory?: string;
+  currentProcessId?: number;
+  status: string;
+  percent: number;
+  message: string;
+  updatedAt: string;
+  logPath?: string;
+  recoverable?: boolean;
+  stale?: boolean;
+  ageMs?: number;
+};
+type UpdateTransactionBridge = {
+  getLatestUpdateTransaction?(): Promise<DesktopUpdateTransaction | null>;
+  retryUpdateTransaction?(input?: { transactionId?: string }): Promise<boolean>;
+  openUpdateTransactionLogDirectory?(input?: { transactionId?: string }): Promise<boolean>;
+};
 type SyncStatus = 'idle' | 'syncing' | 'success' | 'error';
 type WindowControlCommand =
   | 'minimize'
@@ -172,6 +191,86 @@ function formatUpdateProgressDetail(progress: DesktopUpdateProgress) {
   const sizeText = total && transferred ? `${transferred} / ${total}` : '';
   const speedText = speed ? `${speed}/s` : '';
   return [sizeText, speedText].filter(Boolean).join(' · ') || `下载进度 ${percent}%`;
+}
+
+function getUpdateTransactionBridge() {
+  return window.quickTranslate as (typeof window.quickTranslate & UpdateTransactionBridge) | undefined;
+}
+
+function normalizeUpdateTransaction(transaction: DesktopUpdateTransaction | null) {
+  if (!transaction) {
+    return null;
+  }
+
+  return {
+    ...transaction,
+    percent: Math.min(100, Math.max(0, Number.isFinite(transaction.percent) ? transaction.percent : 0))
+  };
+}
+
+function getUpdateTransactionStatusLabel(status?: string) {
+  const labels: Record<string, string> = {
+    idle: '准备更新',
+    downloading: '正在下载更新',
+    ready: '更新包已准备',
+    'waiting-app-exit': '等待旧版本退出',
+    cleanup: '正在清理旧进程',
+    cleaning: '正在清理旧进程',
+    'launching-installer': '正在启动安装器',
+    'installer-started': '安装器已启动',
+    installing: '安装器已启动',
+    failed: '更新失败',
+    done: '更新完成',
+    installed: '更新完成',
+    completed: '更新完成'
+  };
+
+  return labels[status || ''] ?? '更新事务进行中';
+}
+
+function getUpdateTransactionStatusTone(transaction: DesktopUpdateTransaction | null) {
+  if (!transaction) {
+    return 'idle';
+  }
+
+  if (transaction.status === 'failed' || transaction.stale) {
+    return 'failed';
+  }
+
+  if (transaction.status === 'done' || transaction.status === 'installed' || transaction.status === 'completed') {
+    return 'current';
+  }
+
+  return 'available';
+}
+
+function formatUpdateTransactionUpdatedAt(value?: string) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).format(date);
+}
+
+function formatUpdateTransactionDetail(transaction: DesktopUpdateTransaction) {
+  const parts = [
+    transaction.message || getUpdateTransactionStatusLabel(transaction.status),
+    transaction.installDirectory ? `安装目录：${transaction.installDirectory}` : '',
+    transaction.currentProcessId ? `旧进程：${transaction.currentProcessId}` : ''
+  ].filter(Boolean);
+
+  return parts.join(' · ');
 }
 
 function getUpdatePlatformLabel(platform: DownloadRelease['platform']) {
@@ -389,6 +488,9 @@ export function App() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [updateProgress, setUpdateProgress] = useState<DesktopUpdateProgress | null>(null);
+  const [updateTransaction, setUpdateTransaction] = useState<DesktopUpdateTransaction | null>(null);
+  const [updateTransactionMessage, setUpdateTransactionMessage] = useState('');
+  const [isRetryingUpdateTransaction, setIsRetryingUpdateTransaction] = useState(false);
   const [isUpdateDialogDismissed, setIsUpdateDialogDismissed] = useState(false);
   const [showCustomFloatingShortcutEditor, setShowCustomFloatingShortcutEditor] = useState(false);
   const [isRecordingFloatingShortcut, setIsRecordingFloatingShortcut] = useState(false);
@@ -415,6 +517,36 @@ export function App() {
     return window.quickTranslate?.onUpdateProgress?.((progress) => {
       setUpdateProgress(normalizeDesktopUpdateProgress(progress));
     });
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const bridge = getUpdateTransactionBridge();
+
+    if (!bridge?.getLatestUpdateTransaction) {
+      return undefined;
+    }
+
+    const loadUpdateTransaction = async () => {
+      try {
+        const transaction = await bridge.getLatestUpdateTransaction?.();
+        if (isMounted) {
+          setUpdateTransaction(normalizeUpdateTransaction(transaction ?? null));
+        }
+      } catch {
+        if (isMounted) {
+          setUpdateTransactionMessage('更新事务状态读取失败');
+        }
+      }
+    };
+
+    void loadUpdateTransaction();
+    const timer = window.setInterval(loadUpdateTransaction, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -956,6 +1088,58 @@ export function App() {
     }
   }
 
+  async function refreshUpdateTransaction() {
+    const bridge = getUpdateTransactionBridge();
+    if (!bridge?.getLatestUpdateTransaction) {
+      setUpdateTransactionMessage('当前环境不支持读取更新事务');
+      return;
+    }
+
+    try {
+      const transaction = await bridge.getLatestUpdateTransaction();
+      setUpdateTransaction(normalizeUpdateTransaction(transaction));
+      setUpdateTransactionMessage(transaction ? '更新事务状态已刷新' : '暂无更新安装事务');
+    } catch (error) {
+      setUpdateTransactionMessage(error instanceof Error ? error.message : '更新事务状态读取失败');
+    }
+  }
+
+  async function retryUpdateTransaction() {
+    const bridge = getUpdateTransactionBridge();
+    if (!bridge?.retryUpdateTransaction) {
+      setUpdateTransactionMessage('当前环境不支持重试安装');
+      return;
+    }
+
+    setIsRetryingUpdateTransaction(true);
+    setUpdateTransactionMessage('正在重试安装');
+    try {
+      const ok = await bridge.retryUpdateTransaction({ transactionId: updateTransaction?.id });
+      const transaction = await getUpdateTransactionBridge()?.getLatestUpdateTransaction?.();
+      setUpdateTransaction(normalizeUpdateTransaction(transaction ?? null));
+      setUpdateTransactionMessage(ok ? '已重新启动更新安装' : '未找到可重试的更新事务');
+    } catch (error) {
+      setUpdateTransactionMessage(error instanceof Error ? error.message : '重试安装失败');
+    } finally {
+      setIsRetryingUpdateTransaction(false);
+    }
+  }
+
+  async function openUpdateTransactionLogDirectory() {
+    const bridge = getUpdateTransactionBridge();
+    if (!bridge?.openUpdateTransactionLogDirectory) {
+      setUpdateTransactionMessage('当前环境不支持打开更新日志');
+      return;
+    }
+
+    try {
+      const ok = await bridge.openUpdateTransactionLogDirectory({ transactionId: updateTransaction?.id });
+      setUpdateTransactionMessage(ok ? '已打开更新日志目录' : '未找到更新日志目录');
+    } catch (error) {
+      setUpdateTransactionMessage(error instanceof Error ? error.message : '打开更新日志失败');
+    }
+  }
+
   function captureFloatingShortcut(event: KeyboardEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
@@ -1296,6 +1480,14 @@ export function App() {
   const updateReleaseNotes = availableUpdateCheck
     ? getUpdateReleaseNotes(availableUpdateCheck.release, availableUpdateCheck.currentVersion)
     : [];
+  const hasUpdateTransactionBridge = Boolean(getUpdateTransactionBridge()?.getLatestUpdateTransaction);
+  const shouldShowUpdateTransactionCard = hasUpdateTransactionBridge || Boolean(updateTransaction || updateTransactionMessage);
+  const isUpdateTransactionRecoverable = Boolean(
+    updateTransaction &&
+      (updateTransaction.recoverable || updateTransaction.stale || updateTransaction.status === 'failed')
+  );
+  const updateTransactionPercent = Math.round(updateTransaction?.percent ?? 0);
+  const updateTransactionUpdatedAt = formatUpdateTransactionUpdatedAt(updateTransaction?.updatedAt);
 
   return (
     <main className="app-shell">
@@ -1669,6 +1861,61 @@ export function App() {
                       </button>
                     </div>
                   </div>
+                  {shouldShowUpdateTransactionCard ? (
+                    <div className="update-card update-transaction-card" aria-label="最近更新事务">
+                      <div className="update-card-main">
+                        <span className={`update-status ${getUpdateTransactionStatusTone(updateTransaction)}`}>
+                          {updateTransaction ? getUpdateTransactionStatusLabel(updateTransaction.status) : '暂无事务'}
+                        </span>
+                        <strong>{updateTransaction ? '最近一次更新事务' : '暂无更新安装记录'}</strong>
+                        <small>
+                          {updateTransaction ? formatUpdateTransactionDetail(updateTransaction) : '客户端启动安装器后会在这里显示事务状态'}
+                        </small>
+                        {updateTransaction && updateTransactionUpdatedAt ? (
+                          <div className="update-transaction-meta">
+                            <span>更新时间：{updateTransactionUpdatedAt}</span>
+                            {updateTransaction.logPath ? <span>日志：{updateTransaction.logPath}</span> : null}
+                          </div>
+                        ) : null}
+                        {updateTransaction ? (
+                          <div
+                            className={`update-progress ${updateTransaction.status === 'failed' ? 'error' : ''}`}
+                            role="progressbar"
+                            aria-label="更新事务进度"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={updateTransactionPercent}
+                          >
+                            <span style={{ width: `${updateTransactionPercent}%` }} />
+                          </div>
+                        ) : null}
+                        {updateTransactionMessage ? <small role="status">{updateTransactionMessage}</small> : null}
+                      </div>
+                      <div className="update-actions update-transaction-actions">
+                        <button className="settings-action" type="button" onClick={refreshUpdateTransaction}>
+                          <RefreshCw size={20} />
+                          <span>刷新状态</span>
+                        </button>
+                        {isUpdateTransactionRecoverable ? (
+                          <>
+                            <button
+                              className="settings-action primary-account-action"
+                              type="button"
+                              onClick={retryUpdateTransaction}
+                              disabled={isRetryingUpdateTransaction}
+                            >
+                              <RefreshCw size={20} />
+                              <span>{isRetryingUpdateTransaction ? '正在重试' : '重试安装'}</span>
+                            </button>
+                            <button className="settings-action" type="button" onClick={openUpdateTransactionLogDirectory}>
+                              <FolderOpen size={20} />
+                              <span>打开日志</span>
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
                 </section>
 
                 <section className="settings-section" aria-labelledby="appearance-preferences-heading">

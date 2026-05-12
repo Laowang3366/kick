@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { DesktopSettings } from '../desktop/desktopSettings';
+import type { WindowsUpdateTransactionSnapshot } from '../desktop/autoUpdate';
 import type { TranslateTextResult } from '../shared/translator';
 import type { TranslationFormat } from '../shared/translationFormats';
 
@@ -32,7 +33,9 @@ declare global {
       clearUpdatePackages?(): Promise<{ directory: string; deletedCount: number }>;
       copyText(text: string): Promise<void>;
       getDesktopSettings?(): Promise<DesktopSettings>;
+      getLatestUpdateTransaction?(): Promise<WindowsUpdateTransactionSnapshot | null>;
       openUpdatePackageDirectory?(): Promise<boolean>;
+      openUpdateTransactionLogDirectory?(input?: { transactionId?: string }): Promise<boolean>;
       onDesktopSettingsChanged?(callback: (settings: DesktopSettings) => void): () => void;
       onUpdateProgress?(callback: (progress: DesktopUpdateProgress) => void): () => void;
       onFloatingSourceCaptured?(
@@ -44,6 +47,7 @@ declare global {
         targetLanguage: string;
         translationFormat: TranslationFormat;
       }>;
+      retryUpdateTransaction?(input?: { transactionId?: string }): Promise<boolean>;
       translateText?(input: { text: string; targetLanguage: string; translationFormat?: TranslationFormat }): Promise<TranslateTextResult>;
       windowControl?(
         command:

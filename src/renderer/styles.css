@@ -89,6 +89,7 @@ body {
 :root[data-theme="dark"] .nav-item,
 :root[data-theme="dark"] .entry-card span,
 :root[data-theme="dark"] .update-card small,
+:root[data-theme="dark"] .update-transaction-meta,
 :root[data-theme="dark"] .view-heading p,
 :root[data-theme="dark"] .toggle-row small {
   color: #aab7c8;
@@ -1502,6 +1503,10 @@ textarea::placeholder {
   background: #ffffff;
 }
 
+.update-transaction-card {
+  align-items: stretch;
+}
+
 .update-card-main {
   min-width: 0;
   display: grid;
@@ -1521,6 +1526,18 @@ textarea::placeholder {
   color: #697386;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.update-transaction-meta {
+  display: grid;
+  gap: 4px;
+  color: #697386;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.update-transaction-meta span {
+  overflow-wrap: anywhere;
 }
 
 .update-progress {
@@ -1579,6 +1596,10 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.update-transaction-actions {
+  align-content: center;
 }
 
 .settings-field {

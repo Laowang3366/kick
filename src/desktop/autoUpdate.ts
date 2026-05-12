@@ -1,7 +1,8 @@
 import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
 import { spawn } from 'node:child_process';
-import { copyFile, link, mkdir, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { copyFile, link, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { getDefaultUpdatePackageDirectory, normalizeUpdatePackageDirectoryPath } from './updatePackageDirectory.js';
@@ -65,17 +66,36 @@ type OpenInstallerOptions = {
 type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
   currentProcessId?: number;
   tempDirectory?: string;
+  updateCoordinatorPath?: string;
 };
 
-type WindowsUpdateTransactionState = {
+export type WindowsUpdateTransactionStatus =
+  | 'waiting-app-exit'
+  | 'cleaning-processes'
+  | 'launching-installer'
+  | 'installer-started'
+  | 'failed'
+  | 'done'
+  | 'installed';
+
+export type WindowsUpdateTransactionState = {
   id: string;
   installerPath: string;
   installDirectory?: string;
   currentProcessId: number;
-  status: 'waiting-app-exit' | 'cleaning-processes' | 'launching-installer' | 'installer-started' | 'failed';
+  status: WindowsUpdateTransactionStatus;
   percent: number;
   message: string;
   updatedAt: string;
+};
+
+export type WindowsUpdateTransactionSnapshot = WindowsUpdateTransactionState & {
+  transactionPath: string;
+  logPath: string;
+  logDirectory: string;
+  failed: boolean;
+  stale: boolean;
+  recoverable: boolean;
 };
 
 export type DesktopUpdateStatus = 'checking' | 'no-update' | 'update-available' | 'downloaded' | 'error';
@@ -98,6 +118,8 @@ export type DesktopUpdateProgress = {
 
 const updateCheckDelayMs = 8000;
 const desktopUpdateFeedUrl = 'https://sg.lwvpscc.top/quick-translate/updates/latest';
+const staleUpdateTransactionMs = 10 * 60 * 1000;
+const updateTransactionFilePattern = /^QuickTranslateUpdateTransaction-(.+)\.json$/;
 
 export function configureAutoUpdates(options: ConfigureAutoUpdatesOptions): boolean {
   if (!options.isPackaged || options.isSmokeTest) {
@@ -366,6 +388,27 @@ async function launchInstallerAfterCurrentProcessExit(
   if (installerArgs.length > 0) {
     scriptArgs.push('-ArgumentList', installerArgs.join(' '));
   }
+  const coordinatorPath = options.updateCoordinatorPath ?? getPackagedWindowsUpdateCoordinatorPath();
+  if (coordinatorPath && existsSync(coordinatorPath)) {
+    const coordinatorArgs = createWindowsUpdateCoordinatorArgs({
+      filePath,
+      workingDirectory: path.dirname(filePath),
+      currentProcessId,
+      logPath,
+      transactionPath,
+      installDirectory: options.installDirectory,
+      argumentList: installerArgs.join(' ')
+    });
+    const child = (options.launcher ?? spawn)(coordinatorPath, coordinatorArgs, {
+      cwd: tempDirectory,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    child.unref();
+    return;
+  }
+
   const powershellArgs = [
     '-NoProfile',
     '-ExecutionPolicy',
@@ -387,8 +430,329 @@ async function launchInstallerAfterCurrentProcessExit(
   child.unref();
 }
 
+function createWindowsUpdateCoordinatorArgs(input: {
+  filePath: string;
+  workingDirectory: string;
+  currentProcessId: number;
+  logPath: string;
+  transactionPath: string;
+  installDirectory?: string;
+  argumentList?: string;
+}) {
+  const args = [
+    '--installer',
+    input.filePath,
+    '--working-dir',
+    input.workingDirectory,
+    '--current-pid',
+    String(input.currentProcessId),
+    '--log',
+    input.logPath,
+    '--transaction',
+    input.transactionPath
+  ];
+
+  if (input.installDirectory?.trim()) {
+    args.push('--install-dir', input.installDirectory.trim());
+  }
+
+  if (input.argumentList?.trim()) {
+    args.push('--argument-list', input.argumentList.trim());
+  }
+
+  return args;
+}
+
+function getPackagedWindowsUpdateCoordinatorPath() {
+  if (!app?.isPackaged) {
+    return undefined;
+  }
+
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  return resourcesPath ? path.join(resourcesPath, 'update-helper', 'QuickTranslateUpdateCoordinator.exe') : undefined;
+}
+
 async function writeWindowsUpdateTransaction(transactionPath: string, state: WindowsUpdateTransactionState) {
   await writeFile(transactionPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+}
+
+export async function getLatestUpdateTransaction(
+  options: {
+    tempDirectory?: string;
+    now?: Date;
+    staleAfterMs?: number;
+  } = {}
+): Promise<WindowsUpdateTransactionSnapshot | null> {
+  const tempDirectory = options.tempDirectory ?? getCurrentTempDirectory();
+  let fileNames: string[];
+
+  try {
+    fileNames = await readdir(tempDirectory);
+  } catch {
+    return null;
+  }
+
+  const snapshots: WindowsUpdateTransactionSnapshot[] = [];
+  await Promise.all(
+    fileNames.map(async (fileName) => {
+      const match = updateTransactionFilePattern.exec(fileName);
+      if (!match) {
+        return;
+      }
+
+      const transactionPath = path.join(tempDirectory, fileName);
+      const state = await readWindowsUpdateTransaction(transactionPath);
+      if (!state) {
+        return;
+      }
+
+      snapshots.push(createWindowsUpdateTransactionSnapshot(state, transactionPath, options));
+    })
+  );
+
+  snapshots.sort((left, right) => getTransactionUpdatedAtMs(right) - getTransactionUpdatedAtMs(left));
+  return snapshots[0] ?? null;
+}
+
+async function getUpdateTransactionById(
+  transactionId: string,
+  options: {
+    tempDirectory?: string;
+    now?: Date;
+    staleAfterMs?: number;
+  } = {}
+) {
+  const normalizedId = transactionId.trim();
+  if (!normalizedId) {
+    return null;
+  }
+
+  const tempDirectory = options.tempDirectory ?? getCurrentTempDirectory();
+  const transactionPath = path.join(tempDirectory, `QuickTranslateUpdateTransaction-${normalizedId}.json`);
+  const state = await readWindowsUpdateTransaction(transactionPath);
+  return state ? createWindowsUpdateTransactionSnapshot(state, transactionPath, options) : null;
+}
+
+export function isFailedUpdateTransaction(transaction: WindowsUpdateTransactionState) {
+  return transaction.status === 'failed';
+}
+
+export function isStaleUpdateTransaction(
+  transaction: WindowsUpdateTransactionState,
+  options: {
+    now?: Date;
+    staleAfterMs?: number;
+  } = {}
+) {
+  if (isFinishedUpdateTransaction(transaction) || isFailedUpdateTransaction(transaction)) {
+    return false;
+  }
+
+  const updatedAtMs = Date.parse(transaction.updatedAt);
+  if (!Number.isFinite(updatedAtMs)) {
+    return true;
+  }
+
+  return (options.now ?? new Date()).getTime() - updatedAtMs > (options.staleAfterMs ?? staleUpdateTransactionMs);
+}
+
+export function isRecoverableUpdateTransaction(
+  transaction: WindowsUpdateTransactionState,
+  options: {
+    now?: Date;
+    staleAfterMs?: number;
+  } = {}
+) {
+  return Boolean(transaction.installerPath.trim()) && (isFailedUpdateTransaction(transaction) || isStaleUpdateTransaction(transaction, options));
+}
+
+export async function markLatestInstallerStartedTransactionDone(
+  options: {
+    tempDirectory?: string;
+    currentVersion?: string;
+    now?: Date;
+    staleAfterMs?: number;
+  } = {}
+) {
+  const latestTransaction = await getLatestUpdateTransaction(options);
+  if (!latestTransaction || latestTransaction.status !== 'installer-started') {
+    return latestTransaction;
+  }
+
+  const versionSuffix = options.currentVersion?.trim() ? ` ${options.currentVersion.trim()}` : '';
+  const doneState: WindowsUpdateTransactionState = {
+    ...pickWindowsUpdateTransactionState(latestTransaction),
+    status: 'done',
+    percent: 100,
+    message: `已安装并启动新版本${versionSuffix}`,
+    updatedAt: (options.now ?? new Date()).toISOString()
+  };
+  await writeWindowsUpdateTransaction(latestTransaction.transactionPath, doneState);
+
+  return createWindowsUpdateTransactionSnapshot(doneState, latestTransaction.transactionPath, options);
+}
+
+export async function retryUpdateTransaction(
+  options: {
+    transaction?: WindowsUpdateTransactionSnapshot;
+    transactionId?: string;
+    tempDirectory?: string;
+    currentProcessId?: number;
+    now?: Date;
+    staleAfterMs?: number;
+    openInstaller?: (filePath: string, launchOptions: WindowsInstallerLaunchOptions) => void | Promise<void>;
+  } = {}
+) {
+  const transaction =
+    options.transaction ??
+    (options.transactionId ? await getUpdateTransactionById(options.transactionId, options) : await getLatestUpdateTransaction(options));
+  if (!transaction) {
+    throw new Error('没有可重试的更新事务');
+  }
+
+  if (!isRecoverableUpdateTransaction(transaction, options)) {
+    throw new Error('当前更新事务不可重试');
+  }
+
+  const tempDirectory = options.tempDirectory ?? path.dirname(transaction.transactionPath);
+  await (options.openInstaller ?? openInstallerBeforeAppQuit)(transaction.installerPath, {
+    installDirectory: transaction.installDirectory,
+    currentProcessId: options.currentProcessId ?? process.pid,
+    tempDirectory
+  });
+
+  return (await getLatestUpdateTransaction({ ...options, tempDirectory })) ?? transaction;
+}
+
+export async function openUpdateTransactionLogDirectory(
+  options: {
+    transactionId?: string;
+    tempDirectory?: string;
+    shellOpenPath?: (filePath: string) => Promise<string>;
+  } = {}
+) {
+  const latestTransaction = options.transactionId
+    ? await getUpdateTransactionById(options.transactionId, options)
+    : await getLatestUpdateTransaction(options);
+  if (options.transactionId && !latestTransaction) {
+    return false;
+  }
+
+  const logDirectory = latestTransaction?.logDirectory ?? options.tempDirectory ?? getCurrentTempDirectory();
+  await mkdir(logDirectory, { recursive: true });
+  const errorMessage = await (options.shellOpenPath ?? shell.openPath)(logDirectory);
+  if (errorMessage) {
+    throw new Error(errorMessage);
+  }
+
+  return true;
+}
+
+async function readWindowsUpdateTransaction(transactionPath: string) {
+  try {
+    const text = await readFile(transactionPath, 'utf8');
+    return parseWindowsUpdateTransaction(text);
+  } catch {
+    return null;
+  }
+}
+
+function parseWindowsUpdateTransaction(text: string): WindowsUpdateTransactionState | null {
+  try {
+    const value = JSON.parse(text.replace(/^\uFEFF/, ''));
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    const record = value as Record<string, unknown>;
+    const id = stringOrUndefined(record.id);
+    const installerPath = stringOrUndefined(record.installerPath);
+    const status = stringOrUndefined(record.status);
+    const message = stringOrUndefined(record.message);
+    const updatedAt = stringOrUndefined(record.updatedAt);
+    const currentProcessId = numberOrUndefined(record.currentProcessId);
+
+    if (!id || !installerPath || !status || !isWindowsUpdateTransactionStatus(status) || !message || !updatedAt || !currentProcessId) {
+      return null;
+    }
+
+    return {
+      id,
+      installerPath,
+      installDirectory: stringOrUndefined(record.installDirectory),
+      currentProcessId,
+      status,
+      percent: clampPercent(numberOrUndefined(record.percent) ?? 0),
+      message,
+      updatedAt
+    };
+  } catch {
+    return null;
+  }
+}
+
+function stringOrUndefined(value: unknown) {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function createWindowsUpdateTransactionSnapshot(
+  state: WindowsUpdateTransactionState,
+  transactionPath: string,
+  options: {
+    now?: Date;
+    staleAfterMs?: number;
+  } = {}
+): WindowsUpdateTransactionSnapshot {
+  const failed = isFailedUpdateTransaction(state);
+  const stale = isStaleUpdateTransaction(state, options);
+
+  return {
+    ...state,
+    transactionPath,
+    logPath: getWindowsUpdateLogPath(transactionPath, state.id),
+    logDirectory: path.dirname(transactionPath),
+    failed,
+    stale,
+    recoverable: Boolean(state.installerPath.trim()) && (failed || stale)
+  };
+}
+
+function getWindowsUpdateLogPath(transactionPath: string, id: string) {
+  return path.join(path.dirname(transactionPath), `QuickTranslateUpdateLauncher-${id}.log`);
+}
+
+function getTransactionUpdatedAtMs(transaction: WindowsUpdateTransactionState) {
+  const updatedAtMs = Date.parse(transaction.updatedAt);
+  return Number.isFinite(updatedAtMs) ? updatedAtMs : 0;
+}
+
+function isFinishedUpdateTransaction(transaction: WindowsUpdateTransactionState) {
+  return transaction.status === 'done' || transaction.status === 'installed';
+}
+
+function isWindowsUpdateTransactionStatus(status: string): status is WindowsUpdateTransactionStatus {
+  return (
+    status === 'waiting-app-exit' ||
+    status === 'cleaning-processes' ||
+    status === 'launching-installer' ||
+    status === 'installer-started' ||
+    status === 'failed' ||
+    status === 'done' ||
+    status === 'installed'
+  );
+}
+
+function pickWindowsUpdateTransactionState(transaction: WindowsUpdateTransactionState): WindowsUpdateTransactionState {
+  return {
+    id: transaction.id,
+    installerPath: transaction.installerPath,
+    installDirectory: transaction.installDirectory,
+    currentProcessId: transaction.currentProcessId,
+    status: transaction.status,
+    percent: transaction.percent,
+    message: transaction.message,
+    updatedAt: transaction.updatedAt
+  };
 }
 
 function createPowerShellScriptCommand(scriptPath: string, args: string[]) {

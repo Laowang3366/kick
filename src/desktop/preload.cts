@@ -7,7 +7,9 @@ contextBridge.exposeInMainWorld('quickTranslate', {
   clearUpdatePackages: () => ipcRenderer.invoke('clear-update-packages'),
   copyText: (text: string) => ipcRenderer.invoke('copy-text', text),
   getDesktopSettings: () => ipcRenderer.invoke('get-desktop-settings'),
+  getLatestUpdateTransaction: () => ipcRenderer.invoke('get-latest-update-transaction'),
   openUpdatePackageDirectory: () => ipcRenderer.invoke('open-update-package-directory'),
+  openUpdateTransactionLogDirectory: (input?: unknown) => ipcRenderer.invoke('open-update-transaction-log-directory', input),
   onDesktopSettingsChanged: (callback: (settings: unknown) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, settings: unknown) => callback(settings);
     ipcRenderer.on('desktop-settings-changed', listener);
@@ -42,6 +44,7 @@ contextBridge.exposeInMainWorld('quickTranslate', {
   },
   setDesktopSettings: (settings: unknown) => ipcRenderer.invoke('set-desktop-settings', settings),
   setFloatingSessionPreferences: (preferences: unknown) => ipcRenderer.invoke('set-floating-session-preferences', preferences),
+  retryUpdateTransaction: (input?: unknown) => ipcRenderer.invoke('retry-update-transaction', input),
   translateText: (input: unknown) => ipcRenderer.invoke('translate-text', input),
   windowControl: (command: unknown) => ipcRenderer.invoke('window-control', command)
 });
