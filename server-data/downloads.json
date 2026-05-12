@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.72",
+  "latestVersion": "0.1.73",
   "releases": [
+    {
+      "version": "0.1.73",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.73.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.73.exe",
+      "size": 106792940,
+      "sha512": "GGryGlrfNxt3fKETXpkljxr+B4HkPiKY8yLzkPGAazu6+syldZgcyLEmofx25cJocGF2kZeBntSuu7WH+2e+lQ==",
+      "releaseDate": "2026-05-12T05:42:38.135Z",
+      "releaseNotes": "0.1.73：安装模式固定为所有用户安装，不再显示当前用户/所有用户选择；安装器会清理旧的当前用户安装目录和 HKCU 安装记录；应用内更新优先沿用 HKLM 记录的生产安装路径。"
+    },
     {
       "version": "0.1.72",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "WCRKDQU8qYG7w7uKSXUmr39jG/q1Xn6p6/dN9d8B76ahvJFiHIZSzZ0NOVI7cHhXaYVV/3k9bqV+MxUGRiqY0A==",
       "releaseDate": "2026-05-12T05:17:29.134Z",
       "releaseNotes": "0.1.72：修复 Windows 更新清理旧进程时 taskkill /T 误杀更新协调器的问题；改为按进程快照逐个清理旧主进程及其子进程，并排除协调器自身。"
-    },
-    {
-      "version": "0.1.71",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.71.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.71.exe",
-      "size": 106809050,
-      "sha512": "0QkLIQu3w4WQTtPqu3ZH88x8nJdbReF5d0/ut+M6LyJlwIG3QphgQOA+OEshjFr1wFivJV7h73KnSfgDk3m5Tg==",
-      "releaseDate": "2026-05-12T05:04:09.153Z",
-      "releaseNotes": "0.1.71：修复 Windows 更新协调器中原生 API 调用错误转换，兼容 LazyProc.Call 返回值差异，避免进程枚举失败时错误信息异常。"
     },
     {
       "version": "0.1.53",

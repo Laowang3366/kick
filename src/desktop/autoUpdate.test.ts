@@ -6,6 +6,7 @@ import {
   checkForDesktopUpdates,
   configureAutoUpdates,
   getDesktopUpdateFeedUrl,
+  getProductionInstallDirectory,
   openInstallerBeforeAppQuit,
   openInstallerDetached
 } from './autoUpdate';
@@ -88,6 +89,32 @@ describe('auto update channel', () => {
         }
       })
     ).toBe('https://example.test/updates');
+  });
+
+  it('uses the recorded machine-wide install directory for Windows updates', () => {
+    const execFile = vi.fn(() => '    InstallLocation    REG_SZ    D:\\Program Files\\quick-translate\r\n');
+
+    expect(
+      getProductionInstallDirectory({
+        platform: 'win32',
+        execFile: execFile as never,
+        currentInstallDirectory: 'D:\\Users\\wfq\\AppData\\Local\\Programs\\quick-translate'
+      })
+    ).toBe('D:\\Program Files\\quick-translate');
+  });
+
+  it('does not pass a current-user install directory to the machine-wide installer', () => {
+    const execFile = vi.fn(() => {
+      throw new Error('missing registry');
+    });
+
+    expect(
+      getProductionInstallDirectory({
+        platform: 'win32',
+        execFile: execFile as never,
+        currentInstallDirectory: 'D:\\Users\\wfq\\AppData\\Local\\Programs\\quick-translate'
+      })
+    ).toBeUndefined();
   });
 
   it('does not run renderer-requested checks outside packaged runs', async () => {

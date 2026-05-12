@@ -44,29 +44,48 @@ describe('Windows installer script', () => {
 
     expect(script).toContain('QuickTranslateRemoveStaleUninstallRegistry_');
     expect(script).toContain('Removing stale Quick Translate uninstall registry before upgrade.');
-    expect(script).toContain('!insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_CURRENT_USER');
+    expect(script).toContain('!insertmacro quickTranslateRemoveCurrentUserInstallAllViews');
     expect(script).toContain('!insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_LOCAL_MACHINE');
     expect(script).toContain('SetRegView 32');
     expect(script).toContain('SetRegView 64');
   });
 
-  it('keeps the install-location registry key when legacy cleanup runs before installation', () => {
+  it('keeps the machine install-location registry key when legacy cleanup runs before installation', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 
     expect(script).toContain('ReadRegStr $3 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation');
-    expect(script).not.toContain('DeleteRegKey ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}"');
+    expect(script).not.toContain('DeleteRegKey HKEY_LOCAL_MACHINE "${INSTALL_REGISTRY_KEY}"');
     expect(script).toContain('Keeping Quick Translate install location registry for retryable upgrades.');
   });
 
-  it('restores the previous user-selected install directory as the installer default', () => {
+  it('restores only the previous machine-wide install directory as the installer default', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 
     expect(script).toContain('!macro quickTranslateRestoreRegisteredInstallDirectory ROOT_KEY');
     expect(script).toContain('ReadRegStr $5 ${ROOT_KEY} "${INSTALL_REGISTRY_KEY}" InstallLocation');
     expect(script).toContain('StrCpy $INSTDIR "$5"');
     expect(script).toContain('Using previous Quick Translate install directory: $INSTDIR');
-    expect(script).toContain('!insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_CURRENT_USER');
     expect(script).toContain('!insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_LOCAL_MACHINE');
+    expect(script).not.toContain('!insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_CURRENT_USER');
+  });
+
+  it('cleans legacy per-user installs before machine-wide installation', () => {
+    const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
+    const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as {
+      build: {
+        nsis: {
+          perMachine: boolean;
+        };
+      };
+    };
+
+    expect(packageJson.build.nsis.perMachine).toBe(true);
+    expect(script).toContain('!macro quickTranslateRemoveCurrentUserInstall');
+    expect(script).toContain('DeleteRegKey HKEY_CURRENT_USER "${INSTALL_REGISTRY_KEY}"');
+    expect(script).toContain('DeleteRegKey HKEY_CURRENT_USER "${UNINSTALL_REGISTRY_KEY}"');
+    expect(script).toContain('$LOCALAPPDATA\\Programs\\${APP_FILENAME}');
+    expect(script).toContain('$PROFILE\\AppData\\Local\\Programs\\${APP_FILENAME}');
+    expect(script).toContain('Removing legacy per-user Quick Translate install before machine-wide install');
   });
 
   it('moves the installer working directory out of the old install path during initialization', () => {

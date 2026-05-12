@@ -1,6 +1,6 @@
 import { app, shell } from 'electron';
 import electronUpdater from 'electron-updater';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, link, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -134,6 +134,9 @@ export type DesktopUpdateProgress = {
 };
 
 const updateCheckDelayMs = 8000;
+const quickTranslateMachineInstallRegistryKey = 'HKLM\\Software\\c747ef85-e8bd-5ddf-bf80-1c3355114152';
+const quickTranslateMachineUninstallRegistryKey =
+  'HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\c747ef85-e8bd-5ddf-bf80-1c3355114152';
 const staleUpdateTransactionMs = 10 * 60 * 1000;
 const updateTransactionFilePattern = /^QuickTranslateUpdateTransaction-(.+)\.json$/;
 
@@ -310,7 +313,7 @@ export function checkForUpdates(
       process.platform === 'win32'
         ? (filePath) =>
             openInstallerBeforeAppQuit(filePath, {
-              installDirectory: getCurrentInstallDirectory(),
+              installDirectory: getProductionInstallDirectory(),
               currentProcessId: process.pid,
               tempDirectory: getCurrentTempDirectory(),
               allowPowerShellFallback: true
@@ -877,6 +880,52 @@ function getCurrentInstallDirectory() {
   } catch {
     return path.dirname(process.execPath);
   }
+}
+
+export function getProductionInstallDirectory(
+  options: { platform?: NodeJS.Platform; execFile?: typeof execFileSync; currentInstallDirectory?: string } = {}
+) {
+  const platform = options.platform ?? process.platform;
+  if (platform !== 'win32') {
+    return options.currentInstallDirectory ?? getCurrentInstallDirectory();
+  }
+
+  return (
+    readWindowsRegistryString(quickTranslateMachineInstallRegistryKey, 'InstallLocation', options.execFile) ??
+    readWindowsRegistryString(quickTranslateMachineUninstallRegistryKey, 'InstallLocation', options.execFile) ??
+    getCurrentMachineInstallDirectory(options.currentInstallDirectory)
+  );
+}
+
+function getCurrentMachineInstallDirectory(currentInstallDirectory?: string) {
+  const installDirectory = currentInstallDirectory ?? getCurrentInstallDirectory();
+  return isCurrentUserInstallDirectory(installDirectory) ? undefined : installDirectory;
+}
+
+function isCurrentUserInstallDirectory(installDirectory: string) {
+  const normalized = normalizeWindowsPath(installDirectory);
+  return normalized.includes('\\appdata\\local\\programs\\quick-translate');
+}
+
+function readWindowsRegistryString(registryKey: string, valueName: string, execFile: typeof execFileSync = execFileSync) {
+  try {
+    const output = execFile('reg.exe', ['query', registryKey, '/v', valueName], {
+      encoding: 'utf8',
+      windowsHide: true
+    });
+    const match = output.match(new RegExp(`\\s${escapeRegExp(valueName)}\\s+REG_\\w+\\s+(.+)`));
+    return match?.[1]?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeWindowsPath(value: string) {
+  return path.win32.normalize(value).replace(/[\\/]+$/, '').toLowerCase();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function scheduleQuitAfterOpeningInstaller() {

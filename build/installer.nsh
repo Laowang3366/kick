@@ -149,6 +149,48 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   ${EndIf}
 !macroend
 
+!macro quickTranslateRemoveCurrentUserInstall
+  !define CurrentUserCleanupUniqueID ${__LINE__}
+  ReadRegStr $3 HKEY_CURRENT_USER "${INSTALL_REGISTRY_KEY}" InstallLocation
+  StrCmp "$3" "" QuickTranslateCurrentUserInstallRegistryDone_${CurrentUserCleanupUniqueID}
+  StrCmp "$3" "$INSTDIR" QuickTranslateCurrentUserInstallRegistryDone_${CurrentUserCleanupUniqueID}
+  DetailPrint "Removing legacy per-user Quick Translate install before machine-wide install: $3"
+  !insertmacro quickTranslateRemoveInstallDirectory "$3"
+
+  QuickTranslateCurrentUserInstallRegistryDone_${CurrentUserCleanupUniqueID}:
+  DeleteRegKey HKEY_CURRENT_USER "${UNINSTALL_REGISTRY_KEY}"
+  !ifdef UNINSTALL_REGISTRY_KEY_2
+    DeleteRegKey HKEY_CURRENT_USER "${UNINSTALL_REGISTRY_KEY_2}"
+  !endif
+  DeleteRegKey HKEY_CURRENT_USER "${INSTALL_REGISTRY_KEY}"
+
+  StrCpy $3 "$LOCALAPPDATA\Programs\${APP_FILENAME}"
+  StrCmp "$3" "$INSTDIR" QuickTranslateCurrentUserLocalAppDataDone_${CurrentUserCleanupUniqueID}
+  IfFileExists "$3\*.*" 0 QuickTranslateCurrentUserLocalAppDataDone_${CurrentUserCleanupUniqueID}
+  DetailPrint "Removing legacy per-user Quick Translate directory: $3"
+  !insertmacro quickTranslateRemoveInstallDirectory "$3"
+
+  QuickTranslateCurrentUserLocalAppDataDone_${CurrentUserCleanupUniqueID}:
+  StrCpy $3 "$PROFILE\AppData\Local\Programs\${APP_FILENAME}"
+  StrCmp "$3" "$INSTDIR" QuickTranslateCurrentUserProfileDone_${CurrentUserCleanupUniqueID}
+  IfFileExists "$3\*.*" 0 QuickTranslateCurrentUserProfileDone_${CurrentUserCleanupUniqueID}
+  DetailPrint "Removing legacy per-user Quick Translate directory: $3"
+  !insertmacro quickTranslateRemoveInstallDirectory "$3"
+
+  QuickTranslateCurrentUserProfileDone_${CurrentUserCleanupUniqueID}:
+  !undef CurrentUserCleanupUniqueID
+!macroend
+
+!macro quickTranslateRemoveCurrentUserInstallAllViews
+  !insertmacro quickTranslateRemoveCurrentUserInstall
+  ${If} ${RunningX64}
+    SetRegView 32
+    !insertmacro quickTranslateRemoveCurrentUserInstall
+    SetRegView 64
+    !insertmacro quickTranslateRemoveCurrentUserInstall
+  ${EndIf}
+!macroend
+
 !macro quickTranslateRestoreRegisteredInstallDirectory ROOT_KEY
   !define UniqueID ${__LINE__}
   StrCmp "$9" "1" QuickTranslateRestoreRegisteredInstallDirectoryDone_${UniqueID}
@@ -176,8 +218,8 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 !macro customInit
   StrCpy $QuickTranslateAttemptedInstallCleanupPath ""
   StrCpy $9 "0"
-  !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_CURRENT_USER
   !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_LOCAL_MACHINE
+  !insertmacro quickTranslateRemoveCurrentUserInstallAllViews
 
   StrCpy $0 "$INSTDIR\"
   StrLen $1 "$0"
@@ -194,7 +236,6 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 
   QuickTranslateSafeInstallerDone:
 
-  !insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_CURRENT_USER
   !insertmacro quickTranslateRemoveRegisteredInstallAllViews HKEY_LOCAL_MACHINE
 !macroend
 
