@@ -1,4 +1,5 @@
 Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
+
 !macro quickTranslateTerminateProcesses INSTALL_PATH
   DetailPrint "正在清理旧进程..."
   nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$target='${INSTALL_PATH}'; $$names=@('${APP_EXECUTABLE_FILENAME}','快捷翻译.exe','quick-translate.exe'); $$processes=Get-CimInstance -ClassName Win32_Process | ? { (($$target -ne '') -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$target, [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$names -contains $$_.Name) -or ($$_.CommandLine -like '*quick-translate-*hook.ps1*') -or ($$_.CommandLine -like '*quick-translate-copy-shortcut.ps1*') }; $$ids=@($$processes | % { $$_.ProcessId }); if ($$ids.Count -gt 0) { $$ids | % { Stop-Process -Id $$_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 200; $$ids | % { Wait-Process -Id $$_ -Timeout 2 -ErrorAction SilentlyContinue } }; exit 0"`
@@ -70,20 +71,9 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
   !undef ExtractRetryUniqueID
 !macroend
 
-!macro quickTranslateBeforeDirectExtract INSTALL_PATH
-  DetailPrint "正在执行自动兜底替换..."
-  !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
-  SetOutPath "$TEMP"
-  ClearErrors
-  RMDir /r "${INSTALL_PATH}"
-  CreateDirectory "${INSTALL_PATH}"
-  SetOutPath "${INSTALL_PATH}"
-  Sleep 300
-!macroend
-
-!macro quickTranslateMarkLatestUpdateTransactionInstalled
+!macro quickTranslateMarkUpdateTransactionInstalled
   DetailPrint "正在记录更新安装完成状态..."
-  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$limit=(Get-Date).ToUniversalTime().AddHours(-12); $$transaction=Get-ChildItem -LiteralPath $$env:TEMP -Filter 'QuickTranslateUpdateTransaction-*.json' -File -ErrorAction SilentlyContinue | ? { $$_.LastWriteTimeUtc -ge $$limit } | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1; if ($$null -ne $$transaction) { try { $$state=Get-Content -LiteralPath $$transaction.FullName -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $$state=[pscustomobject]@{} }; $$now=(Get-Date).ToUniversalTime().ToString('o'); $$state | Add-Member -NotePropertyName status -NotePropertyValue 'installed' -Force; $$state | Add-Member -NotePropertyName percent -NotePropertyValue 100 -Force; $$state | Add-Member -NotePropertyName message -NotePropertyValue '安装完成' -Force; $$state | Add-Member -NotePropertyName result -NotePropertyValue 'done' -Force; $$state | Add-Member -NotePropertyName installedAt -NotePropertyValue $$now -Force; $$state | Add-Member -NotePropertyName updatedAt -NotePropertyValue $$now -Force; $$state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $$transaction.FullName -Encoding UTF8 }; exit 0"`
+  nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$transactionPath=$$env:QUICK_TRANSLATE_UPDATE_TRANSACTION; if ([string]::IsNullOrWhiteSpace($$transactionPath) -or -not (Test-Path -LiteralPath $$transactionPath -PathType Leaf)) { exit 0 }; try { $$state=Get-Content -LiteralPath $$transactionPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $$state=[pscustomobject]@{} }; $$now=(Get-Date).ToUniversalTime().ToString('o'); $$state | Add-Member -NotePropertyName status -NotePropertyValue 'installed' -Force; $$state | Add-Member -NotePropertyName percent -NotePropertyValue 100 -Force; $$state | Add-Member -NotePropertyName message -NotePropertyValue '安装完成' -Force; $$state | Add-Member -NotePropertyName result -NotePropertyValue 'done' -Force; $$state | Add-Member -NotePropertyName installedAt -NotePropertyValue $$now -Force; $$state | Add-Member -NotePropertyName updatedAt -NotePropertyValue $$now -Force; $$state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $$transactionPath -Encoding UTF8; exit 0"`
   Pop $0
 !macroend
 
@@ -190,5 +180,5 @@ Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
 !macroend
 
 !macro customInstall
-  !insertmacro quickTranslateMarkLatestUpdateTransactionInstalled
+  !insertmacro quickTranslateMarkUpdateTransactionInstalled
 !macroend

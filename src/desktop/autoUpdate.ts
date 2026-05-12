@@ -67,6 +67,7 @@ type WindowsInstallerLaunchOptions = OpenInstallerOptions & {
   currentProcessId?: number;
   tempDirectory?: string;
   updateCoordinatorPath?: string;
+  allowPowerShellFallback?: boolean;
 };
 
 export type WindowsUpdateTransactionStatus =
@@ -82,6 +83,9 @@ export type WindowsUpdateTransactionState = {
   id: string;
   installerPath: string;
   installDirectory?: string;
+  coordinatorPath?: string;
+  failureCode?: string;
+  installerExitHint?: string;
   currentProcessId: number;
   status: WindowsUpdateTransactionStatus;
   percent: number;
@@ -224,9 +228,6 @@ export async function checkForDesktopUpdates(options: CheckForUpdatesOptions): P
           message: '更新已下载，正在打开安装器'
         });
         await openDownloadedUpdate(stagedUpdatePath, options);
-        if (options.platform === 'win32') {
-          void stageDownloadedUpdate(downloadedUpdatePath, availableVersion, options);
-        }
         options.onProgress?.({
           status: 'downloaded',
           percent: 100,
@@ -334,8 +335,7 @@ export async function openInstallerBeforeAppQuit(filePath: string, options: Wind
     return;
   }
 
-  const installerArgs = getWindowsInstallerArgs(options.installDirectory);
-  await launchInstallerAfterCurrentProcessExit(filePath, installerArgs, options);
+  await launchInstallerAfterCurrentProcessExit(filePath, options);
 }
 
 function launchInstallerProcess(filePath: string, args: string[], windowsHide: boolean, launcher: InstallerLauncher = spawn) {
@@ -348,28 +348,68 @@ function launchInstallerProcess(filePath: string, args: string[], windowsHide: b
   child.unref();
 }
 
-async function launchInstallerAfterCurrentProcessExit(
-  filePath: string,
-  installerArgs: string[],
-  options: WindowsInstallerLaunchOptions
-) {
+async function launchInstallerAfterCurrentProcessExit(filePath: string, options: WindowsInstallerLaunchOptions) {
   const currentProcessId = options.currentProcessId ?? process.pid;
   const tempDirectory = options.tempDirectory ?? getCurrentTempDirectory();
-  const launcherScriptPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.ps1`);
   const logPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.log`);
   const transactionPath = path.join(tempDirectory, `QuickTranslateUpdateTransaction-${currentProcessId}.json`);
+  const installerArgs = getWindowsInstallerArgs(options.installDirectory, transactionPath);
+  const coordinatorPath = options.updateCoordinatorPath ?? getPackagedWindowsUpdateCoordinatorPath();
   await mkdir(tempDirectory, { recursive: true });
-  await writeFile(launcherScriptPath, `\ufeff${windowsUpdateLauncherScript}`, 'utf8');
   await writeWindowsUpdateTransaction(transactionPath, {
     id: String(currentProcessId),
     installerPath: filePath,
     installDirectory: options.installDirectory,
+    coordinatorPath,
     currentProcessId,
     status: 'waiting-app-exit',
     percent: 10,
     message: '正在等待旧版本退出',
     updatedAt: new Date().toISOString()
   });
+
+  if (coordinatorPath && existsSync(coordinatorPath)) {
+    const coordinatorArgs = createWindowsUpdateCoordinatorArgs({
+      filePath,
+      workingDirectory: path.dirname(filePath),
+      currentProcessId,
+      logPath,
+      transactionPath,
+      installDirectory: options.installDirectory,
+      installerArgs
+    });
+    const child = (options.launcher ?? spawn)(coordinatorPath, coordinatorArgs, {
+      cwd: tempDirectory,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    child.unref();
+    return;
+  }
+
+  if (!options.allowPowerShellFallback) {
+    const message = coordinatorPath
+      ? '更新协调器缺失，无法启动安装器。请重新下载安装包后再更新。'
+      : '未找到更新协调器，无法启动安装器。请重新下载安装包后再更新。';
+    await writeWindowsUpdateTransaction(transactionPath, {
+      id: String(currentProcessId),
+      installerPath: filePath,
+      installDirectory: options.installDirectory,
+      coordinatorPath,
+      currentProcessId,
+      status: 'failed',
+      percent: 100,
+      message,
+      failureCode: 'update-coordinator-missing',
+      installerExitHint: '重新下载最新安装包后手动运行安装。',
+      updatedAt: new Date().toISOString()
+    });
+    throw new Error(message);
+  }
+
+  const launcherScriptPath = path.join(tempDirectory, `QuickTranslateUpdateLauncher-${currentProcessId}.ps1`);
+  await writeFile(launcherScriptPath, `\ufeff${windowsUpdateLauncherScript}`, 'utf8');
   const scriptArgs = [
     '-InstallerPath',
     filePath,
@@ -388,27 +428,6 @@ async function launchInstallerAfterCurrentProcessExit(
   if (installerArgs.length > 0) {
     scriptArgs.push('-ArgumentList', installerArgs.join(' '));
   }
-  const coordinatorPath = options.updateCoordinatorPath ?? getPackagedWindowsUpdateCoordinatorPath();
-  if (coordinatorPath && existsSync(coordinatorPath)) {
-    const coordinatorArgs = createWindowsUpdateCoordinatorArgs({
-      filePath,
-      workingDirectory: path.dirname(filePath),
-      currentProcessId,
-      logPath,
-      transactionPath,
-      installDirectory: options.installDirectory,
-      argumentList: installerArgs.join(' ')
-    });
-    const child = (options.launcher ?? spawn)(coordinatorPath, coordinatorArgs, {
-      cwd: tempDirectory,
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    });
-    child.unref();
-    return;
-  }
-
   const powershellArgs = [
     '-NoProfile',
     '-ExecutionPolicy',
@@ -437,7 +456,7 @@ function createWindowsUpdateCoordinatorArgs(input: {
   logPath: string;
   transactionPath: string;
   installDirectory?: string;
-  argumentList?: string;
+  installerArgs?: string[];
 }) {
   const args = [
     '--installer',
@@ -456,8 +475,10 @@ function createWindowsUpdateCoordinatorArgs(input: {
     args.push('--install-dir', input.installDirectory.trim());
   }
 
-  if (input.argumentList?.trim()) {
-    args.push('--argument-list', input.argumentList.trim());
+  for (const installerArg of input.installerArgs ?? []) {
+    if (installerArg.trim()) {
+      args.push('--installer-arg', installerArg.trim());
+    }
   }
 
   return args;
@@ -680,6 +701,9 @@ function parseWindowsUpdateTransaction(text: string): WindowsUpdateTransactionSt
       id,
       installerPath,
       installDirectory: stringOrUndefined(record.installDirectory),
+      coordinatorPath: stringOrUndefined(record.coordinatorPath),
+      failureCode: stringOrUndefined(record.failureCode),
+      installerExitHint: stringOrUndefined(record.installerExitHint),
       currentProcessId,
       status,
       percent: clampPercent(numberOrUndefined(record.percent) ?? 0),
@@ -747,6 +771,9 @@ function pickWindowsUpdateTransactionState(transaction: WindowsUpdateTransaction
     id: transaction.id,
     installerPath: transaction.installerPath,
     installDirectory: transaction.installDirectory,
+    coordinatorPath: transaction.coordinatorPath,
+    failureCode: transaction.failureCode,
+    installerExitHint: transaction.installerExitHint,
     currentProcessId: transaction.currentProcessId,
     status: transaction.status,
     percent: transaction.percent,
@@ -772,9 +799,13 @@ function encodePowerShellCommand(command: string) {
   return Buffer.from(command, 'utf16le').toString('base64');
 }
 
-function getWindowsInstallerArgs(installDirectory: string | undefined) {
+function getWindowsInstallerArgs(installDirectory: string | undefined, transactionPath: string) {
   const normalizedInstallDirectory = installDirectory?.trim();
-  return normalizedInstallDirectory ? [`/D=${normalizedInstallDirectory}`] : [];
+  const args = [`/QUICK_TRANSLATE_TRANSACTION=${transactionPath}`];
+  if (normalizedInstallDirectory) {
+    args.push(`/D=${normalizedInstallDirectory}`);
+  }
+  return args;
 }
 
 function getCurrentInstallDirectory() {
@@ -890,6 +921,7 @@ Start-Sleep -Milliseconds 150
 Write-QuickTranslateUpdateLog "installer start requested"
 Write-QuickTranslateUpdateState "launching-installer" 80 "正在启动安装器"
 try {
+  $env:QUICK_TRANSLATE_UPDATE_TRANSACTION = $TransactionPath
   if ([string]::IsNullOrWhiteSpace($ArgumentList)) {
     Start-Process -FilePath $InstallerPath -WorkingDirectory $WorkingDirectory
   } else {

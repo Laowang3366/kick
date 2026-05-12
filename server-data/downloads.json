@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.65",
+  "latestVersion": "0.1.66",
   "releases": [
+    {
+      "version": "0.1.66",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.66.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.66.exe",
+      "size": 106800877,
+      "sha512": "8XpeEIaPcVybg5dCtzvKhZi2lNcDLgiBtSljh6xWfdXggDdGiuyadkUQ1o4ApJGdidBR2OeWRMoplMm4gxA8sA==",
+      "releaseDate": "2026-05-12T01:13:29.402Z",
+      "releaseNotes": "收敛桌面端更新安装链路：生产环境必须使用独立更新协调器，缺失时明确失败并显示恢复提示\n移除下载后异步复制安装包副本，缩短安装器拉起路径\n安装器仅保留短重试和明确失败提示，移除直接覆盖解压兜底，并按指定事务路径回写安装完成状态"
+    },
     {
       "version": "0.1.65",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "t8qWFp2LaQG2IUr8V6uhjI6VxynYQ5LBnTswzaBLYMnNKPhtR1i/oAUJe6Fg5SLw52JYBdc94aagprzTbjT65A==",
       "releaseDate": "2026-05-12T00:47:41.149Z",
       "releaseNotes": "完善桌面端事务式更新：新增本地事务状态、失败恢复、重试安装和打开更新日志入口\n新增独立更新协调器 exe，生产环境优先由协调器清理旧进程并拉起安装器，减少 PowerShell 依赖\n安装器安装完成后回写更新事务状态，并压缩 NSIS 兜底清理等待，降低反复提示无法关闭的概率"
-    },
-    {
-      "version": "0.1.64",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.64.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.64.exe",
-      "size": 106025150,
-      "sha512": "ANuv2YGMfU6fZsavNCJw9G4I0S7N0LO4Gw0wVvr2gkbDSfJCktpiXGwlHjnEqFEnbcPq7ojSI455ejY0DZsUoQ==",
-      "releaseDate": "2026-05-12T00:21:35.768Z",
-      "releaseNotes": "参考事务式更新流程重构桌面端更新交接，新增更新事务状态文件与协调器日志\n修复中文路径下更新协调器脚本可能无法启动的问题\n更新安装前由协调器先清理旧进程并拉起安装器，减少安装器反复提示无法关闭"
     },
     {
       "version": "0.1.53",

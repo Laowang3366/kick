@@ -91,33 +91,35 @@ describe('Windows installer script', () => {
     };
 
     expect(script).toContain('!macro quickTranslateBeforeExtractRetry INSTALL_PATH ATTEMPT');
-    expect(script).toContain('!macro quickTranslateBeforeDirectExtract INSTALL_PATH');
     expect(script).toContain('安装目录被占用，正在执行安装器兜底清理');
     expect(script).toContain('安装目录仍被占用，正在短暂等待后重试');
-    expect(script).toContain('正在执行自动兜底替换');
     expect(script).toContain('StrCmp "${ATTEMPT}" "1"');
+    expect(script).not.toContain('!macro quickTranslateBeforeDirectExtract INSTALL_PATH');
+    expect(script).not.toContain('正在执行自动兜底替换');
     expect(packageJson.scripts['dist:win']).toContain('node scripts/patch-nsis-extract.mjs');
   });
 
-  it('patches the bundled NSIS copy failure prompt into a short automatic fallback', () => {
+  it('patches the bundled NSIS copy failure prompt into short retries and a clear failure', () => {
     const patchScript = readFileSync(join(process.cwd(), 'scripts', 'patch-nsis-extract.mjs'), 'utf8');
 
     expect(patchScript).toContain('quickTranslateBeforeExtractRetry "$INSTDIR" $R1');
     expect(patchScript).toContain('$R1 < 4');
     expect(patchScript).toContain('Sleep 250');
+    expect(patchScript).toContain('安装目录仍被占用，无法替换文件');
     expect(patchScript).toContain('previousQuickTranslateRetryBlock');
     expect(patchScript).toContain('writeFileSync(templatePath, patched');
   });
 
-  it('marks the latest update transaction as installed after successful install', () => {
+  it('marks the exact update transaction as installed after successful install', () => {
     const script = readFileSync(join(process.cwd(), 'build', 'installer.nsh'), 'utf8');
 
     expect(script).toContain('!macro customInstall');
-    expect(script).toContain('quickTranslateMarkLatestUpdateTransactionInstalled');
-    expect(script).toContain("QuickTranslateUpdateTransaction-*.json");
+    expect(script).toContain('quickTranslateMarkUpdateTransactionInstalled');
+    expect(script).toContain('$$env:QUICK_TRANSLATE_UPDATE_TRANSACTION');
     expect(script).toContain("NotePropertyName status -NotePropertyValue 'installed'");
     expect(script).toContain("NotePropertyName result -NotePropertyValue 'done'");
     expect(script).toContain("NotePropertyName installedAt");
-    expect(script).toContain("AddHours(-12)");
+    expect(script).not.toContain("QuickTranslateUpdateTransaction-*.json");
+    expect(script).not.toContain("AddHours(-12)");
   });
 });

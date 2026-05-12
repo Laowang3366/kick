@@ -13,14 +13,17 @@ import (
 )
 
 type transactionState struct {
-	ID               string `json:"id"`
-	InstallerPath    string `json:"installerPath"`
-	InstallDirectory string `json:"installDirectory,omitempty"`
-	CurrentProcessID int    `json:"currentProcessId"`
-	Status           string `json:"status"`
-	Percent          int    `json:"percent"`
-	Message          string `json:"message"`
-	UpdatedAt        string `json:"updatedAt"`
+	ID                string `json:"id"`
+	InstallerPath     string `json:"installerPath"`
+	InstallDirectory  string `json:"installDirectory,omitempty"`
+	CoordinatorPath   string `json:"coordinatorPath,omitempty"`
+	FailureCode       string `json:"failureCode,omitempty"`
+	InstallerExitHint string `json:"installerExitHint,omitempty"`
+	CurrentProcessID  int    `json:"currentProcessId"`
+	Status            string `json:"status"`
+	Percent           int    `json:"percent"`
+	Message           string `json:"message"`
+	UpdatedAt         string `json:"updatedAt"`
 }
 
 func main() {
@@ -28,6 +31,8 @@ func main() {
 	workingDirectory := flag.String("working-dir", "", "installer working directory")
 	currentProcessID := flag.Int("current-pid", 0, "current app process id")
 	argumentList := flag.String("argument-list", "", "installer argument")
+	var installerArguments stringListFlag
+	flag.Var(&installerArguments, "installer-arg", "installer argument")
 	logPath := flag.String("log", "", "handoff log path")
 	transactionPath := flag.String("transaction", "", "transaction state path")
 	installDirectory := flag.String("install-dir", "", "install directory")
@@ -42,6 +47,7 @@ func main() {
 		ID:               strconv.Itoa(*currentProcessID),
 		InstallerPath:    *installerPath,
 		InstallDirectory: *installDirectory,
+		CoordinatorPath:  os.Args[0],
 		CurrentProcessID: *currentProcessID,
 		Status:           "waiting-app-exit",
 		Percent:          15,
@@ -57,6 +63,7 @@ func main() {
 		ID:               strconv.Itoa(*currentProcessID),
 		InstallerPath:    *installerPath,
 		InstallDirectory: *installDirectory,
+		CoordinatorPath:  os.Args[0],
 		CurrentProcessID: *currentProcessID,
 		Status:           "launching-installer",
 		Percent:          80,
@@ -64,21 +71,27 @@ func main() {
 		UpdatedAt:        now(),
 	})
 
-	args := installerArgs(*argumentList)
+	args := installerArgs(installerArguments, *argumentList)
 	cmd := exec.Command(*installerPath, args...)
 	cmd.Dir = *workingDirectory
+	if strings.TrimSpace(*transactionPath) != "" {
+		cmd.Env = append(os.Environ(), "QUICK_TRANSLATE_UPDATE_TRANSACTION="+*transactionPath)
+	}
 	if err := cmd.Start(); err != nil {
 		message := "安装器启动失败：" + err.Error()
 		writeLog(*logPath, "installer failed: "+err.Error())
 		writeState(*transactionPath, transactionState{
-			ID:               strconv.Itoa(*currentProcessID),
-			InstallerPath:    *installerPath,
-			InstallDirectory: *installDirectory,
-			CurrentProcessID: *currentProcessID,
-			Status:           "failed",
-			Percent:          100,
-			Message:          message,
-			UpdatedAt:        now(),
+			ID:                strconv.Itoa(*currentProcessID),
+			InstallerPath:     *installerPath,
+			InstallDirectory:  *installDirectory,
+			CoordinatorPath:   os.Args[0],
+			CurrentProcessID:  *currentProcessID,
+			Status:            "failed",
+			Percent:           100,
+			Message:           message,
+			FailureCode:       "installer-start-failed",
+			InstallerExitHint: "请手动运行已下载的安装包，或重新下载最新安装包。",
+			UpdatedAt:         now(),
 		})
 		os.Exit(1)
 	}
@@ -88,6 +101,7 @@ func main() {
 		ID:               strconv.Itoa(*currentProcessID),
 		InstallerPath:    *installerPath,
 		InstallDirectory: *installDirectory,
+		CoordinatorPath:  os.Args[0],
 		CurrentProcessID: *currentProcessID,
 		Status:           "installer-started",
 		Percent:          100,
@@ -124,6 +138,7 @@ func cleanupProcesses(pid int, logPath string, transactionPath string, installer
 		ID:               strconv.Itoa(pid),
 		InstallerPath:    installerPath,
 		InstallDirectory: installDirectory,
+		CoordinatorPath:  os.Args[0],
 		CurrentProcessID: pid,
 		Status:           "cleaning-processes",
 		Percent:          45,
@@ -140,12 +155,26 @@ func cleanupProcesses(pid int, logPath string, transactionPath string, installer
 	writeLog(logPath, "cleanup finished")
 }
 
-func installerArgs(argumentList string) []string {
-	argument := strings.TrimSpace(argumentList)
-	if argument == "" {
+type stringListFlag []string
+
+func (values *stringListFlag) String() string {
+	return strings.Join(*values, " ")
+}
+
+func (values *stringListFlag) Set(value string) error {
+	*values = append(*values, value)
+	return nil
+}
+
+func installerArgs(arguments []string, legacyArgumentList string) []string {
+	if len(arguments) > 0 {
+		return arguments
+	}
+	legacyArgument := strings.TrimSpace(legacyArgumentList)
+	if legacyArgument == "" {
 		return nil
 	}
-	return []string{argument}
+	return []string{legacyArgument}
 }
 
 func runQuiet(name string, args ...string) {

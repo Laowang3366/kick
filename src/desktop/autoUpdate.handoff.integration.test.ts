@@ -1,4 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -22,6 +23,10 @@ describeHandoffIntegration('desktop update handoff integration', () => {
 
   it('starts the handoff target after the old app process exits', async () => {
     const tempDirectory = await mkdtemp(path.join(getUserTempDirectory(), '快捷翻译更新交接-'));
+    const coordinatorPath = path.join(process.cwd(), 'build', 'update-helper', 'QuickTranslateUpdateCoordinator.exe');
+    if (!existsSync(coordinatorPath)) {
+      throw new Error('缺少更新协调器，请先运行 node scripts/build-update-coordinator.mjs');
+    }
     const beforePids = await getNotepadPids();
     const oldProcess = spawn('powershell.exe', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 1200'], {
       stdio: 'ignore',
@@ -33,7 +38,8 @@ describeHandoffIntegration('desktop update handoff integration', () => {
       await openInstallerBeforeAppQuit('C:\\Windows\\System32\\notepad.exe', {
         platform: 'win32',
         currentProcessId: oldProcess.pid,
-        tempDirectory
+        tempDirectory,
+        updateCoordinatorPath: coordinatorPath
       });
 
       const launchedPid = await waitForNewNotepadPid(beforePids);
