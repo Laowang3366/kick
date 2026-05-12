@@ -74,10 +74,7 @@ func main() {
 	})
 
 	args := installerArgs(installerArguments, *argumentList)
-	cmd := exec.Command(*installerPath, args...)
-	cmd.Dir = *workingDirectory
-	cmd.Env = installerEnvironment(os.Environ(), *transactionPath, *currentProcessID)
-	if err := cmd.Start(); err != nil {
+	if err := startInstallerWithShell(*installerPath, *workingDirectory, args, *transactionPath, *currentProcessID); err != nil {
 		message := "安装器启动失败：" + err.Error()
 		writeLog(*logPath, "installer failed: "+err.Error())
 		writeState(*transactionPath, transactionState{
@@ -216,6 +213,63 @@ func upsertEnvironmentValue(environment []string, key string, value string) []st
 		}
 	}
 	return append(environment, entry)
+}
+
+func startInstallerWithShell(installerPath string, workingDirectory string, args []string, transactionPath string, currentProcessID int) error {
+	for _, entry := range installerEnvironment(os.Environ(), transactionPath, currentProcessID) {
+		key, value, ok := strings.Cut(entry, "=")
+		if ok && strings.TrimSpace(key) != "" {
+			_ = os.Setenv(key, value)
+		}
+	}
+
+	if err := shellExecute("open", installerPath, windowsCommandLine(args), workingDirectory); err != nil {
+		if !isElevationRequired(err) {
+			return err
+		}
+		return shellExecute("runas", installerPath, windowsCommandLine(args), workingDirectory)
+	}
+	return nil
+}
+
+func windowsCommandLine(args []string) string {
+	quoted := make([]string, 0, len(args))
+	for _, arg := range args {
+		quoted = append(quoted, quoteWindowsArgument(arg))
+	}
+	return strings.Join(quoted, " ")
+}
+
+func quoteWindowsArgument(arg string) string {
+	if arg != "" && !strings.ContainsAny(arg, " \t\n\v\"") {
+		return arg
+	}
+
+	var builder strings.Builder
+	builder.WriteByte('"')
+	backslashes := 0
+	for _, char := range arg {
+		if char == '\\' {
+			backslashes++
+			continue
+		}
+		if char == '"' {
+			builder.WriteString(strings.Repeat(`\`, backslashes*2+1))
+			builder.WriteRune(char)
+			backslashes = 0
+			continue
+		}
+		if backslashes > 0 {
+			builder.WriteString(strings.Repeat(`\`, backslashes))
+			backslashes = 0
+		}
+		builder.WriteRune(char)
+	}
+	if backslashes > 0 {
+		builder.WriteString(strings.Repeat(`\`, backslashes*2))
+	}
+	builder.WriteByte('"')
+	return builder.String()
 }
 
 func runQuiet(name string, args ...string) {
@@ -373,17 +427,81 @@ func installDirectoryLooksReleased(installDirectory string) bool {
 const (
 	th32csSnapProcess              = 0x00000002
 	processQueryLimitedInformation = 0x1000
+	seeMaskNoCloseProcess          = 0x00000040
+	swShownormal                   = 1
+	errorElevationRequired         = syscall.Errno(740)
 )
 
 var (
 	kernel32                       = syscall.NewLazyDLL("kernel32.dll")
+	shell32                        = syscall.NewLazyDLL("shell32.dll")
 	procCreateToolhelp32Snapshot   = kernel32.NewProc("CreateToolhelp32Snapshot")
 	procProcess32FirstW            = kernel32.NewProc("Process32FirstW")
 	procProcess32NextW             = kernel32.NewProc("Process32NextW")
 	procOpenProcess                = kernel32.NewProc("OpenProcess")
 	procCloseHandle                = kernel32.NewProc("CloseHandle")
 	procQueryFullProcessImageNameW = kernel32.NewProc("QueryFullProcessImageNameW")
+	procShellExecuteExW            = shell32.NewProc("ShellExecuteExW")
 )
+
+type shellExecuteInfo struct {
+	Size         uint32
+	Mask         uint32
+	Window       uintptr
+	Verb         *uint16
+	File         *uint16
+	Parameters   *uint16
+	Directory    *uint16
+	Show         int32
+	Instance     uintptr
+	IDList       uintptr
+	Class        *uint16
+	KeyClass     uintptr
+	HotKey       uint32
+	Icon         uintptr
+	Process      uintptr
+}
+
+func shellExecute(verb string, filePath string, parameters string, directory string) error {
+	verbPtr, err := syscall.UTF16PtrFromString(verb)
+	if err != nil {
+		return err
+	}
+	filePtr, err := syscall.UTF16PtrFromString(filePath)
+	if err != nil {
+		return err
+	}
+	parametersPtr, err := syscall.UTF16PtrFromString(parameters)
+	if err != nil {
+		return err
+	}
+	directoryPtr, err := syscall.UTF16PtrFromString(directory)
+	if err != nil {
+		return err
+	}
+
+	info := shellExecuteInfo{
+		Size:       uint32(unsafe.Sizeof(shellExecuteInfo{})),
+		Mask:       seeMaskNoCloseProcess,
+		Verb:       verbPtr,
+		File:       filePtr,
+		Parameters: parametersPtr,
+		Directory:  directoryPtr,
+		Show:       swShownormal,
+	}
+	ok, _, lastErr := procShellExecuteExW.Call(uintptr(unsafe.Pointer(&info)))
+	if info.Process != 0 {
+		closeHandle(info.Process)
+	}
+	if ok == 0 {
+		return windowsCallError(lastErr, "ShellExecuteExW")
+	}
+	return nil
+}
+
+func isElevationRequired(err error) bool {
+	return err == errorElevationRequired
+}
 
 type processEntry32 struct {
 	Size              uint32

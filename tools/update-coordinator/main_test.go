@@ -38,6 +38,19 @@ func TestUpsertEnvironmentValueIsCaseInsensitive(t *testing.T) {
 	}
 }
 
+func TestWindowsCommandLineQuotesInstallerArguments(t *testing.T) {
+	actual := windowsCommandLine([]string{
+		`/QUICK_TRANSLATE_TRANSACTION=C:\Users\wfq\AppData\Local\Temp\QuickTranslateUpdateTransaction-123.json`,
+		`/D=D:\Program Files\quick-translate`,
+		`/NAME=value "quoted"`,
+	})
+
+	expected := `/QUICK_TRANSLATE_TRANSACTION=C:\Users\wfq\AppData\Local\Temp\QuickTranslateUpdateTransaction-123.json "/D=D:\Program Files\quick-translate" "/NAME=value \"quoted\""`
+	if actual != expected {
+		t.Fatalf("unexpected command line:\nwant: %s\n got: %s", expected, actual)
+	}
+}
+
 func TestShouldTerminateProcessMatchesExactPidAndKnownNames(t *testing.T) {
 	criteria := cleanupCriteria{CurrentProcessID: 456, OwnProcessID: 999, InstallDirectory: `D:\Tools\快捷翻译`}
 
@@ -105,6 +118,9 @@ func TestWindowsCallErrorNormalizesLazyProcResults(t *testing.T) {
 	}
 	if err := windowsCallError(syscall.Errno(0), "OpenProcess"); err == nil || !strings.Contains(err.Error(), "OpenProcess") {
 		t.Fatalf("expected fallback error for errno 0, got %v", err)
+	}
+	if !isElevationRequired(syscall.Errno(740)) {
+		t.Fatal("expected ERROR_ELEVATION_REQUIRED to request runas retry")
 	}
 }
 

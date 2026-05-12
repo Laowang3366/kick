@@ -779,13 +779,13 @@ function expectDirectInstallerFallbackLaunch(
   if (expected.installDirectory) {
     installerArgs.push(`/D=${expected.installDirectory}`);
   }
-  expect(command).toBe(expected.installerPath);
-  expect(args).toEqual(installerArgs);
+  expect(command).toMatch(/cmd\.exe$/i);
+  expect(args).toEqual(['/d', '/s', '/c', 'start', '""', expected.installerPath, ...installerArgs]);
   expect(options).toEqual(expect.objectContaining({
     cwd: path.dirname(expected.installerPath),
     detached: true,
     stdio: 'ignore',
-    windowsHide: false,
+    windowsHide: true,
     env: expect.objectContaining({
       QUICK_TRANSLATE_UPDATE_TRANSACTION: transactionPath,
       QUICK_TRANSLATE_UPDATE_PROCESS_ID: expected.currentProcessId

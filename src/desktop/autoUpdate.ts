@@ -478,11 +478,11 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
 
   let child: InstallerLauncherProcess;
   try {
-    child = (options.launcher ?? spawn)(filePath, installerArgs, {
+    child = (options.launcher ?? spawn)(getWindowsCmdPath(), ['/d', '/s', '/c', 'start', '""', filePath, ...installerArgs], {
       cwd: path.dirname(filePath),
       detached: true,
       stdio: 'ignore',
-      windowsHide: false,
+      windowsHide: true,
       env: {
         ...process.env,
         QUICK_TRANSLATE_UPDATE_TRANSACTION: transactionPath,
@@ -1192,6 +1192,10 @@ function getCurrentTempDirectory() {
   } catch {
     return process.env.TEMP || process.env.TMP || tmpdir();
   }
+}
+
+function getWindowsCmdPath() {
+  return path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
 }
 
 export function getDesktopUpdateFeedUrl(inputPackageJson: PackageJsonWithPublishConfig = packageJson) {
