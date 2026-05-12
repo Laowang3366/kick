@@ -6,6 +6,8 @@ import {
   ArrowRight,
   BookOpen,
   Calculator,
+  ChevronDown,
+  ChevronRight,
   Code2,
   Copy,
   FileText,
@@ -140,7 +142,6 @@ export function TutorialCenter() {
     () => buildTutorialSections(activeArticleWithContent?.content || "", activeArticleWithContent?.title || ""),
     [activeArticleWithContent?.content, activeArticleWithContent?.title]
   );
-  const firstArticleFormula = useMemo(() => findFirstFormula(activeArticleSections), [activeArticleSections]);
   const [activeSectionId, setActiveSectionId] = useState("");
   const mobileReaderArticleWithContent = useMemo(() => {
     if (!mobileReaderArticle) return null;
@@ -243,7 +244,6 @@ export function TutorialCenter() {
     const sections = article?.id === activeArticleWithContent?.id
       ? activeArticleSections
       : buildTutorialSections(article?.content || "", article?.title || "");
-    const formulaPreview = article?.id === activeArticleWithContent?.id ? firstArticleFormula : findFirstFormula(sections);
 
     return (
       <TutorialArticleReader
@@ -252,7 +252,6 @@ export function TutorialCenter() {
         articleIndex={articleIndex}
         articles={articles}
         sections={sections}
-        formulaPreview={formulaPreview}
         previous={previous}
         next={next}
         onPrevious={onPrevious}
@@ -496,7 +495,6 @@ function TutorialArticleReader({
   articleIndex,
   articles,
   sections,
-  formulaPreview,
   previous,
   next,
   onPrevious,
@@ -508,7 +506,6 @@ function TutorialArticleReader({
   articleIndex: number;
   articles: any[];
   sections: TutorialSection[];
-  formulaPreview: string;
   previous: any | null;
   next: any | null;
   onPrevious: () => void;
@@ -520,7 +517,6 @@ function TutorialArticleReader({
       <TutorialHero
         article={article}
         category={category}
-        formulaPreview={formulaPreview}
         titleClassName={headingClassName}
       />
 
@@ -571,19 +567,17 @@ function TutorialArticleReader({
 function TutorialHero({
   article,
   category,
-  formulaPreview,
   titleClassName,
 }: {
   article: any;
   category: any;
-  formulaPreview: string;
   titleClassName: string;
 }) {
   const heroTags = buildHeroTags(article, category);
 
   return (
     <section className="mb-6 rounded-2xl border border-emerald-100 bg-[linear-gradient(135deg,#f0fdf4,#ffffff)] p-6 shadow-[0_12px_34px_rgba(15,23,42,0.06)]">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px] xl:items-center">
+      <div className="max-w-3xl">
         <div className="min-w-0">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-xs font-black text-emerald-700">
             <BookOpen size={14} />
@@ -603,16 +597,6 @@ function TutorialHero({
               </span>
             ))}
           </div>
-        </div>
-
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-950 p-4 text-emerald-50 shadow-inner">
-          <div className="mb-3 flex items-center gap-2 text-xs font-bold text-emerald-200">
-            <Calculator size={15} />
-            公式预览
-          </div>
-          <code className="block overflow-x-auto whitespace-nowrap font-mono text-[15px] leading-7 text-white">
-            {formulaPreview || buildFormulaPreview(article)}
-          </code>
         </div>
       </div>
     </section>
@@ -693,6 +677,18 @@ function FunctionSidebar({
   onSelectCategory: (category: any) => void;
   onSelectArticle: (category: any, article: any) => void;
 }) {
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (category: any) => {
+    if (category.id !== activeCategory?.id) {
+      onSelectCategory(category);
+    }
+    setExpandedCategoryIds((previous) => ({
+      ...previous,
+      [category.id]: !previous[category.id],
+    }));
+  };
+
   return (
     <aside className="hidden lg:sticky lg:top-[88px] lg:block lg:self-start">
       <nav className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
@@ -703,37 +699,44 @@ function FunctionSidebar({
         <div className="max-h-[calc(100vh-112px)] overflow-y-auto p-3">
           {categories.map((category: any) => {
             const isActiveCategory = category.id === activeCategory?.id;
+            const isExpanded = Boolean(expandedCategoryIds[category.id]);
             return (
               <div key={category.id} className="mb-4 last:mb-0">
                 <button
                   type="button"
-                  onClick={() => onSelectCategory(category)}
+                  onClick={() => toggleCategory(category)}
+                  aria-expanded={isExpanded}
                   className={`mb-2 flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs font-black transition ${
                     isActiveCategory ? "text-emerald-800" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                   }`}
                 >
-                  <span>{category.name}</span>
-                  <span className="text-[11px] font-bold text-slate-400">{category.articles?.length || 0}</span>
+                  <span className="min-w-0 flex-1 truncate">{category.name}</span>
+                  <span className="ml-2 inline-flex shrink-0 items-center gap-1 text-[11px] font-bold text-slate-400">
+                    {category.articles?.length || 0}
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </span>
                 </button>
-                <div className="space-y-1">
-                  {(category.articles || []).map((article: any) => {
-                    const isActiveArticle = article.id === activeArticle?.id;
-                    return (
-                      <button
-                        key={article.id}
-                        type="button"
-                        onClick={() => onSelectArticle(category, article)}
-                        className={`block w-full rounded-r-lg px-3 py-2 text-left text-sm transition ${
-                          isActiveArticle
-                            ? "border-l-[3px] border-green-500 bg-green-100 pl-[9px] font-semibold text-green-800"
-                            : "border-l-[3px] border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
-                        }`}
-                      >
-                        <span className="block truncate">{article.title}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {isExpanded ? (
+                  <div className="space-y-1">
+                    {(category.articles || []).map((article: any) => {
+                      const isActiveArticle = article.id === activeArticle?.id;
+                      return (
+                        <button
+                          key={article.id}
+                          type="button"
+                          onClick={() => onSelectArticle(category, article)}
+                          className={`block w-full rounded-r-lg px-3 py-2 text-left text-sm transition ${
+                            isActiveArticle
+                              ? "border-l-[3px] border-green-500 bg-green-100 pl-[9px] font-semibold text-green-800"
+                              : "border-l-[3px] border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                          }`}
+                        >
+                          <span className="block truncate">{article.title}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -1074,10 +1077,6 @@ function removeEmptyTutorialNodes(wrapper: HTMLElement) {
   });
 }
 
-function findFirstFormula(sections: TutorialSection[]) {
-  return sections.find((section) => section.formulas.length)?.formulas[0] || "";
-}
-
 function getTutorialSectionDomId(sectionId: string) {
   return `tutorial-${sectionId}`;
 }
@@ -1126,14 +1125,6 @@ function getArticleFunctionName(article: any) {
 function getFunctionDisplayName(article: any) {
   const title = String(article?.title || "").trim();
   return title.replace(/\s*函数(?:教程|详解|说明)?$/i, "") || title;
-}
-
-function buildFormulaPreview(article: any) {
-  const title = String(article?.title || "");
-  const tags = Array.isArray(article?.functionTags) ? article.functionTags : [];
-  const token = tags.find((item: string) => /^[a-z][a-z0-9_.]*$/i.test(item))
-    || title.match(/[A-Z][A-Z0-9_.]+/)?.[0];
-  return token ? `=${String(token).toUpperCase()}(...)` : "=SUM(A2:A10)";
 }
 
 function looksLikeHtml(value: string) {
