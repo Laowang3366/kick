@@ -1375,7 +1375,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: '下载并安装' })).toBeDisabled();
   });
 
-  it('opens the desktop installer URL when the packaged updater is unavailable', async () => {
+  it('does not open the desktop installer URL when the packaged updater is unavailable', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
     const checkForUpdates = vi.fn().mockResolvedValue({
       status: 'error',
@@ -1412,8 +1412,8 @@ describe('App', () => {
     await waitFor(() => {
       expect(checkForUpdates).toHaveBeenCalledOnce();
     });
-    expect(open).toHaveBeenCalledWith('https://example.com/quick-translate.exe', '_blank', 'noopener,noreferrer');
-    expect(screen.getByRole('status')).toHaveTextContent('应用内更新不可用，已打开安装包下载页');
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent("ENOENT: no such file or directory, open 'app-update.yml'");
   });
 
   it('shows desktop update download progress from the desktop bridge', async () => {

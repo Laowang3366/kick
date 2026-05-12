@@ -190,8 +190,7 @@ export async function installOrOpenUpdate(release: DownloadRelease, onProgress?:
   if ((release.platform === 'windows' || release.platform === 'macos') && checkForUpdates) {
     const result = await checkForUpdates();
     if (result.status === 'error') {
-      window.open(release.url, '_blank', 'noopener,noreferrer');
-      return '应用内更新不可用，已打开安装包下载页';
+      throw new Error(result.message || '应用内更新启动失败');
     }
     return result.message || '已开始检查并下载更新';
   }
