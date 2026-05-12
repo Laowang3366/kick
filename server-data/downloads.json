@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.64",
+  "latestVersion": "0.1.65",
   "releases": [
+    {
+      "version": "0.1.65",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.65.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.65.exe",
+      "size": 106799396,
+      "sha512": "t8qWFp2LaQG2IUr8V6uhjI6VxynYQ5LBnTswzaBLYMnNKPhtR1i/oAUJe6Fg5SLw52JYBdc94aagprzTbjT65A==",
+      "releaseDate": "2026-05-12T00:47:41.149Z",
+      "releaseNotes": "完善桌面端事务式更新：新增本地事务状态、失败恢复、重试安装和打开更新日志入口\n新增独立更新协调器 exe，生产环境优先由协调器清理旧进程并拉起安装器，减少 PowerShell 依赖\n安装器安装完成后回写更新事务状态，并压缩 NSIS 兜底清理等待，降低反复提示无法关闭的概率"
+    },
     {
       "version": "0.1.64",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "ANuv2YGMfU6fZsavNCJw9G4I0S7N0LO4Gw0wVvr2gkbDSfJCktpiXGwlHjnEqFEnbcPq7ojSI455ejY0DZsUoQ==",
       "releaseDate": "2026-05-12T00:21:35.768Z",
       "releaseNotes": "参考事务式更新流程重构桌面端更新交接，新增更新事务状态文件与协调器日志\n修复中文路径下更新协调器脚本可能无法启动的问题\n更新安装前由协调器先清理旧进程并拉起安装器，减少安装器反复提示无法关闭"
-    },
-    {
-      "version": "0.1.63",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.63.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.63.exe",
-      "size": 106024083,
-      "sha512": "BUAyYFciW2e3oKWZaUPTMRt7QVajHQA3iUdfGbHzON1OjeFF/VGgro0UoA1fS1JDiQmLAS9+QB4CmDLixe57fA==",
-      "releaseDate": "2026-05-11T23:07:02.281Z",
-      "releaseNotes": "限制桌面端为单实例运行，避免重复打开产生多组旧进程影响更新安装\n加强快捷键复制辅助进程退出清理，减少 PowerShell helper 残留导致安装目录被占用"
     },
     {
       "version": "0.1.53",

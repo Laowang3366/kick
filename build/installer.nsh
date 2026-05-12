@@ -1,6 +1,4 @@
 Var /GLOBAL QuickTranslateAttemptedInstallCleanupPath
-Var /GLOBAL QuickTranslateExtractCleanupAttempted
-
 !macro quickTranslateTerminateProcesses INSTALL_PATH
   DetailPrint "正在清理旧进程..."
   nsExec::ExecToLog `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -Command "$$target='${INSTALL_PATH}'; $$names=@('${APP_EXECUTABLE_FILENAME}','快捷翻译.exe','quick-translate.exe'); $$processes=Get-CimInstance -ClassName Win32_Process | ? { (($$target -ne '') -and $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith($$target, [System.StringComparison]::CurrentCultureIgnoreCase)) -or ($$names -contains $$_.Name) -or ($$_.CommandLine -like '*quick-translate-*hook.ps1*') -or ($$_.CommandLine -like '*quick-translate-copy-shortcut.ps1*') }; $$ids=@($$processes | % { $$_.ProcessId }); if ($$ids.Count -gt 0) { $$ids | % { Stop-Process -Id $$_ -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 200; $$ids | % { Wait-Process -Id $$_ -Timeout 2 -ErrorAction SilentlyContinue } }; exit 0"`
@@ -55,8 +53,7 @@ Var /GLOBAL QuickTranslateExtractCleanupAttempted
 
 !macro quickTranslateBeforeExtractRetry INSTALL_PATH ATTEMPT
   !define ExtractRetryUniqueID ${__LINE__}
-  StrCmp "$QuickTranslateExtractCleanupAttempted" "1" QuickTranslateBeforeExtractRetryWait_${ExtractRetryUniqueID}
-  StrCpy $QuickTranslateExtractCleanupAttempted "1"
+  StrCmp "${ATTEMPT}" "1" 0 QuickTranslateBeforeExtractRetryWait_${ExtractRetryUniqueID}
   DetailPrint "安装目录被占用，正在执行安装器兜底清理..."
   !insertmacro quickTranslateTerminateProcesses "${INSTALL_PATH}"
   SetOutPath "$TEMP"
@@ -170,7 +167,6 @@ Var /GLOBAL QuickTranslateExtractCleanupAttempted
 
 !macro customInit
   StrCpy $QuickTranslateAttemptedInstallCleanupPath ""
-  StrCpy $QuickTranslateExtractCleanupAttempted "0"
   StrCpy $9 "0"
   !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_CURRENT_USER
   !insertmacro quickTranslateRestoreRegisteredInstallDirectoryAllViews HKEY_LOCAL_MACHINE

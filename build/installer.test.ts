@@ -16,7 +16,6 @@ describe('Windows installer script', () => {
     expect(script).toContain('taskkill /T /F /IM "快捷翻译.exe"');
     expect(script).toContain('Wait-Process -Id $$_ -Timeout 2');
     expect(script).toContain('QuickTranslateAttemptedInstallCleanupPath');
-    expect(script).toContain('QuickTranslateExtractCleanupAttempted');
     expect(script).toContain('正在清理旧进程');
     expect(script).toContain('正在隔离旧版本文件');
     expect(script).toContain('Rename "${INSTALL_PATH}" "$R6"');
@@ -96,7 +95,7 @@ describe('Windows installer script', () => {
     expect(script).toContain('安装目录被占用，正在执行安装器兜底清理');
     expect(script).toContain('安装目录仍被占用，正在短暂等待后重试');
     expect(script).toContain('正在执行自动兜底替换');
-    expect(script).toContain('StrCmp "$QuickTranslateExtractCleanupAttempted" "1"');
+    expect(script).toContain('StrCmp "${ATTEMPT}" "1"');
     expect(packageJson.scripts['dist:win']).toContain('node scripts/patch-nsis-extract.mjs');
   });
 
