@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.67",
+  "latestVersion": "0.1.68",
   "releases": [
+    {
+      "version": "0.1.68",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.68.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.68.exe",
+      "size": 106802367,
+      "sha512": "lyYGjoJzEWwpLMeai4CmOKJBVgJ6KY/mWuFMIZ06PaL3OKcH40BhpbTfGS337Ulev5i7AHQMouySVcAcKdRUPg==",
+      "releaseDate": "2026-05-12T01:30:53.155Z",
+      "releaseNotes": "桌面端应用内更新失败时不再打开浏览器下载安装包；失败原因直接显示在软件内，避免用户被要求保存安装包手动安装"
+    },
     {
       "version": "0.1.67",
       "platform": "windows",
@@ -10,16 +20,6 @@
       "sha512": "+pxpVgP3+qQLj8wkVWDIhTtNDNcJLH6XS8qDaY9vQrQz52CJEeCxo/50y4jGi6CUt5WSCvpduPgBi+FuL0FxQA==",
       "releaseDate": "2026-05-12T01:21:09.397Z",
       "releaseNotes": "修复更新安装时安装目录仍被占用导致无法替换文件的问题\n更新协调器会清理并等待旧进程树、安装目录内进程和快捷翻译脚本完全释放后再启动安装器\n安装器短重试期间每次都会重新清理旧进程和半复制目录，降低文件锁残留导致安装失败的概率"
-    },
-    {
-      "version": "0.1.66",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.66.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.66.exe",
-      "size": 106800877,
-      "sha512": "8XpeEIaPcVybg5dCtzvKhZi2lNcDLgiBtSljh6xWfdXggDdGiuyadkUQ1o4ApJGdidBR2OeWRMoplMm4gxA8sA==",
-      "releaseDate": "2026-05-12T01:13:29.402Z",
-      "releaseNotes": "收敛桌面端更新安装链路：生产环境必须使用独立更新协调器，缺失时明确失败并显示恢复提示\n移除下载后异步复制安装包副本，缩短安装器拉起路径\n安装器仅保留短重试和明确失败提示，移除直接覆盖解压兜底，并按指定事务路径回写安装完成状态"
     },
     {
       "version": "0.1.53",
