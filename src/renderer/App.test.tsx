@@ -1283,18 +1283,18 @@ describe('App', () => {
       shortcutLabel: '',
       hasPendingSharedText: false
     });
-    const configure = vi.fn().mockResolvedValue({
+    const configure = vi.fn().mockImplementation((input: { enabled?: boolean }) => Promise.resolve({
       available: true,
       platform: 'android',
       canDrawOverlays: false,
       canListenKeyEvents: false,
-      enabled: true,
+      enabled: input.enabled ?? false,
       targetLanguage: 'zh-CN',
       translationFormat: 'plain',
       shortcutKeyCode: 0,
       shortcutLabel: '',
       hasPendingSharedText: false
-    });
+    }));
     const requestOverlayPermission = vi.fn().mockResolvedValue({
       available: true,
       platform: 'android',

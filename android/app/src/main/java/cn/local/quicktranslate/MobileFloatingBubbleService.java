@@ -1,5 +1,6 @@
 package cn.local.quicktranslate;
 
+import android.animation.ValueAnimator;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -17,7 +18,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public final class MobileFloatingBubbleService extends Service {
-    private static final int BUBBLE_SIZE_DP = 54;
+    private static final int BUBBLE_WIDTH_DP = 34;
+    private static final int BUBBLE_HEIGHT_DP = 58;
+    private static final String ACTION_MOVE_BUBBLE = "cn.local.quicktranslate.MOVE_FLOATING_BUBBLE";
+    private static final String EXTRA_ON_RIGHT = "onRight";
+    private static final String EXTRA_Y = "y";
 
     private WindowManager windowManager;
     private View bubbleView;
@@ -38,6 +43,18 @@ public final class MobileFloatingBubbleService extends Service {
         MobileFloatingTranslateOverlay.get(appContext).hide();
     }
 
+    static void moveBubbleToEdge(Context context, boolean onRight, int y) {
+        Context appContext = context.getApplicationContext();
+        MobileFloatingTranslateSettings.saveBubblePosition(appContext, onRight, y);
+        Intent intent = new Intent(appContext, MobileFloatingBubbleService.class);
+        intent.setAction(ACTION_MOVE_BUBBLE);
+        intent.putExtra(EXTRA_ON_RIGHT, onRight);
+        intent.putExtra(EXTRA_Y, y);
+        try {
+            appContext.startService(intent);
+        } catch (RuntimeException ignored) {}
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (!MobileFloatingTranslateSettings.isEnabled(this) || !MobileFloatingTranslateSettings.canDrawOverlays(this)) {
@@ -46,6 +63,11 @@ public final class MobileFloatingBubbleService extends Service {
         }
 
         showBubble();
+        if (ACTION_MOVE_BUBBLE.equals(intent == null ? null : intent.getAction())) {
+            boolean onRight = intent.getBooleanExtra(EXTRA_ON_RIGHT, true);
+            int y = intent.getIntExtra(EXTRA_Y, dp(160));
+            moveBubble(onRight, y, true);
+        }
         return START_STICKY;
     }
 
@@ -84,15 +106,20 @@ public final class MobileFloatingBubbleService extends Service {
     private TextView createBubbleView() {
         TextView bubble = new TextView(this);
         bubble.setText("译");
-        bubble.setTextColor(Color.WHITE);
-        bubble.setTextSize(20);
+        bubble.setTextColor(Color.argb(210, 255, 255, 255));
+        bubble.setTextSize(16);
         bubble.setTypeface(Typeface.DEFAULT_BOLD);
         bubble.setGravity(Gravity.CENTER);
-        bubble.setBackground(createCircleBackground());
+        bubble.setBackground(createBubbleBackground());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            bubble.setElevation(dp(10));
+            bubble.setElevation(dp(8));
         }
-        bubble.setOnClickListener((view) -> MobileFloatingTranslateOverlay.get(this).showFromClipboardOrManual("悬浮球"));
+        bubble.setOnClickListener((view) -> {
+            WindowManager.LayoutParams params = bubbleView == null ? null : (WindowManager.LayoutParams) bubbleView.getLayoutParams();
+            int anchorX = params == null ? getDisplayWidth() - dp(BUBBLE_WIDTH_DP) : params.x;
+            int anchorY = params == null ? dp(160) : params.y;
+            MobileFloatingTranslateOverlay.get(this).showFromClipboardOrManual("悬浮球", anchorX, anchorY);
+        });
         attachDragHandler(bubble);
         return bubble;
     }
@@ -101,17 +128,22 @@ public final class MobileFloatingBubbleService extends Service {
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             : WindowManager.LayoutParams.TYPE_PHONE;
-        int size = dp(BUBBLE_SIZE_DP);
+        int width = dp(BUBBLE_WIDTH_DP);
+        int height = dp(BUBBLE_HEIGHT_DP);
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-            size,
-            size,
+            width,
+            height,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         );
+        boolean onRight = MobileFloatingTranslateSettings.isBubbleOnRight(this);
+        int fallbackY = Math.max(dp(160), getDisplayHeight() / 2 - height / 2);
         params.gravity = Gravity.TOP | Gravity.START;
-        params.x = Math.max(dp(12), getResources().getDisplayMetrics().widthPixels - dp(74));
-        params.y = dp(160);
+        params.x = onRight ? getDisplayWidth() - width : 0;
+        params.y = clamp(MobileFloatingTranslateSettings.getBubbleY(this, fallbackY), dp(80), getDisplayHeight() - height - dp(80));
         return params;
     }
 
@@ -145,13 +177,16 @@ public final class MobileFloatingBubbleService extends Service {
                             return true;
                         }
                         dragging = true;
-                        params.x = clamp(initialX + deltaX, 0, getResources().getDisplayMetrics().widthPixels - dp(BUBBLE_SIZE_DP));
-                        params.y = clamp(initialY + deltaY, 0, getResources().getDisplayMetrics().heightPixels - dp(BUBBLE_SIZE_DP));
+                        params.x = clamp(initialX + deltaX, 0, getDisplayWidth() - dp(BUBBLE_WIDTH_DP));
+                        params.y = clamp(initialY + deltaY, dp(56), getDisplayHeight() - dp(BUBBLE_HEIGHT_DP) - dp(56));
                         windowManager.updateViewLayout(bubbleView, params);
                         return true;
                     case MotionEvent.ACTION_UP:
                         if (!dragging) {
                             view.performClick();
+                        } else {
+                            boolean onRight = params.x + dp(BUBBLE_WIDTH_DP) / 2 >= getDisplayWidth() / 2;
+                            moveBubble(onRight, params.y, true);
                         }
                         return true;
                     default:
@@ -159,6 +194,37 @@ public final class MobileFloatingBubbleService extends Service {
                 }
             }
         });
+    }
+
+    private void moveBubble(boolean onRight, int y, boolean animated) {
+        if (bubbleView == null || windowManager == null) {
+            return;
+        }
+
+        WindowManager.LayoutParams params = (WindowManager.LayoutParams) bubbleView.getLayoutParams();
+        int targetX = onRight ? getDisplayWidth() - dp(BUBBLE_WIDTH_DP) : 0;
+        int targetY = clamp(y, dp(56), getDisplayHeight() - dp(BUBBLE_HEIGHT_DP) - dp(56));
+        MobileFloatingTranslateSettings.saveBubblePosition(this, onRight, targetY);
+        if (!animated) {
+            params.x = targetX;
+            params.y = targetY;
+            windowManager.updateViewLayout(bubbleView, params);
+            return;
+        }
+
+        int startX = params.x;
+        int startY = params.y;
+        ValueAnimator animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(160);
+        animator.addUpdateListener((animation) -> {
+            float progress = (float) animation.getAnimatedValue();
+            params.x = Math.round(startX + (targetX - startX) * progress);
+            params.y = Math.round(startY + (targetY - startY) * progress);
+            try {
+                windowManager.updateViewLayout(bubbleView, params);
+            } catch (IllegalArgumentException ignored) {}
+        });
+        animator.start();
     }
 
     private void removeBubble() {
@@ -171,11 +237,20 @@ public final class MobileFloatingBubbleService extends Service {
         windowManager = null;
     }
 
-    private GradientDrawable createCircleBackground() {
+    private GradientDrawable createBubbleBackground() {
         GradientDrawable drawable = new GradientDrawable();
-        drawable.setShape(GradientDrawable.OVAL);
-        drawable.setColor(Color.rgb(13, 102, 216));
+        drawable.setShape(GradientDrawable.RECTANGLE);
+        drawable.setColor(Color.argb(118, 13, 102, 216));
+        drawable.setCornerRadius(dp(18));
         return drawable;
+    }
+
+    private int getDisplayWidth() {
+        return getResources().getDisplayMetrics().widthPixels;
+    }
+
+    private int getDisplayHeight() {
+        return getResources().getDisplayMetrics().heightPixels;
     }
 
     private int clamp(int value, int min, int max) {

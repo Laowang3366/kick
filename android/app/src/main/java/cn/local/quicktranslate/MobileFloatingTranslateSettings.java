@@ -12,9 +12,12 @@ final class MobileFloatingTranslateSettings {
     static final String PREF_ENABLED = "enabled";
     static final String PREF_TARGET_LANGUAGE = "target_language";
     static final String PREF_TRANSLATION_FORMAT = "translation_format";
+    static final String PREF_BUBBLE_ON_RIGHT = "bubble_on_right";
+    static final String PREF_BUBBLE_Y = "bubble_y";
     static final String DEFAULT_TARGET_LANGUAGE = "zh-CN";
     static final String DEFAULT_TRANSLATION_FORMAT = "plain";
     static final String BACKEND_TRANSLATE_URL = "https://sg.lwvpscc.top/quick-translate/backend/api/translate";
+    static final String BACKEND_TRANSLATE_FALLBACK_URL = "http://64.90.12.101/quick-translate/backend/api/translate";
     static final int MAX_TRANSLATION_TEXT_LENGTH = 30000;
 
     private MobileFloatingTranslateSettings() {}
@@ -33,6 +36,26 @@ final class MobileFloatingTranslateSettings {
 
     static String getTranslationFormat(Context context) {
         return getPreferences(context).getString(PREF_TRANSLATION_FORMAT, DEFAULT_TRANSLATION_FORMAT);
+    }
+
+    static void saveTargetLanguage(Context context, String targetLanguage) {
+        getPreferences(context).edit().putString(PREF_TARGET_LANGUAGE, targetLanguage).apply();
+    }
+
+    static boolean isBubbleOnRight(Context context) {
+        return getPreferences(context).getBoolean(PREF_BUBBLE_ON_RIGHT, true);
+    }
+
+    static int getBubbleY(Context context, int fallbackY) {
+        return getPreferences(context).getInt(PREF_BUBBLE_Y, fallbackY);
+    }
+
+    static void saveBubblePosition(Context context, boolean onRight, int y) {
+        getPreferences(context)
+            .edit()
+            .putBoolean(PREF_BUBBLE_ON_RIGHT, onRight)
+            .putInt(PREF_BUBBLE_Y, y)
+            .apply();
     }
 
     static boolean canDrawOverlays(Context context) {
