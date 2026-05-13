@@ -8,7 +8,8 @@
       "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.94.exe",
       "size": 104465389,
       "sha512": "44v8ZDPqO3QsH2SlXbBZyyq77TdYkOY/7S84eIVDVX6qFfDPFcFk0nemEr42ymd+7+XNmidNTNu+g2R09r6W/w==",
-      "releaseDate": "2026-05-13T14:00:54.825Z"
+      "releaseDate": "2026-05-13T14:00:54.825Z",
+      "releaseNotes": "0.1.94：新增客户端通知入口和后台通知管理；请前往官网下载最新版本安装更新。"
     },
     {
       "version": "0.1.94",
@@ -17,7 +18,8 @@
       "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.94.apk",
       "size": 3292511,
       "sha512": "yH3p20u8Jnc9ZBVHjCgrGxJw4UkqCH6IdMl52KMOA/trgX2IQtVhBZHkI3lVgNrdFgIAakW01g6hOSxj23zkng==",
-      "releaseDate": "2026-05-13T14:00:54.825Z"
+      "releaseDate": "2026-05-13T14:00:54.825Z",
+      "releaseNotes": "0.1.94：新增客户端通知入口和后台通知管理；请前往官网下载最新版本安装更新。"
     },
     {
       "version": "0.1.92",
