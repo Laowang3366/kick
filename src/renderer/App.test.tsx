@@ -1337,11 +1337,11 @@ describe('App', () => {
     fireEvent.click(screen.getByLabelText('启用手机悬浮翻译'));
 
     await waitFor(() => {
-      expect(configure).toHaveBeenCalledWith({
+      expect(configure.mock.calls).toContainEqual([{
         enabled: true,
         targetLanguage: 'zh-CN',
         translationFormat: 'plain'
-      });
+      }]);
     });
 
     fireEvent.click(screen.getByRole('button', { name: '打开权限设置' }));
