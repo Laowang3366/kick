@@ -209,7 +209,7 @@ final class MobileFloatingTranslateOverlay {
         listParams.topMargin = dp(8);
         card.addView(targetLanguageList, listParams);
 
-        sourceInput = new EditText(context);
+        sourceInput = new BackAwareEditText(context);
         sourceInput.setText(initialText);
         sourceInput.setHint("输入或粘贴原文");
         sourceInput.setTextColor(Color.rgb(24, 32, 45));
@@ -636,12 +636,20 @@ final class MobileFloatingTranslateOverlay {
     }
 
     private boolean handleBackKey(int keyCode, KeyEvent event) {
-        if (keyCode != KeyEvent.KEYCODE_BACK || event == null || event.getAction() != KeyEvent.ACTION_UP) {
+        if (floatingView == null || keyCode != KeyEvent.KEYCODE_BACK || event == null) {
             return false;
         }
 
-        collapsePanel(lastAnchorOnRight);
-        return true;
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            return true;
+        }
+
+        if (event.getAction() == KeyEvent.ACTION_UP) {
+            collapsePanel(lastAnchorOnRight);
+            return true;
+        }
+
+        return false;
     }
 
     private void removeFloatingView() {
@@ -893,6 +901,17 @@ final class MobileFloatingTranslateOverlay {
                 && rawX <= location[0] + view.getWidth()
                 && rawY >= location[1]
                 && rawY <= location[1] + view.getHeight();
+        }
+    }
+
+    private final class BackAwareEditText extends EditText {
+        BackAwareEditText(Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean onKeyPreIme(int keyCode, KeyEvent event) {
+            return handleBackKey(keyCode, event) || super.onKeyPreIme(keyCode, event);
         }
     }
 
