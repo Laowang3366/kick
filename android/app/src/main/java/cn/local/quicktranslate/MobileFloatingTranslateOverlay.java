@@ -8,12 +8,14 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
-import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -53,6 +55,10 @@ final class MobileFloatingTranslateOverlay {
     }
 
     void showFromClipboard(String triggerSource) {
+        showFromClipboardOrManual(triggerSource);
+    }
+
+    void showFromClipboardOrManual(String triggerSource) {
         if (!MobileFloatingTranslateSettings.canDrawOverlays(context)) {
             Toast.makeText(context, "请先开启快捷翻译悬浮窗权限", Toast.LENGTH_SHORT).show();
             return;
@@ -61,38 +67,10 @@ final class MobileFloatingTranslateOverlay {
         showFromClipboardOrEmpty(triggerSource, "剪切板没有可翻译内容");
     }
 
-    void showFromSelectionOrClipboard(String triggerSource, AccessibilityNodeInfo root) {
-        if (!MobileFloatingTranslateSettings.canDrawOverlays(context)) {
-            Toast.makeText(context, "请先开启快捷翻译悬浮窗权限", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String selectedText = MobileFloatingTranslateSettings.readSelectedText(root);
-        if (!selectedText.trim().isEmpty()) {
-            showFloatingTranslate(
-                selectedText,
-                MobileFloatingTranslateSettings.getTargetLanguage(context),
-                MobileFloatingTranslateSettings.getTranslationFormat(context),
-                triggerSource
-            );
-            return;
-        }
-
-        if (MobileFloatingTranslateSettings.requestCopySelection(root)) {
-            mainHandler.postDelayed(
-                () -> showFromClipboardOrEmpty(triggerSource, "没有检测到选中文本或剪切板内容"),
-                220
-            );
-            return;
-        }
-
-        showFromClipboardOrEmpty(triggerSource, "没有检测到选中文本或剪切板内容");
-    }
-
     private void showFromClipboardOrEmpty(String triggerSource, String emptyMessage) {
         String text = MobileFloatingTranslateSettings.readClipboardText(context);
         if (text.trim().isEmpty()) {
-            showEmptyState(emptyMessage, triggerSource);
+            showManualInputState(emptyMessage, triggerSource);
             return;
         }
 
@@ -104,7 +82,7 @@ final class MobileFloatingTranslateOverlay {
         );
     }
 
-    private void showEmptyState(String message, String triggerSource) {
+    private void showManualInputState(String message, String triggerSource) {
         mainHandler.post(() -> {
             removeFloatingView();
             latestTranslatedText = "";
@@ -114,9 +92,9 @@ final class MobileFloatingTranslateOverlay {
                 return;
             }
 
-            floatingView = createEmptyStateView(message, triggerSource);
+            floatingView = createManualInputView(message, triggerSource);
             try {
-                windowManager.addView(floatingView, createLayoutParams());
+                windowManager.addView(floatingView, createLayoutParams(true));
             } catch (RuntimeException error) {
                 floatingView = null;
                 Toast.makeText(context, "悬浮窗打开失败：" + error.getMessage(), Toast.LENGTH_SHORT).show();
@@ -135,7 +113,7 @@ final class MobileFloatingTranslateOverlay {
             }
 
             floatingView = createFloatingView(text, targetLanguage, translationFormat, triggerSource);
-            WindowManager.LayoutParams params = createLayoutParams();
+            WindowManager.LayoutParams params = createLayoutParams(false);
             try {
                 windowManager.addView(floatingView, params);
                 runTranslation(text, targetLanguage, translationFormat);
@@ -211,7 +189,7 @@ final class MobileFloatingTranslateOverlay {
         return card;
     }
 
-    private View createEmptyStateView(String message, String triggerSource) {
+    private View createManualInputView(String message, String triggerSource) {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(12), dp(14), dp(12));
@@ -239,8 +217,63 @@ final class MobileFloatingTranslateOverlay {
         body.setTextSize(14);
         card.addView(body);
 
+        EditText input = new EditText(context);
+        input.setHint("输入要翻译的内容");
+        input.setTextColor(Color.rgb(22, 27, 36));
+        input.setHintTextColor(Color.rgb(156, 163, 175));
+        input.setTextSize(15);
+        input.setMinLines(3);
+        input.setGravity(Gravity.TOP | Gravity.START);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        input.setBackground(createRoundedBackground(Color.rgb(245, 247, 250), dp(14)));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        LinearLayout.LayoutParams inputParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        inputParams.topMargin = dp(10);
+        card.addView(input, inputParams);
+        input.post(() -> {
+            input.requestFocus();
+            InputMethodManager inputMethodManager = (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (inputMethodManager != null) {
+                inputMethodManager.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+
+        LinearLayout actionRow = new LinearLayout(context);
+        actionRow.setOrientation(LinearLayout.HORIZONTAL);
+        actionRow.setGravity(Gravity.END);
+        actionRow.setPadding(0, dp(10), 0, 0);
+
+        Button translateButton = createHeaderButton("翻译");
+        translateButton.setOnClickListener((view) -> {
+            String inputText = MobileFloatingTranslateSettings.limitText(input.getText() == null ? "" : input.getText().toString());
+            if (inputText.trim().isEmpty()) {
+                Toast.makeText(context, "请输入要翻译的内容", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            showFloatingTranslate(
+                inputText,
+                MobileFloatingTranslateSettings.getTargetLanguage(context),
+                MobileFloatingTranslateSettings.getTranslationFormat(context),
+                triggerSource
+            );
+        });
+        actionRow.addView(translateButton);
+
+        Button closeInputButton = createHeaderButton("关闭");
+        closeInputButton.setOnClickListener((view) -> removeFloatingView());
+        LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        closeParams.leftMargin = dp(8);
+        actionRow.addView(closeInputButton, closeParams);
+        card.addView(actionRow);
+
         TextView hint = new TextView(context);
-        hint.setText("请先选中文字或复制文本，再按自定义快捷键。");
+        hint.setText("悬浮球会优先读取剪切板，剪切板为空时可直接输入。");
         hint.setTextColor(Color.rgb(105, 115, 134));
         hint.setTextSize(13);
         hint.setPadding(0, dp(6), 0, dp(2));
@@ -256,7 +289,7 @@ final class MobileFloatingTranslateOverlay {
         return card;
     }
 
-    private WindowManager.LayoutParams createLayoutParams() {
+    private WindowManager.LayoutParams createLayoutParams(boolean focusable) {
         int type = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
             ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             : WindowManager.LayoutParams.TYPE_PHONE;
@@ -265,11 +298,15 @@ final class MobileFloatingTranslateOverlay {
             Math.max(width, dp(300)),
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            (focusable ? 0 : WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                 | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         );
+        if (focusable) {
+            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                | WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE;
+        }
         params.gravity = Gravity.TOP | Gravity.START;
         params.x = dp(14);
         params.y = dp(88);

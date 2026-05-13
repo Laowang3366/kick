@@ -1270,7 +1270,7 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '粘贴剪切板内容' })).not.toBeInTheDocument();
   });
 
-  it('renders Android floating translation controls and records a trigger key', async () => {
+  it('renders Android floating ball controls and opens the clipboard panel', async () => {
     const getState = vi.fn().mockResolvedValue({
       available: true,
       platform: 'android',
@@ -1307,7 +1307,7 @@ describe('App', () => {
       shortcutLabel: '',
       hasPendingSharedText: false
     });
-    const requestAccessibilityPermission = vi.fn().mockResolvedValue({
+    const showFloatingTranslateFromClipboard = vi.fn().mockResolvedValue({
       available: true,
       platform: 'android',
       canDrawOverlays: true,
@@ -1319,18 +1319,6 @@ describe('App', () => {
       shortcutLabel: '',
       hasPendingSharedText: false
     });
-    const startShortcutCapture = vi.fn().mockResolvedValue({
-      available: true,
-      platform: 'android',
-      canDrawOverlays: true,
-      canListenKeyEvents: true,
-      enabled: true,
-      targetLanguage: 'zh-CN',
-      translationFormat: 'plain',
-      shortcutKeyCode: 25,
-      shortcutLabel: '音量下键',
-      hasPendingSharedText: false
-    });
     (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
       getPlatform: () => 'android',
       Plugins: {
@@ -1339,10 +1327,9 @@ describe('App', () => {
           configure,
           consumePendingSharedText: vi.fn().mockResolvedValue({ text: '' }),
           getState,
-          requestAccessibilityPermission,
           requestOverlayPermission,
           showFloatingTranslate: vi.fn(),
-          startShortcutCapture
+          showFloatingTranslateFromClipboard
         }
       }
     };
@@ -1366,16 +1353,13 @@ describe('App', () => {
       expect(requestOverlayPermission).toHaveBeenCalledOnce();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '打开无障碍设置' }));
+    expect(screen.queryByText('按键监听服务')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '录入按键' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '模拟悬浮球点击' }));
     await waitFor(() => {
-      expect(requestAccessibilityPermission).toHaveBeenCalledOnce();
+      expect(showFloatingTranslateFromClipboard).toHaveBeenCalledOnce();
     });
-
-    fireEvent.click(screen.getByRole('button', { name: '录入按键' }));
-    await waitFor(() => {
-      expect(startShortcutCapture).toHaveBeenCalledOnce();
-    });
-    expect(await screen.findByText('已录入：音量下键')).toBeInTheDocument();
+    expect(await screen.findByText('已打开悬浮翻译窗，剪切板为空时可手动输入')).toBeInTheDocument();
   });
 
   it('opens the Android floating window for shared text when enabled', async () => {
@@ -1404,10 +1388,8 @@ describe('App', () => {
           configure: vi.fn().mockResolvedValue(state),
           consumePendingSharedText: vi.fn().mockResolvedValue({ text: '' }),
           getState: vi.fn().mockResolvedValue(state),
-          requestAccessibilityPermission: vi.fn(),
           requestOverlayPermission: vi.fn(),
-          showFloatingTranslate,
-          startShortcutCapture: vi.fn()
+          showFloatingTranslate
         }
       }
     };

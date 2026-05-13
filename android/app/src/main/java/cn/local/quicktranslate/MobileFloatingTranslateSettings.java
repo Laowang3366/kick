@@ -2,27 +2,20 @@ package cn.local.quicktranslate;
 
 import android.content.ClipData;
 import android.content.ClipboardManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.provider.Settings;
-import android.text.TextUtils;
-import android.view.KeyEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 
 final class MobileFloatingTranslateSettings {
     static final String PREFS_NAME = "mobile_floating_translate";
     static final String PREF_ENABLED = "enabled";
     static final String PREF_TARGET_LANGUAGE = "target_language";
     static final String PREF_TRANSLATION_FORMAT = "translation_format";
-    static final String PREF_SHORTCUT_KEY_CODE = "shortcut_key_code";
-    static final String PREF_SHORTCUT_LABEL = "shortcut_label";
     static final String DEFAULT_TARGET_LANGUAGE = "zh-CN";
     static final String DEFAULT_TRANSLATION_FORMAT = "plain";
     static final String BACKEND_TRANSLATE_URL = "https://sg.lwvpscc.top/quick-translate/backend/api/translate";
     static final int MAX_TRANSLATION_TEXT_LENGTH = 30000;
-    private static final int MAX_SELECTION_NODE_VISITS = 180;
 
     private MobileFloatingTranslateSettings() {}
 
@@ -42,41 +35,8 @@ final class MobileFloatingTranslateSettings {
         return getPreferences(context).getString(PREF_TRANSLATION_FORMAT, DEFAULT_TRANSLATION_FORMAT);
     }
 
-    static int getShortcutKeyCode(Context context) {
-        return getPreferences(context).getInt(PREF_SHORTCUT_KEY_CODE, 0);
-    }
-
-    static void saveShortcutKey(Context context, int keyCode) {
-        getPreferences(context)
-            .edit()
-            .putInt(PREF_SHORTCUT_KEY_CODE, keyCode)
-            .putString(PREF_SHORTCUT_LABEL, keyCodeToLabel(keyCode))
-            .apply();
-    }
-
     static boolean canDrawOverlays(Context context) {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context.getApplicationContext());
-    }
-
-    static boolean isAccessibilityServiceEnabled(Context context) {
-        String enabledServices = Settings.Secure.getString(
-            context.getContentResolver(),
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        );
-        if (enabledServices == null || enabledServices.trim().isEmpty()) {
-            return false;
-        }
-
-        ComponentName expected = new ComponentName(context, MobileFloatingTranslateAccessibilityService.class);
-        TextUtils.SimpleStringSplitter splitter = new TextUtils.SimpleStringSplitter(':');
-        splitter.setString(enabledServices);
-        while (splitter.hasNext()) {
-            ComponentName enabled = ComponentName.unflattenFromString(splitter.next());
-            if (expected.equals(enabled)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     static String readClipboardText(Context context) {
@@ -94,19 +54,6 @@ final class MobileFloatingTranslateSettings {
         return limitText(text == null ? "" : text.toString());
     }
 
-    static String readSelectedText(AccessibilityNodeInfo root) {
-        if (root == null) {
-            return "";
-        }
-
-        return limitText(findSelectedText(root, new int[] { 0 }));
-    }
-
-    static boolean requestCopySelection(AccessibilityNodeInfo root) {
-        AccessibilityNodeInfo node = findCopyableNode(root, new int[] { 0 });
-        return node != null && node.performAction(AccessibilityNodeInfo.ACTION_COPY);
-    }
-
     static void copyToClipboard(Context context, String label, String text) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard != null) {
@@ -120,87 +67,5 @@ final class MobileFloatingTranslateSettings {
         }
         String trimmed = text.trim();
         return trimmed.length() > MAX_TRANSLATION_TEXT_LENGTH ? trimmed.substring(0, MAX_TRANSLATION_TEXT_LENGTH) : trimmed;
-    }
-
-    static String keyCodeToLabel(int keyCode) {
-        switch (keyCode) {
-            case KeyEvent.KEYCODE_VOLUME_DOWN:
-                return "音量下键";
-            case KeyEvent.KEYCODE_VOLUME_UP:
-                return "音量上键";
-            case KeyEvent.KEYCODE_HEADSETHOOK:
-                return "耳机按键";
-            case KeyEvent.KEYCODE_CAMERA:
-                return "相机键";
-            case KeyEvent.KEYCODE_BACK:
-                return "返回键";
-            default:
-                return KeyEvent.keyCodeToString(keyCode).replace("KEYCODE_", "").replace("_", " ");
-        }
-    }
-
-    private static String findSelectedText(AccessibilityNodeInfo node, int[] visits) {
-        if (node == null || visits[0]++ > MAX_SELECTION_NODE_VISITS) {
-            return "";
-        }
-
-        CharSequence text = node.getText();
-        if (text != null) {
-            int start = node.getTextSelectionStart();
-            int end = node.getTextSelectionEnd();
-            if (start >= 0 && end > start && end <= text.length()) {
-                return text.subSequence(start, end).toString();
-            }
-            if (node.isFocused() && node.isTextSelectable() && node.isSelected() && text.length() > 0) {
-                return text.toString();
-            }
-        }
-
-        int childCount = node.getChildCount();
-        for (int index = 0; index < childCount; index += 1) {
-            AccessibilityNodeInfo child = node.getChild(index);
-            try {
-                String selectedText = findSelectedText(child, visits);
-                if (!selectedText.trim().isEmpty()) {
-                    return selectedText;
-                }
-            } finally {
-                if (child != null) {
-                    child.recycle();
-                }
-            }
-        }
-        return "";
-    }
-
-    private static AccessibilityNodeInfo findCopyableNode(AccessibilityNodeInfo node, int[] visits) {
-        if (node == null || visits[0]++ > MAX_SELECTION_NODE_VISITS) {
-            return null;
-        }
-
-        if ((node.isFocused() || node.isAccessibilityFocused()) && supportsCopy(node)) {
-            return node;
-        }
-
-        AccessibilityNodeInfo firstCopyable = supportsCopy(node) ? node : null;
-        int childCount = node.getChildCount();
-        for (int index = 0; index < childCount; index += 1) {
-            AccessibilityNodeInfo child = node.getChild(index);
-            AccessibilityNodeInfo copyable = findCopyableNode(child, visits);
-            if (copyable != null) {
-                if (copyable != child && child != null) {
-                    child.recycle();
-                }
-                return copyable;
-            }
-            if (child != null) {
-                child.recycle();
-            }
-        }
-        return firstCopyable;
-    }
-
-    private static boolean supportsCopy(AccessibilityNodeInfo node) {
-        return (node.getActions() & AccessibilityNodeInfo.ACTION_COPY) != 0;
     }
 }

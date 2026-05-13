@@ -63,10 +63,9 @@ import {
   consumePendingMobileSharedText,
   getMobileFloatingTranslateState,
   onMobileSharedText,
-  requestMobileFloatingAccessibilityPermission,
   requestMobileFloatingPermission,
   showMobileFloatingTranslate,
-  startMobileFloatingShortcutCapture,
+  showMobileFloatingTranslateFromClipboard,
   type MobileFloatingTranslateState
 } from './mobileFloatingTranslate';
 import { createProviderFromSettings } from './providerConfig';
@@ -509,7 +508,6 @@ export function App() {
   const [floatingShortcutError, setFloatingShortcutError] = useState('');
   const [mobileFloatingState, setMobileFloatingState] = useState<MobileFloatingTranslateState | null>(null);
   const [mobileFloatingMessage, setMobileFloatingMessage] = useState('');
-  const [isCapturingMobileFloatingShortcut, setIsCapturingMobileFloatingShortcut] = useState(false);
   const [updatePackageDirectoryDraft, setUpdatePackageDirectoryDraft] = useState('');
   const [updatePackageMessage, setUpdatePackageMessage] = useState('');
   const cloudClient = useMemo(() => createCloudClient(), []);
@@ -979,11 +977,9 @@ export function App() {
         setMobileFloatingState(state);
         setMobileFloatingMessage(
           enabled
-            ? state.canDrawOverlays && state.canListenKeyEvents
-              ? '手机悬浮翻译已启用'
-              : state.canDrawOverlays
-                ? '已启用，需开启按键监听服务后可跨应用触发'
-                : '已启用，需授权悬浮窗权限后生效'
+            ? state.canDrawOverlays
+              ? '手机悬浮翻译已启用，悬浮球将在全局显示'
+              : '已启用，需授权悬浮窗权限后显示悬浮球'
             : '手机悬浮翻译已关闭'
         );
       }
@@ -1004,52 +1000,13 @@ export function App() {
     }
   }
 
-  async function openMobileFloatingAccessibilityPermission() {
-    try {
-      const state = await requestMobileFloatingAccessibilityPermission();
-      if (state) {
-        setMobileFloatingState(state);
-      }
-      setMobileFloatingMessage('请在无障碍设置中开启“快捷翻译”按键监听服务');
-    } catch (error) {
-      setMobileFloatingMessage(error instanceof Error ? error.message : '无法打开无障碍设置');
-    }
-  }
-
-  async function captureMobileFloatingShortcut() {
-    setIsCapturingMobileFloatingShortcut(true);
-    setMobileFloatingMessage('请按下要用于触发悬浮翻译的实体键或外接键盘按键');
-
-    try {
-      const state = await startMobileFloatingShortcutCapture();
-      if (state) {
-        setMobileFloatingState(state);
-        setMobileFloatingMessage(state.shortcutLabel ? `已录入：${state.shortcutLabel}` : '按键已录入');
-      }
-    } catch (error) {
-      setMobileFloatingMessage(error instanceof Error ? error.message : '快捷键录入失败');
-    } finally {
-      setIsCapturingMobileFloatingShortcut(false);
-    }
-  }
-
   async function showClipboardMobileFloatingTranslate() {
-    const clipboardText = await readMobileClipboardText();
-    if (!clipboardText.trim()) {
-      setMobileFloatingMessage('剪切板没有可翻译内容');
-      return;
-    }
-
     try {
-      const state = await showMobileFloatingTranslate({
-        text: clipboardText,
-        targetLanguage,
-        translationFormat: resolveTranslationFormat(targetLanguage, translationFormat)
-      });
+      const state = await showMobileFloatingTranslateFromClipboard();
       if (state) {
         setMobileFloatingState(state);
       }
-      setMobileFloatingMessage('已打开悬浮翻译窗');
+      setMobileFloatingMessage(state ? '已打开悬浮翻译窗，剪切板为空时可手动输入' : '当前环境不支持手机悬浮翻译');
     } catch (error) {
       setMobileFloatingMessage(error instanceof Error ? error.message : '悬浮翻译窗打开失败');
     }
@@ -2203,7 +2160,7 @@ export function App() {
                         />
                         <span>
                           <strong>启用手机悬浮翻译</strong>
-                          <small>支持系统分享、选中文本菜单、剪切板测试和已录入按键触发</small>
+                          <small>启用后在全局显示悬浮球，点击后优先读取剪切板；剪切板为空可手动输入。</small>
                         </span>
                       </label>
 
@@ -2217,49 +2174,18 @@ export function App() {
                             <Smartphone size={18} />
                             <span>打开权限设置</span>
                           </button>
-                          <small>授权后可在其他应用上方显示翻译卡片。</small>
+                          <small>授权后可在其他应用上方显示悬浮球和翻译卡片。</small>
                         </div>
                       </div>
 
                       <div className="settings-field mobile-floating-field">
-                        <span>按键监听服务</span>
-                        <div className="mobile-floating-control">
-                          <strong className={mobileFloatingState.canListenKeyEvents ? 'mobile-floating-ok' : 'mobile-floating-warn'}>
-                            {mobileFloatingState.canListenKeyEvents ? '已开启' : '未开启'}
-                          </strong>
-                          <button className="settings-action" type="button" onClick={openMobileFloatingAccessibilityPermission}>
-                            <KeyRound size={18} />
-                            <span>打开无障碍设置</span>
-                          </button>
-                          <small>开启后，已录入的实体键可在其他应用中优先读取选中文本，读不到时再读取剪切板。</small>
-                        </div>
-                      </div>
-
-                      <div className="settings-field mobile-floating-field">
-                        <span>自定义触发按键</span>
-                        <div className="mobile-floating-control">
-                          <strong>{mobileFloatingState.shortcutLabel || '未录入'}</strong>
-                          <button
-                            className={`settings-action${isCapturingMobileFloatingShortcut ? ' primary-account-action' : ''}`}
-                            type="button"
-                            onClick={captureMobileFloatingShortcut}
-                            disabled={isCapturingMobileFloatingShortcut}
-                          >
-                            <KeyRound size={18} />
-                            <span>{isCapturingMobileFloatingShortcut ? '等待按键' : '录入按键'}</span>
-                          </button>
-                          <small>按键录入后需开启按键监听服务，跨应用触发时会优先翻译当前选中文本。</small>
-                        </div>
-                      </div>
-
-                      <div className="settings-field mobile-floating-field">
-                        <span>剪切板测试</span>
+                        <span>悬浮球测试</span>
                         <div className="mobile-floating-control">
                           <button className="settings-action" type="button" onClick={showClipboardMobileFloatingTranslate}>
                             <ClipboardPaste size={18} />
-                            <span>用剪切板弹出悬浮窗</span>
+                            <span>模拟悬浮球点击</span>
                           </button>
-                          <small>{mobileFloatingMessage || '目标语言和翻译格式会读取当前界面偏好。'}</small>
+                          <small>{mobileFloatingMessage || '目标语言和翻译格式会读取当前手机悬浮翻译设置。'}</small>
                         </div>
                       </div>
                     </div>

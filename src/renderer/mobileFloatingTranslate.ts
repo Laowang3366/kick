@@ -27,7 +27,6 @@ type MobileFloatingTranslatePlugin = {
     eventName: 'sharedText',
     callback: (payload: { text?: string }) => void
   ) => MobileFloatingTranslateListenerHandle | Promise<MobileFloatingTranslateListenerHandle>;
-  cancelShortcutCapture?(): Promise<MobileFloatingTranslatePluginState>;
   configure(input: {
     enabled?: boolean;
     targetLanguage?: string;
@@ -36,14 +35,13 @@ type MobileFloatingTranslatePlugin = {
   consumePendingSharedText(): Promise<{ text?: string }>;
   getState(): Promise<MobileFloatingTranslatePluginState>;
   hideFloatingTranslate?(): Promise<MobileFloatingTranslatePluginState>;
-  requestAccessibilityPermission(): Promise<MobileFloatingTranslatePluginState>;
   requestOverlayPermission(): Promise<MobileFloatingTranslatePluginState>;
   showFloatingTranslate(input: {
     text: string;
     targetLanguage: string;
     translationFormat?: TranslationFormat;
   }): Promise<MobileFloatingTranslatePluginState>;
-  startShortcutCapture(): Promise<MobileFloatingTranslatePluginState & { captured?: boolean }>;
+  showFloatingTranslateFromClipboard?(): Promise<MobileFloatingTranslatePluginState>;
 };
 
 type CapacitorGlobal = {
@@ -99,24 +97,6 @@ export async function requestMobileFloatingPermission() {
   return normalizeMobileFloatingState(await plugin.requestOverlayPermission());
 }
 
-export async function requestMobileFloatingAccessibilityPermission() {
-  const plugin = getMobileFloatingTranslatePlugin();
-  if (!plugin) {
-    return null;
-  }
-
-  return normalizeMobileFloatingState(await plugin.requestAccessibilityPermission());
-}
-
-export async function startMobileFloatingShortcutCapture() {
-  const plugin = getMobileFloatingTranslatePlugin();
-  if (!plugin) {
-    return null;
-  }
-
-  return normalizeMobileFloatingState(await plugin.startShortcutCapture());
-}
-
 export async function showMobileFloatingTranslate(input: {
   text: string;
   targetLanguage: string;
@@ -134,6 +114,15 @@ export async function showMobileFloatingTranslate(input: {
       translationFormat: normalizeTranslationFormat(input.translationFormat ?? defaultTranslationFormat)
     })
   );
+}
+
+export async function showMobileFloatingTranslateFromClipboard() {
+  const plugin = getMobileFloatingTranslatePlugin();
+  if (!plugin?.showFloatingTranslateFromClipboard) {
+    return null;
+  }
+
+  return normalizeMobileFloatingState(await plugin.showFloatingTranslateFromClipboard());
 }
 
 export async function consumePendingMobileSharedText() {
