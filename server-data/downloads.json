@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.83",
+  "latestVersion": "0.1.84",
   "releases": [
+    {
+      "version": "0.1.84",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.84.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.84.apk",
+      "size": 3278111,
+      "sha512": "3i/AGf7LuVkXxD2ne74cAMAdQji6JZumnOiLOTCEzI2d9WzlqqJtmfc1aCiUshxa139yO7Dsb4wcQ5j8XX79Lw==",
+      "releaseDate": "2026-05-13T09:08:57.925Z",
+      "releaseNotes": "0.1.84：修复 Android 启动失败 i.then is not a function；手机悬浮翻译事件监听兼容同步和异步监听句柄，避免启动阶段白屏。"
+    },
     {
       "version": "0.1.83",
       "platform": "windows",
@@ -30,16 +40,6 @@
       "sha512": "kyC6LAOGWyPTb4wXNC01AFwkGKSkBzCobXxbkT9pQ27wwGh7jdAv7wiEI1cA+H4ngWwY2ESM2CeRvyj75PrSWw==",
       "releaseDate": "2026-05-13T07:51:23.178Z",
       "releaseNotes": "0.1.81：修复桌面悬浮窗目标语言被主窗口/默认语言覆盖的问题；悬浮窗语言与翻译格式改为独立会话偏好，首次打开读取本地默认目标语言，之后按悬浮窗自己的选择翻译。"
-    },
-    {
-      "version": "0.1.80",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.80.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.80.apk",
-      "size": 3277583,
-      "sha512": "wTkkb/4fSeRKPHGqpGglOo+1OePW6bxo+k5HA8dA0Bfdcu3oMCtRae1SbWq8Bwn6Fl2ZiY1EVLP7RnR4kU/CcA==",
-      "releaseDate": "2026-05-13T07:29:15.527Z",
-      "releaseNotes": "0.1.80：修复 Android 打开空白页问题；启动前清理旧 WebView Service Worker 与静态缓存，移除旧缓存脚本和主入口的顶层 await，并增加启动失败提示。"
     }
   ]
 }

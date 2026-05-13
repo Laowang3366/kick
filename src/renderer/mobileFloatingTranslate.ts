@@ -17,11 +17,15 @@ type MobileFloatingTranslatePluginState = Omit<MobileFloatingTranslateState, 'tr
   translationFormat: string;
 };
 
+type MobileFloatingTranslateListenerHandle = {
+  remove: () => Promise<void> | void;
+};
+
 type MobileFloatingTranslatePlugin = {
   addListener?: (
     eventName: 'sharedText',
     callback: (payload: { text?: string }) => void
-  ) => Promise<{ remove: () => Promise<void> | void }>;
+  ) => MobileFloatingTranslateListenerHandle | Promise<MobileFloatingTranslateListenerHandle>;
   cancelShortcutCapture?(): Promise<MobileFloatingTranslatePluginState>;
   configure(input: {
     enabled?: boolean;
@@ -138,22 +142,46 @@ export function onMobileSharedText(callback: (text: string) => void) {
   }
 
   let active = true;
-  const listenerPromise = plugin.addListener('sharedText', (payload) => {
-    if (active && typeof payload.text === 'string' && payload.text.trim()) {
-      void plugin.consumePendingSharedText().catch(() => undefined);
-      callback(payload.text);
-    }
-  });
-  void listenerPromise.then((listener) => {
-    if (!active) {
-      void listener.remove();
-    }
-  });
+  let listenerHandle: MobileFloatingTranslateListenerHandle | null = null;
+  let listenerPromise: Promise<void>;
+
+  try {
+    listenerPromise = Promise.resolve(
+      plugin.addListener('sharedText', (payload) => {
+        if (active && typeof payload.text === 'string' && payload.text.trim()) {
+          void plugin.consumePendingSharedText().catch(() => undefined);
+          callback(payload.text);
+        }
+      })
+    )
+      .then((listener) => {
+        listenerHandle = listener;
+        if (!active) {
+          void removeMobileFloatingListener(listener);
+        }
+      })
+      .catch(() => undefined);
+  } catch {
+    return undefined;
+  }
 
   return () => {
     active = false;
-    void listenerPromise.then((listener) => listener.remove());
+    if (listenerHandle) {
+      void removeMobileFloatingListener(listenerHandle);
+      return;
+    }
+
+    void listenerPromise;
   };
+}
+
+function removeMobileFloatingListener(listener: MobileFloatingTranslateListenerHandle) {
+  try {
+    return Promise.resolve(listener.remove()).catch(() => undefined);
+  } catch {
+    return Promise.resolve(undefined);
+  }
 }
 
 function normalizeMobileFloatingState(state: MobileFloatingTranslatePluginState): MobileFloatingTranslateState {
