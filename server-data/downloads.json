@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.82",
+  "latestVersion": "0.1.83",
   "releases": [
+    {
+      "version": "0.1.83",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.83.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.83.exe",
+      "size": 106800817,
+      "sha512": "xK+aA9POTyekNEe/gAziHTXH4Ui4hnK4Q8NBCDGwnmFK1QLcNQHf/DiwJkTLIEJS9qQJGjwCG0n3gNqy/xCO/Q==",
+      "releaseDate": "2026-05-13T08:49:30.850Z",
+      "releaseNotes": "0.1.83：修复 Windows 应用内更新启动协调器被系统拒绝执行时弹出主进程错误的问题；协调器启动失败会写入更新事务并自动兜底拉起安装器。"
+    },
     {
       "version": "0.1.82",
       "platform": "android",
@@ -30,16 +40,6 @@
       "sha512": "wTkkb/4fSeRKPHGqpGglOo+1OePW6bxo+k5HA8dA0Bfdcu3oMCtRae1SbWq8Bwn6Fl2ZiY1EVLP7RnR4kU/CcA==",
       "releaseDate": "2026-05-13T07:29:15.527Z",
       "releaseNotes": "0.1.80：修复 Android 打开空白页问题；启动前清理旧 WebView Service Worker 与静态缓存，移除旧缓存脚本和主入口的顶层 await，并增加启动失败提示。"
-    },
-    {
-      "version": "0.1.77",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.77.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.77.exe",
-      "size": 106798219,
-      "sha512": "kaheTDw18R+2q6Oe5s6HGshbUcfdZUnS/ZdymgYRUrTFjCz1pQ+z5AI3u+uGszWbR4PAvygCzl+cLuMyqcVezw==",
-      "releaseDate": "2026-05-12T07:46:40.887Z",
-      "releaseNotes": "0.1.77：空包更新安装测试版本，仅用于验证应用内更新下载、UAC 拉起安装器和安装替换流程，无功能变更。"
     }
   ]
 }

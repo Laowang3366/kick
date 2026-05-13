@@ -133,17 +133,18 @@ async function createWindow() {
           const readText = () => document.body.textContent || '';
           const check = () => {
             const text = readText();
-            if (text.includes('快捷翻译') || Date.now() - startedAt > 10000) {
+            const pinButton = document.querySelector('[aria-label="置顶窗口"]');
+            if (pinButton || Date.now() - startedAt > 10000) {
               resolve({
                 bodyText: text,
                 hasQuickTranslate: Boolean(window.quickTranslate),
                 hasTranslateText: typeof window.quickTranslate?.translateText === 'function',
                 hasGetDesktopSettings: typeof window.quickTranslate?.getDesktopSettings === 'function',
                 hasCheckForUpdates: typeof window.quickTranslate?.checkForUpdates === 'function',
-              hasWindowControl: typeof window.quickTranslate?.windowControl === 'function',
-              hasFloatingSessionPreferences: typeof window.quickTranslate?.setFloatingSessionPreferences === 'function',
-                hasPinButton: Boolean(document.querySelector('[aria-label="置顶窗口"]')),
-                pinPressed: document.querySelector('[aria-label="置顶窗口"]')?.getAttribute('aria-pressed')
+                hasWindowControl: typeof window.quickTranslate?.windowControl === 'function',
+                hasFloatingSessionPreferences: typeof window.quickTranslate?.setFloatingSessionPreferences === 'function',
+                hasPinButton: Boolean(pinButton),
+                pinPressed: pinButton?.getAttribute('aria-pressed')
               });
               return;
             }

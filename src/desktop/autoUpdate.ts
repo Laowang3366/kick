@@ -70,6 +70,8 @@ type InstallerLaunchOptions = {
 
 type InstallerLauncherProcess = {
   unref(): void;
+  once?(eventName: 'error' | 'spawn', listener: ((error: unknown) => void) | (() => void)): void;
+  removeListener?(eventName: 'error' | 'spawn', listener: ((error: unknown) => void) | (() => void)): void;
 };
 type InstallerLauncher = (command: string, args: string[], options: InstallerLaunchOptions) => InstallerLauncherProcess;
 
@@ -426,12 +428,39 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
       installDirectory: options.installDirectory,
       installerArgs
     });
-    const child = (options.launcher ?? spawn)(coordinatorPath, coordinatorArgs, {
-      cwd: tempDirectory,
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true
-    });
+    let child: InstallerLauncherProcess;
+    try {
+      child = (options.launcher ?? spawn)(coordinatorPath, coordinatorArgs, {
+        cwd: tempDirectory,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      });
+    } catch (error) {
+      await handleUpdateCoordinatorStartFailure(error, {
+        filePath,
+        options,
+        currentProcessId,
+        tempDirectory,
+        transactionPath,
+        coordinatorPath,
+        installerArgs
+      });
+      return;
+    }
+    const startupError = await waitForLauncherStartup(child);
+    if (startupError) {
+      await handleUpdateCoordinatorStartFailure(startupError, {
+        filePath,
+        options,
+        currentProcessId,
+        tempDirectory,
+        transactionPath,
+        coordinatorPath,
+        installerArgs
+      });
+      return;
+    }
     child.unref();
     return;
   }
@@ -459,70 +488,190 @@ async function launchInstallerAfterCurrentProcessExit(filePath: string, options:
     throw new Error(message);
   }
 
-  await writeWindowsUpdateTransaction(transactionPath, {
-    id: String(currentProcessId),
-    installerPath: filePath,
-    installDirectory: options.installDirectory,
-    coordinatorPath,
+  await launchWindowsInstallerDirectly({
+    filePath,
+    options,
     currentProcessId,
+    tempDirectory,
+    transactionPath,
+    coordinatorPath,
+    installerArgs,
+    launchMessage: '更新协调器缺失，正在直接启动安装器',
+    startedFailureCode: 'coordinator-missing-direct-started',
+    failedFailureCode: 'direct-installer-start-failed'
+  });
+}
+
+async function handleUpdateCoordinatorStartFailure(
+  error: unknown,
+  input: {
+    filePath: string;
+    options: WindowsInstallerLaunchOptions;
+    currentProcessId: number;
+    tempDirectory: string;
+    transactionPath: string;
+    coordinatorPath?: string;
+    installerArgs: string[];
+  }
+) {
+  const errorMessage = formatLauncherError(error);
+  if (!input.options.allowDirectInstallerFallback) {
+    const message = `更新协调器启动失败，无法启动安装器：${errorMessage}`;
+    await writeWindowsUpdateTransaction(input.transactionPath, {
+      id: String(input.currentProcessId),
+      installerPath: input.filePath,
+      installDirectory: input.options.installDirectory,
+      coordinatorPath: input.coordinatorPath,
+      currentProcessId: input.currentProcessId,
+      status: 'failed',
+      percent: 100,
+      message,
+      failureCode: 'update-coordinator-start-failed',
+      installerExitHint: '请重新下载最新安装包，或手动运行已下载的安装包。若仍失败，请检查安全软件是否拦截更新协调器。',
+      updatedAt: new Date().toISOString()
+    });
+    await pruneWindowsUpdateTransactionArtifacts(input.tempDirectory, {
+      preserveTransactionIds: [String(input.currentProcessId)]
+    });
+    throw new Error(message);
+  }
+
+  await launchWindowsInstallerDirectly({
+    filePath: input.filePath,
+    options: input.options,
+    currentProcessId: input.currentProcessId,
+    tempDirectory: input.tempDirectory,
+    transactionPath: input.transactionPath,
+    coordinatorPath: input.coordinatorPath,
+    installerArgs: input.installerArgs,
+    launchMessage: `更新协调器启动失败，正在直接启动安装器：${errorMessage}`,
+    startedFailureCode: 'coordinator-start-failed-direct-started',
+    failedFailureCode: 'coordinator-start-failed-direct-failed'
+  });
+}
+
+async function launchWindowsInstallerDirectly(input: {
+  filePath: string;
+  options: WindowsInstallerLaunchOptions;
+  currentProcessId: number;
+  tempDirectory: string;
+  transactionPath: string;
+  coordinatorPath?: string;
+  installerArgs: string[];
+  launchMessage: string;
+  startedFailureCode: string;
+  failedFailureCode: string;
+}) {
+  await writeWindowsUpdateTransaction(input.transactionPath, {
+    id: String(input.currentProcessId),
+    installerPath: input.filePath,
+    installDirectory: input.options.installDirectory,
+    coordinatorPath: input.coordinatorPath,
+    currentProcessId: input.currentProcessId,
     status: 'launching-installer',
     percent: 80,
-    message: '更新协调器缺失，正在直接启动安装器',
-    failureCode: 'coordinator-missing-direct-started',
+    message: input.launchMessage,
+    failureCode: input.startedFailureCode,
     installerExitHint: '安装器已直接打开，会在安装前清理旧版本进程。',
     updatedAt: new Date().toISOString()
   });
-  await pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
-    preserveTransactionIds: [String(currentProcessId)]
+  await pruneWindowsUpdateTransactionArtifacts(input.tempDirectory, {
+    preserveTransactionIds: [String(input.currentProcessId)]
   });
 
   let child: InstallerLauncherProcess;
   try {
-    child = (options.launcher ?? spawn)(getWindowsCmdPath(), ['/d', '/s', '/c', 'start', '""', filePath, ...installerArgs], {
-      cwd: path.dirname(filePath),
+    child = (input.options.launcher ?? spawn)(getWindowsCmdPath(), ['/d', '/s', '/c', 'start', '""', input.filePath, ...input.installerArgs], {
+      cwd: path.dirname(input.filePath),
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
       env: {
         ...process.env,
-        QUICK_TRANSLATE_UPDATE_TRANSACTION: transactionPath,
-        QUICK_TRANSLATE_UPDATE_PROCESS_ID: String(currentProcessId)
+        QUICK_TRANSLATE_UPDATE_TRANSACTION: input.transactionPath,
+        QUICK_TRANSLATE_UPDATE_PROCESS_ID: String(input.currentProcessId)
       }
     });
+    const startupError = await waitForLauncherStartup(child);
+    if (startupError) {
+      throw startupError;
+    }
   } catch (error) {
     const message = `安装器直接启动失败：${error instanceof Error ? error.message : String(error)}`;
-    await writeWindowsUpdateTransaction(transactionPath, {
-      id: String(currentProcessId),
-      installerPath: filePath,
-      installDirectory: options.installDirectory,
-      coordinatorPath,
-      currentProcessId,
+    await writeWindowsUpdateTransaction(input.transactionPath, {
+      id: String(input.currentProcessId),
+      installerPath: input.filePath,
+      installDirectory: input.options.installDirectory,
+      coordinatorPath: input.coordinatorPath,
+      currentProcessId: input.currentProcessId,
       status: 'failed',
       percent: 100,
       message,
-      failureCode: 'direct-installer-start-failed',
+      failureCode: input.failedFailureCode,
       installerExitHint: '请手动运行已下载的安装包，或重新下载最新安装包。',
       updatedAt: new Date().toISOString()
     });
-    await pruneWindowsUpdateTransactionArtifacts(tempDirectory, {
-      preserveTransactionIds: [String(currentProcessId)]
+    await pruneWindowsUpdateTransactionArtifacts(input.tempDirectory, {
+      preserveTransactionIds: [String(input.currentProcessId)]
     });
     throw new Error(message);
   }
   child.unref();
-  await writeWindowsUpdateTransaction(transactionPath, {
-    id: String(currentProcessId),
-    installerPath: filePath,
-    installDirectory: options.installDirectory,
-    coordinatorPath,
-    currentProcessId,
+  await writeWindowsUpdateTransaction(input.transactionPath, {
+    id: String(input.currentProcessId),
+    installerPath: input.filePath,
+    installDirectory: input.options.installDirectory,
+    coordinatorPath: input.coordinatorPath,
+    currentProcessId: input.currentProcessId,
     status: 'installer-started',
     percent: 100,
     message: '安装器已启动',
-    failureCode: 'coordinator-missing-direct-started',
+    failureCode: input.startedFailureCode,
     installerExitHint: '安装器已直接打开，会在安装前清理旧版本进程。',
     updatedAt: new Date().toISOString()
   });
+}
+
+async function waitForLauncherStartup(child: InstallerLauncherProcess, timeoutMs = 500) {
+  if (typeof child.once !== 'function') {
+    return null;
+  }
+
+  return await new Promise<Error | null>((resolve) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | undefined;
+    let onError: (error: unknown) => void;
+    let onSpawn: () => void;
+
+    const finish = (error: Error | null, keepErrorListener = false) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      if (!keepErrorListener) {
+        child.removeListener?.('error', onError);
+      }
+      child.removeListener?.('spawn', onSpawn);
+      resolve(error);
+    };
+    onError = (error: unknown) => finish(error instanceof Error ? error : new Error(String(error)));
+    onSpawn = () => finish(null);
+
+    child.once?.('error', onError);
+    child.once?.('spawn', onSpawn);
+    timer = setTimeout(() => finish(null, true), timeoutMs);
+  });
+}
+
+function formatLauncherError(error: unknown) {
+  if (error instanceof Error) {
+    const code = 'code' in error && typeof error.code === 'string' ? `${error.code}: ` : '';
+    return `${code}${error.message}`;
+  }
+  return String(error);
 }
 
 function createWindowsUpdateCoordinatorArgs(input: {

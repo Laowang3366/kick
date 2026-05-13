@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -508,6 +509,89 @@ describe('auto update channel', () => {
     });
   });
 
+  it('falls back to the direct Windows installer when the update coordinator cannot start', async () => {
+    const coordinatorChild = Object.assign(new EventEmitter(), {
+      unref: vi.fn()
+    });
+    const directChild = {
+      unref: vi.fn()
+    };
+    const tempDirectory = getLauncherTempDirectory();
+    const updateCoordinatorPath = path.join(tempDirectory, 'QuickTranslateUpdateCoordinator.exe');
+    const launcher = vi.fn((command: string) => {
+      if (command === updateCoordinatorPath) {
+        queueMicrotask(() => {
+          const error = Object.assign(new Error(`spawn ${updateCoordinatorPath} EACCES`), { code: 'EACCES' });
+          coordinatorChild.emit('error', error);
+        });
+        return coordinatorChild;
+      }
+      return directChild;
+    });
+    await mkdir(tempDirectory, { recursive: true });
+    await writeFile(updateCoordinatorPath, 'helper');
+
+    await openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.83.exe', {
+      platform: 'win32',
+      launcher,
+      updateCoordinatorPath,
+      installDirectory: 'D:\\Tools\\快捷翻译',
+      currentProcessId: 12345,
+      tempDirectory,
+      allowDirectInstallerFallback: true
+    });
+
+    expect(launcher).toHaveBeenCalledTimes(2);
+    expect(launcher.mock.calls[0][0]).toBe(updateCoordinatorPath);
+    expectDirectInstallerFallbackLaunch(launcher, {
+      installerPath: 'C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.83.exe',
+      currentProcessId: '12345',
+      tempDirectory,
+      installDirectory: 'D:\\Tools\\快捷翻译',
+      callIndex: 1
+    });
+    expect(coordinatorChild.unref).not.toHaveBeenCalled();
+    expect(directChild.unref).toHaveBeenCalledOnce();
+    await expect(readTransactionState(tempDirectory, '12345')).resolves.toMatchObject({
+      status: 'installer-started',
+      failureCode: 'coordinator-start-failed-direct-started',
+      coordinatorPath: updateCoordinatorPath
+    });
+  });
+
+  it('fails explicitly when the update coordinator cannot start and the direct fallback is disabled', async () => {
+    const tempDirectory = getLauncherTempDirectory();
+    const updateCoordinatorPath = path.join(tempDirectory, 'QuickTranslateUpdateCoordinator.exe');
+    const launcher = vi.fn((command: string) => {
+      if (command === updateCoordinatorPath) {
+        throw Object.assign(new Error(`spawn ${updateCoordinatorPath} EACCES`), { code: 'EACCES' });
+      }
+      return {
+        unref: vi.fn()
+      };
+    });
+    await mkdir(tempDirectory, { recursive: true });
+    await writeFile(updateCoordinatorPath, 'helper');
+
+    await expect(
+      openInstallerBeforeAppQuit('C:\\Users\\wfq\\Downloads\\快捷翻译更新包\\Quick-Translate-0.1.83.exe', {
+        platform: 'win32',
+        launcher,
+        updateCoordinatorPath,
+        installDirectory: 'D:\\Tools\\快捷翻译',
+        currentProcessId: 12345,
+        tempDirectory
+      })
+    ).rejects.toThrow('更新协调器启动失败');
+
+    expect(launcher).toHaveBeenCalledOnce();
+    await expect(readTransactionState(tempDirectory, '12345')).resolves.toMatchObject({
+      status: 'failed',
+      failureCode: 'update-coordinator-start-failed',
+      coordinatorPath: updateCoordinatorPath
+    });
+  });
+
   it('fails explicitly when the packaged update coordinator is missing', async () => {
     const child = {
       unref: vi.fn()
@@ -770,10 +854,14 @@ function expectDirectInstallerFallbackLaunch(
     currentProcessId: string;
     tempDirectory: string;
     installDirectory: string;
+    callIndex?: number;
   }
 ) {
-  expect(launcher).toHaveBeenCalledOnce();
-  const [command, args, options] = launcher.mock.calls[0];
+  const callIndex = expected.callIndex ?? 0;
+  if (expected.callIndex === undefined) {
+    expect(launcher).toHaveBeenCalledOnce();
+  }
+  const [command, args, options] = launcher.mock.calls[callIndex];
   const transactionPath = path.join(expected.tempDirectory, `QuickTranslateUpdateTransaction-${expected.currentProcessId}.json`);
   const installerArgs = [`/QUICK_TRANSLATE_TRANSACTION=${transactionPath}`];
   if (expected.installDirectory) {
