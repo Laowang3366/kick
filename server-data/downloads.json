@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.78",
+  "latestVersion": "0.1.79",
   "releases": [
+    {
+      "version": "0.1.79",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.79.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.79.apk",
+      "size": 3277933,
+      "sha512": "/xjeq9h2hduqOlxOjOcPzphIbm4AI35+kecjL7GF5XUA/WKR6L8A/gnLhpMOPuTOIw4IVoqcjKsJKpMEluSD/A==",
+      "releaseDate": "2026-05-13T07:07:20.376Z",
+      "releaseNotes": "0.1.79：修复 Android 更新后打开空白页的问题；移动端不再保留旧首页缓存，并加入旧版本入口迁移桥，自动清理过期页面缓存后进入新版。"
+    },
     {
       "version": "0.1.78",
       "platform": "android",
@@ -30,15 +40,6 @@
       "sha512": "Z+vP8Nv5w7o11JHQ3OLRbz0eCmzm9L+G0Exzah2FnbxHIKn/bXkfASbuBUCKhMnkAYWpdVQFLz/YewvxIwKnvQ==",
       "releaseDate": "2026-05-12T07:10:06.597Z",
       "releaseNotes": "0.1.76：修复所有用户安装模式下应用内更新无法拉起安装器的问题；Go 更新协调器改用 Windows ShellExecute 启动安装器，正常触发 UAC 权限确认，不再因 requires elevation 直接失败。"
-    },
-    {
-      "version": "0.1.53",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.53.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.53.apk",
-      "size": 3266541,
-      "sha512": "hsTsRC9LruNcd/nXUnPF0RM1oozffmtj25yDul9RcTeHmEo3wcMEKHrd8ODN+UzK2RKst0yr04tzrRYvK1+A/Q==",
-      "releaseDate": "2026-05-10T21:01:03.580Z"
     }
   ]
 }

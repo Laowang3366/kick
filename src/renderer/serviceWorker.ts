@@ -5,7 +5,7 @@ export async function prepareServiceWorkerForCurrentMode(isDevelopment: boolean)
     return;
   }
 
-  if (isDevelopment) {
+  if (isDevelopment || isNativeCapacitorApp()) {
     await unregisterServiceWorkersAndClearCaches();
     return;
   }
@@ -25,4 +25,11 @@ export async function unregisterServiceWorkersAndClearCaches(): Promise<void> {
         .map((cacheKey) => caches.delete(cacheKey))
     );
   }
+}
+
+function isNativeCapacitorApp() {
+  const capacitor = (globalThis as typeof globalThis & { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } })
+    .Capacitor;
+
+  return Boolean(capacitor?.isNativePlatform?.() || ['android', 'ios'].includes(capacitor?.getPlatform?.() ?? ''));
 }

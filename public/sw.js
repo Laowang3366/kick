@@ -1,6 +1,6 @@
-const CACHE_NAME = 'quick-translate-v5';
+const CACHE_NAME = 'quick-translate-v6';
 const CACHE_PREFIX = 'quick-translate-';
-const CORE_ASSETS = ['./', './manifest.webmanifest', './app-icon.svg'];
+const CORE_ASSETS = ['./manifest.webmanifest', './app-icon.svg'];
 const IS_LOCAL_DEV =
   self.location.hostname === 'localhost' ||
   self.location.hostname === '127.0.0.1' ||
@@ -17,6 +17,7 @@ self.addEventListener('install', (event) => {
     return;
   }
 
+  self.skipWaiting();
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)));
 });
 
@@ -41,6 +42,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (IS_LOCAL_DEV || event.request.method !== 'GET') {
+    return;
+  }
+
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
     return;
   }
 

@@ -10,6 +10,7 @@ describe('serviceWorker', () => {
     unregister.mockClear();
     register.mockClear();
     cacheDelete.mockClear();
+    delete (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor;
 
     Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
@@ -41,6 +42,19 @@ describe('serviceWorker', () => {
     await prepareServiceWorkerForCurrentMode(false);
 
     expect(register).toHaveBeenCalledWith(new URL('sw.js', window.location.href));
+  });
+
+  it('unregisters service workers inside the native Android app', async () => {
+    (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      isNativePlatform: () => true
+    };
+
+    await prepareServiceWorkerForCurrentMode(false);
+
+    expect(unregister).toHaveBeenCalledOnce();
+    expect(cacheDelete).toHaveBeenCalledWith('quick-translate-v1');
+    expect(register).not.toHaveBeenCalled();
   });
 
   it('can run explicit cleanup for a stale development page', async () => {
