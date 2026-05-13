@@ -1,6 +1,24 @@
 {
-  "latestVersion": "0.1.92",
+  "latestVersion": "0.1.94",
   "releases": [
+    {
+      "version": "0.1.94",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.94.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.94.exe",
+      "size": 104465389,
+      "sha512": "44v8ZDPqO3QsH2SlXbBZyyq77TdYkOY/7S84eIVDVX6qFfDPFcFk0nemEr42ymd+7+XNmidNTNu+g2R09r6W/w==",
+      "releaseDate": "2026-05-13T14:00:54.825Z"
+    },
+    {
+      "version": "0.1.94",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.94.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.94.apk",
+      "size": 3292511,
+      "sha512": "yH3p20u8Jnc9ZBVHjCgrGxJw4UkqCH6IdMl52KMOA/trgX2IQtVhBZHkI3lVgNrdFgIAakW01g6hOSxj23zkng==",
+      "releaseDate": "2026-05-13T14:00:54.825Z"
+    },
     {
       "version": "0.1.92",
       "platform": "android",
@@ -11,15 +29,6 @@
       "releaseDate": "2026-05-13T13:18:41.250Z"
     },
     {
-      "version": "0.1.91",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.91.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.91.apk",
-      "size": 3289647,
-      "sha512": "TdeOLCuhM86VqGj5oPKEEEQzmfXotgd/ZaowhqOWsQbzsrk0pLjVRCJq6htPzqa+bJkubQM7SgnKoVLJpCk5EQ==",
-      "releaseDate": "2026-05-13T12:57:33.700Z"
-    },
-    {
       "version": "0.1.83",
       "platform": "windows",
       "fileName": "Quick-Translate-0.1.83.exe",
@@ -28,16 +37,6 @@
       "sha512": "xK+aA9POTyekNEe/gAziHTXH4Ui4hnK4Q8NBCDGwnmFK1QLcNQHf/DiwJkTLIEJS9qQJGjwCG0n3gNqy/xCO/Q==",
       "releaseDate": "2026-05-13T08:49:30.850Z",
       "releaseNotes": "0.1.83：修复 Windows 应用内更新启动协调器被系统拒绝执行时弹出主进程错误的问题；协调器启动失败会写入更新事务并自动兜底拉起安装器。"
-    },
-    {
-      "version": "0.1.81",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.81.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.81.exe",
-      "size": 106799815,
-      "sha512": "kyC6LAOGWyPTb4wXNC01AFwkGKSkBzCobXxbkT9pQ27wwGh7jdAv7wiEI1cA+H4ngWwY2ESM2CeRvyj75PrSWw==",
-      "releaseDate": "2026-05-13T07:51:23.178Z",
-      "releaseNotes": "0.1.81：修复桌面悬浮窗目标语言被主窗口/默认语言覆盖的问题；悬浮窗语言与翻译格式改为独立会话偏好，首次打开读取本地默认目标语言，之后按悬浮窗自己的选择翻译。"
     }
   ]
 }

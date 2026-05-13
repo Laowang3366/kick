@@ -345,6 +345,60 @@ describe('backend app', () => {
     expect(usersResponse.body.users[0].passwordHash).toBeUndefined();
   });
 
+  it('allows admins to publish client popup notifications', async () => {
+    const adminLoginResponse = await request('POST', '/api/admin/login', {
+      username: 'admin',
+      password: 'admin-pass'
+    });
+
+    const createResponse = await request(
+      'POST',
+      '/api/admin/notifications',
+      {
+        title: '更新公告',
+        body: '请前往官网下载最新版本安装更新。',
+        severity: 'update',
+        platforms: ['windows', 'android'],
+        actionLabel: '前往官网',
+        actionUrl: 'https://sg.lwvpscc.top'
+      },
+      adminLoginResponse.body.token
+    );
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body.notification).toMatchObject({
+      title: '更新公告',
+      active: true,
+      severity: 'update',
+      platforms: ['windows', 'android']
+    });
+
+    const publicAndroidResponse = await request('GET', '/api/notifications?platform=android&version=0.1.92');
+    expect(publicAndroidResponse.status).toBe(200);
+    expect(publicAndroidResponse.body.notifications).toHaveLength(1);
+    expect(publicAndroidResponse.body.notifications[0].body).toContain('官网下载');
+
+    const updateResponse = await request(
+      'PUT',
+      `/api/admin/notifications/${createResponse.body.notification.id}`,
+      { active: false },
+      adminLoginResponse.body.token
+    );
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.notification.active).toBe(false);
+
+    const hiddenResponse = await request('GET', '/api/notifications?platform=windows');
+    expect(hiddenResponse.body.notifications).toEqual([]);
+
+    const deleteResponse = await request(
+      'DELETE',
+      `/api/admin/notifications/${createResponse.body.notification.id}`,
+      undefined,
+      adminLoginResponse.body.token
+    );
+    expect(deleteResponse.status).toBe(200);
+  });
+
   it('allows the admin account to update user email, display name, and password', async () => {
     const registerResponse = await request('POST', '/api/auth/register', {
       email: 'editable@example.com',

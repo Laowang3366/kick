@@ -37,4 +37,18 @@ describe('admin dashboard translation usage chart', () => {
     expect(html).toContain('function loadAdminProfile()');
     expect(html).toContain('function saveAdminProfile(');
   });
+
+  it('exposes notification management for client popup announcements', async () => {
+    const html = await readFile(path.resolve('server/public/admin.html'), 'utf8');
+
+    expect(html).toContain('data-view="notifications"');
+    expect(html).toContain('id="notifications-view"');
+    expect(html).toContain('id="notification-form"');
+    expect(html).toContain('id="notification-list"');
+    expect(html).toContain('/api/admin/notifications');
+    expect(html).toContain('function loadNotifications()');
+    expect(html).toContain('function saveNotification(');
+    expect(html).toContain('function platformLabel(');
+    expect(html).toContain('function notificationSeverityLabel(');
+  });
 });

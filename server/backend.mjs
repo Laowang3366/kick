@@ -23,6 +23,7 @@ const defaultDownloadManifest = {
   latestVersion: '',
   releases: []
 };
+const defaultNotifications = [];
 const defaultUpdateFailureReports = [];
 const defaultUpdateReportToken = 'quick-translate-update-report-v1';
 const defaultMetrics = {
@@ -162,6 +163,17 @@ export function createBackendApp(options = {}) {
         return createJsonResponse(200, { metrics: await store.getMetrics() });
       }
 
+      if (method === 'GET' && pathname === '/api/admin/notifications') {
+        requireAuth(request, jwtSecret, 'admin');
+        return createJsonResponse(200, { notifications: await store.listNotifications() });
+      }
+
+      if (method === 'POST' && pathname === '/api/admin/notifications') {
+        requireAuth(request, jwtSecret, 'admin');
+        const notification = await store.createNotification(await readJsonBody(request));
+        return createJsonResponse(201, { notification });
+      }
+
       const userMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
       if (userMatch && method === 'PUT') {
         requireAuth(request, jwtSecret, 'admin');
@@ -171,6 +183,18 @@ export function createBackendApp(options = {}) {
       if (userMatch && method === 'DELETE') {
         requireAuth(request, jwtSecret, 'admin');
         await store.deleteUser(userMatch[1]);
+        return createJsonResponse(200, { deleted: true });
+      }
+
+      const notificationMatch = pathname.match(/^\/api\/admin\/notifications\/([^/]+)$/);
+      if (notificationMatch && method === 'PUT') {
+        requireAuth(request, jwtSecret, 'admin');
+        const notification = await store.updateNotification(notificationMatch[1], await readJsonBody(request));
+        return createJsonResponse(200, { notification });
+      }
+      if (notificationMatch && method === 'DELETE') {
+        requireAuth(request, jwtSecret, 'admin');
+        await store.deleteNotification(notificationMatch[1]);
         return createJsonResponse(200, { deleted: true });
       }
 
@@ -192,6 +216,15 @@ export function createBackendApp(options = {}) {
 
       if (method === 'GET' && pathname === '/api/downloads') {
         return createJsonResponse(200, await store.getDownloadManifest());
+      }
+
+      if (method === 'GET' && pathname === '/api/notifications') {
+        return createJsonResponse(200, {
+          notifications: await store.listPublicNotifications({
+            platform: url.searchParams.get('platform'),
+            version: url.searchParams.get('version')
+          })
+        });
       }
 
       if (method === 'POST' && pathname === '/api/downloads/track') {
@@ -292,6 +325,7 @@ export function createJsonStore({ dataDir, defaultProvider, defaultAdmin }) {
     provider: path.join(dataDir, 'provider.json'),
     downloads: path.join(dataDir, 'downloads.json'),
     metrics: path.join(dataDir, 'metrics.json'),
+    notifications: path.join(dataDir, 'notifications.json'),
     updateFailureReports: path.join(dataDir, 'update-failure-reports.json'),
     updateFailureReportLog: path.join(dataDir, 'update-failure-reports.log')
   };
@@ -303,6 +337,7 @@ export function createJsonStore({ dataDir, defaultProvider, defaultAdmin }) {
     provider: createJsonFile(paths.provider, undefined),
     downloads: createJsonFile(paths.downloads, defaultDownloadManifest),
     metrics: createJsonFile(paths.metrics, defaultMetrics),
+    notifications: createJsonFile(paths.notifications, defaultNotifications),
     updateFailureReports: createJsonFile(paths.updateFailureReports, defaultUpdateFailureReports)
   };
 
@@ -547,6 +582,65 @@ export function createJsonStore({ dataDir, defaultProvider, defaultAdmin }) {
     },
     async getMetrics() {
       return normalizeMetrics(await files.metrics.read());
+    },
+    async listNotifications() {
+      return normalizeNotifications(await files.notifications.read());
+    },
+    async listPublicNotifications(filter = {}) {
+      return normalizeNotifications(await files.notifications.read())
+        .filter((notification) => isPublicNotificationVisible(notification, filter))
+        .map(publicNotification);
+    },
+    async createNotification(input) {
+      let createdNotification = null;
+      await files.notifications.update((value) => {
+        const notifications = normalizeNotifications(value);
+        createdNotification = normalizeNotification(input, {
+          id: randomId(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        return [createdNotification, ...notifications];
+      });
+
+      return createdNotification;
+    },
+    async updateNotification(notificationId, update) {
+      let updatedNotification = null;
+      await files.notifications.update((value) => {
+        const notifications = normalizeNotifications(value);
+        const index = notifications.findIndex((notification) => notification.id === notificationId);
+        if (index < 0) {
+          throw new HttpError(404, '通知不存在');
+        }
+
+        updatedNotification = normalizeNotification(
+          {
+            ...notifications[index],
+            ...(isRecord(update) ? update : {}),
+            id: notifications[index].id,
+            createdAt: notifications[index].createdAt,
+            updatedAt: new Date().toISOString()
+          },
+          notifications[index]
+        );
+        notifications[index] = updatedNotification;
+        return notifications;
+      });
+
+      return updatedNotification;
+    },
+    async deleteNotification(notificationId) {
+      await files.notifications.update((value) => {
+        const notifications = normalizeNotifications(value);
+        const index = notifications.findIndex((notification) => notification.id === notificationId);
+        if (index < 0) {
+          throw new HttpError(404, '通知不存在');
+        }
+
+        notifications.splice(index, 1);
+        return notifications;
+      });
     },
     async waitForMetrics() {
       await files.metrics.read();
@@ -1076,6 +1170,100 @@ function normalizeDownloadManifest(value) {
   return {
     latestVersion: stringOrEmpty(record.latestVersion) || releases[0]?.version || '',
     releases
+  };
+}
+
+function normalizeNotifications(value) {
+  return Array.isArray(value)
+    ? value.filter(isRecord).map((notification) => normalizeNotification(notification)).sort(compareNotifications)
+    : [];
+}
+
+function normalizeNotification(value, fallback = {}) {
+  const record = isRecord(value) ? value : {};
+  const fallbackRecord = isRecord(fallback) ? fallback : {};
+  return {
+    id: boundedString(record.id, 120) || boundedString(fallbackRecord.id, 120) || randomId(),
+    title: boundedString(record.title, 120) || boundedString(fallbackRecord.title, 120) || '系统通知',
+    body: boundedString(record.body, 2000) || boundedString(fallbackRecord.body, 2000),
+    severity: normalizeNotificationSeverity(record.severity || fallbackRecord.severity),
+    platforms: normalizeNotificationPlatforms(record.platforms ?? fallbackRecord.platforms),
+    active: typeof record.active === 'boolean' ? record.active : typeof fallbackRecord.active === 'boolean' ? fallbackRecord.active : true,
+    dismissible:
+      typeof record.dismissible === 'boolean'
+        ? record.dismissible
+        : typeof fallbackRecord.dismissible === 'boolean'
+          ? fallbackRecord.dismissible
+          : true,
+    actionLabel: boundedString(record.actionLabel, 40) || boundedString(fallbackRecord.actionLabel, 40),
+    actionUrl: boundedString(record.actionUrl, 1000) || boundedString(fallbackRecord.actionUrl, 1000),
+    startsAt: boundedString(record.startsAt, 80) || boundedString(fallbackRecord.startsAt, 80),
+    endsAt: boundedString(record.endsAt, 80) || boundedString(fallbackRecord.endsAt, 80),
+    createdAt: boundedString(record.createdAt, 80) || boundedString(fallbackRecord.createdAt, 80) || new Date().toISOString(),
+    updatedAt: boundedString(record.updatedAt, 80) || boundedString(fallbackRecord.updatedAt, 80) || new Date().toISOString()
+  };
+}
+
+function normalizeNotificationSeverity(value) {
+  const normalized = stringOrEmpty(value).toLowerCase();
+  return ['info', 'update', 'warning'].includes(normalized) ? normalized : 'info';
+}
+
+function normalizeNotificationPlatforms(value) {
+  const rawValues = Array.isArray(value)
+    ? value
+    : stringOrEmpty(value)
+      ? stringOrEmpty(value).split(/[,\s]+/)
+      : [];
+  return [...new Set(rawValues.map(normalizeReleasePlatform).filter(Boolean))];
+}
+
+function compareNotifications(left, right) {
+  const leftTime = Date.parse(left.updatedAt || left.createdAt || '');
+  const rightTime = Date.parse(right.updatedAt || right.createdAt || '');
+  return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+}
+
+function isPublicNotificationVisible(notification, filter = {}) {
+  if (!notification.active) {
+    return false;
+  }
+
+  const platform = normalizeNotificationPlatformFilter(filter.platform);
+  if (platform && notification.platforms.length > 0 && !notification.platforms.includes(platform)) {
+    return false;
+  }
+
+  const now = Date.now();
+  const startsAt = Date.parse(notification.startsAt);
+  const endsAt = Date.parse(notification.endsAt);
+  if (Number.isFinite(startsAt) && startsAt > now) {
+    return false;
+  }
+  if (Number.isFinite(endsAt) && endsAt < now) {
+    return false;
+  }
+
+  return true;
+}
+
+function normalizeNotificationPlatformFilter(value) {
+  return stringOrEmpty(value) ? normalizeReleasePlatform(value) : '';
+}
+
+function publicNotification(notification) {
+  return {
+    id: notification.id,
+    title: notification.title,
+    body: notification.body,
+    severity: notification.severity,
+    platforms: notification.platforms,
+    dismissible: notification.dismissible,
+    actionLabel: notification.actionLabel,
+    actionUrl: notification.actionUrl,
+    startsAt: notification.startsAt,
+    endsAt: notification.endsAt,
+    updatedAt: notification.updatedAt
   };
 }
 

@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  Bell,
   ChevronDown,
   ClipboardPaste,
   CloudDownload,
@@ -71,6 +72,13 @@ import {
 } from './mobileFloatingTranslate';
 import { createProviderFromSettings } from './providerConfig';
 import { loadProviderSettings } from './providerSettingsStorage';
+import {
+  fetchClientNotifications,
+  getNotificationSeverityLabel,
+  loadDismissedNotificationIds,
+  markNotificationDismissed,
+  type ClientNotification
+} from './notificationCenter';
 import { readSharedTextFromUrl } from './sharedText';
 import { applyThemePreference, loadThemePreference, saveThemePreference, type ThemePreference } from './themePreference';
 import { loadDefaultTranslationFormat, saveDefaultTranslationFormat } from './translationFormatPreference';
@@ -511,6 +519,11 @@ export function App() {
   const [mobileFloatingMessage, setMobileFloatingMessage] = useState('');
   const [updatePackageDirectoryDraft, setUpdatePackageDirectoryDraft] = useState('');
   const [updatePackageMessage, setUpdatePackageMessage] = useState('');
+  const [notifications, setNotifications] = useState<ClientNotification[]>([]);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState(loadDismissedNotificationIds);
+  const [activeNotification, setActiveNotification] = useState<ClientNotification | null>(null);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState('');
   const cloudClient = useMemo(() => createCloudClient(), []);
   const hasSelectedTargetLanguage = useRef(false);
   const lastAutoTranslationKey = useRef('');
@@ -534,6 +547,10 @@ export function App() {
 
   useEffect(() => {
     void runUpdateCheck();
+  }, []);
+
+  useEffect(() => {
+    void loadClientNotifications(true);
   }, []);
 
   useEffect(() => {
@@ -1386,6 +1403,61 @@ export function App() {
     }
   }
 
+  async function loadClientNotifications(showFirstUnread = false) {
+    try {
+      const nextNotifications = await fetchClientNotifications();
+      const dismissedIds = loadDismissedNotificationIds();
+      setNotifications(nextNotifications);
+      setDismissedNotificationIds(dismissedIds);
+      setNotificationStatus('');
+
+      if (showFirstUnread) {
+        const firstUnreadNotification = nextNotifications.find((notification) => !dismissedIds.includes(notification.id));
+        if (firstUnreadNotification) {
+          setActiveNotification(firstUnreadNotification);
+          setIsNotificationCenterOpen(false);
+        }
+      }
+    } catch (error) {
+      if (!showFirstUnread) {
+        setNotificationStatus(error instanceof Error ? error.message : '通知读取失败');
+      }
+    }
+  }
+
+  function openNotificationCenter() {
+    setActiveNotification(null);
+    setIsNotificationCenterOpen(true);
+    void loadClientNotifications(false);
+  }
+
+  function closeNotificationDialog(notification = activeNotification) {
+    if (notification?.dismissible) {
+      setDismissedNotificationIds(markNotificationDismissed(notification.id));
+    }
+    setActiveNotification(null);
+    setIsNotificationCenterOpen(false);
+  }
+
+  function openNotificationAction(notification: ClientNotification) {
+    if (notification.actionUrl) {
+      window.open(notification.actionUrl, '_blank', 'noopener,noreferrer');
+    }
+    closeNotificationDialog(notification);
+  }
+
+  function showNotificationDetail(notification: ClientNotification) {
+    setActiveNotification(notification);
+    setIsNotificationCenterOpen(false);
+  }
+
+  function dismissNotification(notification: ClientNotification) {
+    setDismissedNotificationIds(markNotificationDismissed(notification.id));
+    if (activeNotification?.id === notification.id) {
+      setActiveNotification(null);
+    }
+  }
+
   async function updateNow() {
     if (updateCheck?.status !== 'available') {
       return;
@@ -1664,6 +1736,9 @@ export function App() {
   );
   const updateTransactionPercent = Math.round(updateTransaction?.percent ?? 0);
   const updateTransactionUpdatedAt = formatUpdateTransactionUpdatedAt(updateTransaction?.updatedAt);
+  const unreadNotifications = notifications.filter((notification) => !dismissedNotificationIds.includes(notification.id));
+  const notificationDialogNotification = activeNotification;
+  const shouldShowNotificationDialog = Boolean(notificationDialogNotification || isNotificationCenterOpen);
 
   return (
     <main className="app-shell">
@@ -1675,40 +1750,51 @@ export function App() {
             </span>
             <h1>快捷翻译</h1>
           </div>
-          <div className="window-controls" aria-label="窗口控制">
+          <div className="titlebar-actions">
             <button
-              className={`window-control pin${isAlwaysOnTop ? ' active' : ''}`}
+              className={`notification-trigger${unreadNotifications.length ? ' has-unread' : ''}`}
               type="button"
-              aria-label={isAlwaysOnTop ? '取消置顶' : '置顶窗口'}
-              aria-pressed={isAlwaysOnTop}
-              onClick={toggleAlwaysOnTop}
+              aria-label={unreadNotifications.length ? `通知，${unreadNotifications.length} 条未读` : '通知'}
+              onClick={openNotificationCenter}
             >
-              <Pin size={16} />
+              <Bell size={18} />
+              {unreadNotifications.length ? <span>{unreadNotifications.length > 9 ? '9+' : unreadNotifications.length}</span> : null}
             </button>
-            <button
-              className="window-control minimize"
-              type="button"
-              aria-label="最小化窗口"
-              onClick={() => runWindowCommand('minimize')}
-            >
-              <Minus size={17} />
-            </button>
-            <button
-              className="window-control maximize"
-              type="button"
-              aria-label="最大化或还原窗口"
-              onClick={() => runWindowCommand('toggle-maximize')}
-            >
-              <Maximize2 size={15} />
-            </button>
-            <button
-              className="window-control close"
-              type="button"
-              aria-label="关闭窗口"
-              onClick={() => runWindowCommand('quit-app')}
-            >
-              <X size={18} />
-            </button>
+            <div className="window-controls" aria-label="窗口控制">
+              <button
+                className={`window-control pin${isAlwaysOnTop ? ' active' : ''}`}
+                type="button"
+                aria-label={isAlwaysOnTop ? '取消置顶' : '置顶窗口'}
+                aria-pressed={isAlwaysOnTop}
+                onClick={toggleAlwaysOnTop}
+              >
+                <Pin size={16} />
+              </button>
+              <button
+                className="window-control minimize"
+                type="button"
+                aria-label="最小化窗口"
+                onClick={() => runWindowCommand('minimize')}
+              >
+                <Minus size={17} />
+              </button>
+              <button
+                className="window-control maximize"
+                type="button"
+                aria-label="最大化或还原窗口"
+                onClick={() => runWindowCommand('toggle-maximize')}
+              >
+                <Maximize2 size={15} />
+              </button>
+              <button
+                className="window-control close"
+                type="button"
+                aria-label="关闭窗口"
+                onClick={() => runWindowCommand('quit-app')}
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -2495,7 +2581,105 @@ export function App() {
             ) : null}
           </section>
         </div>
-        {shouldShowUpdateDialog && availableUpdateCheck ? (
+        {shouldShowNotificationDialog ? (
+          <div className="notification-dialog-backdrop">
+            <section
+              className="notification-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-label={notificationDialogNotification ? notificationDialogNotification.title : '通知中心'}
+            >
+              <div className="notification-dialog-heading">
+                <span className={`notification-status-badge ${notificationDialogNotification?.severity ?? 'info'}`}>
+                  {notificationDialogNotification
+                    ? getNotificationSeverityLabel(notificationDialogNotification.severity)
+                    : `通知中心 · ${notifications.length} 条`}
+                </span>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => closeNotificationDialog(notificationDialogNotification ?? undefined)}
+                  aria-label="关闭通知"
+                >
+                  <X size={19} />
+                </button>
+              </div>
+
+              {notificationDialogNotification ? (
+                <>
+                  <div className="notification-dialog-title">
+                    <strong>{notificationDialogNotification.title}</strong>
+                    <span>
+                      {formatReleaseDate(notificationDialogNotification.updatedAt) ||
+                        (notificationDialogNotification.platforms.length
+                          ? notificationDialogNotification.platforms.map(getUpdatePlatformLabel).join(' / ')
+                          : '全部客户端')}
+                    </span>
+                  </div>
+                  <p className="notification-dialog-body">{notificationDialogNotification.body}</p>
+                  <div className="notification-dialog-actions">
+                    {notificationDialogNotification.actionUrl ? (
+                      <button
+                        className="settings-action primary-account-action"
+                        type="button"
+                        onClick={() => openNotificationAction(notificationDialogNotification)}
+                      >
+                        <CloudDownload size={19} />
+                        <span>{notificationDialogNotification.actionLabel || '前往查看'}</span>
+                      </button>
+                    ) : null}
+                    <button
+                      className="settings-action"
+                      type="button"
+                      onClick={() => closeNotificationDialog(notificationDialogNotification)}
+                    >
+                      <Bell size={19} />
+                      <span>{notificationDialogNotification.dismissible ? '知道了' : '关闭'}</span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="notification-dialog-title">
+                    <strong>客户端通知</strong>
+                    <span>更新公告和系统提醒会显示在这里</span>
+                  </div>
+                  {notificationStatus ? <p className="sync-status error">{notificationStatus}</p> : null}
+                  <div className="notification-list">
+                    {notifications.length ? (
+                      notifications.map((notification) => {
+                        const isUnread = !dismissedNotificationIds.includes(notification.id);
+                        return (
+                          <article key={notification.id} className={`notification-list-item${isUnread ? ' unread' : ''}`}>
+                            <button type="button" onClick={() => showNotificationDetail(notification)}>
+                              <span className={`notification-status-badge ${notification.severity}`}>
+                                {getNotificationSeverityLabel(notification.severity)}
+                              </span>
+                              <strong>{notification.title}</strong>
+                              <small>{notification.body}</small>
+                            </button>
+                            {notification.dismissible && isUnread ? (
+                              <button
+                                className="notification-dismiss-button"
+                                type="button"
+                                onClick={() => dismissNotification(notification)}
+                              >
+                                标为已读
+                              </button>
+                            ) : null}
+                          </article>
+                        );
+                      })
+                    ) : (
+                      <p className="notification-empty">暂无通知</p>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
+          </div>
+        ) : null}
+        {!shouldShowNotificationDialog && shouldShowUpdateDialog && availableUpdateCheck ? (
           <div className="update-dialog-backdrop">
             <section className="update-dialog" role="dialog" aria-modal="true" aria-label="发现新版本">
               <div className="update-dialog-heading">

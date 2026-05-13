@@ -685,6 +685,10 @@ describe('App', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
+        json: () => Promise.resolve({ notifications: [] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
         json: () =>
           Promise.resolve({
             token: 'token-1',
@@ -715,6 +719,10 @@ describe('App', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ releases: [] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ notifications: [] })
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
@@ -789,6 +797,10 @@ describe('App', () => {
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
+        json: () => Promise.resolve({ notifications: [] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
         json: () =>
           Promise.resolve({
             token: 'token-1',
@@ -852,6 +864,10 @@ describe('App', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ releases: [] })
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ notifications: [] })
       } as Response)
       .mockResolvedValueOnce({
         ok: true,
@@ -1526,6 +1542,52 @@ describe('App', () => {
     expect(screen.getByText('更新日志')).toBeInTheDocument();
     expect(screen.getByText('修复移动端输入框交互')).toBeInTheDocument();
     expect(screen.getByText('增加更新弹窗')).toBeInTheDocument();
+  });
+
+  it('shows public client notifications as a dismissible popup and titlebar entry', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes('/api/notifications')) {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              notifications: [
+                {
+                  id: 'notice-1',
+                  title: '更新公告',
+                  body: '请前往官网下载最新版本安装更新。',
+                  severity: 'update',
+                  platforms: ['windows', 'android'],
+                  dismissible: true,
+                  actionLabel: '前往官网',
+                  actionUrl: 'https://sg.lwvpscc.top'
+                }
+              ]
+            })
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ releases: [] })
+      } as Response);
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole('dialog', { name: '更新公告' })).toBeInTheDocument();
+    expect(screen.getByText('请前往官网下载最新版本安装更新。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '前往官网' }));
+
+    expect(open).toHaveBeenCalledWith('https://sg.lwvpscc.top', '_blank', 'noopener,noreferrer');
+    expect(localStorage.getItem('quick-translate-dismissed-notifications')).toContain('notice-1');
+    expect(screen.getByRole('button', { name: '通知' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '通知' }));
+    expect(await screen.findByRole('dialog', { name: '通知中心' })).toBeInTheDocument();
+    expect(screen.getAllByText('更新公告').length).toBeGreaterThan(0);
   });
 
   it('keeps an ignored update version in local storage', async () => {
