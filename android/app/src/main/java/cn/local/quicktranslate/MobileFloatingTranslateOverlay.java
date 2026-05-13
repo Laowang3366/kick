@@ -12,6 +12,7 @@ import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -57,9 +58,41 @@ final class MobileFloatingTranslateOverlay {
             return;
         }
 
+        showFromClipboardOrEmpty(triggerSource, "剪切板没有可翻译内容");
+    }
+
+    void showFromSelectionOrClipboard(String triggerSource, AccessibilityNodeInfo root) {
+        if (!MobileFloatingTranslateSettings.canDrawOverlays(context)) {
+            Toast.makeText(context, "请先开启快捷翻译悬浮窗权限", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String selectedText = MobileFloatingTranslateSettings.readSelectedText(root);
+        if (!selectedText.trim().isEmpty()) {
+            showFloatingTranslate(
+                selectedText,
+                MobileFloatingTranslateSettings.getTargetLanguage(context),
+                MobileFloatingTranslateSettings.getTranslationFormat(context),
+                triggerSource
+            );
+            return;
+        }
+
+        if (MobileFloatingTranslateSettings.requestCopySelection(root)) {
+            mainHandler.postDelayed(
+                () -> showFromClipboardOrEmpty(triggerSource, "没有检测到选中文本或剪切板内容"),
+                220
+            );
+            return;
+        }
+
+        showFromClipboardOrEmpty(triggerSource, "没有检测到选中文本或剪切板内容");
+    }
+
+    private void showFromClipboardOrEmpty(String triggerSource, String emptyMessage) {
         String text = MobileFloatingTranslateSettings.readClipboardText(context);
         if (text.trim().isEmpty()) {
-            Toast.makeText(context, "剪切板没有可翻译内容", Toast.LENGTH_SHORT).show();
+            showEmptyState(emptyMessage, triggerSource);
             return;
         }
 
@@ -69,6 +102,26 @@ final class MobileFloatingTranslateOverlay {
             MobileFloatingTranslateSettings.getTranslationFormat(context),
             triggerSource
         );
+    }
+
+    private void showEmptyState(String message, String triggerSource) {
+        mainHandler.post(() -> {
+            removeFloatingView();
+            latestTranslatedText = "";
+            windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+            if (windowManager == null) {
+                Toast.makeText(context, "无法创建悬浮翻译窗", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            floatingView = createEmptyStateView(message, triggerSource);
+            try {
+                windowManager.addView(floatingView, createLayoutParams());
+            } catch (RuntimeException error) {
+                floatingView = null;
+                Toast.makeText(context, "悬浮窗打开失败：" + error.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     void showFloatingTranslate(String text, String targetLanguage, String translationFormat, String triggerSource) {
@@ -147,6 +200,51 @@ final class MobileFloatingTranslateOverlay {
         resultView = createBodyTextView("译文会显示在这里", Color.rgb(75, 85, 101));
         ScrollView resultScroll = createScrollContainer(resultView, dp(128));
         card.addView(resultScroll);
+
+        TextView footer = new TextView(context);
+        footer.setText(triggerSource + " · 可拖动窗口");
+        footer.setTextColor(Color.rgb(105, 115, 134));
+        footer.setTextSize(12);
+        footer.setPadding(0, dp(8), 0, 0);
+        card.addView(footer);
+
+        return card;
+    }
+
+    private View createEmptyStateView(String message, String triggerSource) {
+        LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        card.setBackground(createRoundedBackground(Color.WHITE, dp(18)));
+
+        LinearLayout header = new LinearLayout(context);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+
+        TextView title = new TextView(context);
+        title.setText("快捷翻译");
+        title.setTextColor(Color.rgb(13, 102, 216));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTextSize(15);
+        header.addView(title, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        Button closeButton = createHeaderButton("关闭");
+        closeButton.setOnClickListener((view) -> removeFloatingView());
+        header.addView(closeButton);
+
+        card.addView(header);
+        attachDragHandler(header);
+
+        TextView body = createBodyTextView(message, Color.rgb(75, 85, 101));
+        body.setTextSize(14);
+        card.addView(body);
+
+        TextView hint = new TextView(context);
+        hint.setText("请先选中文字或复制文本，再按自定义快捷键。");
+        hint.setTextColor(Color.rgb(105, 115, 134));
+        hint.setTextSize(13);
+        hint.setPadding(0, dp(6), 0, dp(2));
+        card.addView(hint);
 
         TextView footer = new TextView(context);
         footer.setText(triggerSource + " · 可拖动窗口");

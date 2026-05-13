@@ -2231,7 +2231,7 @@ export function App() {
                             <KeyRound size={18} />
                             <span>打开无障碍设置</span>
                           </button>
-                          <small>开启后，已录入的实体键可在其他应用中读取剪切板并唤起悬浮翻译。</small>
+                          <small>开启后，已录入的实体键可在其他应用中优先读取选中文本，读不到时再读取剪切板。</small>
                         </div>
                       </div>
 
@@ -2248,7 +2248,7 @@ export function App() {
                             <KeyRound size={18} />
                             <span>{isCapturingMobileFloatingShortcut ? '等待按键' : '录入按键'}</span>
                           </button>
-                          <small>按键录入后需开启按键监听服务，跨应用触发时会翻译剪切板内容。</small>
+                          <small>按键录入后需开启按键监听服务，跨应用触发时会优先翻译当前选中文本。</small>
                         </div>
                       </div>
 

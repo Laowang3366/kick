@@ -9,6 +9,7 @@ import android.os.Build;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.KeyEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 final class MobileFloatingTranslateSettings {
     static final String PREFS_NAME = "mobile_floating_translate";
@@ -21,6 +22,7 @@ final class MobileFloatingTranslateSettings {
     static final String DEFAULT_TRANSLATION_FORMAT = "plain";
     static final String BACKEND_TRANSLATE_URL = "https://sg.lwvpscc.top/quick-translate/backend/api/translate";
     static final int MAX_TRANSLATION_TEXT_LENGTH = 30000;
+    private static final int MAX_SELECTION_NODE_VISITS = 180;
 
     private MobileFloatingTranslateSettings() {}
 
@@ -92,6 +94,19 @@ final class MobileFloatingTranslateSettings {
         return limitText(text == null ? "" : text.toString());
     }
 
+    static String readSelectedText(AccessibilityNodeInfo root) {
+        if (root == null) {
+            return "";
+        }
+
+        return limitText(findSelectedText(root, new int[] { 0 }));
+    }
+
+    static boolean requestCopySelection(AccessibilityNodeInfo root) {
+        AccessibilityNodeInfo node = findCopyableNode(root, new int[] { 0 });
+        return node != null && node.performAction(AccessibilityNodeInfo.ACTION_COPY);
+    }
+
     static void copyToClipboard(Context context, String label, String text) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard != null) {
@@ -122,5 +137,70 @@ final class MobileFloatingTranslateSettings {
             default:
                 return KeyEvent.keyCodeToString(keyCode).replace("KEYCODE_", "").replace("_", " ");
         }
+    }
+
+    private static String findSelectedText(AccessibilityNodeInfo node, int[] visits) {
+        if (node == null || visits[0]++ > MAX_SELECTION_NODE_VISITS) {
+            return "";
+        }
+
+        CharSequence text = node.getText();
+        if (text != null) {
+            int start = node.getTextSelectionStart();
+            int end = node.getTextSelectionEnd();
+            if (start >= 0 && end > start && end <= text.length()) {
+                return text.subSequence(start, end).toString();
+            }
+            if (node.isFocused() && node.isTextSelectable() && node.isSelected() && text.length() > 0) {
+                return text.toString();
+            }
+        }
+
+        int childCount = node.getChildCount();
+        for (int index = 0; index < childCount; index += 1) {
+            AccessibilityNodeInfo child = node.getChild(index);
+            try {
+                String selectedText = findSelectedText(child, visits);
+                if (!selectedText.trim().isEmpty()) {
+                    return selectedText;
+                }
+            } finally {
+                if (child != null) {
+                    child.recycle();
+                }
+            }
+        }
+        return "";
+    }
+
+    private static AccessibilityNodeInfo findCopyableNode(AccessibilityNodeInfo node, int[] visits) {
+        if (node == null || visits[0]++ > MAX_SELECTION_NODE_VISITS) {
+            return null;
+        }
+
+        if ((node.isFocused() || node.isAccessibilityFocused()) && supportsCopy(node)) {
+            return node;
+        }
+
+        AccessibilityNodeInfo firstCopyable = supportsCopy(node) ? node : null;
+        int childCount = node.getChildCount();
+        for (int index = 0; index < childCount; index += 1) {
+            AccessibilityNodeInfo child = node.getChild(index);
+            AccessibilityNodeInfo copyable = findCopyableNode(child, visits);
+            if (copyable != null) {
+                if (copyable != child && child != null) {
+                    child.recycle();
+                }
+                return copyable;
+            }
+            if (child != null) {
+                child.recycle();
+            }
+        }
+        return firstCopyable;
+    }
+
+    private static boolean supportsCopy(AccessibilityNodeInfo node) {
+        return (node.getActions() & AccessibilityNodeInfo.ACTION_COPY) != 0;
     }
 }

@@ -1,15 +1,23 @@
 {
-  "latestVersion": "0.1.84",
+  "latestVersion": "0.1.86",
   "releases": [
     {
-      "version": "0.1.84",
+      "version": "0.1.86",
       "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.84.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.84.apk",
-      "size": 3283811,
-      "sha512": "ZP4VgPR8EpvZ0M5ajMx835QBq01WHnSlN20ZOvcWbyo5pKbT9hb/nLubiGk78P4FsMm13q20uRpLD8zdaOfyMw==",
-      "releaseDate": "2026-05-13T10:13:56.927Z",
-      "releaseNotes": "0.1.84：修复 Android 启动失败 i.then is not a function；手机悬浮翻译事件监听兼容同步和异步监听句柄，避免启动阶段白屏。"
+      "fileName": "Quick-Translate-Android-0.1.86.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.86.apk",
+      "size": 3285155,
+      "sha512": "L+enOEmwrlf7HP5og6Bhu8+aZoFUtB8wifzwRyheRWrE2g0/x/VB4m/9/BgYZIiigSZqhwq3AEduU+t8QmGTsA==",
+      "releaseDate": "2026-05-13T10:43:40.046Z"
+    },
+    {
+      "version": "0.1.85",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.85.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.85.apk",
+      "size": 3285151,
+      "sha512": "noeNKO4NUCwGu6YmHPy4u/7WFvhkJdMPO4RbSuO9txutkg0NJteJGpcCNJIYiJSlEE+b1gzJbqrLwUoEw3fLqg==",
+      "releaseDate": "2026-05-13T10:42:23.668Z"
     },
     {
       "version": "0.1.83",
@@ -20,16 +28,6 @@
       "sha512": "xK+aA9POTyekNEe/gAziHTXH4Ui4hnK4Q8NBCDGwnmFK1QLcNQHf/DiwJkTLIEJS9qQJGjwCG0n3gNqy/xCO/Q==",
       "releaseDate": "2026-05-13T08:49:30.850Z",
       "releaseNotes": "0.1.83：修复 Windows 应用内更新启动协调器被系统拒绝执行时弹出主进程错误的问题；协调器启动失败会写入更新事务并自动兜底拉起安装器。"
-    },
-    {
-      "version": "0.1.82",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.82.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.82.apk",
-      "size": 3278051,
-      "sha512": "pdAy/1TiexPiTWPDioA1fEiLMFcPxww+QKkUSdKEVMdZYna/WBaPK+PU705xrwZ6vjuaXI+RvZLy6jCI2EHuhw==",
-      "releaseDate": "2026-05-13T08:13:05.232Z",
-      "releaseNotes": "0.1.82：继续修复 Android 启动空白页；启动缓存清理提前到主入口脚本之前执行，Android 原生 WebView 会等待旧 Service Worker/缓存清理完成后再加载 React，并增加启动错误兜底界面。"
     },
     {
       "version": "0.1.81",
