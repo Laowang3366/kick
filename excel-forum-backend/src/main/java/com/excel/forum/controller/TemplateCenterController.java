@@ -1,6 +1,7 @@
 package com.excel.forum.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.excel.forum.config.FileStorageConfig;
 import com.excel.forum.entity.PointsRecord;
 import com.excel.forum.entity.TemplateCenterItem;
 import com.excel.forum.entity.TemplateDownloadRecord;
@@ -14,6 +15,12 @@ import com.excel.forum.util.TemplateCenterCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,8 +32,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,6 +55,7 @@ public class TemplateCenterController {
     private final UserMapper userMapper;
     private final PointsRecordService pointsRecordService;
     private final ObjectMapper objectMapper;
+    private final FileStorageConfig fileStorageConfig;
 
     @GetMapping
     public ResponseEntity<?> getTemplates(
@@ -111,6 +124,7 @@ public class TemplateCenterController {
                     row.put("functionsUsed", item == null ? List.of() : parseFunctionsUsed(item.getFunctionsUsed()));
                     row.put("difficultyLevel", item == null ? "" : defaultString(item.getDifficultyLevel()));
                     row.put("templateFileUrl", item == null ? "" : defaultString(item.getTemplateFileUrl()));
+                    row.put("downloadUrl", item == null ? "" : buildTemplateDownloadUrl(item.getId()));
                     row.put("hasTemplateFile", item != null && item.getTemplateFileUrl() != null && !item.getTemplateFileUrl().isBlank());
                     row.put("pointsCost", safeInt(record.getPointsCost()));
                     row.put("createTime", record.getCreateTime());
@@ -141,6 +155,9 @@ public class TemplateCenterController {
         if (item.getTemplateFileUrl() == null || item.getTemplateFileUrl().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "当前模板尚未上传下载文件"));
         }
+        if (resolveReadableTemplateFile(item.getTemplateFileUrl()) == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "模板文件不存在，请联系管理员重新上传"));
+        }
         User user = userService.getById(userId);
         if (user == null) {
             return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
@@ -148,7 +165,7 @@ public class TemplateCenterController {
 
         if (templateDownloadRecordService.hasDownloaded(userId, id)) {
             return ResponseEntity.ok(Map.of(
-                    "url", item.getTemplateFileUrl(),
+                    "url", buildTemplateDownloadUrl(item.getId()),
                     "deductedPoints", 0,
                     "currentPoints", safeInt(user.getPoints()),
                     "downloaded", true
@@ -189,11 +206,45 @@ public class TemplateCenterController {
 
         User updatedUser = userService.getById(userId);
         return ResponseEntity.ok(Map.of(
-                "url", item.getTemplateFileUrl(),
+                "url", buildTemplateDownloadUrl(item.getId()),
                 "deductedPoints", costPoints,
                 "currentPoints", updatedUser == null ? 0 : safeInt(updatedUser.getPoints()),
                 "downloaded", true
         ));
+    }
+
+    @GetMapping("/{id}/file")
+    public ResponseEntity<?> downloadTemplateFile(@RequestAttribute Long userId, @PathVariable Long id) {
+        TemplateCenterItem item = templateCenterItemService.getById(id);
+        if (item == null || !Boolean.TRUE.equals(item.getEnabled())) {
+            return ResponseEntity.status(404).body(Map.of("message", "模板不存在"));
+        }
+        if (item.getTemplateFileUrl() == null || item.getTemplateFileUrl().isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "当前模板尚未上传下载文件"));
+        }
+        if (!templateDownloadRecordService.hasDownloaded(userId, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "请先下载该模板"));
+        }
+
+        Path filePath = resolveReadableTemplateFile(item.getTemplateFileUrl());
+        if (filePath == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "模板文件不存在，请联系管理员重新上传"));
+        }
+
+        Resource resource = new FileSystemResource(filePath);
+        String fileName = filePath.getFileName().toString();
+        MediaType contentType = resolveMediaType(fileName);
+        long contentLength = safeFileSize(filePath);
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok()
+                .contentType(contentType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(fileName, StandardCharsets.UTF_8)
+                        .build()
+                        .toString());
+        if (contentLength >= 0) {
+            response.contentLength(contentLength);
+        }
+        return response.body(resource);
     }
 
     private Map<String, Object> toTemplateMap(TemplateCenterItem item, boolean downloaded, boolean includeFileUrl) {
@@ -244,5 +295,84 @@ public class TemplateCenterController {
 
     private String defaultString(String value) {
         return value == null ? "" : value;
+    }
+
+    private String buildTemplateDownloadUrl(Long templateId) {
+        return templateId == null ? "" : "/api/templates/" + templateId + "/file";
+    }
+
+    private Path resolveLocalTemplateFile(String fileUrl) {
+        String pathValue = extractPath(fileUrl);
+        if (pathValue == null) {
+            return null;
+        }
+        String urlPrefix = normalizeUrlPrefix(fileStorageConfig.getLocal().getUrlPrefix());
+        if (!pathValue.equals(urlPrefix) && !pathValue.startsWith(urlPrefix + "/")) {
+            return null;
+        }
+        String relativePath = pathValue.substring(urlPrefix.length());
+        if (relativePath.startsWith("/")) {
+            relativePath = relativePath.substring(1);
+        }
+        if (relativePath.isBlank()) {
+            return null;
+        }
+        String decodedPath = URLDecoder.decode(relativePath, StandardCharsets.UTF_8);
+        Path uploadRoot = Paths.get(fileStorageConfig.getLocal().getPath()).toAbsolutePath().normalize();
+        Path resolvedPath = uploadRoot.resolve(decodedPath).normalize();
+        return resolvedPath.startsWith(uploadRoot) ? resolvedPath : null;
+    }
+
+    private Path resolveReadableTemplateFile(String fileUrl) {
+        Path filePath = resolveLocalTemplateFile(fileUrl);
+        if (filePath == null || !Files.isRegularFile(filePath) || !Files.isReadable(filePath)) {
+            return null;
+        }
+        return filePath;
+    }
+
+    private String extractPath(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return null;
+        }
+        String value = fileUrl.trim();
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            try {
+                return URI.create(value).getPath();
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
+        return value.startsWith("/") ? value : "/" + value;
+    }
+
+    private String normalizeUrlPrefix(String value) {
+        String prefix = value == null || value.isBlank() ? "/uploads" : value.trim();
+        if (!prefix.startsWith("/")) {
+            prefix = "/" + prefix;
+        }
+        while (prefix.endsWith("/") && prefix.length() > 1) {
+            prefix = prefix.substring(0, prefix.length() - 1);
+        }
+        return prefix;
+    }
+
+    private MediaType resolveMediaType(String fileName) {
+        String lowerName = fileName == null ? "" : fileName.toLowerCase();
+        if (lowerName.endsWith(".xlsx")) {
+            return MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        }
+        if (lowerName.endsWith(".xls")) {
+            return MediaType.parseMediaType("application/vnd.ms-excel");
+        }
+        return MediaType.APPLICATION_OCTET_STREAM;
+    }
+
+    private long safeFileSize(Path filePath) {
+        try {
+            return Files.size(filePath);
+        } catch (Exception ignored) {
+            return -1;
+        }
     }
 }

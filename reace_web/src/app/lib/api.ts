@@ -37,6 +37,51 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   return apiRequestInternal<T>(path, options, 0);
 }
 
+export async function downloadFile(path: string, fallbackFileName = "download", options: Pick<RequestOptions, "headers" | "auth" | "silent"> = {}) {
+  const { headers = {}, auth = true, silent = false } = options;
+  const token = auth ? getStoredToken() : null;
+  const requestHeaders = new Headers(headers);
+  if (token) {
+    requestHeaders.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(resolveApiUrl(path), {
+    method: "GET",
+    headers: requestHeaders,
+  });
+
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type") || "";
+    const data = contentType.includes("application/json")
+      ? await response.json().catch(() => null)
+      : await response.text().catch(() => "");
+    const message = normalizeErrorMessage(data, `请求失败(${response.status})`);
+    const loginRequired = isLoginRequiredResponse(response.status, message, data);
+    if (loginRequired) {
+      clearStoredSession();
+    }
+    if (!silent) {
+      if (loginRequired) {
+        toast.info("请先登录后继续操作", {
+          action: {
+            label: "去登录",
+            onClick: () => {
+              window.location.assign("/auth");
+            },
+          },
+        });
+      } else {
+        toast.error(message);
+      }
+    }
+    throw new ApiError(message, response.status, data);
+  }
+
+  const blob = await response.blob();
+  const fileName = resolveDownloadFileName(response.headers.get("content-disposition"), fallbackFileName);
+  triggerBrowserDownload(blob, fileName);
+}
+
 async function apiRequestInternal<T>(path: string, options: RequestOptions, retryCount: number): Promise<T> {
   const { method = "GET", body, headers = {}, auth = true, silent = false } = options;
   const token = auth ? getStoredToken() : null;
@@ -95,6 +140,40 @@ async function apiRequestInternal<T>(path: string, options: RequestOptions, retr
   return data as T;
 }
 
+function resolveApiUrl(path: string) {
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${normalizedPath}`;
+}
+
+function resolveDownloadFileName(disposition: string | null, fallbackFileName: string) {
+  if (!disposition) return fallbackFileName;
+  const encodedMatch = disposition.match(/filename\*\s*=\s*[^']*''([^;]+)/i);
+  if (encodedMatch?.[1]) {
+    try {
+      return decodeURIComponent(encodedMatch[1].trim().replace(/^"|"$/g, "")) || fallbackFileName;
+    } catch {
+      return fallbackFileName;
+    }
+  }
+  const quotedMatch = disposition.match(/filename\s*=\s*"([^"]+)"/i);
+  if (quotedMatch?.[1]) return quotedMatch[1] || fallbackFileName;
+  const plainMatch = disposition.match(/filename\s*=\s*([^;]+)/i);
+  return plainMatch?.[1]?.trim() || fallbackFileName;
+}
+
+function triggerBrowserDownload(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = fileName;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 function shouldRetryRequest(path: string, method: string) {
   const normalizedMethod = method.toUpperCase();
   if (normalizedMethod === "GET") return true;
@@ -114,4 +193,5 @@ export const api = {
     apiRequest<T>(path, { ...options, method: "PUT", body }),
   delete: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, "method" | "body">) =>
     apiRequest<T>(path, { ...options, method: "DELETE", body }),
+  download: downloadFile,
 };

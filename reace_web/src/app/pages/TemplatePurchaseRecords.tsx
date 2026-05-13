@@ -1,8 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, FolderClock, ReceiptText, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { LiteHero, LitePageFrame, LitePanel } from "../components/LiteSurface";
-import { api } from "../lib/api";
+import { api, downloadFile } from "../lib/api";
 import { normalizeResourceUrl } from "../lib/mappers";
 import { templateKeys } from "../lib/query-keys";
 import { formatTemplateCost, formatTemplateDifficulty } from "../lib/template-center";
@@ -26,10 +27,26 @@ export function TemplatePurchaseRecords() {
     queryKey: templateKeys.records(),
     queryFn: () => api.get<any>("/api/templates/records", { silent: true }),
   });
+  const downloadMutation = useMutation({
+    mutationFn: ({ url, fileName }: { id: number; url: string; fileName: string }) => downloadFile(url, fileName),
+  });
 
   const records = recordsQuery.data?.records || [];
   const totalDownloads = Number(recordsQuery.data?.totalDownloads || 0);
   const totalSpentPoints = Number(recordsQuery.data?.totalSpentPoints || 0);
+
+  const handleDownload = (item: any) => {
+    const url = item.downloadUrl || item.templateFileUrl;
+    if (!url) {
+      toast.info("当前模板文件不可用");
+      return;
+    }
+    void downloadMutation.mutateAsync({
+      id: item.id,
+      url,
+      fileName: `${item.title || "excelcc-template"}.xlsx`,
+    });
+  };
 
   return (
     <LitePageFrame className="max-w-[1420px]">
@@ -74,6 +91,7 @@ export function TemplatePurchaseRecords() {
         <section className="grid gap-5 xl:grid-cols-2">
           {records.map((item: any) => {
             const previewUrl = normalizeResourceUrl(item.previewImageUrl);
+            const pending = downloadMutation.isPending && downloadMutation.variables?.id === item.id;
             return (
               <LitePanel key={item.id} className="overflow-hidden p-0">
                 <div className="grid gap-0 md:grid-cols-[220px_minmax(0,1fr)]">
@@ -161,15 +179,15 @@ export function TemplatePurchaseRecords() {
                         {item.hasTemplateFile ? "模板文件仍可直接重复下载" : "模板文件当前不可用"}
                       </div>
                       {item.hasTemplateFile ? (
-                        <a
-                          href={normalizeResourceUrl(item.templateFileUrl)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white transition hover:bg-slate-800"
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(item)}
+                          disabled={pending}
+                          className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-black text-white transition hover:bg-slate-800 disabled:bg-slate-300"
                         >
                           <Download size={16} />
-                          重新下载
-                        </a>
+                          {pending ? "下载中..." : "重新下载"}
+                        </button>
                       ) : (
                         <span className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-100 px-5 text-sm font-black text-slate-400">
                           文件不可用

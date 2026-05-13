@@ -4,7 +4,7 @@ import { Bookmark, Download, FileImage, FolderKanban, Layers3, Sparkles, Tag } f
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { LitePageFrame, LitePanel } from "../components/LiteSurface";
-import { api } from "../lib/api";
+import { api, downloadFile } from "../lib/api";
 import { normalizeResourceUrl } from "../lib/mappers";
 import { pointsKeys, templateKeys } from "../lib/query-keys";
 import { formatTemplateCost, formatTemplateDifficulty } from "../lib/template-center";
@@ -49,19 +49,19 @@ export function TemplateCenter() {
   const downloadedCount = records.filter((item: any) => item.downloaded).length;
 
   const downloadMutation = useMutation({
-    mutationFn: (templateId: number) => api.post<{ url: string; deductedPoints: number }>(`/api/templates/${templateId}/download`, {}),
-    onSuccess: async (result) => {
+    mutationFn: async (templateId: number) => {
+      const result = await api.post<{ url: string; deductedPoints: number }>(`/api/templates/${templateId}/download`, {});
       if (result?.url) {
-        window.open(normalizeResourceUrl(result.url), "_blank", "noopener,noreferrer");
+        await downloadFile(result.url, `excelcc-template-${templateId}.xlsx`);
       }
+      return result;
+    },
+    onSuccess: async (result) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["templates"] }),
         queryClient.invalidateQueries({ queryKey: pointsKeys.overview() }),
       ]);
       toast.success(result?.deductedPoints ? `模板下载成功，已扣除 ${result.deductedPoints} 积分` : "模板下载成功");
-    },
-    onError: (error: any) => {
-      toast.error(error?.message || "模板下载失败");
     },
   });
 

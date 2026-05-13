@@ -90,6 +90,7 @@ public class SecurityConfig {
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/practice/campaign/**")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/tutorials/**")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/api/templates/records")).authenticated()
+                .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/templates/*/file")).authenticated()
                 .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/api/templates/**")).permitAll()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/api/practice/**")).authenticated()
                 .requestMatchers(AntPathRequestMatcher.antMatcher("/api/templates/**")).authenticated()
