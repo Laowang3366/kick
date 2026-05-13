@@ -1362,6 +1362,48 @@ describe('App', () => {
     expect(await screen.findByText('已打开悬浮翻译窗，剪切板为空时可手动输入')).toBeInTheDocument();
   });
 
+  it('hides the Android floating window when the translate view is active', async () => {
+    const state = {
+      available: true,
+      platform: 'android',
+      canDrawOverlays: true,
+      canListenKeyEvents: false,
+      enabled: true,
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain',
+      shortcutKeyCode: 0,
+      shortcutLabel: '',
+      hasPendingSharedText: false
+    };
+    const hideFloatingTranslate = vi.fn().mockResolvedValue(state);
+    (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      Plugins: {
+        MobileFloatingTranslate: {
+          addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }),
+          configure: vi.fn().mockResolvedValue(state),
+          consumePendingSharedText: vi.fn().mockResolvedValue({ text: '' }),
+          getState: vi.fn().mockResolvedValue(state),
+          hideFloatingTranslate,
+          requestOverlayPermission: vi.fn(),
+          showFloatingTranslate: vi.fn(),
+          showFloatingTranslateFromClipboard: vi.fn()
+        }
+      }
+    };
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(hideFloatingTranslate).toHaveBeenCalledOnce();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '翻译视图' }));
+    await waitFor(() => {
+      expect(hideFloatingTranslate).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it('opens the Android floating window for shared text when enabled', async () => {
     let sharedTextListener: ((payload: { text?: string }) => void) | null = null;
     const state = {

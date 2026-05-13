@@ -62,6 +62,7 @@ import {
   configureMobileFloatingTranslate,
   consumePendingMobileSharedText,
   getMobileFloatingTranslateState,
+  hideMobileFloatingTranslate,
   onMobileSharedText,
   requestMobileFloatingPermission,
   showMobileFloatingTranslate,
@@ -814,6 +815,14 @@ export function App() {
   }, [targetLanguage, translationFormat, providerSettings]);
 
   useEffect(() => {
+    if (activeView !== 'translate') {
+      return;
+    }
+
+    void hideMobileFloatingTranslate();
+  }, [activeView]);
+
+  useEffect(() => {
     const sharedText = readSharedTextFromUrl(window.location.href);
     if (sharedText) {
       const limitedText = limitTranslationText(sharedText);
@@ -964,6 +973,11 @@ export function App() {
     setSourceText(limitedText);
     setActiveView('translate');
     void runTranslation(limitedText, currentTargetLanguage, currentTranslationFormat);
+  }
+
+  function openTranslateView() {
+    setActiveView('translate');
+    void hideMobileFloatingTranslate();
   }
 
   async function toggleMobileFloatingTranslate(enabled: boolean) {
@@ -1706,7 +1720,7 @@ export function App() {
                 icon={<Languages size={22} />}
                 label="翻译"
                 screenReaderLabel="翻译视图"
-                onClick={() => setActiveView('translate')}
+                onClick={openTranslateView}
               />
               <NavItem
                 active={activeView === 'history'}

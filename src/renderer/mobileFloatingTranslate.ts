@@ -125,6 +125,15 @@ export async function showMobileFloatingTranslateFromClipboard() {
   return normalizeMobileFloatingState(await plugin.showFloatingTranslateFromClipboard());
 }
 
+export async function hideMobileFloatingTranslate() {
+  const plugin = getMobileFloatingTranslatePlugin();
+  if (!plugin?.hideFloatingTranslate) {
+    return null;
+  }
+
+  return normalizeMobileFloatingState(await plugin.hideFloatingTranslate());
+}
+
 export async function consumePendingMobileSharedText() {
   const plugin = getMobileFloatingTranslatePlugin();
   if (!plugin) {

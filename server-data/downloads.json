@@ -1,6 +1,15 @@
 {
-  "latestVersion": "0.1.91",
+  "latestVersion": "0.1.92",
   "releases": [
+    {
+      "version": "0.1.92",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.92.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.92.apk",
+      "size": 3289447,
+      "sha512": "MddAUGjqb+e8sb5ROzB9DJs5/vX5rHs3fi3LkFmJyjyP56GdxwMJjz8b5TzRdjnzIxAtWGMq1l4rKhI5EoSniQ==",
+      "releaseDate": "2026-05-13T13:18:41.250Z"
+    },
     {
       "version": "0.1.91",
       "platform": "android",
@@ -9,15 +18,6 @@
       "size": 3289647,
       "sha512": "TdeOLCuhM86VqGj5oPKEEEQzmfXotgd/ZaowhqOWsQbzsrk0pLjVRCJq6htPzqa+bJkubQM7SgnKoVLJpCk5EQ==",
       "releaseDate": "2026-05-13T12:57:33.700Z"
-    },
-    {
-      "version": "0.1.90",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.90.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.90.apk",
-      "size": 3289639,
-      "sha512": "svOXuZ5omqMtiis+8mh1vjs9joxZC4u2WNCZasqiT2IWl5s4lsewAgrxIOzWigoBmxz9ABCquKSJbdVV7DE4DA==",
-      "releaseDate": "2026-05-13T12:53:41.866Z"
     },
     {
       "version": "0.1.83",

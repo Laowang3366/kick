@@ -1,7 +1,5 @@
 package cn.local.quicktranslate;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -142,7 +140,7 @@ final class MobileFloatingTranslateOverlay {
             try {
                 windowManager.addView(floatingView, params);
                 MobileFloatingBubbleService.setBubbleExpanded(context, true);
-                animatePanelIn(floatingView, lastAnchorOnRight);
+                showPanelInstant(floatingView);
                 focusSourceInput(false);
                 if (initialText.trim().isEmpty()) {
                     setStatus(shouldReadClipboard ? "正在读取剪切板..." : "请输入或粘贴原文", false);
@@ -605,34 +603,15 @@ final class MobileFloatingTranslateOverlay {
             bubbleY = panelWasMoved ? panelYToBubbleY(params.y) : panelAnchorBubbleY;
         }
         MobileFloatingBubbleService.moveBubbleToEdge(context, toRight, bubbleY);
-        animatePanelOut(view, toRight);
+        animatePanelOut(view);
     }
 
-    private void animatePanelIn(View view, boolean fromRight) {
+    private void animatePanelOut(View view) {
         view.animate().cancel();
-        view.setAlpha(0f);
-        view.setTranslationX(fromRight ? dp(22) : -dp(22));
-        view.animate()
-            .alpha(1f)
-            .translationX(0f)
-            .setDuration(160)
-            .start();
-    }
-
-    private void animatePanelOut(View view, boolean toRight) {
-        view.animate().cancel();
-        view.animate()
-            .alpha(0f)
-            .translationX(toRight ? dp(24) : -dp(24))
-            .setDuration(130)
-            .setListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    removeFloatingView();
-                    MobileFloatingBubbleService.setBubbleExpanded(context, false);
-                }
-            })
-            .start();
+        view.setAlpha(1f);
+        view.setTranslationX(0f);
+        removeFloatingView();
+        MobileFloatingBubbleService.setBubbleExpanded(context, false);
     }
 
     private boolean handleBackKey(int keyCode, KeyEvent event) {
@@ -676,6 +655,12 @@ final class MobileFloatingTranslateOverlay {
         panelClosing = false;
         panelWasMoved = false;
         panelAnchorBubbleY = 0;
+    }
+
+    private void showPanelInstant(View view) {
+        view.animate().cancel();
+        view.setAlpha(1f);
+        view.setTranslationX(0f);
     }
 
     private void focusSourceInput(boolean showKeyboard) {

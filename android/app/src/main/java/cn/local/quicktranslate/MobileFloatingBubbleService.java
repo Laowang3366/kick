@@ -80,7 +80,7 @@ public final class MobileFloatingBubbleService extends Service {
             int y = intent.getIntExtra(EXTRA_Y, dp(160));
             moveBubble(onRight, y, true);
         } else if (ACTION_SET_BUBBLE_EXPANDED.equals(intent == null ? null : intent.getAction())) {
-            applyExpandedState(intent.getBooleanExtra(EXTRA_EXPANDED, false), true);
+            applyExpandedState(intent.getBooleanExtra(EXTRA_EXPANDED, false));
         }
         return START_STICKY;
     }
@@ -132,7 +132,7 @@ public final class MobileFloatingBubbleService extends Service {
             WindowManager.LayoutParams params = bubbleView == null ? null : (WindowManager.LayoutParams) bubbleView.getLayoutParams();
             int anchorX = params == null ? getDisplayWidth() - dp(BUBBLE_WIDTH_DP) : params.x;
             int anchorY = params == null ? dp(160) : params.y;
-            setBubbleExpanded(this, true);
+            applyExpandedState(true);
             MobileFloatingTranslateOverlay.get(this).showFromClipboardOrManual("悬浮球", anchorX, anchorY);
         });
         attachDragHandler(bubble);
@@ -242,7 +242,7 @@ public final class MobileFloatingBubbleService extends Service {
         animator.start();
     }
 
-    private void applyExpandedState(boolean expanded, boolean animated) {
+    private void applyExpandedState(boolean expanded) {
         if (bubbleView == null) {
             return;
         }
@@ -250,31 +250,13 @@ public final class MobileFloatingBubbleService extends Service {
         bubbleView.animate().cancel();
         bubbleView.animate().setListener(null);
         if (expanded) {
-            if (!animated) {
-                bubbleView.setVisibility(View.INVISIBLE);
-                bubbleView.setAlpha(0f);
-                return;
-            }
-
-            bubbleView.animate()
-                .alpha(0f)
-                .setDuration(110)
-                .withEndAction(() -> bubbleView.setVisibility(View.INVISIBLE))
-                .start();
+            bubbleView.setAlpha(0f);
+            bubbleView.setVisibility(View.INVISIBLE);
             return;
         }
 
         bubbleView.setVisibility(View.VISIBLE);
-        if (!animated) {
-            bubbleView.setAlpha(1f);
-            return;
-        }
-
-        bubbleView.setAlpha(0f);
-        bubbleView.animate()
-            .alpha(1f)
-            .setDuration(140)
-            .start();
+        bubbleView.setAlpha(1f);
     }
 
     private void removeBubble() {
