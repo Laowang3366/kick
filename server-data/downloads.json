@@ -6,9 +6,9 @@
       "platform": "android",
       "fileName": "Quick-Translate-Android-0.1.84.apk",
       "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.84.apk",
-      "size": 3278111,
-      "sha512": "3i/AGf7LuVkXxD2ne74cAMAdQji6JZumnOiLOTCEzI2d9WzlqqJtmfc1aCiUshxa139yO7Dsb4wcQ5j8XX79Lw==",
-      "releaseDate": "2026-05-13T09:08:57.925Z",
+      "size": 3283811,
+      "sha512": "ZP4VgPR8EpvZ0M5ajMx835QBq01WHnSlN20ZOvcWbyo5pKbT9hb/nLubiGk78P4FsMm13q20uRpLD8zdaOfyMw==",
+      "releaseDate": "2026-05-13T10:13:56.927Z",
       "releaseNotes": "0.1.84：修复 Android 启动失败 i.then is not a function；手机悬浮翻译事件监听兼容同步和异步监听句柄，避免启动阶段白屏。"
     },
     {

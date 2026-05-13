@@ -63,6 +63,7 @@ import {
   consumePendingMobileSharedText,
   getMobileFloatingTranslateState,
   onMobileSharedText,
+  requestMobileFloatingAccessibilityPermission,
   requestMobileFloatingPermission,
   showMobileFloatingTranslate,
   startMobileFloatingShortcutCapture,
@@ -787,10 +788,12 @@ export function App() {
 
     const handleWindowFocus = () => {
       void refreshMobileClipboardText();
+      void refreshMobileFloatingState();
     };
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         void refreshMobileClipboardText();
+        void refreshMobileFloatingState();
       }
     };
 
@@ -911,6 +914,13 @@ export function App() {
     setMobileClipboardText(text.trim() ? text : '');
   }
 
+  async function refreshMobileFloatingState() {
+    const state = await getMobileFloatingTranslateState();
+    if (state) {
+      setMobileFloatingState(state);
+    }
+  }
+
   async function pasteMobileClipboardText() {
     const latestClipboardText = await readMobileClipboardText();
     const text = latestClipboardText.trim() ? latestClipboardText : mobileClipboardText;
@@ -969,9 +979,11 @@ export function App() {
         setMobileFloatingState(state);
         setMobileFloatingMessage(
           enabled
-            ? state.canDrawOverlays
+            ? state.canDrawOverlays && state.canListenKeyEvents
               ? '手机悬浮翻译已启用'
-              : '已启用，需授权悬浮窗权限后生效'
+              : state.canDrawOverlays
+                ? '已启用，需开启按键监听服务后可跨应用触发'
+                : '已启用，需授权悬浮窗权限后生效'
             : '手机悬浮翻译已关闭'
         );
       }
@@ -989,6 +1001,18 @@ export function App() {
       setMobileFloatingMessage('请在系统设置中允许快捷翻译显示在其他应用上层');
     } catch (error) {
       setMobileFloatingMessage(error instanceof Error ? error.message : '无法打开悬浮窗权限设置');
+    }
+  }
+
+  async function openMobileFloatingAccessibilityPermission() {
+    try {
+      const state = await requestMobileFloatingAccessibilityPermission();
+      if (state) {
+        setMobileFloatingState(state);
+      }
+      setMobileFloatingMessage('请在无障碍设置中开启“快捷翻译”按键监听服务');
+    } catch (error) {
+      setMobileFloatingMessage(error instanceof Error ? error.message : '无法打开无障碍设置');
     }
   }
 
@@ -2198,6 +2222,20 @@ export function App() {
                       </div>
 
                       <div className="settings-field mobile-floating-field">
+                        <span>按键监听服务</span>
+                        <div className="mobile-floating-control">
+                          <strong className={mobileFloatingState.canListenKeyEvents ? 'mobile-floating-ok' : 'mobile-floating-warn'}>
+                            {mobileFloatingState.canListenKeyEvents ? '已开启' : '未开启'}
+                          </strong>
+                          <button className="settings-action" type="button" onClick={openMobileFloatingAccessibilityPermission}>
+                            <KeyRound size={18} />
+                            <span>打开无障碍设置</span>
+                          </button>
+                          <small>开启后，已录入的实体键可在其他应用中读取剪切板并唤起悬浮翻译。</small>
+                        </div>
+                      </div>
+
+                      <div className="settings-field mobile-floating-field">
                         <span>自定义触发按键</span>
                         <div className="mobile-floating-control">
                           <strong>{mobileFloatingState.shortcutLabel || '未录入'}</strong>
@@ -2210,7 +2248,7 @@ export function App() {
                             <KeyRound size={18} />
                             <span>{isCapturingMobileFloatingShortcut ? '等待按键' : '录入按键'}</span>
                           </button>
-                          <small>普通应用无法后台监听任意全局按键；该按键在快捷翻译前台可触发剪切板悬浮翻译。</small>
+                          <small>按键录入后需开启按键监听服务，跨应用触发时会翻译剪切板内容。</small>
                         </div>
                       </div>
 

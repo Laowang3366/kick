@@ -1275,6 +1275,7 @@ describe('App', () => {
       available: true,
       platform: 'android',
       canDrawOverlays: false,
+      canListenKeyEvents: false,
       enabled: false,
       targetLanguage: 'zh-CN',
       translationFormat: 'plain',
@@ -1286,6 +1287,7 @@ describe('App', () => {
       available: true,
       platform: 'android',
       canDrawOverlays: false,
+      canListenKeyEvents: false,
       enabled: true,
       targetLanguage: 'zh-CN',
       translationFormat: 'plain',
@@ -1297,6 +1299,19 @@ describe('App', () => {
       available: true,
       platform: 'android',
       canDrawOverlays: false,
+      canListenKeyEvents: false,
+      enabled: true,
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain',
+      shortcutKeyCode: 0,
+      shortcutLabel: '',
+      hasPendingSharedText: false
+    });
+    const requestAccessibilityPermission = vi.fn().mockResolvedValue({
+      available: true,
+      platform: 'android',
+      canDrawOverlays: true,
+      canListenKeyEvents: false,
       enabled: true,
       targetLanguage: 'zh-CN',
       translationFormat: 'plain',
@@ -1308,6 +1323,7 @@ describe('App', () => {
       available: true,
       platform: 'android',
       canDrawOverlays: true,
+      canListenKeyEvents: true,
       enabled: true,
       targetLanguage: 'zh-CN',
       translationFormat: 'plain',
@@ -1323,6 +1339,7 @@ describe('App', () => {
           configure,
           consumePendingSharedText: vi.fn().mockResolvedValue({ text: '' }),
           getState,
+          requestAccessibilityPermission,
           requestOverlayPermission,
           showFloatingTranslate: vi.fn(),
           startShortcutCapture
@@ -1349,6 +1366,11 @@ describe('App', () => {
       expect(requestOverlayPermission).toHaveBeenCalledOnce();
     });
 
+    fireEvent.click(screen.getByRole('button', { name: '打开无障碍设置' }));
+    await waitFor(() => {
+      expect(requestAccessibilityPermission).toHaveBeenCalledOnce();
+    });
+
     fireEvent.click(screen.getByRole('button', { name: '录入按键' }));
     await waitFor(() => {
       expect(startShortcutCapture).toHaveBeenCalledOnce();
@@ -1362,6 +1384,7 @@ describe('App', () => {
       available: true,
       platform: 'android',
       canDrawOverlays: true,
+      canListenKeyEvents: true,
       enabled: true,
       targetLanguage: 'zh-CN',
       translationFormat: 'plain',
@@ -1381,6 +1404,7 @@ describe('App', () => {
           configure: vi.fn().mockResolvedValue(state),
           consumePendingSharedText: vi.fn().mockResolvedValue({ text: '' }),
           getState: vi.fn().mockResolvedValue(state),
+          requestAccessibilityPermission: vi.fn(),
           requestOverlayPermission: vi.fn(),
           showFloatingTranslate,
           startShortcutCapture: vi.fn()

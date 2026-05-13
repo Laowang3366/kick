@@ -5,6 +5,7 @@ export type MobileFloatingTranslateState = {
   available: boolean;
   platform: 'android';
   canDrawOverlays: boolean;
+  canListenKeyEvents: boolean;
   enabled: boolean;
   targetLanguage: string;
   translationFormat: TranslationFormat;
@@ -35,6 +36,7 @@ type MobileFloatingTranslatePlugin = {
   consumePendingSharedText(): Promise<{ text?: string }>;
   getState(): Promise<MobileFloatingTranslatePluginState>;
   hideFloatingTranslate?(): Promise<MobileFloatingTranslatePluginState>;
+  requestAccessibilityPermission(): Promise<MobileFloatingTranslatePluginState>;
   requestOverlayPermission(): Promise<MobileFloatingTranslatePluginState>;
   showFloatingTranslate(input: {
     text: string;
@@ -95,6 +97,15 @@ export async function requestMobileFloatingPermission() {
   }
 
   return normalizeMobileFloatingState(await plugin.requestOverlayPermission());
+}
+
+export async function requestMobileFloatingAccessibilityPermission() {
+  const plugin = getMobileFloatingTranslatePlugin();
+  if (!plugin) {
+    return null;
+  }
+
+  return normalizeMobileFloatingState(await plugin.requestAccessibilityPermission());
 }
 
 export async function startMobileFloatingShortcutCapture() {
@@ -189,6 +200,7 @@ function normalizeMobileFloatingState(state: MobileFloatingTranslatePluginState)
     available: Boolean(state.available),
     platform: 'android',
     canDrawOverlays: Boolean(state.canDrawOverlays),
+    canListenKeyEvents: Boolean(state.canListenKeyEvents),
     enabled: Boolean(state.enabled),
     targetLanguage: normalizeTargetLanguage(state.targetLanguage),
     translationFormat: normalizeTranslationFormat(state.translationFormat),

@@ -4,4 +4,5 @@
     <string name="title_activity_main">快捷翻译</string>
     <string name="package_name">cn.local.quicktranslate</string>
     <string name="custom_url_scheme">cn.local.quicktranslate</string>
+    <string name="mobile_floating_accessibility_description">监听已录入实体按键，用于在其他应用中唤起快捷翻译悬浮窗。</string>
 </resources>

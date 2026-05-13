@@ -113,6 +113,14 @@ public class MobileFloatingTranslatePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void requestAccessibilityPermission(PluginCall call) {
+        Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
+        call.resolve(createState());
+    }
+
+    @PluginMethod
     public void startShortcutCapture(PluginCall call) {
         if (pendingShortcutCaptureCall != null) {
             pendingShortcutCaptureCall.reject("已有快捷键录入正在进行", "E_SHORTCUT_CAPTURE_BUSY");
@@ -142,7 +150,7 @@ public class MobileFloatingTranslatePlugin extends Plugin {
             return;
         }
 
-        showFloatingTranslate(text, targetLanguage, translationFormat, "手动触发");
+        MobileFloatingTranslateOverlay.get(getContext()).showFloatingTranslate(text, targetLanguage, translationFormat, "手动触发");
         call.resolve(createState());
     }
 
@@ -156,7 +164,7 @@ public class MobileFloatingTranslatePlugin extends Plugin {
 
     @PluginMethod
     public void hideFloatingTranslate(PluginCall call) {
-        removeFloatingView();
+        MobileFloatingTranslateOverlay.get(getContext()).hide();
         call.resolve(createState());
     }
 
@@ -190,12 +198,7 @@ public class MobileFloatingTranslatePlugin extends Plugin {
             return false;
         }
 
-        if (pendingShortcutCaptureCall != null) {
-            activePlugin.saveShortcutKey(event.getKeyCode());
-            JSObject result = activePlugin.createState();
-            result.put("captured", true);
-            pendingShortcutCaptureCall.resolve(result);
-            pendingShortcutCaptureCall = null;
+        if (resolvePendingShortcutCapture(activePlugin.getContext(), event.getKeyCode())) {
             return true;
         }
 
@@ -209,7 +212,20 @@ public class MobileFloatingTranslatePlugin extends Plugin {
             return false;
         }
 
-        activePlugin.showFromClipboard("自定义按键");
+        MobileFloatingTranslateOverlay.get(activePlugin.getContext()).showFromClipboard("自定义按键");
+        return true;
+    }
+
+    static boolean resolvePendingShortcutCapture(Context context, int keyCode) {
+        if (pendingShortcutCaptureCall == null) {
+            return false;
+        }
+
+        MobileFloatingTranslateSettings.saveShortcutKey(context, keyCode);
+        JSObject result = activePlugin != null ? activePlugin.createState() : new JSObject();
+        result.put("captured", true);
+        pendingShortcutCaptureCall.resolve(result);
+        pendingShortcutCaptureCall = null;
         return true;
     }
 
@@ -551,6 +567,7 @@ public class MobileFloatingTranslatePlugin extends Plugin {
         state.put("available", true);
         state.put("platform", "android");
         state.put("canDrawOverlays", canDrawOverlays());
+        state.put("canListenKeyEvents", MobileFloatingTranslateSettings.isAccessibilityServiceEnabled(getContext()));
         state.put("enabled", preferences.getBoolean(PREF_ENABLED, false));
         state.put("targetLanguage", getTargetLanguage());
         state.put("translationFormat", getTranslationFormat());
@@ -561,7 +578,7 @@ public class MobileFloatingTranslatePlugin extends Plugin {
     }
 
     private boolean canDrawOverlays() {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(getContext());
+        return MobileFloatingTranslateSettings.canDrawOverlays(getContext());
     }
 
     private String getTargetLanguage() {
@@ -573,7 +590,7 @@ public class MobileFloatingTranslatePlugin extends Plugin {
     }
 
     private SharedPreferences getPreferences() {
-        return getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return MobileFloatingTranslateSettings.getPreferences(getContext());
     }
 
     private static void clearPendingShortcutCapture() {
