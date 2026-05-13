@@ -162,6 +162,14 @@ body {
   color: #ff9d95;
 }
 
+:root[data-theme="dark"] .mobile-floating-control small {
+  color: #aab7c8;
+}
+
+:root[data-theme="dark"] .mobile-floating-control > strong {
+  color: #edf4ff;
+}
+
 :root[data-theme="dark"] .language-option {
   color: #e5edf7;
   background: #1d2b40;
@@ -1662,6 +1670,37 @@ textarea::placeholder {
   font-size: 12px;
   font-weight: 650;
   line-height: 1.4;
+}
+
+.mobile-floating-field {
+  align-items: start;
+}
+
+.mobile-floating-control {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.mobile-floating-control > strong {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 820;
+}
+
+.mobile-floating-control small {
+  color: #637083;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.mobile-floating-ok {
+  color: #087a4b !important;
+}
+
+.mobile-floating-warn {
+  color: #b42318 !important;
 }
 
 .shortcut-recorder {

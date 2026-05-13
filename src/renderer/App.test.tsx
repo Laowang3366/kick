@@ -1270,6 +1270,141 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: '粘贴剪切板内容' })).not.toBeInTheDocument();
   });
 
+  it('renders Android floating translation controls and records a trigger key', async () => {
+    const getState = vi.fn().mockResolvedValue({
+      available: true,
+      platform: 'android',
+      canDrawOverlays: false,
+      enabled: false,
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain',
+      shortcutKeyCode: 0,
+      shortcutLabel: '',
+      hasPendingSharedText: false
+    });
+    const configure = vi.fn().mockResolvedValue({
+      available: true,
+      platform: 'android',
+      canDrawOverlays: false,
+      enabled: true,
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain',
+      shortcutKeyCode: 0,
+      shortcutLabel: '',
+      hasPendingSharedText: false
+    });
+    const requestOverlayPermission = vi.fn().mockResolvedValue({
+      available: true,
+      platform: 'android',
+      canDrawOverlays: false,
+      enabled: true,
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain',
+      shortcutKeyCode: 0,
+      shortcutLabel: '',
+      hasPendingSharedText: false
+    });
+    const startShortcutCapture = vi.fn().mockResolvedValue({
+      available: true,
+      platform: 'android',
+      canDrawOverlays: true,
+      enabled: true,
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain',
+      shortcutKeyCode: 25,
+      shortcutLabel: '音量下键',
+      hasPendingSharedText: false
+    });
+    (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      Plugins: {
+        MobileFloatingTranslate: {
+          addListener: vi.fn().mockResolvedValue({ remove: vi.fn() }),
+          configure,
+          consumePendingSharedText: vi.fn().mockResolvedValue({ text: '' }),
+          getState,
+          requestOverlayPermission,
+          showFloatingTranslate: vi.fn(),
+          startShortcutCapture
+        }
+      }
+    };
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+
+    expect(await screen.findByRole('heading', { name: '手机悬浮翻译' })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('启用手机悬浮翻译'));
+
+    await waitFor(() => {
+      expect(configure).toHaveBeenCalledWith({
+        enabled: true,
+        targetLanguage: 'zh-CN',
+        translationFormat: 'plain'
+      });
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '打开权限设置' }));
+    await waitFor(() => {
+      expect(requestOverlayPermission).toHaveBeenCalledOnce();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '录入按键' }));
+    await waitFor(() => {
+      expect(startShortcutCapture).toHaveBeenCalledOnce();
+    });
+    expect(await screen.findByText('已录入：音量下键')).toBeInTheDocument();
+  });
+
+  it('opens the Android floating window for shared text when enabled', async () => {
+    let sharedTextListener: ((payload: { text?: string }) => void) | null = null;
+    const state = {
+      available: true,
+      platform: 'android',
+      canDrawOverlays: true,
+      enabled: true,
+      targetLanguage: 'zh-CN',
+      translationFormat: 'plain',
+      shortcutKeyCode: 25,
+      shortcutLabel: '音量下键',
+      hasPendingSharedText: false
+    };
+    const showFloatingTranslate = vi.fn().mockResolvedValue(state);
+    (globalThis as typeof globalThis & { Capacitor?: unknown }).Capacitor = {
+      getPlatform: () => 'android',
+      Plugins: {
+        MobileFloatingTranslate: {
+          addListener: vi.fn().mockImplementation((_eventName, callback) => {
+            sharedTextListener = callback;
+            return Promise.resolve({ remove: vi.fn() });
+          }),
+          configure: vi.fn().mockResolvedValue(state),
+          consumePendingSharedText: vi.fn().mockResolvedValue({ text: '' }),
+          getState: vi.fn().mockResolvedValue(state),
+          requestOverlayPermission: vi.fn(),
+          showFloatingTranslate,
+          startShortcutCapture: vi.fn()
+        }
+      }
+    };
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: '设置' }));
+    expect(await screen.findByRole('heading', { name: '手机悬浮翻译' })).toBeInTheDocument();
+
+    await act(async () => {
+      sharedTextListener?.({ text: 'shared hello' });
+    });
+
+    await waitFor(() => {
+      expect(showFloatingTranslate).toHaveBeenCalledWith({
+        text: 'shared hello',
+        targetLanguage: 'zh-CN',
+        translationFormat: 'plain'
+      });
+    });
+  });
+
   it('does not handle floating translation shortcuts inside the main window', async () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn().mockResolvedValue('Hello world'),

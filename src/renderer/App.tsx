@@ -18,6 +18,7 @@ import {
   Pin,
   RefreshCw,
   Settings,
+  Smartphone,
   Star,
   StarOff,
   Sun,
@@ -57,6 +58,16 @@ import { translateText, type TranslateTextResult } from '../shared/translator';
 import { LanguagePicker } from './LanguagePicker';
 import { loadDefaultTargetLanguage, saveDefaultTargetLanguage } from './languagePreference';
 import { loadFavoriteIds, loadHistoryEntries, saveFavoriteIds, saveHistoryEntries, type StoredTranslationEntry } from './libraryStorage';
+import {
+  configureMobileFloatingTranslate,
+  consumePendingMobileSharedText,
+  getMobileFloatingTranslateState,
+  onMobileSharedText,
+  requestMobileFloatingPermission,
+  showMobileFloatingTranslate,
+  startMobileFloatingShortcutCapture,
+  type MobileFloatingTranslateState
+} from './mobileFloatingTranslate';
 import { createProviderFromSettings } from './providerConfig';
 import { loadProviderSettings } from './providerSettingsStorage';
 import { readSharedTextFromUrl } from './sharedText';
@@ -495,6 +506,9 @@ export function App() {
   const [showCustomFloatingShortcutEditor, setShowCustomFloatingShortcutEditor] = useState(false);
   const [isRecordingFloatingShortcut, setIsRecordingFloatingShortcut] = useState(false);
   const [floatingShortcutError, setFloatingShortcutError] = useState('');
+  const [mobileFloatingState, setMobileFloatingState] = useState<MobileFloatingTranslateState | null>(null);
+  const [mobileFloatingMessage, setMobileFloatingMessage] = useState('');
+  const [isCapturingMobileFloatingShortcut, setIsCapturingMobileFloatingShortcut] = useState(false);
   const [updatePackageDirectoryDraft, setUpdatePackageDirectoryDraft] = useState('');
   const [updatePackageMessage, setUpdatePackageMessage] = useState('');
   const cloudClient = useMemo(() => createCloudClient(), []);
@@ -504,10 +518,19 @@ export function App() {
   const hasLoadedCloudState = useRef(false);
   const contentSwipeStart = useRef<{ x: number; y: number } | null>(null);
   const floatingShortcutCaptureButton = useRef<HTMLButtonElement | null>(null);
+  const mobileFloatingStateRef = useRef<MobileFloatingTranslateState | null>(null);
+  const targetLanguageRef = useRef(targetLanguage);
+  const translationFormatRef = useRef(translationFormat);
 
   useEffect(() => {
     document.title = '快捷翻译';
   }, []);
+
+  useEffect(() => {
+    mobileFloatingStateRef.current = mobileFloatingState;
+    targetLanguageRef.current = targetLanguage;
+    translationFormatRef.current = translationFormat;
+  }, [mobileFloatingState, targetLanguage, translationFormat]);
 
   useEffect(() => {
     void runUpdateCheck();
@@ -598,6 +621,59 @@ export function App() {
       setTranslationFormat(normalizeTranslationFormat(settings.defaultTranslationFormat));
     });
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void getMobileFloatingTranslateState().then((state) => {
+      if (isMounted && state) {
+        setMobileFloatingState(state);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileFloatingState?.available) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    void configureMobileFloatingTranslate({
+      targetLanguage,
+      translationFormat: resolveTranslationFormat(targetLanguage, translationFormat)
+    }).then((state) => {
+      if (isMounted && state) {
+        setMobileFloatingState(state);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mobileFloatingState?.available, targetLanguage, translationFormat]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void consumePendingMobileSharedText().then((text) => {
+      if (isMounted && text.trim()) {
+        void handleMobileSharedText(text);
+      }
+    });
+
+    const unsubscribe = onMobileSharedText((text) => {
+      void handleMobileSharedText(text);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe?.();
+    };
+  }, [mobileFloatingState?.enabled, mobileFloatingState?.canDrawOverlays, targetLanguage, translationFormat, providerSettings]);
 
   const sourceLength = sourceText.length;
   const sourcePanelClassName = `text-panel source-panel ${
@@ -848,6 +924,111 @@ export function App() {
     setMobileClipboardText(limitedText);
     setIsSourceInputFocused(false);
     handleSourceTextChange(limitedText);
+  }
+
+  async function handleMobileSharedText(text: string) {
+    const limitedText = limitTranslationText(text);
+    if (!limitedText.trim()) {
+      return;
+    }
+
+    const currentMobileFloatingState = mobileFloatingStateRef.current ?? mobileFloatingState;
+    const currentTargetLanguage = targetLanguageRef.current;
+    const currentTranslationFormat = translationFormatRef.current;
+
+    if (currentMobileFloatingState?.enabled && currentMobileFloatingState.canDrawOverlays) {
+      try {
+        const state = await showMobileFloatingTranslate({
+          text: limitedText,
+          targetLanguage: currentTargetLanguage,
+          translationFormat: resolveTranslationFormat(currentTargetLanguage, currentTranslationFormat)
+        });
+        if (state) {
+          setMobileFloatingState(state);
+        }
+        setMobileFloatingMessage('已在悬浮窗翻译选中文本');
+        return;
+      } catch (error) {
+        setMobileFloatingMessage(error instanceof Error ? error.message : '悬浮窗打开失败，已切回主界面翻译');
+      }
+    }
+
+    setSourceText(limitedText);
+    setActiveView('translate');
+    void runTranslation(limitedText, currentTargetLanguage, currentTranslationFormat);
+  }
+
+  async function toggleMobileFloatingTranslate(enabled: boolean) {
+    try {
+      const state = await configureMobileFloatingTranslate({
+        enabled,
+        targetLanguage,
+        translationFormat: resolveTranslationFormat(targetLanguage, translationFormat)
+      });
+      if (state) {
+        setMobileFloatingState(state);
+        setMobileFloatingMessage(
+          enabled
+            ? state.canDrawOverlays
+              ? '手机悬浮翻译已启用'
+              : '已启用，需授权悬浮窗权限后生效'
+            : '手机悬浮翻译已关闭'
+        );
+      }
+    } catch (error) {
+      setMobileFloatingMessage(error instanceof Error ? error.message : '手机悬浮翻译设置保存失败');
+    }
+  }
+
+  async function openMobileFloatingPermission() {
+    try {
+      const state = await requestMobileFloatingPermission();
+      if (state) {
+        setMobileFloatingState(state);
+      }
+      setMobileFloatingMessage('请在系统设置中允许快捷翻译显示在其他应用上层');
+    } catch (error) {
+      setMobileFloatingMessage(error instanceof Error ? error.message : '无法打开悬浮窗权限设置');
+    }
+  }
+
+  async function captureMobileFloatingShortcut() {
+    setIsCapturingMobileFloatingShortcut(true);
+    setMobileFloatingMessage('请按下要用于触发悬浮翻译的实体键或外接键盘按键');
+
+    try {
+      const state = await startMobileFloatingShortcutCapture();
+      if (state) {
+        setMobileFloatingState(state);
+        setMobileFloatingMessage(state.shortcutLabel ? `已录入：${state.shortcutLabel}` : '按键已录入');
+      }
+    } catch (error) {
+      setMobileFloatingMessage(error instanceof Error ? error.message : '快捷键录入失败');
+    } finally {
+      setIsCapturingMobileFloatingShortcut(false);
+    }
+  }
+
+  async function showClipboardMobileFloatingTranslate() {
+    const clipboardText = await readMobileClipboardText();
+    if (!clipboardText.trim()) {
+      setMobileFloatingMessage('剪切板没有可翻译内容');
+      return;
+    }
+
+    try {
+      const state = await showMobileFloatingTranslate({
+        text: clipboardText,
+        targetLanguage,
+        translationFormat: resolveTranslationFormat(targetLanguage, translationFormat)
+      });
+      if (state) {
+        setMobileFloatingState(state);
+      }
+      setMobileFloatingMessage('已打开悬浮翻译窗');
+    } catch (error) {
+      setMobileFloatingMessage(error instanceof Error ? error.message : '悬浮翻译窗打开失败');
+    }
   }
 
   function clearText() {
@@ -1984,6 +2165,68 @@ export function App() {
                     </label>
                   </div>
                 </section>
+
+                {mobileFloatingState ? (
+                  <section className="settings-section" aria-labelledby="mobile-floating-heading">
+                    <h3 id="mobile-floating-heading">手机悬浮翻译</h3>
+                    <div className="settings-list">
+                      <label className="toggle-row">
+                        <input
+                          type="checkbox"
+                          checked={mobileFloatingState.enabled}
+                          aria-label="启用手机悬浮翻译"
+                          onChange={(event) => void toggleMobileFloatingTranslate(event.target.checked)}
+                        />
+                        <span>
+                          <strong>启用手机悬浮翻译</strong>
+                          <small>支持系统分享、选中文本菜单、剪切板测试和已录入按键触发</small>
+                        </span>
+                      </label>
+
+                      <div className="settings-field mobile-floating-field">
+                        <span>悬浮窗权限</span>
+                        <div className="mobile-floating-control">
+                          <strong className={mobileFloatingState.canDrawOverlays ? 'mobile-floating-ok' : 'mobile-floating-warn'}>
+                            {mobileFloatingState.canDrawOverlays ? '已授权' : '未授权'}
+                          </strong>
+                          <button className="settings-action" type="button" onClick={openMobileFloatingPermission}>
+                            <Smartphone size={18} />
+                            <span>打开权限设置</span>
+                          </button>
+                          <small>授权后可在其他应用上方显示翻译卡片。</small>
+                        </div>
+                      </div>
+
+                      <div className="settings-field mobile-floating-field">
+                        <span>自定义触发按键</span>
+                        <div className="mobile-floating-control">
+                          <strong>{mobileFloatingState.shortcutLabel || '未录入'}</strong>
+                          <button
+                            className={`settings-action${isCapturingMobileFloatingShortcut ? ' primary-account-action' : ''}`}
+                            type="button"
+                            onClick={captureMobileFloatingShortcut}
+                            disabled={isCapturingMobileFloatingShortcut}
+                          >
+                            <KeyRound size={18} />
+                            <span>{isCapturingMobileFloatingShortcut ? '等待按键' : '录入按键'}</span>
+                          </button>
+                          <small>普通应用无法后台监听任意全局按键；该按键在快捷翻译前台可触发剪切板悬浮翻译。</small>
+                        </div>
+                      </div>
+
+                      <div className="settings-field mobile-floating-field">
+                        <span>剪切板测试</span>
+                        <div className="mobile-floating-control">
+                          <button className="settings-action" type="button" onClick={showClipboardMobileFloatingTranslate}>
+                            <ClipboardPaste size={18} />
+                            <span>用剪切板弹出悬浮窗</span>
+                          </button>
+                          <small>{mobileFloatingMessage || '目标语言和翻译格式会读取当前界面偏好。'}</small>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                ) : null}
 
                 {desktopSettings ? (
                   <section className="settings-section" aria-labelledby="desktop-actions-heading">

@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.77",
+  "latestVersion": "0.1.78",
   "releases": [
+    {
+      "version": "0.1.78",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.78.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.78.apk",
+      "size": 3277221,
+      "sha512": "hDVmfvRUJAe75VqhUMdBaTcHmFeUWEYwBzk5kCUmOk/OphRGgwidqGySJsOr3/6W2AVjabuyLwxMjlkf7Md6Gw==",
+      "releaseDate": "2026-05-13T06:48:28.035Z",
+      "releaseNotes": "0.1.78：新增 Android 手机悬浮翻译，支持悬浮窗权限引导、系统分享/选中文本菜单触发、剪切板悬浮翻译测试和前台自定义实体按键触发。"
+    },
     {
       "version": "0.1.77",
       "platform": "windows",

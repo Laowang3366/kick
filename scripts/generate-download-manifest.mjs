@@ -47,7 +47,10 @@ const additionalReleases = await collectAdditionalReleases({
 });
 
 const existingManifest = await readExistingManifest(outputPath);
-const newReleases = [release, ...additionalReleases];
+const existingReleaseByKey = new Map(existingManifest.releases.map((item) => [releaseKey(item), item]));
+const newReleases = [release, ...additionalReleases].map((item) =>
+  mergeExistingReleaseMetadata(item, existingReleaseByKey.get(releaseKey(item)))
+);
 const newReleaseKeys = new Set(newReleases.map(releaseKey));
 const replacedReleaseTargets = new Set(newReleases.map(releaseTargetKey));
 const releases = keepLatestVersions([
@@ -163,4 +166,15 @@ function versionFromFileName(fileName) {
 
 function releaseNotesForVersion(version) {
   return releaseNotes && version === releaseNotesVersion ? { releaseNotes } : {};
+}
+
+function mergeExistingReleaseMetadata(release, existingRelease) {
+  if (!existingRelease) {
+    return release;
+  }
+
+  return {
+    ...release,
+    ...(!release.releaseNotes && existingRelease.releaseNotes ? { releaseNotes: existingRelease.releaseNotes } : {})
+  };
 }
