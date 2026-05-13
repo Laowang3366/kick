@@ -1392,6 +1392,8 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: '设置' }));
     expect(await screen.findByRole('heading', { name: '手机悬浮翻译' })).toBeInTheDocument();
 
+    await waitFor(() => expect(sharedTextListener).toEqual(expect.any(Function)));
+
     await act(async () => {
       sharedTextListener?.({ text: 'shared hello' });
     });

@@ -14,5 +14,8 @@ async function clearStaleShellCache() {
   }
 }
 
-await clearStaleShellCache().catch(() => undefined);
-window.location.replace(new URL('./', window.location.href));
+clearStaleShellCache()
+  .catch(() => undefined)
+  .then(() => {
+    window.location.replace(new URL('./', window.location.href));
+  });
