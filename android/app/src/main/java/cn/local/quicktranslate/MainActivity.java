@@ -20,4 +20,10 @@ public class MainActivity extends BridgeActivity {
         setIntent(intent);
         MobileFloatingTranslatePlugin.handleSharedIntent(intent);
     }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        MobileFloatingTranslateOverlay.get(this).collapseForMainActivity();
+    }
 }

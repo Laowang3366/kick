@@ -14,6 +14,7 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -36,6 +37,7 @@ import java.util.concurrent.Executors;
 import org.json.JSONObject;
 
 final class MobileFloatingTranslateOverlay {
+    private static final int PANEL_ANCHOR_OFFSET_DP = 96;
     private static final String[] TARGET_LANGUAGE_CODES = {
         "zh-CN", "zh-TW", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES",
         "ru-RU", "pt-BR", "it-IT", "ar-SA", "hi-IN", "vi-VN", "th-TH", "tr-TR", "id-ID"
@@ -68,6 +70,8 @@ final class MobileFloatingTranslateOverlay {
     private long translationGeneration = 0;
     private boolean lastAnchorOnRight = true;
     private boolean panelClosing = false;
+    private boolean panelWasMoved = false;
+    private int panelAnchorBubbleY = 0;
 
     private MobileFloatingTranslateOverlay(Context context) {
         this.context = context.getApplicationContext();
@@ -111,10 +115,19 @@ final class MobileFloatingTranslateOverlay {
         mainHandler.post(this::removeFloatingView);
     }
 
+    void collapseForMainActivity() {
+        mainHandler.post(() -> {
+            removeFloatingView();
+            MobileFloatingBubbleService.setBubbleExpanded(context, false);
+        });
+    }
+
     private void showPanel(String initialText, String targetLanguage, boolean shouldReadClipboard, int anchorX, int anchorY) {
         mainHandler.post(() -> {
             removeFloatingView();
             panelClosing = false;
+            panelWasMoved = false;
+            panelAnchorBubbleY = clamp(anchorY, dp(56), context.getResources().getDisplayMetrics().heightPixels - dp(54) - dp(56));
             latestTranslatedText = "";
             currentTargetLanguage = normalizeTargetLanguage(targetLanguage);
             lastAnchorOnRight = anchorX >= context.getResources().getDisplayMetrics().widthPixels / 2;
@@ -208,6 +221,7 @@ final class MobileFloatingTranslateOverlay {
         sourceInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         sourceInput.setBackground(createFieldBackground());
         sourceInput.setPadding(dp(12), dp(8), dp(12), dp(8));
+        sourceInput.setOnKeyListener((view, keyCode, event) -> handleBackKey(keyCode, event));
         sourceInput.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence text, int start, int count, int after) {}
@@ -364,7 +378,7 @@ final class MobileFloatingTranslateOverlay {
             dp(8),
             displayWidth - width - dp(8)
         );
-        params.y = clamp(anchorY - dp(96), dp(72), Math.max(dp(72), displayHeight - dp(520)));
+        params.y = clamp(anchorY - dp(PANEL_ANCHOR_OFFSET_DP), dp(72), Math.max(dp(72), displayHeight - dp(520)));
         return params;
     }
 
@@ -588,7 +602,7 @@ final class MobileFloatingTranslateOverlay {
         int bubbleY = dp(160);
         if (view.getLayoutParams() instanceof WindowManager.LayoutParams) {
             WindowManager.LayoutParams params = (WindowManager.LayoutParams) view.getLayoutParams();
-            bubbleY = params.y + dp(20);
+            bubbleY = panelWasMoved ? panelYToBubbleY(params.y) : panelAnchorBubbleY;
         }
         MobileFloatingBubbleService.moveBubbleToEdge(context, toRight, bubbleY);
         animatePanelOut(view, toRight);
@@ -621,6 +635,15 @@ final class MobileFloatingTranslateOverlay {
             .start();
     }
 
+    private boolean handleBackKey(int keyCode, KeyEvent event) {
+        if (keyCode != KeyEvent.KEYCODE_BACK || event == null || event.getAction() != KeyEvent.ACTION_UP) {
+            return false;
+        }
+
+        collapsePanel(lastAnchorOnRight);
+        return true;
+    }
+
     private void removeFloatingView() {
         if (pendingAutoTranslate != null) {
             mainHandler.removeCallbacks(pendingAutoTranslate);
@@ -643,6 +666,8 @@ final class MobileFloatingTranslateOverlay {
         targetLanguageList = null;
         copyButton = null;
         panelClosing = false;
+        panelWasMoved = false;
+        panelAnchorBubbleY = 0;
     }
 
     private void focusSourceInput(boolean showKeyboard) {
@@ -813,6 +838,7 @@ final class MobileFloatingTranslateOverlay {
                         return super.dispatchTouchEvent(event);
                     }
                     dragging = true;
+                    panelWasMoved = true;
                     params.x = clamp(initialX + deltaX, dp(8), Math.max(dp(8), context.getResources().getDisplayMetrics().widthPixels - floatingView.getWidth() - dp(8)));
                     params.y = clamp(initialY + deltaY, dp(72), Math.max(dp(72), context.getResources().getDisplayMetrics().heightPixels - floatingView.getHeight() - dp(72)));
                     try {
@@ -826,7 +852,7 @@ final class MobileFloatingTranslateOverlay {
                         if (shouldCollapseAtEdge(params, Math.round(event.getRawX() - initialTouchX))) {
                             collapsePanel(collapseToRight);
                         } else {
-                            MobileFloatingBubbleService.moveBubbleToEdge(context, collapseToRight, params.y + dp(20));
+                            MobileFloatingBubbleService.moveBubbleToEdge(context, collapseToRight, panelYToBubbleY(params.y));
                         }
                         dragging = false;
                         return true;
@@ -837,6 +863,11 @@ final class MobileFloatingTranslateOverlay {
             }
 
             return super.dispatchTouchEvent(event);
+        }
+
+        @Override
+        public boolean dispatchKeyEvent(KeyEvent event) {
+            return handleBackKey(event == null ? 0 : event.getKeyCode(), event) || super.dispatchKeyEvent(event);
         }
 
         private void hideLanguageListIfTouchOutside(MotionEvent event) {
@@ -863,6 +894,11 @@ final class MobileFloatingTranslateOverlay {
                 && rawY >= location[1]
                 && rawY <= location[1] + view.getHeight();
         }
+    }
+
+    private int panelYToBubbleY(int panelY) {
+        int displayHeight = context.getResources().getDisplayMetrics().heightPixels;
+        return clamp(panelY + dp(PANEL_ANCHOR_OFFSET_DP), dp(56), displayHeight - dp(54) - dp(56));
     }
 
     private final class LimitedScrollView extends ScrollView {
