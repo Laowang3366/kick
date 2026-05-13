@@ -68,19 +68,33 @@ final class MobileFloatingTranslateSettings {
             return "";
         }
 
-        ClipData clip = clipboard.getPrimaryClip();
-        if (clip == null || clip.getItemCount() <= 0) {
+        try {
+            if (!clipboard.hasPrimaryClip()) {
+                return "";
+            }
+
+            ClipData clip = clipboard.getPrimaryClip();
+            if (clip == null || clip.getItemCount() <= 0) {
+                return "";
+            }
+
+            ClipData.Item item = clip.getItemAt(0);
+            CharSequence text = item.getText();
+            if (text == null) {
+                text = item.coerceToText(context);
+            }
+            return limitText(text == null ? "" : text.toString());
+        } catch (SecurityException error) {
             return "";
         }
-
-        CharSequence text = clip.getItemAt(0).coerceToText(context);
-        return limitText(text == null ? "" : text.toString());
     }
 
     static void copyToClipboard(Context context, String label, String text) {
         ClipboardManager clipboard = (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
         if (clipboard != null) {
-            clipboard.setPrimaryClip(ClipData.newPlainText(label, text));
+            try {
+                clipboard.setPrimaryClip(ClipData.newPlainText(label, text));
+            } catch (SecurityException ignored) {}
         }
     }
 

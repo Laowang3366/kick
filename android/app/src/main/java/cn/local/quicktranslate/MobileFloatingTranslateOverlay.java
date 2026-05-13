@@ -49,8 +49,8 @@ final class MobileFloatingTranslateOverlay {
         "俄语", "葡萄牙语", "意大利语", "阿拉伯语", "印地语", "越南语", "泰语", "土耳其语", "印尼语"
     };
     private static final String[] TRANSLATE_URLS = {
-        MobileFloatingTranslateSettings.BACKEND_TRANSLATE_URL,
-        MobileFloatingTranslateSettings.BACKEND_TRANSLATE_FALLBACK_URL
+        MobileFloatingTranslateSettings.BACKEND_TRANSLATE_FALLBACK_URL,
+        MobileFloatingTranslateSettings.BACKEND_TRANSLATE_URL
     };
 
     private static MobileFloatingTranslateOverlay sharedOverlay;
@@ -128,27 +128,29 @@ final class MobileFloatingTranslateOverlay {
             WindowManager.LayoutParams params = createPanelLayoutParams(anchorX, anchorY);
             try {
                 windowManager.addView(floatingView, params);
+                MobileFloatingBubbleService.setBubbleExpanded(context, true);
                 animatePanelIn(floatingView, lastAnchorOnRight);
-                floatingView.requestFocus();
+                focusSourceInput(false);
                 if (initialText.trim().isEmpty()) {
                     setStatus(shouldReadClipboard ? "正在读取剪切板..." : "请输入或粘贴原文", false);
                 } else {
                     startTranslation(initialText);
                 }
                 if (shouldReadClipboard) {
-                    mainHandler.postDelayed(this::readClipboardIntoPanel, 280);
+                    mainHandler.postDelayed(() -> readClipboardIntoPanel(0), 260);
                 } else if (initialText.trim().isEmpty()) {
                     focusSourceInput(true);
                 }
             } catch (RuntimeException error) {
                 floatingView = null;
+                MobileFloatingBubbleService.setBubbleExpanded(context, false);
                 Toast.makeText(context, "悬浮窗打开失败：" + error.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }
 
     private View createPanelView(String initialText) {
-        LinearLayout card = new LinearLayout(context);
+        LinearLayout card = new DraggablePanelLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setFocusable(true);
         card.setFocusableInTouchMode(true);
@@ -157,12 +159,10 @@ final class MobileFloatingTranslateOverlay {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             card.setElevation(dp(14));
         }
-        attachPanelDragHandler(card);
 
         LinearLayout header = new LinearLayout(context);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setOrientation(LinearLayout.HORIZONTAL);
-        attachPanelDragHandler(header);
 
         TextView title = new TextView(context);
         title.setText("快捷翻译");
@@ -170,7 +170,6 @@ final class MobileFloatingTranslateOverlay {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setTextSize(14);
         title.setGravity(Gravity.CENTER_VERTICAL);
-        attachPanelDragHandler(title);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1));
 
         Spinner targetSpinner = createTargetSpinner();
@@ -224,7 +223,6 @@ final class MobileFloatingTranslateOverlay {
         statusView.setTextSize(13);
         statusView.setTypeface(Typeface.DEFAULT_BOLD);
         statusView.setPadding(dp(2), dp(8), 0, dp(4));
-        attachPanelDragHandler(statusView);
         card.addView(statusView);
 
         resultView = createBodyTextView("译文会显示在这里", Color.rgb(75, 85, 101));
@@ -288,7 +286,8 @@ final class MobileFloatingTranslateOverlay {
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         );
         params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;
@@ -302,7 +301,7 @@ final class MobileFloatingTranslateOverlay {
         return params;
     }
 
-    private void readClipboardIntoPanel() {
+    private void readClipboardIntoPanel(int attempt) {
         if (sourceInput == null) {
             return;
         }
@@ -312,7 +311,14 @@ final class MobileFloatingTranslateOverlay {
             return;
         }
 
+        focusSourceInput(false);
         String clipboardText = MobileFloatingTranslateSettings.readClipboardText(context);
+        if (clipboardText.trim().isEmpty() && attempt < 4) {
+            int nextAttempt = attempt + 1;
+            mainHandler.postDelayed(() -> readClipboardIntoPanel(nextAttempt), 220L * nextAttempt);
+            return;
+        }
+
         if (clipboardText.trim().isEmpty()) {
             setStatus("剪切板为空，请输入或粘贴原文", true);
             focusSourceInput(true);
@@ -589,6 +595,7 @@ final class MobileFloatingTranslateOverlay {
                 @Override
                 public void onAnimationEnd(Animator animation) {
                     removeFloatingView();
+                    MobileFloatingBubbleService.setBubbleExpanded(context, false);
                 }
             })
             .start();
@@ -664,20 +671,23 @@ final class MobileFloatingTranslateOverlay {
         button.setAllCaps(false);
         button.setMinHeight(0);
         button.setMinimumHeight(0);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
         button.setPadding(dp(8), 0, dp(8), 0);
+        button.setBackgroundColor(Color.TRANSPARENT);
         return button;
     }
 
     private GradientDrawable createPanelBackground() {
         GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(Color.rgb(236, 244, 255));
+        drawable.setColor(Color.argb(246, 232, 244, 255));
         drawable.setCornerRadius(dp(18));
         return drawable;
     }
 
     private GradientDrawable createFieldBackground() {
         GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(Color.argb(232, 255, 255, 255));
+        drawable.setColor(Color.argb(240, 250, 252, 255));
         drawable.setCornerRadius(dp(12));
         return drawable;
     }
@@ -725,6 +735,70 @@ final class MobileFloatingTranslateOverlay {
                 output.write(buffer, 0, read);
             }
             return output.toString(StandardCharsets.UTF_8.name());
+        }
+    }
+
+    private final class DraggablePanelLayout extends LinearLayout {
+        private int initialX;
+        private int initialY;
+        private float initialTouchX;
+        private float initialTouchY;
+        private boolean dragging;
+
+        DraggablePanelLayout(Context context) {
+            super(context);
+        }
+
+        @Override
+        public boolean dispatchTouchEvent(MotionEvent event) {
+            if (floatingView == null || windowManager == null) {
+                return super.dispatchTouchEvent(event);
+            }
+
+            WindowManager.LayoutParams params = (WindowManager.LayoutParams) floatingView.getLayoutParams();
+            if (params == null) {
+                return super.dispatchTouchEvent(event);
+            }
+
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    initialX = params.x;
+                    initialY = params.y;
+                    initialTouchX = event.getRawX();
+                    initialTouchY = event.getRawY();
+                    dragging = false;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    int deltaX = Math.round(event.getRawX() - initialTouchX);
+                    int deltaY = Math.round(event.getRawY() - initialTouchY);
+                    if (!dragging && Math.abs(deltaX) < dp(7) && Math.abs(deltaY) < dp(7)) {
+                        return super.dispatchTouchEvent(event);
+                    }
+                    dragging = true;
+                    params.x = clamp(initialX + deltaX, dp(8), Math.max(dp(8), context.getResources().getDisplayMetrics().widthPixels - floatingView.getWidth() - dp(8)));
+                    params.y = clamp(initialY + deltaY, dp(72), Math.max(dp(72), context.getResources().getDisplayMetrics().heightPixels - floatingView.getHeight() - dp(72)));
+                    try {
+                        windowManager.updateViewLayout(floatingView, params);
+                    } catch (IllegalArgumentException ignored) {}
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    if (dragging) {
+                        boolean collapseToRight = params.x + floatingView.getWidth() / 2 >= context.getResources().getDisplayMetrics().widthPixels / 2;
+                        if (shouldCollapseAtEdge(params, Math.round(event.getRawX() - initialTouchX))) {
+                            collapsePanel(collapseToRight);
+                        } else {
+                            MobileFloatingBubbleService.moveBubbleToEdge(context, collapseToRight, params.y + dp(20));
+                        }
+                        dragging = false;
+                        return true;
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+            return super.dispatchTouchEvent(event);
         }
     }
 
