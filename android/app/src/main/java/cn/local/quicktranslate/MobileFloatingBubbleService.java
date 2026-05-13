@@ -4,6 +4,7 @@ import android.animation.ValueAnimator;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
@@ -28,6 +29,7 @@ public final class MobileFloatingBubbleService extends Service {
 
     private WindowManager windowManager;
     private View bubbleView;
+    private boolean bubbleExpanded = false;
 
     static void sync(Context context) {
         Context appContext = context.getApplicationContext();
@@ -94,6 +96,34 @@ public final class MobileFloatingBubbleService extends Service {
     public void onDestroy() {
         removeBubble();
         super.onDestroy();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (!MobileFloatingTranslateSettings.isEnabled(this) || !MobileFloatingTranslateSettings.canDrawOverlays(this)) {
+            removeBubble();
+            stopSelf();
+            return;
+        }
+
+        boolean onRight = MobileFloatingTranslateSettings.isBubbleOnRight(this);
+        int targetY = MobileFloatingTranslateSettings.getBubbleY(this, dp(160));
+        if (bubbleView != null && bubbleView.getLayoutParams() instanceof WindowManager.LayoutParams) {
+            WindowManager.LayoutParams params = (WindowManager.LayoutParams) bubbleView.getLayoutParams();
+            onRight = params.x + Math.max(1, bubbleView.getWidth()) / 2 >= getDisplayWidth() / 2;
+            targetY = params.y;
+        }
+
+        MobileFloatingTranslateSettings.saveBubblePosition(
+            this,
+            onRight,
+            clamp(targetY, dp(56), getDisplayHeight() - dp(BUBBLE_HEIGHT_DP) - dp(56))
+        );
+        removeBubble();
+        showBubble();
+        applyExpandedState(bubbleExpanded);
+        MobileFloatingTranslateOverlay.get(this).handleDisplayChange();
     }
 
     private void showBubble() {
@@ -243,6 +273,7 @@ public final class MobileFloatingBubbleService extends Service {
     }
 
     private void applyExpandedState(boolean expanded) {
+        bubbleExpanded = expanded;
         if (bubbleView == null) {
             return;
         }

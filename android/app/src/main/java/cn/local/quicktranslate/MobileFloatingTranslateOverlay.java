@@ -120,6 +120,28 @@ final class MobileFloatingTranslateOverlay {
         });
     }
 
+    void handleDisplayChange() {
+        mainHandler.post(() -> {
+            if (floatingView == null || windowManager == null || !(floatingView.getLayoutParams() instanceof WindowManager.LayoutParams)) {
+                return;
+            }
+
+            WindowManager.LayoutParams params = (WindowManager.LayoutParams) floatingView.getLayoutParams();
+            int displayWidth = context.getResources().getDisplayMetrics().widthPixels;
+            int displayHeight = context.getResources().getDisplayMetrics().heightPixels;
+            int width = getPanelWidth(displayWidth);
+            int viewHeight = Math.max(floatingView.getHeight(), dp(360));
+            params.width = width;
+            params.x = clamp(params.x, dp(8), Math.max(dp(8), displayWidth - width - dp(8)));
+            params.y = clamp(params.y, dp(72), Math.max(dp(72), displayHeight - viewHeight - dp(72)));
+            lastAnchorOnRight = params.x + width / 2 >= displayWidth / 2;
+            panelAnchorBubbleY = panelYToBubbleY(params.y);
+            try {
+                windowManager.updateViewLayout(floatingView, params);
+            } catch (IllegalArgumentException ignored) {}
+        });
+    }
+
     private void showPanel(String initialText, String targetLanguage, boolean shouldReadClipboard, int anchorX, int anchorY) {
         mainHandler.post(() -> {
             removeFloatingView();
@@ -358,9 +380,9 @@ final class MobileFloatingTranslateOverlay {
             : WindowManager.LayoutParams.TYPE_PHONE;
         int displayWidth = context.getResources().getDisplayMetrics().widthPixels;
         int displayHeight = context.getResources().getDisplayMetrics().heightPixels;
-        int width = Math.min(displayWidth - dp(40), dp(420));
+        int width = getPanelWidth(displayWidth);
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-            Math.max(width, dp(300)),
+            width,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
@@ -378,6 +400,13 @@ final class MobileFloatingTranslateOverlay {
         );
         params.y = clamp(anchorY - dp(PANEL_ANCHOR_OFFSET_DP), dp(72), Math.max(dp(72), displayHeight - dp(520)));
         return params;
+    }
+
+    private int getPanelWidth(int displayWidth) {
+        int maxWidth = Math.max(dp(180), displayWidth - dp(16));
+        int preferredWidth = Math.min(displayWidth - dp(40), dp(420));
+        int minWidth = Math.min(dp(300), maxWidth);
+        return Math.max(minWidth, Math.min(preferredWidth, maxWidth));
     }
 
     private void readClipboardIntoPanel(int attempt) {
