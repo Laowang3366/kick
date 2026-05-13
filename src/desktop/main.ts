@@ -46,6 +46,7 @@ import { createFloatingWindowBounds } from './floatingWindowBounds.js';
 import { bringFloatingWindowToFront } from './floatingWindowFocus.js';
 import {
   readFloatingSessionPreferences,
+  readFloatingSessionPreferenceOverrides,
   updateFloatingSessionPreferences,
   type FloatingSessionPreferenceState
 } from './floatingSessionPreferences.js';
@@ -486,11 +487,10 @@ async function showFloatingTranslation(text: string) {
   }
   bringFloatingWindowToFront(window);
   const dispatchCapturedSource = () => {
-    const preferences = getFloatingSessionPreferences();
+    const preferences = readFloatingSessionPreferenceOverrides(floatingSessionPreferences);
     window.webContents.send('floating-source-captured', {
       text,
-      targetLanguage: preferences.targetLanguage,
-      translationFormat: preferences.translationFormat
+      ...preferences
     });
   };
 

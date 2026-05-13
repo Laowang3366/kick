@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.80",
+  "latestVersion": "0.1.81",
   "releases": [
+    {
+      "version": "0.1.81",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.81.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.81.exe",
+      "size": 106799815,
+      "sha512": "kyC6LAOGWyPTb4wXNC01AFwkGKSkBzCobXxbkT9pQ27wwGh7jdAv7wiEI1cA+H4ngWwY2ESM2CeRvyj75PrSWw==",
+      "releaseDate": "2026-05-13T07:51:23.178Z",
+      "releaseNotes": "0.1.81：修复桌面悬浮窗目标语言被主窗口/默认语言覆盖的问题；悬浮窗语言与翻译格式改为独立会话偏好，首次打开读取本地默认目标语言，之后按悬浮窗自己的选择翻译。"
+    },
     {
       "version": "0.1.80",
       "platform": "android",
@@ -30,16 +40,6 @@
       "sha512": "kaheTDw18R+2q6Oe5s6HGshbUcfdZUnS/ZdymgYRUrTFjCz1pQ+z5AI3u+uGszWbR4PAvygCzl+cLuMyqcVezw==",
       "releaseDate": "2026-05-12T07:46:40.887Z",
       "releaseNotes": "0.1.77：空包更新安装测试版本，仅用于验证应用内更新下载、UAC 拉起安装器和安装替换流程，无功能变更。"
-    },
-    {
-      "version": "0.1.76",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.76.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.76.exe",
-      "size": 106798215,
-      "sha512": "Z+vP8Nv5w7o11JHQ3OLRbz0eCmzm9L+G0Exzah2FnbxHIKn/bXkfASbuBUCKhMnkAYWpdVQFLz/YewvxIwKnvQ==",
-      "releaseDate": "2026-05-12T07:10:06.597Z",
-      "releaseNotes": "0.1.76：修复所有用户安装模式下应用内更新无法拉起安装器的问题；Go 更新协调器改用 Windows ShellExecute 启动安装器，正常触发 UAC 权限确认，不再因 requires elevation 直接失败。"
     }
   ]
 }

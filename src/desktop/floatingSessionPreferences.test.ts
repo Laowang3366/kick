@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  readFloatingSessionPreferenceOverrides,
   readFloatingSessionPreferences,
   updateFloatingSessionPreferences,
   type FloatingSessionPreferenceState
@@ -37,6 +38,17 @@ describe('floating session preferences', () => {
 
     expect(readFloatingSessionPreferences(state, defaults)).toEqual({
       targetLanguage: 'en-US',
+      translationFormat: 'java-camel-case'
+    });
+  });
+
+  it('does not expose desktop defaults as floating shortcut overrides', () => {
+    expect(readFloatingSessionPreferenceOverrides({})).toEqual({});
+  });
+
+  it('exposes only explicit floating choices for shortcut payloads', () => {
+    expect(readFloatingSessionPreferenceOverrides({ targetLanguage: 'ja-JP', translationFormat: 'java-camel-case' })).toEqual({
+      targetLanguage: 'ja-JP',
       translationFormat: 'java-camel-case'
     });
   });

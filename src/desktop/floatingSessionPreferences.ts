@@ -21,6 +21,13 @@ export function readFloatingSessionPreferences(
   };
 }
 
+export function readFloatingSessionPreferenceOverrides(state: FloatingSessionPreferenceState): FloatingSessionPreferenceState {
+  return {
+    ...(typeof state.targetLanguage === 'string' ? { targetLanguage: normalizeTargetLanguage(state.targetLanguage) } : {}),
+    ...(typeof state.translationFormat === 'string' ? { translationFormat: normalizeTranslationFormat(state.translationFormat) } : {})
+  };
+}
+
 export function updateFloatingSessionPreferences(
   state: FloatingSessionPreferenceState,
   patch: Partial<FloatingSessionPreferenceDefaults>

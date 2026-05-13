@@ -109,6 +109,52 @@ describe('FloatingTranslateApp', () => {
     expect(screen.getByRole('button', { name: '取消悬浮窗置顶' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('keeps the current floating language when shortcut payload has no language override', async () => {
+    let capturedCallback: ((payload: { text: string; targetLanguage?: string; translationFormat?: 'plain' }) => void) | undefined;
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      getDesktopSettings: vi.fn().mockResolvedValue({
+        mouseButton4Enabled: true,
+        launchAtLogin: false,
+        hideToTrayOnClose: true,
+        defaultTargetLanguage: 'zh-CN',
+        defaultTranslationFormat: 'plain'
+      }),
+      onFloatingSourceCaptured: vi.fn((callback) => {
+        capturedCallback = callback as (payload: { text: string; targetLanguage?: string; translationFormat?: 'plain' }) => void;
+        return vi.fn();
+      }),
+      onSelectionCaptured: vi.fn(),
+      setFloatingSessionPreferences: vi.fn(),
+      translateText: vi.fn().mockResolvedValue({
+        provider: 'openai-compatible',
+        sourceText: 'hello',
+        translatedText: 'こんにちは',
+        targetLanguage: 'ja-JP'
+      }),
+      windowControl: vi.fn()
+    } as any;
+
+    render(<FloatingTranslateApp />);
+
+    fireEvent.change(await screen.findByLabelText('悬浮目标语言'), {
+      target: { value: 'ja-JP' }
+    });
+
+    act(() => {
+      capturedCallback?.({ text: 'hello' });
+    });
+
+    await waitFor(() => {
+      expect(window.quickTranslate?.translateText).toHaveBeenCalledWith({
+        text: 'hello',
+        targetLanguage: 'ja-JP',
+        translationFormat: 'plain'
+      });
+    });
+  });
+
   it('minimizes the floating window from the title bar', async () => {
     window.quickTranslate = {
       captureSelectedText: vi.fn(),

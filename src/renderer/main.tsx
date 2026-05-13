@@ -8,7 +8,12 @@ void bootstrapRenderer();
 async function bootstrapRenderer() {
   try {
     applyStoredThemePreference();
-    await prepareRendererRuntime();
+    const runtimePreparation = prepareRendererRuntime();
+    if (shouldAwaitRendererRuntimePreparation()) {
+      await runtimePreparation;
+    } else {
+      void runtimePreparation.catch(() => undefined);
+    }
 
     const isFloatingWindow = new URLSearchParams(window.location.search).has('floating');
     const App = isFloatingWindow ? (await import('./FloatingTranslateApp')).FloatingTranslateApp : (await import('./App')).App;
@@ -26,6 +31,12 @@ async function bootstrapRenderer() {
   } catch (error) {
     renderStartupFailure(error);
   }
+}
+
+function shouldAwaitRendererRuntimePreparation() {
+  const capacitor = (globalThis as typeof globalThis & { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } })
+    .Capacitor;
+  return Boolean(capacitor?.isNativePlatform?.() || ['android', 'ios'].includes(capacitor?.getPlatform?.() ?? ''));
 }
 
 async function prepareRendererRuntime() {

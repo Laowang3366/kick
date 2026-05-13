@@ -7,7 +7,8 @@ describe('renderer bootstrap', () => {
     const source = readFileSync(join(process.cwd(), 'src', 'renderer', 'main.tsx'), 'utf8');
 
     expect(source).toContain('void bootstrapRenderer()');
-    expect(source.indexOf('await prepareRendererRuntime()')).toBeLessThan(source.indexOf("await import('./App')"));
+    expect(source).toContain('shouldAwaitRendererRuntimePreparation()');
+    expect(source.indexOf('await runtimePreparation')).toBeLessThan(source.indexOf("await import('./App')"));
     expect(source.indexOf("await import('./App')")).toBeLessThan(source.indexOf('createRoot('));
   });
 });
