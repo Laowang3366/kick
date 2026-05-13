@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-13 17:06 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 模板下载链路修复上线；后端新增受控模板文件下载接口 `/api/templates/{id}/file`，模板下载与购买记录页改为携带登录态通过后端拉取文件并触发浏览器下载，避免直接跳转 `/uploads/...` 被前端路由吞掉导致 404；同时保留线上 Nginx `/uploads/` 兜底代理，确保历史直链仍可访问。
+- 验证：本地前端 `npm run build` 通过；本地后端 `mvn -Dtest=TemplateCenterControllerTest test` 通过；本地后端 `mvn test` 通过 83 个测试；服务器端 `bash scripts/deploy/deploy-from-git-bundle.sh /www/wwwroot/kick-deploy/bundles/kick-template-download-file-5d33e0d.bundle` 发布成功；`kick-backend.service` 为 `active`；`http://127.0.0.1:8080/api/public/home-overview` 返回 200；`https://www.excelcc.cn/` 与 `https://www.excelcc.cn/templates` 返回 200；线上模板文件直链 `https://www.excelcc.cn/uploads/c1bcc91b-8c40-4f59-b142-b8fdbb029b17.xlsx` 返回 200。
+- 部署：提交 `5d33e0d99` 已推送到 `origin/codex/admin-ai-assistant-management`；通过 Git bundle `/www/wwwroot/kick-deploy/bundles/kick-template-download-file-5d33e0d.bundle` 导入服务器部署仓并执行标准受管发布流程。
+- 服务器备份：`/www/wwwroot/kick-deploy/backups/20260513-091333`
+- 备注：本次继续使用受管文件发布流程，未整体覆盖 `/www/wwwroot/kick-web`；Nginx 兜底配置已单独备份到 `/www/wwwroot/kick-deploy/backups/nginx-kick-20260513-085140.conf`；部署期间 npm 报告既有 Node engine 与依赖审计提示，未影响构建和健康检查。
+
 ## 2026-05-12 19:42 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 教程详情页细节调整上线；移除顶部课程 Hero 右侧“公式预览”卡片，桌面端左侧函数目录新增分类展开/收缩交互并默认收缩，点击当前分类仅展开或收起，不重置正文到该分类第一篇。
