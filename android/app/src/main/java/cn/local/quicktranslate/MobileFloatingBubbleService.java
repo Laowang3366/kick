@@ -247,21 +247,18 @@ public final class MobileFloatingBubbleService extends Service {
             return;
         }
 
+        bubbleView.animate().cancel();
         bubbleView.animate().setListener(null);
         if (expanded) {
             if (!animated) {
                 bubbleView.setVisibility(View.INVISIBLE);
                 bubbleView.setAlpha(0f);
-                bubbleView.setScaleX(0.42f);
-                bubbleView.setScaleY(0.42f);
                 return;
             }
 
             bubbleView.animate()
                 .alpha(0f)
-                .scaleX(0.42f)
-                .scaleY(0.42f)
-                .setDuration(130)
+                .setDuration(110)
                 .withEndAction(() -> bubbleView.setVisibility(View.INVISIBLE))
                 .start();
             return;
@@ -270,19 +267,13 @@ public final class MobileFloatingBubbleService extends Service {
         bubbleView.setVisibility(View.VISIBLE);
         if (!animated) {
             bubbleView.setAlpha(1f);
-            bubbleView.setScaleX(1f);
-            bubbleView.setScaleY(1f);
             return;
         }
 
         bubbleView.setAlpha(0f);
-        bubbleView.setScaleX(0.42f);
-        bubbleView.setScaleY(0.42f);
         bubbleView.animate()
             .alpha(1f)
-            .scaleX(1f)
-            .scaleY(1f)
-            .setDuration(170)
+            .setDuration(140)
             .start();
     }
 

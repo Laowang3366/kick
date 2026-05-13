@@ -18,13 +18,10 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
@@ -34,7 +31,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.json.JSONObject;
@@ -63,12 +59,15 @@ final class MobileFloatingTranslateOverlay {
     private EditText sourceInput;
     private TextView resultView;
     private TextView statusView;
+    private TextView targetLanguageButton;
+    private LinearLayout targetLanguageList;
     private Button copyButton;
     private Runnable pendingAutoTranslate;
     private String latestTranslatedText = "";
     private String currentTargetLanguage = MobileFloatingTranslateSettings.DEFAULT_TARGET_LANGUAGE;
     private long translationGeneration = 0;
     private boolean lastAnchorOnRight = true;
+    private boolean panelClosing = false;
 
     private MobileFloatingTranslateOverlay(Context context) {
         this.context = context.getApplicationContext();
@@ -115,6 +114,7 @@ final class MobileFloatingTranslateOverlay {
     private void showPanel(String initialText, String targetLanguage, boolean shouldReadClipboard, int anchorX, int anchorY) {
         mainHandler.post(() -> {
             removeFloatingView();
+            panelClosing = false;
             latestTranslatedText = "";
             currentTargetLanguage = normalizeTargetLanguage(targetLanguage);
             lastAnchorOnRight = anchorX >= context.getResources().getDisplayMetrics().widthPixels / 2;
@@ -172,8 +172,8 @@ final class MobileFloatingTranslateOverlay {
         title.setGravity(Gravity.CENTER_VERTICAL);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1));
 
-        Spinner targetSpinner = createTargetSpinner();
-        header.addView(targetSpinner, new LinearLayout.LayoutParams(dp(118), dp(36)));
+        targetLanguageButton = createTargetLanguageButton();
+        header.addView(targetLanguageButton, new LinearLayout.LayoutParams(dp(118), dp(36)));
 
         copyButton = createHeaderButton("复制译文");
         copyButton.setEnabled(false);
@@ -186,6 +186,15 @@ final class MobileFloatingTranslateOverlay {
         header.addView(closeButton, new LinearLayout.LayoutParams(dp(40), dp(36)));
 
         card.addView(header);
+
+        targetLanguageList = createTargetLanguageList();
+        targetLanguageList.setVisibility(View.GONE);
+        LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        listParams.topMargin = dp(8);
+        card.addView(targetLanguageList, listParams);
 
         sourceInput = new EditText(context);
         sourceInput.setText(initialText);
@@ -238,40 +247,97 @@ final class MobileFloatingTranslateOverlay {
         return card;
     }
 
-    private Spinner createTargetSpinner() {
-        Spinner spinner = new Spinner(context, Spinner.MODE_DROPDOWN);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(context, android.R.layout.simple_spinner_item, TARGET_LANGUAGE_LABELS);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setBackground(createFieldBackground());
-        spinner.setPadding(dp(6), 0, dp(6), 0);
-        spinner.setSelection(indexOfTargetLanguage(currentTargetLanguage));
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            private boolean initialized;
+    private TextView createTargetLanguageButton() {
+        TextView button = new TextView(context);
+        button.setText(getTargetLanguageLabel(currentTargetLanguage));
+        button.setTextColor(Color.rgb(21, 25, 35));
+        button.setTextSize(15);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(8), 0, dp(8), 0);
+        button.setBackground(createFieldBackground());
+        button.setOnClickListener((view) -> toggleTargetLanguageList());
+        return button;
+    }
 
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                String selectedLanguage = TARGET_LANGUAGE_CODES[Math.max(0, Math.min(position, TARGET_LANGUAGE_CODES.length - 1))];
-                if (!initialized) {
-                    initialized = true;
-                    currentTargetLanguage = selectedLanguage;
-                    return;
-                }
-                if (selectedLanguage.equals(currentTargetLanguage)) {
-                    return;
-                }
-                currentTargetLanguage = selectedLanguage;
-                MobileFloatingTranslateSettings.saveTargetLanguage(context, currentTargetLanguage);
-                String sourceText = getSourceText();
-                if (!sourceText.trim().isEmpty()) {
-                    startTranslation(sourceText);
-                }
-            }
+    private LinearLayout createTargetLanguageList() {
+        LinearLayout container = new LinearLayout(context);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setBackground(createFieldBackground());
+        container.setPadding(dp(4), dp(4), dp(4), dp(4));
+        renderTargetLanguageList();
+        return container;
+    }
 
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-        return spinner;
+    private void toggleTargetLanguageList() {
+        if (targetLanguageList == null) {
+            return;
+        }
+
+        if (targetLanguageList.getVisibility() == View.VISIBLE) {
+            targetLanguageList.setVisibility(View.GONE);
+            return;
+        }
+
+        renderTargetLanguageList();
+        targetLanguageList.setVisibility(View.VISIBLE);
+    }
+
+    private void renderTargetLanguageList() {
+        if (targetLanguageList == null) {
+            return;
+        }
+
+        targetLanguageList.removeAllViews();
+        LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        int selectedIndex = indexOfTargetLanguage(currentTargetLanguage);
+        for (int index = 0; index < TARGET_LANGUAGE_LABELS.length; index += 1) {
+            TextView option = new TextView(context);
+            option.setText(TARGET_LANGUAGE_LABELS[index]);
+            option.setTextSize(15);
+            option.setGravity(Gravity.CENTER_VERTICAL);
+            option.setMinHeight(dp(40));
+            option.setPadding(dp(12), 0, dp(12), 0);
+            option.setTextColor(index == selectedIndex ? Color.rgb(13, 86, 184) : Color.rgb(35, 43, 58));
+            option.setTypeface(index == selectedIndex ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            int targetIndex = index;
+            option.setOnClickListener((view) -> selectTargetLanguage(targetIndex));
+            list.addView(option, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(40)
+            ));
+        }
+
+        LimitedScrollView scrollView = new LimitedScrollView(context, dp(220));
+        scrollView.addView(list);
+        targetLanguageList.addView(scrollView, new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+    }
+
+    private void selectTargetLanguage(int index) {
+        int normalizedIndex = Math.max(0, Math.min(index, TARGET_LANGUAGE_CODES.length - 1));
+        String selectedLanguage = TARGET_LANGUAGE_CODES[normalizedIndex];
+        targetLanguageList.setVisibility(View.GONE);
+        if (selectedLanguage.equals(currentTargetLanguage)) {
+            return;
+        }
+
+        currentTargetLanguage = selectedLanguage;
+        MobileFloatingTranslateSettings.saveTargetLanguage(context, currentTargetLanguage);
+        updateTargetLanguageButton();
+        String sourceText = getSourceText();
+        if (!sourceText.trim().isEmpty()) {
+            startTranslation(sourceText);
+        }
+    }
+
+    private void updateTargetLanguageButton() {
+        if (targetLanguageButton != null) {
+            targetLanguageButton.setText(getTargetLanguageLabel(currentTargetLanguage));
+        }
     }
 
     private WindowManager.LayoutParams createPanelLayoutParams(int anchorX, int anchorY) {
@@ -287,7 +353,8 @@ final class MobileFloatingTranslateOverlay {
             type,
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                 | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         );
         params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE;
@@ -497,52 +564,6 @@ final class MobileFloatingTranslateOverlay {
         Toast.makeText(context, "已复制译文", Toast.LENGTH_SHORT).show();
     }
 
-    private void attachPanelDragHandler(View handle) {
-        handle.setOnTouchListener(new View.OnTouchListener() {
-            private int initialX;
-            private int initialY;
-            private float initialTouchX;
-            private float initialTouchY;
-            private boolean dragging;
-
-            @Override
-            public boolean onTouch(View view, MotionEvent event) {
-                if (floatingView == null || windowManager == null) {
-                    return false;
-                }
-
-                WindowManager.LayoutParams params = (WindowManager.LayoutParams) floatingView.getLayoutParams();
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        initialX = params.x;
-                        initialY = params.y;
-                        initialTouchX = event.getRawX();
-                        initialTouchY = event.getRawY();
-                        dragging = false;
-                        return true;
-                    case MotionEvent.ACTION_MOVE:
-                        int deltaX = Math.round(event.getRawX() - initialTouchX);
-                        int deltaY = Math.round(event.getRawY() - initialTouchY);
-                        if (!dragging && Math.abs(deltaX) < dp(7) && Math.abs(deltaY) < dp(7)) {
-                            return true;
-                        }
-                        dragging = true;
-                        params.x = initialX + deltaX;
-                        params.y = initialY + deltaY;
-                        windowManager.updateViewLayout(floatingView, params);
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        if (dragging && shouldCollapseAtEdge(params, Math.round(event.getRawX() - initialTouchX))) {
-                            collapsePanel(params.x + floatingView.getWidth() / 2 >= context.getResources().getDisplayMetrics().widthPixels / 2);
-                        }
-                        return dragging;
-                    default:
-                        return false;
-                }
-            }
-        });
-    }
-
     private boolean shouldCollapseAtEdge(WindowManager.LayoutParams params, int deltaX) {
         if (floatingView == null) {
             return false;
@@ -558,10 +579,11 @@ final class MobileFloatingTranslateOverlay {
     }
 
     private void collapsePanel(boolean toRight) {
-        if (floatingView == null) {
+        if (floatingView == null || panelClosing) {
             return;
         }
 
+        panelClosing = true;
         View view = floatingView;
         int bubbleY = dp(160);
         if (view.getLayoutParams() instanceof WindowManager.LayoutParams) {
@@ -573,24 +595,22 @@ final class MobileFloatingTranslateOverlay {
     }
 
     private void animatePanelIn(View view, boolean fromRight) {
+        view.animate().cancel();
         view.setAlpha(0f);
-        view.setScaleX(0.86f);
-        view.setScaleY(0.86f);
-        view.post(() -> {
-            view.setPivotX(fromRight ? view.getWidth() : 0);
-            view.setPivotY(dp(48));
-            view.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start();
-        });
+        view.setTranslationX(fromRight ? dp(22) : -dp(22));
+        view.animate()
+            .alpha(1f)
+            .translationX(0f)
+            .setDuration(160)
+            .start();
     }
 
     private void animatePanelOut(View view, boolean toRight) {
-        view.setPivotX(toRight ? view.getWidth() : 0);
-        view.setPivotY(dp(48));
+        view.animate().cancel();
         view.animate()
             .alpha(0f)
-            .scaleX(0.82f)
-            .scaleY(0.82f)
-            .setDuration(150)
+            .translationX(toRight ? dp(24) : -dp(24))
+            .setDuration(130)
             .setListener(new AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationEnd(Animator animation) {
@@ -619,7 +639,10 @@ final class MobileFloatingTranslateOverlay {
         sourceInput = null;
         resultView = null;
         statusView = null;
+        targetLanguageButton = null;
+        targetLanguageList = null;
         copyButton = null;
+        panelClosing = false;
     }
 
     private void focusSourceInput(boolean showKeyboard) {
@@ -702,6 +725,10 @@ final class MobileFloatingTranslateOverlay {
         return 0;
     }
 
+    private String getTargetLanguageLabel(String targetLanguage) {
+        return TARGET_LANGUAGE_LABELS[indexOfTargetLanguage(targetLanguage)];
+    }
+
     private String normalizeTargetLanguage(String targetLanguage) {
         if (targetLanguage == null) {
             return MobileFloatingTranslateSettings.DEFAULT_TARGET_LANGUAGE;
@@ -744,6 +771,7 @@ final class MobileFloatingTranslateOverlay {
         private float initialTouchX;
         private float initialTouchY;
         private boolean dragging;
+        private boolean childHandlesGesture;
 
         DraggablePanelLayout(Context context) {
             super(context);
@@ -761,14 +789,24 @@ final class MobileFloatingTranslateOverlay {
             }
 
             switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_OUTSIDE:
+                    collapsePanel(params.x + floatingView.getWidth() / 2 >= context.getResources().getDisplayMetrics().widthPixels / 2);
+                    return true;
                 case MotionEvent.ACTION_DOWN:
+                    hideLanguageListIfTouchOutside(event);
                     initialX = params.x;
                     initialY = params.y;
                     initialTouchX = event.getRawX();
                     initialTouchY = event.getRawY();
                     dragging = false;
+                    childHandlesGesture = isTouchInsideView(sourceInput, event)
+                        || isTouchInsideView(targetLanguageList, event)
+                        || isTouchInsideView(resultView, event);
                     break;
                 case MotionEvent.ACTION_MOVE:
+                    if (childHandlesGesture) {
+                        return super.dispatchTouchEvent(event);
+                    }
                     int deltaX = Math.round(event.getRawX() - initialTouchX);
                     int deltaY = Math.round(event.getRawY() - initialTouchY);
                     if (!dragging && Math.abs(deltaX) < dp(7) && Math.abs(deltaY) < dp(7)) {
@@ -799,6 +837,31 @@ final class MobileFloatingTranslateOverlay {
             }
 
             return super.dispatchTouchEvent(event);
+        }
+
+        private void hideLanguageListIfTouchOutside(MotionEvent event) {
+            if (targetLanguageList == null || targetLanguageList.getVisibility() != View.VISIBLE) {
+                return;
+            }
+
+            if (!isTouchInsideView(targetLanguageList, event) && !isTouchInsideView(targetLanguageButton, event)) {
+                targetLanguageList.setVisibility(View.GONE);
+            }
+        }
+
+        private boolean isTouchInsideView(View view, MotionEvent event) {
+            if (view == null || view.getVisibility() != View.VISIBLE) {
+                return false;
+            }
+
+            int[] location = new int[2];
+            view.getLocationOnScreen(location);
+            float rawX = event.getRawX();
+            float rawY = event.getRawY();
+            return rawX >= location[0]
+                && rawX <= location[0] + view.getWidth()
+                && rawY >= location[1]
+                && rawY <= location[1] + view.getHeight();
         }
     }
 
