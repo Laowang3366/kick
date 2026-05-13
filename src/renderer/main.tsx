@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { Component, StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { prepareServiceWorkerForCurrentMode } from './serviceWorker';
 import { applyStoredThemePreference } from './themePreference';
@@ -25,7 +25,9 @@ async function bootstrapRenderer() {
 
     createRoot(rootElement).render(
       <StrictMode>
-        <App />
+        <StartupErrorBoundary>
+          <App />
+        </StartupErrorBoundary>
       </StrictMode>
     );
   } catch (error) {
@@ -34,18 +36,16 @@ async function bootstrapRenderer() {
 }
 
 function shouldAwaitRendererRuntimePreparation() {
-  const capacitor = (globalThis as typeof globalThis & { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } })
-    .Capacitor;
-  return Boolean(capacitor?.isNativePlatform?.() || ['android', 'ios'].includes(capacitor?.getPlatform?.() ?? ''));
+  return isNativeWebViewEnvironment();
 }
 
 async function prepareRendererRuntime() {
-  if (import.meta.env.DEV) {
-    await window.__quickTranslateDevCacheReset?.catch(() => undefined);
-    await prepareServiceWorkerForCurrentMode(true);
-  } else {
-    await prepareServiceWorkerForCurrentMode(false);
+  if (!import.meta.env.DEV && !isNativeWebViewEnvironment()) {
+    return;
   }
+
+  await window.__quickTranslateStartupCacheReset?.catch(() => undefined);
+  await prepareServiceWorkerForCurrentMode(import.meta.env.DEV);
 }
 
 function renderStartupFailure(error: unknown) {
@@ -74,4 +74,60 @@ function renderStartupFailure(error: unknown) {
   content.append(title, hint, details);
   wrapper.append(content);
   rootElement.replaceChildren(wrapper);
+}
+
+function isNativeWebViewEnvironment() {
+  return Boolean(
+    (window.location.protocol === 'https:' && window.location.hostname === 'localhost') ||
+      window.location.protocol === 'capacitor:'
+  );
+}
+
+type StartupErrorBoundaryProps = {
+  children: ReactNode;
+};
+
+type StartupErrorBoundaryState = {
+  error: Error | null;
+};
+
+class StartupErrorBoundary extends Component<StartupErrorBoundaryProps, StartupErrorBoundaryState> {
+  state: StartupErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): StartupErrorBoundaryState {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return <StartupErrorView error={this.state.error} />;
+    }
+
+    return this.props.children;
+  }
+}
+
+function StartupErrorView({ error }: { error: Error }) {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: '24px',
+        color: '#334155',
+        font: '15px Microsoft YaHei UI, sans-serif',
+        textAlign: 'center',
+        background: '#f8fafc'
+      }}
+    >
+      <div style={{ maxWidth: '320px', lineHeight: 1.7 }}>
+        <strong>快捷翻译启动失败</strong>
+        <div>请关闭后重新打开，或安装最新版本。</div>
+        <small style={{ display: 'block', marginTop: '8px', color: '#64748b', wordBreak: 'break-word' }}>
+          {error.message || '未知错误'}
+        </small>
+      </div>
+    </div>
+  );
 }

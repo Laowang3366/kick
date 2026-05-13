@@ -31,5 +31,10 @@ function isNativeCapacitorApp() {
   const capacitor = (globalThis as typeof globalThis & { Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string } })
     .Capacitor;
 
-  return Boolean(capacitor?.isNativePlatform?.() || ['android', 'ios'].includes(capacitor?.getPlatform?.() ?? ''));
+  return Boolean(
+    capacitor?.isNativePlatform?.() ||
+      ['android', 'ios'].includes(capacitor?.getPlatform?.() ?? '') ||
+      (window.location.protocol === 'https:' && window.location.hostname === 'localhost') ||
+      window.location.protocol === 'capacitor:'
+  );
 }

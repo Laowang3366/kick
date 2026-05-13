@@ -25,6 +25,7 @@ type DesktopUpdateProgress = {
 
 declare global {
   interface Window {
+    __quickTranslateStartupCacheReset?: Promise<void>;
     __quickTranslateDevCacheReset?: Promise<void>;
     quickTranslate?: {
       captureSelectedText(): Promise<string>;

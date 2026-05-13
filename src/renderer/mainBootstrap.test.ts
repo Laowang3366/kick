@@ -8,6 +8,7 @@ describe('renderer bootstrap', () => {
 
     expect(source).toContain('void bootstrapRenderer()');
     expect(source).toContain('shouldAwaitRendererRuntimePreparation()');
+    expect(source).toContain('window.__quickTranslateStartupCacheReset');
     expect(source.indexOf('await runtimePreparation')).toBeLessThan(source.indexOf("await import('./App')"));
     expect(source.indexOf("await import('./App')")).toBeLessThan(source.indexOf('createRoot('));
   });

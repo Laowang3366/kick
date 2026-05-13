@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.81",
+  "latestVersion": "0.1.82",
   "releases": [
+    {
+      "version": "0.1.82",
+      "platform": "android",
+      "fileName": "Quick-Translate-Android-0.1.82.apk",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.82.apk",
+      "size": 3278051,
+      "sha512": "pdAy/1TiexPiTWPDioA1fEiLMFcPxww+QKkUSdKEVMdZYna/WBaPK+PU705xrwZ6vjuaXI+RvZLy6jCI2EHuhw==",
+      "releaseDate": "2026-05-13T08:13:05.232Z",
+      "releaseNotes": "0.1.82：继续修复 Android 启动空白页；启动缓存清理提前到主入口脚本之前执行，Android 原生 WebView 会等待旧 Service Worker/缓存清理完成后再加载 React，并增加启动错误兜底界面。"
+    },
     {
       "version": "0.1.81",
       "platform": "windows",
@@ -20,16 +30,6 @@
       "sha512": "wTkkb/4fSeRKPHGqpGglOo+1OePW6bxo+k5HA8dA0Bfdcu3oMCtRae1SbWq8Bwn6Fl2ZiY1EVLP7RnR4kU/CcA==",
       "releaseDate": "2026-05-13T07:29:15.527Z",
       "releaseNotes": "0.1.80：修复 Android 打开空白页问题；启动前清理旧 WebView Service Worker 与静态缓存，移除旧缓存脚本和主入口的顶层 await，并增加启动失败提示。"
-    },
-    {
-      "version": "0.1.79",
-      "platform": "android",
-      "fileName": "Quick-Translate-Android-0.1.79.apk",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-Android-0.1.79.apk",
-      "size": 3277933,
-      "sha512": "/xjeq9h2hduqOlxOjOcPzphIbm4AI35+kecjL7GF5XUA/WKR6L8A/gnLhpMOPuTOIw4IVoqcjKsJKpMEluSD/A==",
-      "releaseDate": "2026-05-13T07:07:20.376Z",
-      "releaseNotes": "0.1.79：修复 Android 更新后打开空白页的问题；移动端不再保留旧首页缓存，并加入旧版本入口迁移桥，自动清理过期页面缓存后进入新版。"
     },
     {
       "version": "0.1.77",
