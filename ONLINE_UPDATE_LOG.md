@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-14 13:40 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 旧路径软链接最终清理；删除最后一个兼容符号链接 `/www/wwwroot/kick-deploy`，保留真实部署目录 `/www/wwwroot/excelcc/kick-deploy`，完成 `kick-web`、`kick-backend`、`kick-deploy` 三个旧入口的软链接清理。
+- 验证：删除前扫描 `/etc/nginx`、`/etc/systemd`、cron、当前部署仓脚本和运维文档，未发现 `/www/wwwroot/kick-deploy` 运行引用；删除时校验该路径确认为指向 `/www/wwwroot/excelcc/kick-deploy` 的符号链接；删除后 `/www/wwwroot/kick-deploy` 为 missing，`/www/wwwroot/excelcc/kick-deploy` 保持存在；新机 `http://127.0.0.1:8081/api/public/home-overview` 返回 200；公网 `https://www.excelcc.cn/` 与 `/api/public/home-overview` 均返回 200；`nginx`、`mysql`、`redis-server`、`kick-backend.service`、`quick-translate.service` 均为 `active`。
+- 部署：仅删除符号链接 `/www/wwwroot/kick-deploy`，未删除真实目录、未重新构建前端/后端、未重启服务；后续标准部署入口固定为 `/www/wwwroot/excelcc/kick-deploy/repo`。
+- 服务器备份：不适用；本次删除的是可重建符号链接，真实目录未删除，恢复命令为 `ln -s /www/wwwroot/excelcc/kick-deploy /www/wwwroot/kick-deploy`。
+- 备注：`/www/wwwroot/quick-translate` 未处理且 `quick-translate.service` 保持 `active`。
+
 ## 2026-05-14 12:47 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 标准部署验证；在新目录结构 `/www/wwwroot/excelcc/` 下验证 `bash scripts/deploy/production-deploy.sh` 可完成 Git 拉取、前端构建、后端构建、受管文件发布、后端重启和健康检查；将新机 `/www/wwwroot/excelcc/kick-deploy/deploy.env` 的 `GIT_PULL_BEFORE_BUILD` 从 `0` 对齐为标准默认值 `1`。
