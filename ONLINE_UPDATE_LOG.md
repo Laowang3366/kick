@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-14 12:47 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 标准部署验证；在新目录结构 `/www/wwwroot/excelcc/` 下验证 `bash scripts/deploy/production-deploy.sh` 可完成 Git 拉取、前端构建、后端构建、受管文件发布、后端重启和健康检查；将新机 `/www/wwwroot/excelcc/kick-deploy/deploy.env` 的 `GIT_PULL_BEFORE_BUILD` 从 `0` 对齐为标准默认值 `1`。
+- 验证：新机从 `/www/wwwroot/excelcc/kick-deploy/repo` 执行 `GIT_PULL_BEFORE_BUILD=1 bash scripts/deploy/production-deploy.sh` 成功；脚本完成 `fetching origin/codex/admin-ai-assistant-management` 与 fast-forward-only pull，结果 `Already up to date`；前端 `npm run build` 通过，后端 Maven 打包通过；`kick-backend.service` 重启后健康检查第 3 次通过；新机 `http://127.0.0.1:8081/api/public/home-overview` 返回 200；公网 `https://www.excelcc.cn/` 与 `/api/public/home-overview` 均返回 200；`nginx`、`mysql`、`redis-server`、`kick-backend.service`、`quick-translate.service` 均为 `active`。
+- 部署：当前部署仓提交 `4c63d0b`；本次为标准部署链路验证，未引入业务代码变更；`deploy.env` 标准拉取开关已改为 `GIT_PULL_BEFORE_BUILD="1"`，后续直接执行 `bash scripts/deploy/production-deploy.sh` 会按 GitHub 分支拉取后构建发布。
+- 服务器备份：标准部署备份 `/www/wwwroot/excelcc/kick-deploy/backups/20260514-044544`；`deploy.env` 调整前备份 `/www/wwwroot/excelcc/kick-deploy/backups/20260514-044544/deploy.env.before-standard-pull-default`。
+- 备注：部署过程中健康检查前两次连接失败发生在后端重启窗口内，脚本自动重试后通过；`/www/wwwroot/quick-translate` 未处理且 `quick-translate.service` 保持 `active`；`/www/wwwroot/kick-web` 与 `/www/wwwroot/kick-backend` 软链接仍保持删除状态，`/www/wwwroot/kick-deploy` 软链接继续作为过渡兼容入口。
+
 ## 2026-05-14 12:02 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 部署脚本路径配置收敛与软链接第一阶段清理；将生产部署脚本默认路径、示例 env、运行时检查脚本、Nginx 模板和运维文档切换到 `/www/wwwroot/excelcc/` 目录结构与后端 `8081` 健康检查；删除旧运行路径软链接 `/www/wwwroot/kick-web`、`/www/wwwroot/kick-backend`，暂留 `/www/wwwroot/kick-deploy` 作为人工部署入口过渡兼容。
