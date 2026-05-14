@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-DEPLOY_ENV_DEFAULT="/www/wwwroot/kick-deploy/deploy.env"
+DEPLOY_ENV_DEFAULT="/www/wwwroot/excelcc/kick-deploy/deploy.env"
 
 DEPLOY_ENV_PATH="${DEPLOY_ENV:-$DEPLOY_ENV_DEFAULT}"
 
@@ -22,7 +22,7 @@ Usage:
   bash scripts/deploy/deploy-from-git-bundle.sh /path/to/release.bundle
 
 Environment:
-  DEPLOY_ENV             Deploy env path. Defaults to /www/wwwroot/kick-deploy/deploy.env.
+  DEPLOY_ENV             Deploy env path. Defaults to /www/wwwroot/excelcc/kick-deploy/deploy.env.
   BRANCH or GIT_BRANCH   Target branch. Usually set in DEPLOY_ENV.
   BUNDLE_REF             Source ref inside the bundle. Defaults to refs/heads/<target branch>.
   DEPLOY_AFTER_IMPORT=0  Import only; do not run production-deploy.sh.

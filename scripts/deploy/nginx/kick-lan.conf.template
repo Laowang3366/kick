@@ -14,7 +14,7 @@ server {
     listen 80 default_server;
     server_name _ lan.excelcc.cn;
 
-    root /www/wwwroot/kick-web;
+    root /www/wwwroot/excelcc/kick-web;
     index index.html;
     client_max_body_size 20m;
 
@@ -63,7 +63,7 @@ server {
     #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     #     proxy_set_header X-Forwarded-Proto $scheme;
     #     proxy_set_header Connection "";
-    #     proxy_pass http://127.0.0.1:8080;
+    #     proxy_pass http://127.0.0.1:8081;
     # }
 
     location /api/ {
@@ -73,7 +73,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8081;
     }
 
     # Optional narrower write throttling. Enable only after the shared zones
@@ -87,7 +87,7 @@ server {
     #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     #     proxy_set_header X-Forwarded-Proto $scheme;
     #     proxy_set_header Connection "";
-    #     proxy_pass http://127.0.0.1:8080;
+    #     proxy_pass http://127.0.0.1:8081;
     # }
 
     location /uploads/ {
@@ -97,7 +97,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8081;
     }
 
     location /ws/ {
@@ -113,7 +113,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:8081;
     }
 
     location / {

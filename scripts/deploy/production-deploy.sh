@@ -3,9 +3,9 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-DEPLOY_ENV_DEFAULT="/www/wwwroot/kick-deploy/deploy.env"
-HEALTH_ENDPOINT_DEFAULT="http://127.0.0.1:8080/api/public/home-overview"
-BACKUP_ROOT_DEFAULT="/www/wwwroot/kick-deploy/backups"
+DEPLOY_ENV_DEFAULT="/www/wwwroot/excelcc/kick-deploy/deploy.env"
+HEALTH_ENDPOINT_DEFAULT="http://127.0.0.1:8081/api/public/home-overview"
+BACKUP_ROOT_DEFAULT="/www/wwwroot/excelcc/kick-deploy/backups"
 HEALTH_RETRY_COUNT_DEFAULT=24
 HEALTH_RETRY_DELAY_DEFAULT=5
 

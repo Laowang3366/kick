@@ -14,7 +14,7 @@ It installs the repository template:
 scripts/deploy/nginx/kick-lan.conf.template
 ```
 
-The template keeps the current topology: `/www/wwwroot/kick-web` serves the SPA, and `/api/`, `/uploads/`, and `/ws/` proxy to `127.0.0.1:8080`.
+The template keeps the current topology: `/www/wwwroot/excelcc/kick-web` serves the SPA, and `/api/`, `/uploads/`, and `/ws/` proxy to `127.0.0.1:8081`.
 
 ## Behavior
 
@@ -30,7 +30,7 @@ The template keeps the current topology: `/www/wwwroot/kick-web` serves the SPA,
 Run from the server deploy repo:
 
 ```bash
-cd /www/wwwroot/kick-deploy/repo
+cd /www/wwwroot/excelcc/kick-deploy/repo
 bash scripts/deploy/nginx/install-kick-lan-nginx.sh --dry-run
 ```
 
@@ -52,7 +52,7 @@ sudo bash scripts/deploy/nginx/install-kick-lan-nginx.sh --dry-run
 Apply requires root:
 
 ```bash
-cd /www/wwwroot/kick-deploy/repo
+cd /www/wwwroot/excelcc/kick-deploy/repo
 sudo bash scripts/deploy/nginx/install-kick-lan-nginx.sh --apply
 ```
 

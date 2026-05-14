@@ -13,6 +13,22 @@
 - 备注：
 ```
 
+## 2026-05-14 11:55 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 服务器目录归拢；将新生产机 `38.76.169.222` 上 ExcelCC 的 `/www/wwwroot/kick-web`、`/www/wwwroot/kick-backend`、`/www/wwwroot/kick-deploy` 归拢到 `/www/wwwroot/excelcc/` 下，并在原路径保留软链接兼容旧脚本和历史路径；未处理 `/www/wwwroot/quick-translate`。
+- 验证：新机 `nginx -t` 通过；`kick-backend.service` 重启后从 `/www/wwwroot/excelcc/kick-backend/forum-1.0.0.jar` 启动，`http://127.0.0.1:8081/api/public/home-overview` 返回 200；公网 `curl --noproxy "*"` 验证 `https://www.excelcc.cn/`、`/api/public/home-overview`、`/uploads/c1bcc91b-8c40-4f59-b142-b8fdbb029b17.xlsx` 均返回 200；`nginx`、`mysql`、`redis-server`、`kick-backend.service`、`quick-translate.service` 为 `active`；`production-deploy.sh` 与 `deploy-from-git-bundle.sh` 语法检查通过。
+- 部署：更新 `/etc/nginx/conf.d/kick.conf` 静态根目录为 `/www/wwwroot/excelcc/kick-web`；更新 `/etc/systemd/system/kick-backend.service` 的 `WorkingDirectory`、`EnvironmentFile`、`ExecStart` 为 `/www/wwwroot/excelcc/kick-backend`；更新 `/www/wwwroot/excelcc/kick-deploy/deploy.env` 的 `REPO_DIR`、`WEB_RUNTIME_DIR`、`BACKEND_RUNTIME_DIR` 为新目录；旧路径 `/www/wwwroot/kick-web`、`/www/wwwroot/kick-backend`、`/www/wwwroot/kick-deploy` 保留为软链接。
+- 服务器备份：`/www/wwwroot/excelcc/kick-deploy/backups/path-consolidation-20260514-035406`（包含变更前的 `kick.conf`、`kick-backend.service`、`deploy.env`、`.env.production` 快照）。
+- 备注：本次为服务器目录结构调整，没有覆盖项目构建产物、数据库或上传文件；`/www/wwwroot/quick-translate` 目录保持原位置，服务保持 `active`。
+
+## 2026-05-14 06:45 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 服务器迁移；将 ExcelCC 运行环境从旧生产机 `64.90.12.101` 迁移到新生产机 `38.76.169.222`，旧机保留数据库、uploads、证书和配置快照作为备份存储；明确不处理 `/www/wwwroot/quick-translate`。
+- 验证：公网 DNS `www.excelcc.cn` 与 `excelcc.cn` A 记录均解析到 `38.76.169.222`；`curl --noproxy "*"` 验证 `https://www.excelcc.cn/`、`/api/public/home-overview`、`/uploads/c1bcc91b-8c40-4f59-b142-b8fdbb029b17.xlsx` 均返回 200；新机 `nginx`、`mysql`、`redis-server`、`kick-backend.service`、`quick-translate.service` 为 `active`；新机 `http://127.0.0.1:8081/api/public/home-overview` 返回 200；新机 `/www/wwwroot/quick-translate` 存在。
+- 部署：使用 `codex/admin-ai-assistant-management` 提交 `6fb549d` 作为迁移基线，通过 Git bundle `.codex_tmp/kick-migration-6fb549d.bundle` 导入新机 `/www/wwwroot/kick-deploy/repo`；新机独立配置 `/etc/nginx/conf.d/kick.conf`、`/etc/systemd/system/kick-backend.service`、`/www/wwwroot/kick-backend/.env.production`；后端在 `8081` 运行，`8080` 保留给新机既有 nginx 监听。
+- 服务器备份：旧机 `/www/wwwroot/kick-deploy/backups/20260514-migration-to-38.76.169.222/`（约 56M，包含 `excel_forum_recet.sql.gz`、`kick-backend-uploads.tar.gz`、`certs`、`kick.conf`、`kick-backend.service`、`env.production.txt`）。
+- 备注：旧机 `nginx`、`mysql`、`redis-server`、`kick-backend.service` 保持 `active`；新机 `/www/wwwroot/quick-translate` 与 `quick-translate.service` 保持 `active`，未覆盖或清理该项目目录；回退边界为将 DNS 解析回旧机并使用旧机保留服务/备份数据。
+
 ## 2026-05-13 17:06 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 模板下载链路修复上线；后端新增受控模板文件下载接口 `/api/templates/{id}/file`，模板下载与购买记录页改为携带登录态通过后端拉取文件并触发浏览器下载，避免直接跳转 `/uploads/...` 被前端路由吞掉导致 404；同时保留线上 Nginx `/uploads/` 兜底代理，确保历史直链仍可访问。

@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 SERVICE="${SERVICE:-kick-backend.service}"
-ENV_FILE="${ENV_FILE:-/www/wwwroot/kick-backend/.env.production}"
-PORT="${PORT:-8080}"
+ENV_FILE="${ENV_FILE:-/www/wwwroot/excelcc/kick-backend/.env.production}"
+PORT="${PORT:-8081}"
 APP_CONFIG="${APP_CONFIG:-excel-forum-backend/src/main/resources/application.yml}"
 
 section() {

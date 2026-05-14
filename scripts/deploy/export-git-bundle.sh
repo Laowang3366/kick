@@ -84,4 +84,4 @@ git -C "$ROOT_DIR" bundle create "$output_path" "$source_ref"
 git -C "$ROOT_DIR" bundle verify "$output_path" >/dev/null
 
 log "bundle written: $output_path"
-log "upload target example: /www/wwwroot/kick-deploy/bundles/$(basename "$output_path")"
+log "upload target example: /www/wwwroot/excelcc/kick-deploy/bundles/$(basename "$output_path")"
