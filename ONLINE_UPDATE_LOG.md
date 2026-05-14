@@ -13,6 +13,14 @@
 - 备注：
 ```
 
+## 2026-05-14 12:02 Asia/Shanghai
+
+- 范围：公共生产目标 `https://www.excelcc.cn/` 部署脚本路径配置收敛与软链接第一阶段清理；将生产部署脚本默认路径、示例 env、运行时检查脚本、Nginx 模板和运维文档切换到 `/www/wwwroot/excelcc/` 目录结构与后端 `8081` 健康检查；删除旧运行路径软链接 `/www/wwwroot/kick-web`、`/www/wwwroot/kick-backend`，暂留 `/www/wwwroot/kick-deploy` 作为人工部署入口过渡兼容。
+- 验证：本地 `bash -n` 校验 `production-deploy.sh`、`deploy-from-git-bundle.sh`、`export-git-bundle.sh`、`runtime-tuning-check.sh`、`install-kick-lan-nginx.sh` 通过；本地 `git diff --check` 通过；新机通过 Git bundle `/www/wwwroot/excelcc/kick-deploy/bundles/kick-path-config-8cd1dd1.bundle` 将部署仓快进到 `8cd1dd1` 且未触发应用构建；新机当前部署脚本与文档不再包含旧 `/www/wwwroot/kick-web`、`/www/wwwroot/kick-backend`、`/www/wwwroot/kick-deploy` 路径或 `127.0.0.1:8080` 生产健康检查引用；新机 `bash -n` 校验部署脚本通过；`http://127.0.0.1:8081/api/public/home-overview` 返回 200；公网 `https://www.excelcc.cn/`、`/api/public/home-overview`、`/uploads/c1bcc91b-8c40-4f59-b142-b8fdbb029b17.xlsx` 均返回 200。
+- 部署：提交 `8cd1dd1` 已导入新机 `/www/wwwroot/excelcc/kick-deploy/repo`；使用 `DEPLOY_AFTER_IMPORT=0` 仅更新部署仓脚本、示例配置和文档，不重启后端、不重新构建前端/后端；删除软链接时只对确认目标为 `/www/wwwroot/excelcc/kick-web` 与 `/www/wwwroot/excelcc/kick-backend` 的符号链接执行 `rm`。
+- 服务器备份：沿用目录归拢前备份 `/www/wwwroot/excelcc/kick-deploy/backups/path-consolidation-20260514-035406`；本次删除的是兼容软链接，不删除真实运行目录。
+- 备注：`/www/wwwroot/excelcc/kick-web`、`/www/wwwroot/excelcc/kick-backend`、`/www/wwwroot/excelcc/kick-deploy` 均保留；`/www/wwwroot/quick-translate` 未处理且 `quick-translate.service` 保持 `active`；下一阶段可在一次完整标准部署验证后删除 `/www/wwwroot/kick-deploy` 软链接。
+
 ## 2026-05-14 11:55 Asia/Shanghai
 
 - 范围：公共生产目标 `https://www.excelcc.cn/` 服务器目录归拢；将新生产机 `38.76.169.222` 上 ExcelCC 的 `/www/wwwroot/kick-web`、`/www/wwwroot/kick-backend`、`/www/wwwroot/kick-deploy` 归拢到 `/www/wwwroot/excelcc/` 下，并在原路径保留软链接兼容旧脚本和历史路径；未处理 `/www/wwwroot/quick-translate`。
