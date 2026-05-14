@@ -10,6 +10,9 @@ export type CaptureSelectedTextInput = {
   recoveryStore?: ClipboardRecoveryStore;
   copyDelayMs?: number;
   pollIntervalMs?: number;
+  copyAttempts?: number;
+  retryDelayMs?: number;
+  onCopyShortcutSent?: () => Promise<void> | void;
 };
 
 export type ClipboardRecoveryRecord = {
@@ -46,8 +49,7 @@ export async function captureSelectedText(input: CaptureSelectedTextInput): Prom
 
   let capturedText = '';
   try {
-    await input.sendCopyShortcut();
-    capturedText = await readCapturedClipboardText(input, sentinelText);
+    capturedText = await copyAndReadCapturedClipboardText(input, sentinelText);
   } finally {
     try {
       input.clipboard.writeText(previousClipboardText);
@@ -58,6 +60,41 @@ export async function captureSelectedText(input: CaptureSelectedTextInput): Prom
   }
 
   return capturedText;
+}
+
+async function copyAndReadCapturedClipboardText(input: CaptureSelectedTextInput, sentinelText: string) {
+  const copyAttempts = Math.max(1, input.copyAttempts ?? 1);
+  const retryDelayMs = input.retryDelayMs ?? 60;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < copyAttempts; attempt += 1) {
+    try {
+      await input.sendCopyShortcut();
+      await input.onCopyShortcutSent?.();
+    } catch (error) {
+      lastError = error;
+      if (attempt < copyAttempts - 1) {
+        await input.wait(retryDelayMs);
+        continue;
+      }
+      throw error;
+    }
+
+    const capturedText = await readCapturedClipboardText(input, sentinelText);
+    if (capturedText) {
+      return capturedText;
+    }
+
+    if (attempt < copyAttempts - 1) {
+      await input.wait(retryDelayMs);
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  return '';
 }
 
 export async function restoreClipboardIfNeeded(input: {

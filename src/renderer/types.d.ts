@@ -40,7 +40,13 @@ declare global {
       onDesktopSettingsChanged?(callback: (settings: DesktopSettings) => void): () => void;
       onUpdateProgress?(callback: (progress: DesktopUpdateProgress) => void): () => void;
       onFloatingSourceCaptured?(
-        callback: (payload: { text: string; targetLanguage?: string; translationFormat?: TranslationFormat }) => void
+        callback: (payload: {
+          text: string;
+          targetLanguage?: string;
+          translationFormat?: TranslationFormat;
+          captureState?: 'capturing' | 'failed';
+          captureError?: string;
+        }) => void
       ): () => void;
       onSelectionCaptured(callback: (text: string) => void): () => void;
       setDesktopSettings?(settings: Partial<DesktopSettings>): Promise<DesktopSettings>;

@@ -13,6 +13,33 @@ describe('floating shortcut handler', () => {
     expect(showFloatingTranslation).toHaveBeenCalledWith('selected text');
   });
 
+  it('opens the floating window with a failure state when selected text cannot be read', async () => {
+    const showFloatingTranslation = vi.fn();
+
+    await runFloatingTranslateShortcut({
+      readSelectedText: async () => {
+        throw new Error('copy helper failed');
+      },
+      showFloatingTranslation
+    });
+
+    expect(showFloatingTranslation).toHaveBeenCalledWith('', {
+      captureState: 'failed',
+      captureError: 'copy helper failed'
+    });
+  });
+
+  it('opens the floating window with a failure state when the captured text is empty', async () => {
+    const showFloatingTranslation = vi.fn();
+
+    await runFloatingTranslateShortcut({
+      readSelectedText: async () => '   ',
+      showFloatingTranslation
+    });
+
+    expect(showFloatingTranslation).toHaveBeenCalledWith('   ', { captureState: 'failed' });
+  });
+
   it('serializes overlapping shortcut requests and keeps the latest pending trigger', async () => {
     let releaseRead: (() => void) | undefined;
     const readSelectedText = vi

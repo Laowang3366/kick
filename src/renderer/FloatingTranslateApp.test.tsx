@@ -415,4 +415,80 @@ describe('FloatingTranslateApp', () => {
 
     expect(await screen.findByText('渲染列表')).toBeInTheDocument();
   });
+
+  it('shows selection capture progress before the copied text is available', async () => {
+    let capturedCallback:
+      | ((payload: { text: string; targetLanguage?: string; captureState?: 'capturing' | 'failed'; captureError?: string }) => void)
+      | undefined;
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      getDesktopSettings: vi.fn().mockResolvedValue({
+        mouseButton4Enabled: true,
+        launchAtLogin: false,
+        hideToTrayOnClose: true,
+        defaultTargetLanguage: 'zh-CN',
+        defaultTranslationFormat: 'plain'
+      }),
+      onFloatingSourceCaptured: vi.fn((callback) => {
+        capturedCallback = callback as (payload: {
+          text: string;
+          targetLanguage?: string;
+          captureState?: 'capturing' | 'failed';
+          captureError?: string;
+        }) => void;
+        return vi.fn();
+      }),
+      onSelectionCaptured: vi.fn(),
+      translateText: vi.fn(),
+      windowControl: vi.fn()
+    } as any;
+
+    render(<FloatingTranslateApp />);
+
+    act(() => {
+      capturedCallback?.({ text: '', targetLanguage: 'zh-CN', captureState: 'capturing' });
+    });
+
+    expect(await screen.findByText('正在识别选中文本...')).toBeInTheDocument();
+    expect(window.quickTranslate?.translateText).not.toHaveBeenCalled();
+  });
+
+  it('shows a clear message when shortcut capture returns no selected text', async () => {
+    let capturedCallback:
+      | ((payload: { text: string; targetLanguage?: string; captureState?: 'capturing' | 'failed'; captureError?: string }) => void)
+      | undefined;
+    window.quickTranslate = {
+      captureSelectedText: vi.fn(),
+      copyText: vi.fn(),
+      getDesktopSettings: vi.fn().mockResolvedValue({
+        mouseButton4Enabled: true,
+        launchAtLogin: false,
+        hideToTrayOnClose: true,
+        defaultTargetLanguage: 'zh-CN',
+        defaultTranslationFormat: 'plain'
+      }),
+      onFloatingSourceCaptured: vi.fn((callback) => {
+        capturedCallback = callback as (payload: {
+          text: string;
+          targetLanguage?: string;
+          captureState?: 'capturing' | 'failed';
+          captureError?: string;
+        }) => void;
+        return vi.fn();
+      }),
+      onSelectionCaptured: vi.fn(),
+      translateText: vi.fn(),
+      windowControl: vi.fn()
+    } as any;
+
+    render(<FloatingTranslateApp />);
+
+    act(() => {
+      capturedCallback?.({ text: '', targetLanguage: 'zh-CN', captureState: 'failed' });
+    });
+
+    expect(await screen.findByText('未识别到选中文本，请确认文本已选中')).toBeInTheDocument();
+    expect(window.quickTranslate?.translateText).not.toHaveBeenCalled();
+  });
 });

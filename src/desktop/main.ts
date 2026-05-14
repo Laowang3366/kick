@@ -43,14 +43,14 @@ import {
 } from './desktopSettings.js';
 import { reuseFloatingWindowForShortcut } from './floatingWindowLifecycle.js';
 import { createFloatingWindowBounds } from './floatingWindowBounds.js';
-import { bringFloatingWindowToFront } from './floatingWindowFocus.js';
+import { bringFloatingWindowToFront, showFloatingWindowWithoutFocus } from './floatingWindowFocus.js';
 import {
   readFloatingSessionPreferences,
   readFloatingSessionPreferenceOverrides,
   updateFloatingSessionPreferences,
   type FloatingSessionPreferenceState
 } from './floatingSessionPreferences.js';
-import { createFloatingShortcutRunner } from './floatingShortcutHandler.js';
+import { createFloatingShortcutRunner, type FloatingShortcutResultOptions } from './floatingShortcutHandler.js';
 import { startMouseButton4Shortcut, type MouseButton4Shortcut } from './mouseButton4Shortcut.js';
 import { getProviderSettingsPath, loadBackendProviderSettings } from './providerSettings.js';
 import { applyLightweightRuntime } from './runtimeOptimization.js';
@@ -97,7 +97,7 @@ let isQuitting = false;
 let desktopSettings: DesktopSettings = defaultDesktopSettings;
 let floatingSessionPreferences: FloatingSessionPreferenceState = {};
 let clipboardRecoveryStore: ClipboardRecoveryStore | null = null;
-const windowsCopyShortcutSender = createWindowsCopyShortcutSender({ logger: console });
+const windowsCopyShortcutSender = createWindowsCopyShortcutSender({ logger: console, requestTimeoutMs: 900 });
 const floatingWindowSizes = {
   compact: { width: 360, height: 300 },
   standard: { width: 420, height: 360 },
@@ -274,14 +274,22 @@ async function loadRendererWindow(window: BrowserWindow, options: { floating?: b
   await window.loadURL(`http://127.0.0.1:5173${options.floating ? '?floating=1' : ''}`);
 }
 
-async function readSelectedTextFromSystem() {
+async function readSelectedTextFromSystem(options: { showFloatingCaptureProgress?: boolean } = {}) {
   return captureSelectedText({
     clipboard,
     sendCopyShortcut: sendWindowsCopyShortcut,
     wait,
     recoveryStore: getClipboardRecoveryStore(),
-    copyDelayMs: 90,
-    pollIntervalMs: 10
+    copyDelayMs: 420,
+    pollIntervalMs: 15,
+    copyAttempts: 2,
+    retryDelayMs: 70,
+    onCopyShortcutSent: options.showFloatingCaptureProgress
+      ? async () => {
+          await wait(35);
+          await showFloatingTranslation('', { captureState: 'capturing', focus: false });
+        }
+      : undefined
   });
 }
 
@@ -339,14 +347,18 @@ async function captureFromSelection() {
 }
 
 const handleGlobalFloatingTranslateShortcut = createFloatingShortcutRunner({
-  readSelectedText: readSelectedTextFromSystem,
+  readSelectedText: () => readSelectedTextFromSystem({ showFloatingCaptureProgress: true }),
   showFloatingTranslation
 });
 
 async function sendWindowsCopyShortcut() {
   if (process.platform === 'win32') {
-    await windowsCopyShortcutSender.send();
-    return;
+    try {
+      await windowsCopyShortcutSender.send();
+      return;
+    } catch (error) {
+      console.warn(`[选区复制] 快捷复制助手失败，改用一次性复制：${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   await execFileAsync('powershell.exe', [
@@ -474,7 +486,7 @@ async function createFloatingWindow() {
   return floatingWindow;
 }
 
-async function showFloatingTranslation(text: string) {
+async function showFloatingTranslation(text: string, options: FloatingShortcutResultOptions & { focus?: boolean } = {}) {
   const canReuseFloatingWindow = Boolean(floatingWindow && !floatingWindow.isDestroyed());
   floatingWindow = reuseFloatingWindowForShortcut(floatingWindow);
   const window = await createFloatingWindow();
@@ -486,11 +498,17 @@ async function showFloatingTranslation(text: string) {
   if (window.isMinimized()) {
     window.restore();
   }
-  bringFloatingWindowToFront(window);
+  if (options.focus === false) {
+    showFloatingWindowWithoutFocus(window);
+  } else {
+    bringFloatingWindowToFront(window);
+  }
   const dispatchCapturedSource = () => {
     const preferences = readFloatingSessionPreferenceOverrides(floatingSessionPreferences);
     window.webContents.send('floating-source-captured', {
       text,
+      captureState: options.captureState,
+      captureError: options.captureError,
       ...preferences
     });
   };

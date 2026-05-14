@@ -1,11 +1,28 @@
 export type FloatingShortcutHandlerInput = {
   readSelectedText: () => Promise<string>;
-  showFloatingTranslation: (text: string) => Promise<void> | void;
+  showFloatingTranslation: (text: string, options?: FloatingShortcutResultOptions) => Promise<void> | void;
+};
+
+export type FloatingShortcutResultOptions = {
+  captureState?: 'capturing' | 'failed';
+  captureError?: string;
 };
 
 export async function runFloatingTranslateShortcut(input: FloatingShortcutHandlerInput) {
-  const text = await input.readSelectedText();
-  await input.showFloatingTranslation(text);
+  try {
+    const text = await input.readSelectedText();
+    if (text.trim()) {
+      await input.showFloatingTranslation(text);
+      return;
+    }
+
+    await input.showFloatingTranslation(text, { captureState: 'failed' });
+  } catch (error) {
+    await input.showFloatingTranslation('', {
+      captureState: 'failed',
+      captureError: error instanceof Error ? error.message : '选中文本读取失败'
+    });
+  }
 }
 
 export function createFloatingShortcutRunner(input: FloatingShortcutHandlerInput) {

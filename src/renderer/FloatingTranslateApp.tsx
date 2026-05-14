@@ -27,6 +27,8 @@ type FloatingPayload = {
   text: string;
   targetLanguage?: string;
   translationFormat?: TranslationFormat;
+  captureState?: 'capturing' | 'failed';
+  captureError?: string;
 };
 
 export function FloatingTranslateApp() {
@@ -35,6 +37,7 @@ export function FloatingTranslateApp() {
   const [translationFormat, setTranslationFormat] = useState<TranslationFormat>(loadDefaultTranslationFormat);
   const [status, setStatus] = useState<FloatingStatus>('idle');
   const [error, setError] = useState('');
+  const [loadingMessage, setLoadingMessage] = useState('翻译中...');
   const [result, setResult] = useState<TranslateTextResult | null>(null);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [floatingSize, setFloatingSize] = useState<FloatingSize>('standard');
@@ -92,6 +95,25 @@ export function FloatingTranslateApp() {
       translationFormatRef.current = nextFormat;
       const limitedText = limitTranslationText(payload.text);
       setSourceText(limitedText);
+
+      if (payload.captureState === 'capturing') {
+        translationRequestId.current += 1;
+        setResult(null);
+        setError('');
+        setLoadingMessage('正在识别选中文本...');
+        setStatus('loading');
+        return;
+      }
+
+      if (!limitedText.trim() && payload.captureState === 'failed') {
+        translationRequestId.current += 1;
+        setResult(null);
+        setLoadingMessage('翻译中...');
+        setStatus('error');
+        setError(payload.captureError || '未识别到选中文本，请确认文本已选中');
+        return;
+      }
+
       void runTranslation(limitedText, nextLanguage, nextFormat);
     });
   }, [providerSettings]);
@@ -109,6 +131,7 @@ export function FloatingTranslateApp() {
     translationRequestId.current = requestId;
     setResult(null);
     setStatus('loading');
+    setLoadingMessage('翻译中...');
     setError('');
 
     try {
@@ -142,6 +165,7 @@ export function FloatingTranslateApp() {
     translationRequestId.current += 1;
     setResult(null);
     setStatus('idle');
+    setLoadingMessage('翻译中...');
     setError('');
   }
 
@@ -303,7 +327,7 @@ export function FloatingTranslateApp() {
 
         <section className="floating-result-card" aria-live="polite" aria-label="悬浮译文">
           {status === 'error' ? <p className="error-message">{error}</p> : null}
-          {status === 'loading' ? <p className="empty-state loading-state">翻译中...</p> : null}
+          {status === 'loading' ? <p className="empty-state loading-state">{loadingMessage}</p> : null}
           {result && status !== 'loading' ? <p className="translated-text">{result.translatedText}</p> : null}
           {!result && status !== 'error' && status !== 'loading' ? <p className="empty-state">翻译结果会显示在这里</p> : null}
           <button type="button" aria-label="复制悬浮译文" disabled={!result?.translatedText} onClick={copyResult}>

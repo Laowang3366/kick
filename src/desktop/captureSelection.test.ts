@@ -98,6 +98,41 @@ describe('captureSelectedText', () => {
     expect(wait).toHaveBeenCalledWith(10);
   });
 
+  it('retries the copy shortcut when the first attempt does not update the clipboard', async () => {
+    let clipboardText = 'previous';
+    let copyCount = 0;
+    const clipboard = {
+      readText: vi.fn(() => clipboardText),
+      writeText: vi.fn((text: string) => {
+        clipboardText = text;
+      })
+    };
+    const wait = vi.fn().mockResolvedValue(undefined);
+    const onCopyShortcutSent = vi.fn();
+
+    await expect(
+      captureSelectedText({
+        clipboard,
+        sendCopyShortcut: vi.fn(() => {
+          copyCount += 1;
+          if (copyCount === 2) {
+            clipboardText = 'selected after retry';
+          }
+        }),
+        wait,
+        copyDelayMs: 20,
+        pollIntervalMs: 10,
+        copyAttempts: 2,
+        retryDelayMs: 30,
+        onCopyShortcutSent
+      })
+    ).resolves.toBe('selected after retry');
+
+    expect(onCopyShortcutSent).toHaveBeenCalledTimes(2);
+    expect(wait).toHaveBeenCalledWith(30);
+    expect(clipboardText).toBe('previous');
+  });
+
   it('returns captured text even when restoring the previous clipboard text fails', async () => {
     let clipboardText = 'previous';
     const clipboard = {
