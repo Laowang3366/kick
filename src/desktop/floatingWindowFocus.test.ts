@@ -55,4 +55,20 @@ describe('floating window focus', () => {
     expect(window.focus).not.toHaveBeenCalled();
     expect(window.setAlwaysOnTop).toHaveBeenNthCalledWith(2, false);
   });
+
+  it('can keep a floating window topmost when requested', () => {
+    const window = {
+      focus: vi.fn(),
+      isAlwaysOnTop: vi.fn().mockReturnValue(false),
+      moveTop: vi.fn(),
+      setAlwaysOnTop: vi.fn(),
+      show: vi.fn()
+    };
+
+    bringFloatingWindowToFront(window, { keepTopMost: true });
+
+    expect(window.setAlwaysOnTop).toHaveBeenNthCalledWith(1, true, 'pop-up-menu');
+    expect(window.setAlwaysOnTop).toHaveBeenCalledTimes(1);
+    expect(window.focus).toHaveBeenCalledOnce();
+  });
 });

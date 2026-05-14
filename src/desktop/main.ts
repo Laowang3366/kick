@@ -42,7 +42,7 @@ import {
   type FloatingTranslateShortcut
 } from './desktopSettings.js';
 import { reuseFloatingWindowForShortcut } from './floatingWindowLifecycle.js';
-import { createFloatingWindowBounds } from './floatingWindowBounds.js';
+import { createFloatingWindowBounds, type Point } from './floatingWindowBounds.js';
 import { bringFloatingWindowToFront, showFloatingWindowWithoutFocus } from './floatingWindowFocus.js';
 import {
   readFloatingSessionPreferences,
@@ -50,7 +50,7 @@ import {
   updateFloatingSessionPreferences,
   type FloatingSessionPreferenceState
 } from './floatingSessionPreferences.js';
-import { createFloatingShortcutRunner, type FloatingShortcutResultOptions } from './floatingShortcutHandler.js';
+import { createFloatingShortcutRunner, type FloatingShortcutContext, type FloatingShortcutResultOptions } from './floatingShortcutHandler.js';
 import { startMouseButton4Shortcut, type MouseButton4Shortcut } from './mouseButton4Shortcut.js';
 import { getProviderSettingsPath, loadBackendProviderSettings } from './providerSettings.js';
 import { applyLightweightRuntime } from './runtimeOptimization.js';
@@ -97,6 +97,7 @@ let isQuitting = false;
 let desktopSettings: DesktopSettings = defaultDesktopSettings;
 let floatingSessionPreferences: FloatingSessionPreferenceState = {};
 let clipboardRecoveryStore: ClipboardRecoveryStore | null = null;
+let floatingWindowRenderToken = 0;
 const windowsCopyShortcutSender = createWindowsCopyShortcutSender({ logger: console, requestTimeoutMs: 900 });
 const floatingWindowSizes = {
   compact: { width: 360, height: 300 },
@@ -274,7 +275,7 @@ async function loadRendererWindow(window: BrowserWindow, options: { floating?: b
   await window.loadURL(`http://127.0.0.1:5173${options.floating ? '?floating=1' : ''}`);
 }
 
-async function readSelectedTextFromSystem(options: { showFloatingCaptureProgress?: boolean } = {}) {
+async function readSelectedTextFromSystem(options: { showFloatingCaptureProgress?: boolean; cursorPoint?: Point } = {}) {
   return captureSelectedText({
     clipboard,
     sendCopyShortcut: sendWindowsCopyShortcut,
@@ -286,8 +287,13 @@ async function readSelectedTextFromSystem(options: { showFloatingCaptureProgress
     retryDelayMs: 70,
     onCopyShortcutSent: options.showFloatingCaptureProgress
       ? async () => {
-          await wait(35);
-          await showFloatingTranslation('', { captureState: 'capturing', focus: false });
+          await wait(120);
+          await showFloatingTranslation('', {
+            captureState: 'capturing',
+            focus: false,
+            cursorPoint: options.cursorPoint,
+            keepTopMost: true
+          });
         }
       : undefined
   });
@@ -347,11 +353,28 @@ async function captureFromSelection() {
 }
 
 const handleGlobalFloatingTranslateShortcut = createFloatingShortcutRunner({
-  readSelectedText: () => readSelectedTextFromSystem({ showFloatingCaptureProgress: true }),
-  showFloatingTranslation
+  readSelectedText: (context) =>
+    readSelectedTextFromSystem({ showFloatingCaptureProgress: true, cursorPoint: context.cursorPoint }),
+  showFloatingTranslation: (text, options, context) =>
+    showFloatingTranslation(text, {
+      ...options,
+      cursorPoint: context.cursorPoint,
+      keepTopMost: true
+    })
 });
 
-async function sendWindowsCopyShortcut() {
+function createFloatingShortcutContext(): FloatingShortcutContext {
+  return {
+    cursorPoint: screen.getCursorScreenPoint()
+  };
+}
+
+async function sendWindowsCopyShortcut(attempt = 0) {
+  if (attempt > 0) {
+    await sendCopyShortcutWithSendKeys();
+    return;
+  }
+
   if (process.platform === 'win32') {
     try {
       await windowsCopyShortcutSender.send();
@@ -361,6 +384,10 @@ async function sendWindowsCopyShortcut() {
     }
   }
 
+  await sendCopyShortcutWithSendKeys();
+}
+
+async function sendCopyShortcutWithSendKeys() {
   await execFileAsync('powershell.exe', [
     '-NoProfile',
     '-Command',
@@ -450,7 +477,7 @@ function setFloatingTranslateShortcut(shortcut: FloatingTranslateShortcut) {
 
   if (normalizedShortcut === 'mouse-button-4' || normalizedShortcut === 'mouse-button-5') {
     mouseButton4Shortcut = startMouseButton4Shortcut(() => {
-      void handleGlobalFloatingTranslateShortcut();
+      void handleGlobalFloatingTranslateShortcut(createFloatingShortcutContext());
     }, {
       sideButton: normalizedShortcut
     });
@@ -460,7 +487,7 @@ function setFloatingTranslateShortcut(shortcut: FloatingTranslateShortcut) {
   const accelerator = getFloatingTranslateShortcutAccelerator(normalizedShortcut);
   if (accelerator) {
     const isRegistered = globalShortcut.register(accelerator, () => {
-      void handleGlobalFloatingTranslateShortcut();
+      void handleGlobalFloatingTranslateShortcut(createFloatingShortcutContext());
     });
     if (isRegistered) {
       keyboardFloatingShortcutAccelerator = accelerator;
@@ -486,12 +513,16 @@ async function createFloatingWindow() {
   return floatingWindow;
 }
 
-async function showFloatingTranslation(text: string, options: FloatingShortcutResultOptions & { focus?: boolean } = {}) {
+async function showFloatingTranslation(
+  text: string,
+  options: FloatingShortcutResultOptions & { focus?: boolean; cursorPoint?: Point; keepTopMost?: boolean } = {}
+) {
+  const renderToken = ++floatingWindowRenderToken;
   const canReuseFloatingWindow = Boolean(floatingWindow && !floatingWindow.isDestroyed());
   floatingWindow = reuseFloatingWindowForShortcut(floatingWindow);
   const window = await createFloatingWindow();
-  const { workArea } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  const cursorPoint = screen.getCursorScreenPoint();
+  const cursorPoint = options.cursorPoint ?? screen.getCursorScreenPoint();
+  const { workArea } = screen.getDisplayNearestPoint(cursorPoint);
   const bounds = window.getBounds();
 
   window.setBounds(createFloatingWindowBounds(workArea, cursorPoint, bounds));
@@ -499,11 +530,14 @@ async function showFloatingTranslation(text: string, options: FloatingShortcutRe
     window.restore();
   }
   if (options.focus === false) {
-    showFloatingWindowWithoutFocus(window);
+    showFloatingWindowWithoutFocus(window, { keepTopMost: options.keepTopMost });
   } else {
-    bringFloatingWindowToFront(window);
+    bringFloatingWindowToFront(window, { keepTopMost: options.keepTopMost });
   }
   const dispatchCapturedSource = () => {
+    if (renderToken !== floatingWindowRenderToken) {
+      return;
+    }
     const preferences = readFloatingSessionPreferenceOverrides(floatingSessionPreferences);
     window.webContents.send('floating-source-captured', {
       text,

@@ -30,6 +30,7 @@ describe('main window options', () => {
     expect(options.minimizable).toBe(true);
     expect(options.movable).toBe(true);
     expect(options.alwaysOnTop).toBe(false);
+    expect(options.acceptFirstMouse).toBe(true);
     expect(options.skipTaskbar).toBe(true);
     expect(options.title).toBe('悬浮翻译');
   });

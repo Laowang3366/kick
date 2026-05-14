@@ -37,6 +37,7 @@ export function createFloatingWindowOptions(input: { preloadPath: string }): Bro
     skipTaskbar: true,
     title: '悬浮翻译',
     backgroundColor: '#f8fbff',
+    acceptFirstMouse: true,
     webPreferences: {
       preload: input.preloadPath,
       contextIsolation: true,

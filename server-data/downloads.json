@@ -1,6 +1,16 @@
 {
-  "latestVersion": "0.1.95",
+  "latestVersion": "0.1.96",
   "releases": [
+    {
+      "version": "0.1.96",
+      "platform": "windows",
+      "fileName": "Quick-Translate-0.1.96.exe",
+      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.96.exe",
+      "size": 104466234,
+      "sha512": "N3Y/vtmZDyTNlmgcplJp+eVgU5woYmRwc9U4UMs106K/h2ZE1uprdJA6aH8r+KRBkT1MY89uqT4g/OBjTPqOdQ==",
+      "releaseDate": "2026-05-14T07:59:09.221Z",
+      "releaseNotes": "0.1.96：修复桌面端悬浮翻译快捷键定位偏移；快捷键触发后固定在鼠标位置附近打开，并保持悬浮卡片置于顶层；优化第二次选区复制重试。"
+    },
     {
       "version": "0.1.95",
       "platform": "windows",
@@ -19,16 +29,6 @@
       "size": 3292511,
       "sha512": "yH3p20u8Jnc9ZBVHjCgrGxJw4UkqCH6IdMl52KMOA/trgX2IQtVhBZHkI3lVgNrdFgIAakW01g6hOSxj23zkng==",
       "releaseDate": "2026-05-13T14:01:52.149Z",
-      "releaseNotes": "0.1.94：新增客户端通知入口和后台通知管理；请前往官网下载最新版本安装更新。"
-    },
-    {
-      "version": "0.1.94",
-      "platform": "windows",
-      "fileName": "Quick-Translate-0.1.94.exe",
-      "url": "https://sg.lwvpscc.top/quick-translate/updates/latest/Quick-Translate-0.1.94.exe",
-      "size": 104465389,
-      "sha512": "44v8ZDPqO3QsH2SlXbBZyyq77TdYkOY/7S84eIVDVX6qFfDPFcFk0nemEr42ymd+7+XNmidNTNu+g2R09r6W/w==",
-      "releaseDate": "2026-05-13T14:00:54.825Z",
       "releaseNotes": "0.1.94：新增客户端通知入口和后台通知管理；请前往官网下载最新版本安装更新。"
     },
     {

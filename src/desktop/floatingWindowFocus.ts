@@ -7,7 +7,7 @@ type FocusableFloatingWindow = {
   showInactive?: () => void;
 };
 
-export function bringFloatingWindowToFront(window: FocusableFloatingWindow) {
+export function bringFloatingWindowToFront(window: FocusableFloatingWindow, options: { keepTopMost?: boolean } = {}) {
   const wasAlwaysOnTop = window.isAlwaysOnTop();
 
   if (!wasAlwaysOnTop) {
@@ -18,7 +18,7 @@ export function bringFloatingWindowToFront(window: FocusableFloatingWindow) {
   window.moveTop?.();
   window.focus();
 
-  if (wasAlwaysOnTop) {
+  if (wasAlwaysOnTop || options.keepTopMost) {
     return;
   }
 
@@ -26,7 +26,7 @@ export function bringFloatingWindowToFront(window: FocusableFloatingWindow) {
   window.moveTop?.();
 }
 
-export function showFloatingWindowWithoutFocus(window: FocusableFloatingWindow) {
+export function showFloatingWindowWithoutFocus(window: FocusableFloatingWindow, options: { keepTopMost?: boolean } = {}) {
   const wasAlwaysOnTop = window.isAlwaysOnTop();
 
   if (!wasAlwaysOnTop) {
@@ -40,7 +40,7 @@ export function showFloatingWindowWithoutFocus(window: FocusableFloatingWindow) 
   }
   window.moveTop?.();
 
-  if (wasAlwaysOnTop) {
+  if (wasAlwaysOnTop || options.keepTopMost) {
     return;
   }
 

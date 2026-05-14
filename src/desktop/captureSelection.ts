@@ -5,7 +5,7 @@ export type TextClipboard = {
 
 export type CaptureSelectedTextInput = {
   clipboard: TextClipboard;
-  sendCopyShortcut(): Promise<void> | void;
+  sendCopyShortcut(attempt: number): Promise<void> | void;
   wait(ms: number): Promise<void>;
   recoveryStore?: ClipboardRecoveryStore;
   copyDelayMs?: number;
@@ -69,7 +69,7 @@ async function copyAndReadCapturedClipboardText(input: CaptureSelectedTextInput,
 
   for (let attempt = 0; attempt < copyAttempts; attempt += 1) {
     try {
-      await input.sendCopyShortcut();
+      await input.sendCopyShortcut(attempt);
       await input.onCopyShortcutSent?.();
     } catch (error) {
       lastError = error;

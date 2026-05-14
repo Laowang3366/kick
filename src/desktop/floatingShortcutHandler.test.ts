@@ -8,9 +8,9 @@ describe('floating shortcut handler', () => {
     await runFloatingTranslateShortcut({
       readSelectedText: async () => 'selected text',
       showFloatingTranslation
-    });
+    }, { cursorPoint: { x: 120, y: 220 } });
 
-    expect(showFloatingTranslation).toHaveBeenCalledWith('selected text');
+    expect(showFloatingTranslation).toHaveBeenCalledWith('selected text', undefined, { cursorPoint: { x: 120, y: 220 } });
   });
 
   it('opens the floating window with a failure state when selected text cannot be read', async () => {
@@ -23,10 +23,14 @@ describe('floating shortcut handler', () => {
       showFloatingTranslation
     });
 
-    expect(showFloatingTranslation).toHaveBeenCalledWith('', {
-      captureState: 'failed',
-      captureError: 'copy helper failed'
-    });
+    expect(showFloatingTranslation).toHaveBeenCalledWith(
+      '',
+      {
+        captureState: 'failed',
+        captureError: 'copy helper failed'
+      },
+      {}
+    );
   });
 
   it('opens the floating window with a failure state when the captured text is empty', async () => {
@@ -37,7 +41,7 @@ describe('floating shortcut handler', () => {
       showFloatingTranslation
     });
 
-    expect(showFloatingTranslation).toHaveBeenCalledWith('   ', { captureState: 'failed' });
+    expect(showFloatingTranslation).toHaveBeenCalledWith('   ', { captureState: 'failed' }, {});
   });
 
   it('serializes overlapping shortcut requests and keeps the latest pending trigger', async () => {
@@ -57,15 +61,15 @@ describe('floating shortcut handler', () => {
       showFloatingTranslation
     });
 
-    const firstRun = runShortcut();
-    const secondRun = runShortcut();
-    const thirdRun = runShortcut();
+    const firstRun = runShortcut({ cursorPoint: { x: 10, y: 20 } });
+    const secondRun = runShortcut({ cursorPoint: { x: 30, y: 40 } });
+    const thirdRun = runShortcut({ cursorPoint: { x: 50, y: 60 } });
     releaseRead?.();
 
     await Promise.all([firstRun, secondRun, thirdRun]);
 
     expect(readSelectedText).toHaveBeenCalledTimes(2);
-    expect(showFloatingTranslation).toHaveBeenNthCalledWith(1, 'first selection');
-    expect(showFloatingTranslation).toHaveBeenNthCalledWith(2, 'latest selection');
+    expect(showFloatingTranslation).toHaveBeenNthCalledWith(1, 'first selection', undefined, { cursorPoint: { x: 10, y: 20 } });
+    expect(showFloatingTranslation).toHaveBeenNthCalledWith(2, 'latest selection', undefined, { cursorPoint: { x: 50, y: 60 } });
   });
 });
